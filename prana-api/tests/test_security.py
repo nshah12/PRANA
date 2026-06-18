@@ -1,17 +1,38 @@
-"""Tests for workflows/security.py — TDD stubs."""
-import pytest
+"""Tests for workflows/security.py — security lifecycle workflows."""
+import inspect
+
+from workflows.security import (
+    PolicyLockWorkflow,
+    KMSKeyRotationWorkflow,
+    TOTPLockoutWorkflow,
+    RENEW_THRESHOLD,
+)
 
 
-@pytest.mark.xfail(reason="TDD stub — write real failing test first", strict=True)
 def test_policy_lock_workflow_is_signal_driven_interruptible_timer():
-    raise NotImplementedError
+    src = inspect.getsource(PolicyLockWorkflow)
+    # Must wait for 'unlock_early' signal or timer expiry
+    assert "unlock_early" in src, \
+        "PolicyLockWorkflow must listen for unlock_early signal"
+    assert "workflow.sleep" in src or "wait_condition" in src, \
+        "PolicyLockWorkflow must use durable timer (workflow.sleep or workflow.wait_condition)"
+    # Duration from config
+    assert "policy_lock_default_hours" in src, \
+        "Lock duration must come from config, not be hardcoded"
 
 
-@pytest.mark.xfail(reason="TDD stub — write real failing test first", strict=True)
 def test_kms_key_rotation_uses_continue_as_new():
-    raise NotImplementedError
+    src = inspect.getsource(KMSKeyRotationWorkflow.run)
+    assert "continue_as_new" in src, \
+        "KMSKeyRotationWorkflow must use continue_as_new to prevent history bloat"
+    assert RENEW_THRESHOLD > 0
+    assert "RENEW_THRESHOLD" in src, \
+        "Must check RENEW_THRESHOLD before calling continue_as_new"
 
 
-@pytest.mark.xfail(reason="TDD stub — write real failing test first", strict=True)
 def test_totp_lockout_duration_from_config():
-    raise NotImplementedError
+    src = inspect.getsource(TOTPLockoutWorkflow.run)
+    assert "totp_lockout_cooldown_minutes" in src, \
+        "TOTP lockout duration must be read from config, not hardcoded"
+    assert "execute_activity" in src, \
+        "TOTPLockoutWorkflow must delegate via execute_activity"

@@ -20,10 +20,11 @@ from typing import Optional
 from fastapi import APIRouter, Depends, HTTPException, Request, status
 from pydantic import BaseModel, Field
 
-from dependencies import Employee, DbConn
+from dependencies import require_employee, DbConn
 
 log = logging.getLogger(__name__)
 router = APIRouter()
+Employee = Depends(require_employee)
 
 
 # ── Erasure ───────────────────────────────────────────────────────────────────
