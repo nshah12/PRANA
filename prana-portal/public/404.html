@@ -1,0 +1,19 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>PRANA Portal</title>
+  <!-- GitHub Pages SPA redirect: encodes the path into ?/ for index.html to restore -->
+  <script>
+    var l = window.location;
+    l.replace(
+      l.protocol + '//' + l.hostname + (l.port ? ':' + l.port : '') +
+      l.pathname.split('/').slice(0, 1 + 1).join('/') +
+      '/?/' + l.pathname.slice(1).split('/').slice(1).join('/').replace(/&/g,'~and~') +
+      (l.search ? '&' + l.search.slice(1).replace(/&/g,'~and~') : '') +
+      l.hash
+    );
+  </script>
+</head>
+<body></body>
+</html>

@@ -4,6 +4,9 @@ import path from 'path'
 
 export default defineConfig({
   plugins: [react()],
+  // VITE_BASE_PATH is set by the GitHub Actions deploy workflow to /<repo-name>/
+  // Defaults to '/' for local dev.
+  base: process.env.VITE_BASE_PATH ?? '/',
   resolve: {
     alias: { '@': path.resolve(__dirname, './src') },
   },
@@ -11,7 +14,7 @@ export default defineConfig({
     port: 3000,
     proxy: {
       '/api': {
-        target: 'http://localhost:8000',
+        target: process.env.VITE_API_URL ?? 'http://localhost:8000',
         changeOrigin: true,
         rewrite: (p) => p.replace(/^\/api/, ''),
       },
