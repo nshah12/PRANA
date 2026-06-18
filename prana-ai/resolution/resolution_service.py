@@ -98,7 +98,7 @@ class ResolutionService:
             )
 
         # Unresolved
-        log.warning("identity resolution failed", extra={"tenant_id": str(tenant_id), "name": name})
+        log.warning("identity resolution failed", extra={"tenant_id": str(tenant_id), "employee_name": name})
         return ResolutionResult(None, ResolutionMethod.UNRESOLVED, 0.0, candidates or [])
 
     async def _match_pan_token(self, tenant_id: UUID, pan_token: str) -> UUID | None:

@@ -55,8 +55,8 @@ async def test_sensitive_fields_stripped_before_db_write(mock_db, mock_benchmark
 
     await stage.route(
         document_id="doc-001",
-        tenant_id="tenant-001",
-        employee_uuid="emp-uuid-001",
+        tenant_id="aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa",
+        employee_uuid="bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb",
         pan_token="pan_tok_abc123",
         doc_type="SALARY_SLIP",
         doc_period="2024-03",
@@ -102,8 +102,8 @@ async def test_safe_fields_retained_after_strip(mock_db, mock_benchmark):
 
     await stage.route(
         document_id="doc-002",
-        tenant_id="tenant-001",
-        employee_uuid="emp-uuid-001",
+        tenant_id="aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa",
+        employee_uuid="bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb",
         pan_token="pan_tok_abc123",
         doc_type="SALARY_SLIP",
         doc_period="2024-03",
@@ -137,8 +137,8 @@ async def test_benchmark_called_before_strip(mock_db, mock_benchmark):
 
     await stage.route(
         document_id="doc-003",
-        tenant_id="tenant-001",
-        employee_uuid="emp-uuid-001",
+        tenant_id="aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa",
+        employee_uuid="bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb",
         pan_token="pan_tok_abc123",
         doc_type="SALARY_SLIP",
         doc_period="2024-03",

@@ -39,9 +39,12 @@ def test_salary_slip_schema_accepts_valid():
     assert result.employee_name.value == "Rahul Sharma"
 
 
-def test_salary_slip_schema_requires_employee_name():
-    with pytest.raises(Exception):
-        SalarySlipExtraction(employer_name=_field("ACME"))
+def test_salary_slip_schema_accepts_partial_fields():
+    # All fields are optional (confidence may be low for any field) — schema must
+    # accept partial responses and record low confidence, not hard-fail on missing fields.
+    result = SalarySlipExtraction(employer_name=_field("ACME"))
+    assert result.employer_name.value == "ACME"
+    assert result.employee_name.value is None  # absent field defaults to FieldValue(value=None)
 
 
 # ── Form16Extraction ──────────────────────────────────────────────────────────

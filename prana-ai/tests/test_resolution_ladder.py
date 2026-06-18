@@ -92,7 +92,7 @@ async def test_level2_emp_id_match(mock_db, mock_embedding, mock_fuzzy, mock_qdr
     )
 
     assert result.method == ResolutionMethod.EMP_ID
-    assert result.employee_uuid == _EMP_UUID
+    assert str(result.employee_uuid) == str(_EMP_UUID)
     mock_fuzzy.match.assert_not_called()
 
 
@@ -100,10 +100,8 @@ async def test_level2_emp_id_match(mock_db, mock_embedding, mock_fuzzy, mock_qdr
 async def test_level3_fuzzy_name_match(mock_db, mock_embedding, mock_fuzzy, mock_qdrant):
     """Level 3: fuzzy name+DOJ match when pan_token and emp_id both miss."""
     mock_db.fetchrow = AsyncMock(return_value=None)  # Levels 1 & 2 miss
-    mock_fuzzy.match = AsyncMock(return_value={
-        "employee_uuid": str(_EMP_UUID),
-        "score": 0.91,
-    })
+    # FuzzyService.match returns (employee_uuid | None, float) tuple
+    mock_fuzzy.match = AsyncMock(return_value=(_EMP_UUID, 91.0))
     svc = _make_svc(mock_db, mock_embedding, mock_fuzzy, mock_qdrant)
 
     result = await svc.resolve(
@@ -124,7 +122,7 @@ async def test_level3_fuzzy_name_match(mock_db, mock_embedding, mock_fuzzy, mock
 async def test_level4_embedding_match(mock_db, mock_embedding, mock_fuzzy, mock_qdrant):
     """Level 4: embedding cosine similarity when levels 1–3 all miss."""
     mock_db.fetchrow = AsyncMock(return_value=None)
-    mock_fuzzy.match = AsyncMock(return_value=None)
+    mock_fuzzy.match = AsyncMock(return_value=(None, 0.0))  # FuzzyService returns (UUID|None, float)
     mock_embedding.embed = AsyncMock(return_value=[0.1] * 1024)
     mock_qdrant.search = AsyncMock(return_value=[{
         "payload": {"employee_uuid": str(_EMP_UUID)},
@@ -148,7 +146,7 @@ async def test_level4_embedding_match(mock_db, mock_embedding, mock_fuzzy, mock_
 async def test_all_levels_miss_returns_unresolved(mock_db, mock_embedding, mock_fuzzy, mock_qdrant):
     """UNRESOLVED when all 4 levels fail."""
     mock_db.fetchrow = AsyncMock(return_value=None)
-    mock_fuzzy.match = AsyncMock(return_value=None)
+    mock_fuzzy.match = AsyncMock(return_value=(None, 0.0))  # FuzzyService returns (UUID|None, float)
     mock_embedding.embed = AsyncMock(return_value=[0.1] * 1024)
     mock_qdrant.search = AsyncMock(return_value=[])  # no embeddings either
     svc = _make_svc(mock_db, mock_embedding, mock_fuzzy, mock_qdrant)

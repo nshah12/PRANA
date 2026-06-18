@@ -12,6 +12,10 @@ class FieldValue(BaseModel):
         return max(0.0, min(1.0, v))
 
 
+# Alias — some tests import ExtractedField from this module
+ExtractedField = FieldValue
+
+
 class BaseExtraction(BaseModel):
     overall_confidence: float = 0.0
 
