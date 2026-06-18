@@ -1,0 +1,61 @@
+{
+  "rules": {
+    "always": [
+      "rules/security.md",
+      "rules/tdd.md"
+    ],
+    "prana-api/**": [
+      "rules/api.md",
+      "rules/api-versioning.md",
+      "rules/database.md",
+      "rules/kafka-redis.md",
+      "rules/integrations.md",
+      "rules/document-sharing.md"
+    ],
+    "prana-api/workflows/**": [
+      "rules/temporal-workflows.md"
+    ],
+    "prana-api/routers/compliance.py": [
+      "rules/compliance-dpdp.md"
+    ],
+    "prana-api/routers/dpdp.py": [
+      "rules/compliance-dpdp.md"
+    ],
+    "prana-api/routers/vault.py": [
+      "rules/document-sharing.md"
+    ],
+    "prana-api/routers/share_access.py": [
+      "rules/document-sharing.md"
+    ],
+    "prana-portal/**": [
+      "rules/frontend.md"
+    ],
+    "prana-mobile/**": [
+      "rules/frontend.md",
+      "rules/mobile.md"
+    ],
+    "prana-db/**": [
+      "rules/database.md"
+    ],
+    "prana-ai/**": [
+      "rules/deployment.md"
+    ],
+    "prana-ask/**": [
+      "rules/deployment.md",
+      "rules/prana-ask.md"
+    ]
+  },
+  "hooks": {
+    "PostToolUse": [
+      {
+        "matcher": "Edit|Write",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "powershell -NonInteractive -Command \"$f = '${file}'; $roots = @('prana-api','prana-portal','prana-mobile','prana-ai','prana-ask'); $relevant = $roots | Where-Object { $f -like \"*$_*\" }; if ($relevant) { Write-Host ''; Write-Host '[AUTO-ENFORCE] Running rule checks on edited file...' -ForegroundColor Cyan; $result = python 'C:/Nilesh/claude-code/prana-api/scripts/enforce_rules.py' 2>&1; if ($LASTEXITCODE -ne 0) { Write-Host '[AUTO-ENFORCE] VIOLATIONS FOUND — fix before proceeding:' -ForegroundColor Red; $result | Write-Host } else { Write-Host '[AUTO-ENFORCE] All rules passed.' -ForegroundColor Green } }\""
+          }
+        ]
+      }
+    ]
+  }
+}

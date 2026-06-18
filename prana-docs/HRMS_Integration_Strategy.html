@@ -1,0 +1,621 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>PRANA — HRMS Integration Strategy</title>
+<style>
+  :root {
+    --brand: #1a56db;
+    --brand-light: #e8f0fe;
+    --green: #0d7a4e;
+    --green-light: #d1fae5;
+    --orange: #c2410c;
+    --orange-light: #fff7ed;
+    --purple: #6d28d9;
+    --purple-light: #ede9fe;
+    --gray-50: #f9fafb;
+    --gray-100: #f3f4f6;
+    --gray-200: #e5e7eb;
+    --gray-600: #4b5563;
+    --gray-700: #374151;
+    --gray-900: #111827;
+    --radius: 8px;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    color: var(--gray-900);
+    background: #fff;
+    line-height: 1.6;
+  }
+  header {
+    background: linear-gradient(135deg, var(--brand) 0%, #1e3a8a 100%);
+    color: white;
+    padding: 48px 40px 36px;
+  }
+  header .eyebrow {
+    font-size: 12px;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    opacity: 0.75;
+    margin-bottom: 8px;
+  }
+  header h1 { font-size: 32px; font-weight: 700; margin-bottom: 8px; }
+  header .subtitle { font-size: 15px; opacity: 0.85; max-width: 680px; }
+  header .meta { margin-top: 20px; font-size: 12px; opacity: 0.65; }
+
+  main { max-width: 1100px; margin: 0 auto; padding: 40px 40px 80px; }
+
+  .section-header {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin: 48px 0 20px;
+  }
+  .mode-badge {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 36px; height: 36px;
+    border-radius: 50%;
+    font-weight: 700;
+    font-size: 16px;
+    flex-shrink: 0;
+  }
+  .badge-1 { background: var(--brand-light); color: var(--brand); }
+  .badge-2 { background: var(--green-light); color: var(--green); }
+  .badge-3 { background: var(--purple-light); color: var(--purple); }
+
+  .section-header h2 { font-size: 22px; font-weight: 700; }
+  .section-header .desc { font-size: 14px; color: var(--gray-600); margin-top: 2px; }
+
+  .card {
+    background: var(--gray-50);
+    border: 1px solid var(--gray-200);
+    border-radius: var(--radius);
+    padding: 24px;
+    margin-bottom: 16px;
+  }
+  .card h3 { font-size: 15px; font-weight: 600; margin-bottom: 12px; color: var(--gray-700); }
+
+  .submode-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 16px;
+    margin-bottom: 24px;
+  }
+  .submode-card {
+    border: 1px solid var(--gray-200);
+    border-radius: var(--radius);
+    padding: 20px;
+    background: white;
+  }
+  .submode-card .tag {
+    display: inline-block;
+    background: var(--brand-light);
+    color: var(--brand);
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: 0.05em;
+    padding: 2px 8px;
+    border-radius: 4px;
+    margin-bottom: 8px;
+    text-transform: uppercase;
+  }
+  .submode-card .tag.green { background: var(--green-light); color: var(--green); }
+  .submode-card .tag.orange { background: var(--orange-light); color: var(--orange); }
+  .submode-card h4 { font-size: 14px; font-weight: 600; margin-bottom: 6px; }
+  .submode-card p { font-size: 13px; color: var(--gray-600); }
+
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 13px;
+  }
+  thead tr { background: var(--gray-100); }
+  th {
+    text-align: left;
+    padding: 10px 14px;
+    font-size: 11px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: var(--gray-600);
+    border-bottom: 2px solid var(--gray-200);
+  }
+  td {
+    padding: 10px 14px;
+    border-bottom: 1px solid var(--gray-200);
+    vertical-align: top;
+  }
+  tr:last-child td { border-bottom: none; }
+  tr:hover td { background: var(--gray-50); }
+
+  .pill {
+    display: inline-block;
+    padding: 2px 8px;
+    border-radius: 100px;
+    font-size: 11px;
+    font-weight: 600;
+  }
+  .pill-blue  { background: var(--brand-light); color: var(--brand); }
+  .pill-green { background: var(--green-light); color: var(--green); }
+  .pill-red   { background: #fee2e2; color: #b91c1c; }
+  .pill-gray  { background: var(--gray-100); color: var(--gray-600); }
+
+  .flow-box {
+    background: #1e293b;
+    color: #e2e8f0;
+    font-family: 'SF Mono', 'Fira Code', monospace;
+    font-size: 13px;
+    padding: 20px 24px;
+    border-radius: var(--radius);
+    margin: 16px 0;
+    line-height: 1.8;
+  }
+  .flow-box .arrow { color: #60a5fa; }
+  .flow-box .key { color: #a78bfa; }
+  .flow-box .val { color: #34d399; }
+  .flow-box .comment { color: #6b7280; }
+
+  .effort-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 10px 0;
+    border-bottom: 1px solid var(--gray-200);
+    font-size: 13px;
+  }
+  .effort-row:last-child { border-bottom: none; }
+  .effort-bar-wrap { flex: 1; margin: 0 16px; }
+  .effort-bar {
+    height: 6px;
+    border-radius: 3px;
+    background: var(--brand);
+  }
+  .effort-label { min-width: 70px; text-align: right; font-weight: 600; color: var(--gray-700); }
+
+  .privacy-box {
+    background: #fef2f2;
+    border: 1px solid #fecaca;
+    border-left: 4px solid #dc2626;
+    border-radius: var(--radius);
+    padding: 16px 20px;
+    margin: 16px 0;
+  }
+  .privacy-box strong { color: #991b1b; }
+
+  .location-grid {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 12px;
+    margin: 16px 0;
+  }
+  .location-chip {
+    border: 1px solid var(--gray-200);
+    border-radius: var(--radius);
+    padding: 14px;
+    text-align: center;
+    background: white;
+    font-size: 13px;
+    font-weight: 500;
+  }
+  .location-chip .icon { font-size: 24px; margin-bottom: 4px; }
+
+  .template-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 12px;
+    margin: 16px 0;
+  }
+  .template-chip {
+    border: 1px solid var(--gray-200);
+    border-radius: var(--radius);
+    padding: 14px 16px;
+    background: white;
+    font-size: 13px;
+  }
+  .template-chip .doc-type { font-weight: 600; margin-bottom: 2px; }
+  .template-chip .doc-note { font-size: 11px; color: var(--gray-600); }
+
+  .summary-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 20px;
+    margin: 32px 0;
+  }
+  .summary-card {
+    border: 1px solid var(--gray-200);
+    border-radius: var(--radius);
+    padding: 20px;
+    text-align: center;
+  }
+  .summary-card .mode-label { font-size: 11px; text-transform: uppercase; letter-spacing: 0.08em; color: var(--gray-600); margin-bottom: 6px; }
+  .summary-card .effort-num { font-size: 28px; font-weight: 700; }
+  .summary-card .effort-unit { font-size: 13px; color: var(--gray-600); }
+  .summary-card .complexity { font-size: 12px; margin-top: 8px; }
+
+  .outreach-box {
+    background: var(--brand-light);
+    border: 1px solid #bfdbfe;
+    border-radius: var(--radius);
+    padding: 20px 24px;
+    margin: 24px 0;
+  }
+  .outreach-box h3 { color: var(--brand); font-size: 15px; margin-bottom: 8px; }
+  .outreach-box p { font-size: 13px; color: #1e40af; }
+
+  footer {
+    margin-top: 60px;
+    padding: 24px 40px;
+    background: var(--gray-50);
+    border-top: 1px solid var(--gray-200);
+    font-size: 12px;
+    color: var(--gray-600);
+    text-align: center;
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="eyebrow">Architecture Reference — Confidential</div>
+  <h1>PRANA — HRMS Integration Strategy</h1>
+  <div class="subtitle">Three integration modes for getting employer documents into the PRANA career vault. All modes feed the same Kafka ingest pipeline from <code>DOC_INGESTED</code> onward.</div>
+  <div class="meta">Version 1.0 &nbsp;·&nbsp; June 2026 &nbsp;·&nbsp; prana-docs/HRMS_Integration_Strategy.html</div>
+</header>
+
+<main>
+
+  <!-- Overview summary -->
+  <div class="summary-grid">
+    <div class="summary-card">
+      <div class="mode-label">Mode 1</div>
+      <div class="effort-num" style="color: var(--brand);">3–15</div>
+      <div class="effort-unit">days per connector</div>
+      <div class="complexity"><span class="pill pill-blue">Direct HRMS API</span></div>
+    </div>
+    <div class="summary-card">
+      <div class="mode-label">Mode 2</div>
+      <div class="effort-num" style="color: var(--green);">3–7</div>
+      <div class="effort-unit">days per location type</div>
+      <div class="complexity"><span class="pill pill-green">Shared Location Pickup</span></div>
+    </div>
+    <div class="summary-card">
+      <div class="mode-label">Mode 3</div>
+      <div class="effort-num" style="color: var(--purple);">17–22</div>
+      <div class="effort-unit">days total</div>
+      <div class="complexity"><span class="pill" style="background:var(--purple-light);color:var(--purple)">Template Wizard</span></div>
+    </div>
+  </div>
+
+  <p style="font-size:14px;color:var(--gray-600);margin-bottom:8px;">
+    <strong>Why three modes?</strong> Indian enterprises vary widely in HRMS maturity. Large BFSI and MNCs run SAP/Workday with full APIs. Mid-market uses Darwinbox/Keka. SMEs use greytHR/Spine or nothing. The three modes ensure PRANA is accessible at every tier without changing the core pipeline.
+  </p>
+
+  <!-- ─── MODE 1 ─── -->
+  <div class="section-header">
+    <div class="mode-badge badge-1">1</div>
+    <div>
+      <h2>Direct HRMS Integration</h2>
+      <div class="desc">PRANA connects directly to the employer's HRMS via its REST API or webhook.</div>
+    </div>
+  </div>
+
+  <div class="submode-grid">
+    <div class="submode-card">
+      <div class="tag">Pull (Primary)</div>
+      <h4>Scheduled Pull</h4>
+      <p><code>HRMSPullWorkflow</code> (Temporal) runs per-tenant on schedule. Delta pull via <code>last_pulled_at</code> cursor. Authenticate → list employees → list new docs → download → ingest.</p>
+    </div>
+    <div class="submode-card">
+      <div class="tag green">Push</div>
+      <h4>HRMS-Initiated Push</h4>
+      <p>HRMS posts document payload to <code>POST /v1/ingest/hrms</code>. HMAC-SHA256 signed. Immediate 202 response. Pipeline runs async via Kafka.</p>
+    </div>
+    <div class="submode-card">
+      <div class="tag orange">Webhook</div>
+      <h4>Event Webhook</h4>
+      <p>HRMS fires event on new document. PRANA receives at <code>POST /v1/hrms/webhook/{connector_type}</code> → targeted pull of that one document. Real-time, no polling.</p>
+    </div>
+  </div>
+
+  <div class="card">
+    <h3>HTTP Handler Contract (NEVER violate)</h3>
+    <div class="flow-box">
+      <span class="key">validate</span> HMAC signature
+      <span class="arrow"> → </span><span class="key">S3</span>.put(document_bytes)
+      <span class="arrow"> → </span><span class="key">INSERT</span> document row
+      <span class="arrow"> → </span><span class="key">kafka</span>.publish(<span class="val">"prana.ingest.events"</span>, DOC_INGESTED)
+      <span class="arrow"> → </span><span class="val">202</span> Accepted
+      <br>
+      <span class="comment">// NO audit writes · NO workflow starts · NO notification dispatch</span>
+    </div>
+  </div>
+
+  <div class="card">
+    <h3>Connector Abstraction Layer</h3>
+    <div class="flow-box">
+<span class="key">class</span> HRMSConnector(Protocol):
+    <span class="key">async def</span> authenticate(credentials: dict) <span class="arrow">→</span> <span class="val">str</span>           <span class="comment"># bearer token</span>
+    <span class="key">async def</span> list_employees(since: datetime) <span class="arrow">→</span> <span class="val">list[dict]</span>       <span class="comment"># delta</span>
+    <span class="key">async def</span> list_documents(emp_id, since) <span class="arrow">→</span> <span class="val">list[dict]</span>
+    <span class="key">async def</span> download_document(doc_url, token) <span class="arrow">→</span> <span class="val">bytes</span>
+    </div>
+  </div>
+
+  <div class="card">
+    <h3>Top 10 HRMS Systems — India (BFSI · Manufacturing · Fintech)</h3>
+    <table>
+      <thead>
+        <tr>
+          <th>HRMS</th>
+          <th>Auth</th>
+          <th>Pull API</th>
+          <th>Push</th>
+          <th>Webhook</th>
+          <th>Effort (days)</th>
+          <th>Key Segments</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td><strong>Darwinbox</strong></td>
+          <td>OAuth 2.0 / API key</td>
+          <td><span class="pill pill-green">REST API</span></td>
+          <td><span class="pill pill-green">Yes</span></td>
+          <td><span class="pill pill-green">Yes</span></td>
+          <td><strong>3–5</strong></td>
+          <td>Fintech, New-age startups</td>
+        </tr>
+        <tr>
+          <td><strong>Keka HR</strong></td>
+          <td>OAuth 2.0</td>
+          <td><span class="pill pill-green">REST API</span></td>
+          <td><span class="pill pill-green">Yes</span></td>
+          <td><span class="pill pill-green">Yes</span></td>
+          <td><strong>3–5</strong></td>
+          <td>IT Services, Mid-market Mfg</td>
+        </tr>
+        <tr>
+          <td><strong>SAP SuccessFactors</strong></td>
+          <td>OAuth 2.0 SAML</td>
+          <td><span class="pill pill-green">OData / REST</span></td>
+          <td><span class="pill pill-green">SFTP + API</span></td>
+          <td><span class="pill pill-green">Yes</span></td>
+          <td><strong>7–10</strong></td>
+          <td>PSU Banks, Large Conglomerates</td>
+        </tr>
+        <tr>
+          <td><strong>Workday</strong></td>
+          <td>OAuth 2.0</td>
+          <td><span class="pill pill-green">REST / RAAS</span></td>
+          <td><span class="pill pill-green">Yes</span></td>
+          <td><span class="pill pill-green">Yes</span></td>
+          <td><strong>5–8</strong></td>
+          <td>MNC GCCs, Global Banks</td>
+        </tr>
+        <tr>
+          <td><strong>Zoho People</strong></td>
+          <td>OAuth 2.0</td>
+          <td><span class="pill pill-green">REST API</span></td>
+          <td><span class="pill pill-green">Yes</span></td>
+          <td><span class="pill pill-green">Yes</span></td>
+          <td><strong>3–5</strong></td>
+          <td>Wealth-tech, Small Fintech</td>
+        </tr>
+        <tr>
+          <td><strong>GreytHR</strong></td>
+          <td>API key</td>
+          <td><span class="pill pill-green">REST API</span></td>
+          <td><span class="pill pill-gray">Limited</span></td>
+          <td><span class="pill pill-red">No</span></td>
+          <td><strong>4–6</strong></td>
+          <td>Small Mfg, NBFCs, Microfinance</td>
+        </tr>
+        <tr>
+          <td><strong>PeopleStrong</strong></td>
+          <td>OAuth 2.0</td>
+          <td><span class="pill pill-green">REST API</span></td>
+          <td><span class="pill pill-green">Yes</span></td>
+          <td><span class="pill pill-green">Yes</span></td>
+          <td><strong>4–6</strong></td>
+          <td>Insurance, Auto OEMs</td>
+        </tr>
+        <tr>
+          <td><strong>Oracle HCM Cloud</strong></td>
+          <td>OAuth 2.0</td>
+          <td><span class="pill pill-green">REST / BI Publisher</span></td>
+          <td><span class="pill pill-green">Yes</span></td>
+          <td><span class="pill pill-green">Yes</span></td>
+          <td><strong>7–10</strong></td>
+          <td>PSU Banks, Cement, Steel</td>
+        </tr>
+        <tr>
+          <td><strong>Spine HR / HRMantra</strong></td>
+          <td>API key / Basic</td>
+          <td><span class="pill pill-gray">REST (limited)</span></td>
+          <td><span class="pill pill-gray">Limited</span></td>
+          <td><span class="pill pill-red">No</span></td>
+          <td><strong>10–15</strong></td>
+          <td>Urban Co-op Banks, RRBs</td>
+        </tr>
+        <tr>
+          <td><strong>Beehive HRMS</strong></td>
+          <td>API key</td>
+          <td><span class="pill pill-gray">REST (limited)</span></td>
+          <td><span class="pill pill-gray">Limited</span></td>
+          <td><span class="pill pill-red">No</span></td>
+          <td><strong>10–15</strong></td>
+          <td>MFIs, Small Finance Banks</td>
+        </tr>
+      </tbody>
+    </table>
+    <p style="font-size:12px;color:var(--gray-600);margin-top:12px;">* Spine HR / Beehive may require flat-file extraction via shared SFTP if API coverage is insufficient — see Mode 2.</p>
+  </div>
+
+  <!-- ─── MODE 2 ─── -->
+  <div class="section-header">
+    <div class="mode-badge badge-2">2</div>
+    <div>
+      <h2>Shared Location Pickup</h2>
+      <div class="desc">HRMS or payroll system drops files to a shared location. PRANA monitors, picks up, maps, and ingests automatically.</div>
+    </div>
+  </div>
+
+  <p style="font-size:14px;color:var(--gray-600);margin-bottom:16px;">
+    Ideal for HRMS systems with weak APIs (Spine, Beehive), on-prem payroll systems (Tally, custom Java apps), or enterprise IT policies that prohibit direct API access from SaaS vendors.
+  </p>
+
+  <div class="location-grid">
+    <div class="location-chip"><div class="icon">🪣</div>AWS S3</div>
+    <div class="location-chip"><div class="icon">🔐</div>SFTP</div>
+    <div class="location-chip"><div class="icon">☁️</div>SharePoint Online</div>
+    <div class="location-chip"><div class="icon">🗂️</div>Google Drive</div>
+    <div class="location-chip"><div class="icon">🔷</div>Azure Blob Storage</div>
+    <div class="location-chip"><div class="icon">📦</div>Box</div>
+    <div class="location-chip"><div class="icon">🖥️</div>NFS / SMB</div>
+    <div class="location-chip"><div class="icon">📁</div>FTP (legacy)</div>
+  </div>
+
+  <div class="card">
+    <h3>Two Mapping Strategies</h3>
+    <div class="submode-grid">
+      <div class="submode-card" style="grid-column: span 1;">
+        <div class="tag green">Strategy A — Preferred</div>
+        <h4>Metadata Manifest</h4>
+        <p>HRMS drops a JSON or CSV manifest alongside document files. Manifest contains explicit <code>employee_id</code>, <code>doc_type</code>, <code>doc_period</code>. Deterministic mapping — no AI needed. Fast and reliable.</p>
+      </div>
+      <div class="submode-card" style="grid-column: span 1;">
+        <div class="tag orange">Strategy B — Fallback</div>
+        <h4>AI Mapping</h4>
+        <p>No manifest present. <code>FileMappingWorkflow</code> invokes Stage 03 LLM (Qwen) to extract doc type and employee identity signals from the document. Stage 04 resolution matches to <code>employee_master</code>. Slower but fully automated.</p>
+      </div>
+    </div>
+  </div>
+
+  <div class="card">
+    <h3>SharedLocationMonitorWorkflow (Temporal)</h3>
+    <div class="flow-box">
+      <span class="comment">// S3 — preferred: near real-time via S3 Event Notifications</span><br>
+      S3 Event Notification <span class="arrow">→</span> SNS <span class="arrow">→</span> <span class="val">SQS trigger</span> <span class="arrow">→</span> SharedLocationMonitorWorkflow<br>
+      <br>
+      <span class="comment">// SFTP / GDrive / SharePoint / Azure Blob — scheduled poll</span><br>
+      Temporal timer (configurable per tenant) <span class="arrow">→</span> list new files <span class="arrow">→</span> download <span class="arrow">→</span> manifest check<br>
+      <span class="arrow">→</span> <span class="key">if manifest</span>: deterministic map <span class="arrow">→</span> ingest<br>
+      <span class="arrow">→</span> <span class="key">else</span>: FileMappingWorkflow (AI) <span class="arrow">→</span> ingest<br>
+      <br>
+      <span class="comment">// Both paths produce identical DOC_INGESTED event → same pipeline</span>
+    </div>
+  </div>
+
+  <div class="card">
+    <h3>Effort by Location Type</h3>
+    <div class="effort-row"><span>S3 Bucket Monitor (S3 Events + SQS)</span><div class="effort-bar-wrap"><div class="effort-bar" style="width:30%;background:var(--green)"></div></div><span class="effort-label">3–4 days</span></div>
+    <div class="effort-row"><span>SFTP Monitor (paramiko + key auth + retry)</span><div class="effort-bar-wrap"><div class="effort-bar" style="width:40%;background:var(--green)"></div></div><span class="effort-label">4–5 days</span></div>
+    <div class="effort-row"><span>SharePoint Online (MS Graph OAuth)</span><div class="effort-bar-wrap"><div class="effort-bar" style="width:60%;background:var(--orange)"></div></div><span class="effort-label">5–7 days</span></div>
+    <div class="effort-row"><span>Google Drive (service account)</span><div class="effort-bar-wrap"><div class="effort-bar" style="width:60%;background:var(--orange)"></div></div><span class="effort-label">5–7 days</span></div>
+    <div class="effort-row"><span>Azure Blob Storage (Azure SDK)</span><div class="effort-bar-wrap"><div class="effort-bar" style="width:60%;background:var(--orange)"></div></div><span class="effort-label">5–7 days</span></div>
+    <div class="effort-row"><span>AI Fallback Mapping (reuses Stage 03/04)</span><div class="effort-bar-wrap"><div class="effort-bar" style="width:65%;background:var(--purple)"></div></div><span class="effort-label">5–7 days</span></div>
+  </div>
+
+  <!-- ─── MODE 3 ─── -->
+  <div class="section-header">
+    <div class="mode-badge badge-3">3</div>
+    <div>
+      <h2>Template Wizard — PRANA as Document Source</h2>
+      <div class="desc">Employer builds document templates in the PRANA Portal. PRANA generates the PDFs. No HRMS required.</div>
+    </div>
+  </div>
+
+  <p style="font-size:14px;color:var(--gray-600);margin-bottom:16px;">
+    Targets SMEs and startups that have no HRMS, or employers who want standardized document formats. PRANA becomes the system of record for generated documents.
+  </p>
+
+  <div class="template-grid">
+    <div class="template-chip"><div class="doc-type">Salary Slip</div><div class="doc-note">Monthly · Jinja2 earnings table</div></div>
+    <div class="template-chip"><div class="doc-type">Offer Letter</div><div class="doc-note">CTC breakup · Grade · Date</div></div>
+    <div class="template-chip"><div class="doc-type">Joining Letter</div><div class="doc-note">Designation · Reporting manager</div></div>
+    <div class="template-chip"><div class="doc-type">Promotion Letter</div><div class="doc-note">Old → new grade / designation</div></div>
+    <div class="template-chip"><div class="doc-type">Experience Letter</div><div class="doc-note">Tenure · Last designation</div></div>
+    <div class="template-chip"><div class="doc-type">Appraisal Letter</div><div class="doc-note">Rating · Increment %</div></div>
+  </div>
+
+  <div class="privacy-box">
+    <strong>🔒 Privacy Contract — STRICTLY enforced in Template Wizard</strong><br>
+    Payroll data (salary amounts, PAN) lives only in memory during PDF generation. After the PDF is streamed to S3, all raw figures are zeroed in memory. <code>is_self_upload = TRUE</code> flags Portal-generated docs. Stage 03–05 AI pipeline runs identically — extracts insights, never stores raw figures. Violation = privacy breach.
+  </div>
+
+  <div class="card">
+    <h3>Generation Flow</h3>
+    <div class="flow-box">
+      OA-Admin selects template <span class="arrow">→</span> uploads payroll CSV (in-memory only)<br>
+      <span class="arrow">→</span> Jinja2 renders HTML per employee<br>
+      <span class="arrow">→</span> WeasyPrint converts HTML <span class="arrow">→</span> PDF bytes (in-memory)<br>
+      <span class="arrow">→</span> raw salary amounts zeroed in object<br>
+      <span class="arrow">→</span> PDF streamed to S3 (never disk)<br>
+      <span class="arrow">→</span> INSERT document row (<span class="val">is_self_upload=TRUE</span>)<br>
+      <span class="arrow">→</span> kafka.publish(<span class="val">DOC_INGESTED</span>) <span class="arrow">→</span> <span class="val">202</span><br>
+      <span class="comment">// Standard AI pipeline (Stage 01–06) runs from here — unchanged</span>
+    </div>
+  </div>
+
+  <div class="card">
+    <h3>Portal Screens Required</h3>
+    <table>
+      <thead><tr><th>Screen</th><th>Route</th><th>Role</th><th>Notes</th></tr></thead>
+      <tbody>
+        <tr><td>Template Library</td><td><code>/org/templates</code></td><td>OA-Admin</td><td>List, create, clone, archive templates</td></tr>
+        <tr><td>Template Builder</td><td><code>/org/templates/:id/edit</code></td><td>OA-Admin</td><td>Jinja2 variable fields + live HTML preview</td></tr>
+        <tr><td>Generate Documents</td><td><code>/org/templates/:id/generate</code></td><td>OA-Admin</td><td>Upload CSV or enter via form; batch preview</td></tr>
+        <tr><td>Generation Status</td><td><code>/org/generate/status/:batchId</code></td><td>OA-Admin</td><td>SSE progress per document in batch</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <div class="card">
+    <h3>Effort Breakdown</h3>
+    <div class="effort-row"><span>Template Builder UI (Portal — React)</span><div class="effort-bar-wrap"><div class="effort-bar" style="width:55%;background:var(--purple)"></div></div><span class="effort-label">8–10 days</span></div>
+    <div class="effort-row"><span>WeasyPrint PDF Generation Service</span><div class="effort-bar-wrap"><div class="effort-bar" style="width:35%;background:var(--purple)"></div></div><span class="effort-label">4–5 days</span></div>
+    <div class="effort-row"><span>Batch Generation + SSE Progress</span><div class="effort-bar-wrap"><div class="effort-bar" style="width:25%;background:var(--purple)"></div></div><span class="effort-label">3–4 days</span></div>
+    <div class="effort-row"><span>Privacy Review + TDD Test Coverage</span><div class="effort-bar-wrap"><div class="effort-bar" style="width:20%;background:var(--purple)"></div></div><span class="effort-label">2–3 days</span></div>
+    <div class="effort-row" style="font-weight:600;"><span>Total</span><div class="effort-bar-wrap"><div class="effort-bar" style="width:100%;background:var(--purple)"></div></div><span class="effort-label">17–22 days</span></div>
+  </div>
+
+  <!-- ─── OUTREACH ─── -->
+  <div class="outreach-box">
+    <h3>🎯 Outreach Company Database</h3>
+    <p>
+      <strong>350+ Indian companies</strong> mapped to their HRMS system, stored at
+      <code>prana-docs/outreach/hrms_company_names_india.csv</code>.
+      Columns: HRMS System · Company Name · Sector · Sub-sector · HQ City · Listed · Notes.
+      Use for targeted email campaigns — approach Darwinbox customers with connector-ready messaging,
+      Spine/Beehive customers with shared-location or Template Wizard pitch.
+      Filter on <code>Listed=Yes</code> for enterprise-grade outreach, <code>Sector=Fintech</code>
+      for regulatory-compliance angle.
+    </p>
+  </div>
+
+  <!-- ─── ARCHITECTURE PRINCIPLE ─── -->
+  <div class="card" style="margin-top:32px;">
+    <h3>Shared Architecture Principle — All Three Modes</h3>
+    <div class="flow-box">
+      <span class="comment">// Modes 1, 2, and 3 all converge at the same point:</span><br><br>
+      Mode 1 (Direct API pull/push/webhook)<br>
+      Mode 2 (Shared location pickup)       <span class="arrow">  ──────► </span> kafka.publish(<span class="val">DOC_INGESTED</span>, prana.ingest.events)<br>
+      Mode 3 (Template Wizard)              <span class="arrow">          ──────► </span> WorkflowConsumer <span class="arrow">→</span> DocumentPipelineWorkflow<br>
+      <br>
+      <span class="comment">// Stages 01–06 (AI pipeline) are identical regardless of origin</span>
+    </div>
+  </div>
+
+</main>
+
+<footer>
+  PRANA Platform &nbsp;·&nbsp; Internal Architecture Reference &nbsp;·&nbsp; v1.0 June 2026
+  &nbsp;·&nbsp; Do not distribute outside the organization
+</footer>
+
+</body>
+</html>

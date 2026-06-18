@@ -1,0 +1,471 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>PRANA — How It Works</title>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700;800&family=Inter:wght@400;500;600;700;800&family=DM+Mono:wght@500&display=swap" rel="stylesheet">
+<style>
+:root {
+  --indigo: #6366F1;
+  --cyan: #22D3EE;
+  --emerald: #34D399;
+  --amber: #FBBF24;
+  --rose: #FB7185;
+  --grad-journey: linear-gradient(135deg, #6366F1 0%, #22D3EE 55%, #34D399 100%);
+  --ink: #0F172A;
+  --ink2: #475569;
+  --ink3: #94A3B8;
+  --surface: #FAFAF8;
+  --surface2: #FFFFFF;
+  --surface3: #F0EFEA;
+  --navy: #131B33;
+  --navy2: #1C2747;
+  --display: 'Space Grotesk', sans-serif;
+  --body: 'Inter', sans-serif;
+  --mono: 'DM Mono', monospace;
+}
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body {
+  font-family: var(--body);
+  background: var(--surface);
+  color: var(--ink);
+  display: flex; justify-content: center;
+  padding: 0;
+}
+.page {
+  width: 720px;
+  background: var(--surface2);
+  overflow: hidden;
+}
+
+/* ── Header ── */
+.header {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 28px 36px 20px;
+}
+.logo { display: flex; align-items: center; gap: 10px; }
+.logo-mark {
+  width: 38px; height: 38px; border-radius: 11px; background: var(--grad-journey);
+  display: flex; align-items: center; justify-content: center;
+}
+.logo-mark svg { width: 20px; height: 20px; }
+.logo-text { font-family: var(--display); font-size: 22px; font-weight: 800; color: var(--ink); letter-spacing: -0.01em; }
+.logo-text span { color: var(--indigo); }
+.tagline-mini { font-family: var(--mono); font-size: 11px; color: var(--ink3); letter-spacing: 0.06em; text-transform: uppercase; }
+
+/* ── Hero ── */
+.hero { padding: 8px 36px 28px; }
+.announcing {
+  display: inline-block; background: var(--ink); color: #fff;
+  font-family: var(--mono); font-size: 11px; font-weight: 700;
+  letter-spacing: 0.12em; padding: 6px 14px; border-radius: 6px; margin-bottom: 16px;
+  text-transform: uppercase;
+}
+.hero-grid { display: flex; gap: 28px; align-items: flex-start; }
+.hero-left { flex: 0 0 230px; }
+.hero-acronym {
+  font-family: var(--display); font-size: 76px; font-weight: 800; line-height: 0.95;
+  background: var(--grad-journey); -webkit-background-clip: text; background-clip: text; color: transparent;
+  letter-spacing: -0.02em; margin-bottom: 4px;
+}
+.hero-claim {
+  font-family: var(--display); font-size: 19px; font-weight: 700; line-height: 1.25;
+  color: var(--ink); margin-top: 10px;
+}
+.hero-claim .accent { color: var(--indigo); }
+.built-on {
+  display: inline-flex; align-items: center; gap: 6px; margin-top: 14px;
+  border: 1.5px solid var(--surface3); border-radius: 8px; padding: 6px 12px;
+  font-family: var(--mono); font-size: 10.5px; font-weight: 600; color: var(--ink2);
+  white-space: nowrap;
+}
+.built-on b { color: var(--ink); font-weight: 700; }
+
+.hero-right { flex: 1; }
+.hero-tag { font-family: var(--display); font-size: 17px; font-weight: 700; color: var(--ink); margin-bottom: 8px; }
+.hero-desc { font-size: 13px; color: var(--ink2); line-height: 1.7; margin-bottom: 16px; }
+.hero-desc b { color: var(--ink); }
+.hero-desc .hl { color: var(--indigo); font-weight: 600; }
+
+.status-pill {
+  display: flex; gap: 12px; align-items: center; border: 1.5px solid var(--surface3);
+  border-radius: 14px; padding: 12px 16px;
+}
+.status-icon {
+  width: 36px; height: 36px; border-radius: 50%; background: var(--navy);
+  display: flex; align-items: center; justify-content: center; font-size: 16px; flex-shrink: 0;
+}
+.status-text { font-size: 12px; color: var(--ink2); line-height: 1.5; }
+.status-text b { color: var(--emerald); font-weight: 700; }
+
+/* ── Flow diagram (top-right area in reference -> standalone band here) ── */
+.flow-band {
+  background: var(--surface3); margin: 0 36px 28px; border-radius: 18px; padding: 20px 22px;
+}
+.flow-band-label {
+  font-family: var(--mono); font-size: 10px; font-weight: 700; color: var(--ink3);
+  text-transform: uppercase; letter-spacing: 0.1em; margin-bottom: 14px; text-align: center;
+}
+.flow-row { display: flex; align-items: center; justify-content: space-between; gap: 6px; }
+.flow-node {
+  flex: 1; background: #fff; border-radius: 14px; padding: 12px 10px; text-align: center;
+  border: 1px solid rgba(0,0,0,0.04); box-shadow: 0 2px 8px -4px rgba(0,0,0,0.06);
+}
+.flow-node .fn-icon {
+  width: 34px; height: 34px; border-radius: 10px; margin: 0 auto 6px;
+  display: flex; align-items: center; justify-content: center; font-size: 16px;
+}
+.flow-node .fn-label { font-family: var(--display); font-size: 11px; font-weight: 700; color: var(--ink); line-height: 1.2; }
+.flow-node .fn-sub { font-size: 9px; color: var(--ink3); margin-top: 2px; line-height: 1.3; }
+.flow-arrow { color: var(--ink3); font-size: 16px; flex-shrink: 0; }
+
+/* ── Dark band: WHAT IS PRANA ── */
+.dark-band {
+  background: linear-gradient(135deg, var(--navy) 0%, var(--navy2) 100%);
+  margin: 0 36px 28px; border-radius: 20px; padding: 24px;
+}
+.db-header { display: flex; align-items: center; gap: 14px; margin-bottom: 18px; }
+.db-star {
+  width: 40px; height: 40px; border-radius: 50%; background: var(--grad-journey);
+  display: flex; align-items: center; justify-content: center; font-size: 18px; flex-shrink: 0;
+}
+.db-title { font-family: var(--display); font-size: 15px; font-weight: 700; color: #fff; }
+.db-title span { color: var(--cyan); }
+
+.db-grid { display: grid; grid-template-columns: repeat(5, 1fr); gap: 10px; }
+.db-card { text-align: center; }
+.db-icon {
+  width: 44px; height: 44px; border-radius: 12px; margin: 0 auto 8px;
+  display: flex; align-items: center; justify-content: center; font-size: 19px;
+}
+.db-card-title { font-family: var(--display); font-size: 11px; font-weight: 700; color: #fff; line-height: 1.3; margin-bottom: 4px; }
+.db-card-desc { font-size: 9.5px; color: #94A3B8; line-height: 1.5; }
+
+/* ── Use cases ── */
+.section { padding: 0 36px 28px; }
+.section-header {
+  display: flex; align-items: center; gap: 12px; margin-bottom: 18px;
+}
+.section-header::before, .section-header::after {
+  content: ''; flex: 1; height: 1px; background: var(--surface3);
+}
+.section-title {
+  font-family: var(--mono); font-size: 12px; font-weight: 700; color: var(--ink);
+  text-transform: uppercase; letter-spacing: 0.12em; white-space: nowrap;
+}
+
+.usecase-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px; }
+.usecase-card { text-align: center; }
+.usecase-icon-wrap {
+  width: 56px; height: 56px; border-radius: 50%; margin: 0 auto 10px;
+  display: flex; align-items: center; justify-content: center; font-size: 24px;
+}
+.usecase-title { font-family: var(--display); font-size: 12px; font-weight: 700; color: var(--ink); margin-bottom: 4px; line-height: 1.3; }
+.usecase-desc { font-size: 10px; color: var(--ink2); line-height: 1.5; }
+
+/* ── How it works ── */
+.howitworks { padding: 0 36px 24px; }
+.hiw-row { display: flex; align-items: flex-start; gap: 4px; }
+.hiw-step { flex: 1; text-align: center; min-width: 0; }
+.hiw-num {
+  width: 22px; height: 22px; border-radius: 50%; background: var(--ink);
+  color: #fff; font-family: var(--mono); font-size: 10px; font-weight: 700;
+  display: flex; align-items: center; justify-content: center; margin: 0 auto 8px;
+}
+.hiw-icon-wrap {
+  width: 48px; height: 48px; border-radius: 14px; margin: 0 auto 8px;
+  display: flex; align-items: center; justify-content: center; font-size: 21px;
+  background: var(--surface3);
+}
+.hiw-title { font-family: var(--display); font-size: 10.5px; font-weight: 700; color: var(--ink); margin-bottom: 3px; line-height: 1.25; }
+.hiw-desc { font-size: 8.5px; color: var(--ink3); line-height: 1.45; padding: 0 2px; }
+.hiw-arrow { color: var(--surface3); font-size: 14px; flex-shrink: 0; margin-top: 16px; }
+
+/* ── You stay in control ── */
+.control-band {
+  margin: 0 36px 28px; border: 1.5px solid var(--surface3); border-radius: 18px;
+  padding: 16px 20px; display: flex; align-items: center; gap: 18px;
+}
+.control-headline { flex: 0 0 130px; display: flex; flex-direction: column; align-items: flex-start; gap: 6px; }
+.control-headline .ch-icon {
+  width: 38px; height: 38px; border-radius: 10px; background: var(--grad-journey);
+  display: flex; align-items: center; justify-content: center; font-size: 17px;
+}
+.control-headline .ch-text { font-family: var(--display); font-size: 13px; font-weight: 700; color: var(--ink); line-height: 1.25; }
+.control-items { flex: 1; display: flex; justify-content: space-between; gap: 8px; }
+.control-item { text-align: center; flex: 1; }
+.control-item .ci-icon {
+  width: 32px; height: 32px; border-radius: 50%; margin: 0 auto 6px; background: var(--surface3);
+  display: flex; align-items: center; justify-content: center; font-size: 14px;
+}
+.control-item .ci-text { font-size: 8.5px; font-weight: 600; color: var(--ink2); line-height: 1.4; }
+
+/* ── Footer ── */
+.footer {
+  background: var(--navy); padding: 18px 36px; display: flex; align-items: center;
+  justify-content: space-between; gap: 16px;
+}
+.footer-left { display: flex; align-items: center; gap: 12px; }
+.footer-avatar {
+  width: 44px; height: 44px; border-radius: 50%; background: var(--grad-journey);
+  display: flex; align-items: center; justify-content: center;
+  font-size: 18px;
+}
+.footer-text { font-size: 10px; color: #94A3B8; line-height: 1.5; }
+.footer-text b { color: #fff; font-size: 12px; font-family: var(--display); }
+.footer-right { text-align: right; }
+.footer-brand { font-family: var(--display); font-size: 14px; font-weight: 700; color: #fff; }
+.footer-brand span { color: var(--cyan); }
+.footer-url { font-family: var(--mono); font-size: 10px; color: #94A3B8; margin-top: 2px; }
+</style>
+</head>
+<body>
+
+<div class="page">
+
+  <!-- Header -->
+  <div class="header">
+    <div class="logo">
+      <div class="logo-mark">
+        <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+          <rect x="3" y="6" width="18" height="14" rx="2" stroke="#04261C" stroke-width="2"/>
+          <path d="M8 6V4a2 2 0 012-2h4a2 2 0 012 2v2" stroke="#04261C" stroke-width="2"/>
+          <circle cx="12" cy="13" r="1.5" fill="#04261C"/>
+        </svg>
+      </div>
+      <div class="logo-text">PRANA<span>·</span></div>
+    </div>
+    <div class="tagline-mini">Personal Repository &amp; Networked Authentications</div>
+  </div>
+
+  <!-- Hero -->
+  <div class="hero">
+    <div class="announcing">Introducing</div>
+
+    <div class="hero-grid">
+      <div class="hero-left">
+        <div class="hero-acronym">PRANA</div>
+        <div class="hero-claim">
+          Your career's <span class="accent">permanent vault</span> — built for every employer you'll ever have.
+        </div>
+        <div class="built-on">📄 <b>Built on your employment records</b></div>
+      </div>
+
+      <div class="hero-right">
+        <div class="hero-tag">One vault. Every employer. Forever yours.</div>
+        <div class="hero-desc">
+          PRANA gives every employee a <span class="hl">permanent, portable document vault</span> —
+          salary slips, Form 16s, offer letters, experience certificates — pushed
+          automatically by employers, owned entirely by <b>you</b>, and shareable
+          on your terms, even after you leave.
+        </div>
+        <div class="status-pill">
+          <div class="status-icon">🚀</div>
+          <div class="status-text">
+            PRANA is <b>built and pilot-ready</b> — designed for deployment
+            across enterprises, banks, and PSUs.
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Flow diagram -->
+  <div class="flow-band">
+    <div class="flow-band-label">From employer push to verified share — in one continuous chain</div>
+    <div class="flow-row">
+      <div class="flow-node">
+        <div class="fn-icon" style="background:rgba(99,102,241,0.12);">🏢</div>
+        <div class="fn-label">Employer pushes</div>
+        <div class="fn-sub">Salary slip, Form 16, letters</div>
+      </div>
+      <div class="flow-arrow">→</div>
+      <div class="flow-node">
+        <div class="fn-icon" style="background:rgba(34,211,238,0.12);">🗂</div>
+        <div class="fn-label">PRANA vault</div>
+        <div class="fn-sub">Encrypted, yours for life</div>
+      </div>
+      <div class="flow-arrow">→</div>
+      <div class="flow-node">
+        <div class="fn-icon" style="background:rgba(52,211,153,0.12);">↗</div>
+        <div class="fn-label">You share</div>
+        <div class="fn-sub">Watermarked, time-limited</div>
+      </div>
+      <div class="flow-arrow">→</div>
+      <div class="flow-node">
+        <div class="fn-icon" style="background:rgba(251,191,36,0.15);">✓</div>
+        <div class="fn-label">Recipient verifies</div>
+        <div class="fn-sub">Bank, employer, agency</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- WHAT IS PRANA -->
+  <div class="dark-band">
+    <div class="db-header">
+      <div class="db-star">★</div>
+      <div class="db-title">WHAT IS PRANA? <span>— the employment document layer every career deserves</span></div>
+    </div>
+    <div class="db-grid">
+      <div class="db-card">
+        <div class="db-icon" style="background:rgba(99,102,241,0.18);">🏢</div>
+        <div class="db-card-title">Employer-pushed</div>
+        <div class="db-card-desc">HR systems push documents directly — no manual collection.</div>
+      </div>
+      <div class="db-card">
+        <div class="db-icon" style="background:rgba(34,211,238,0.18);">♾</div>
+        <div class="db-card-title">One vault for life</div>
+        <div class="db-card-desc">Every employer adds to the same vault — across your whole career.</div>
+      </div>
+      <div class="db-card">
+        <div class="db-icon" style="background:rgba(52,211,153,0.18);">↗</div>
+        <div class="db-card-title">Self-sovereign<br>sharing</div>
+        <div class="db-card-desc">You decide what's shared, with whom, and for how long.</div>
+      </div>
+      <div class="db-card">
+        <div class="db-icon" style="background:rgba(251,191,36,0.2);">🔒</div>
+        <div class="db-card-title">Secure by design</div>
+        <div class="db-card-desc">Encrypted storage, biometric access, full audit trails.</div>
+      </div>
+      <div class="db-card">
+        <div class="db-icon" style="background:rgba(251,113,133,0.18);">⚖</div>
+        <div class="db-card-title">DPDP ready</div>
+        <div class="db-card-desc">Built for India's data protection law from day one.</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- KEY USE CASES -->
+  <div class="section">
+    <div class="section-header"><div class="section-title">Key use cases</div></div>
+    <div class="usecase-grid">
+      <div class="usecase-card">
+        <div class="usecase-icon-wrap" style="background:rgba(99,102,241,0.1);">💼</div>
+        <div class="usecase-title">Switching jobs</div>
+        <div class="usecase-desc">Instant proof of employment history for your new employer.</div>
+      </div>
+      <div class="usecase-card">
+        <div class="usecase-icon-wrap" style="background:rgba(34,211,238,0.1);">🏦</div>
+        <div class="usecase-title">Loans &amp; credit cards</div>
+        <div class="usecase-desc">Share salary slips and Form 16 with banks in seconds.</div>
+      </div>
+      <div class="usecase-card">
+        <div class="usecase-icon-wrap" style="background:rgba(52,211,153,0.1);">🔍</div>
+        <div class="usecase-title">Background checks</div>
+        <div class="usecase-desc">BGV agencies get verified, watermarked documents — no chasing HR.</div>
+      </div>
+      <div class="usecase-card">
+        <div class="usecase-icon-wrap" style="background:rgba(251,191,36,0.12);">✈️</div>
+        <div class="usecase-title">Visa &amp; immigration</div>
+        <div class="usecase-desc">Complete employment history, ready for any embassy application.</div>
+      </div>
+      <div class="usecase-card">
+        <div class="usecase-icon-wrap" style="background:rgba(251,113,133,0.1);">🧾</div>
+        <div class="usecase-title">Tax filing</div>
+        <div class="usecase-desc">Every Form 16 from every employer, in one place, every year.</div>
+      </div>
+      <div class="usecase-card">
+        <div class="usecase-icon-wrap" style="background:rgba(99,102,241,0.1);">🤝</div>
+        <div class="usecase-title">Alumni network</div>
+        <div class="usecase-desc">Stay connected to former employers — even after you've moved on.</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- HOW PRANA WORKS -->
+  <div class="howitworks">
+    <div class="section-header"><div class="section-title">How PRANA works</div></div>
+    <div class="hiw-row">
+      <div class="hiw-step">
+        <div class="hiw-num">1</div>
+        <div class="hiw-icon-wrap">🏢</div>
+        <div class="hiw-title">Employer onboards</div>
+        <div class="hiw-desc">HR system connects to PRANA and begins pushing documents.</div>
+      </div>
+      <div class="hiw-arrow">→</div>
+      <div class="hiw-step">
+        <div class="hiw-num">2</div>
+        <div class="hiw-icon-wrap">📥</div>
+        <div class="hiw-title">Documents arrive</div>
+        <div class="hiw-desc">Salary slips, Form 16, letters land in your vault automatically.</div>
+      </div>
+      <div class="hiw-arrow">→</div>
+      <div class="hiw-step">
+        <div class="hiw-num">3</div>
+        <div class="hiw-icon-wrap">🗂</div>
+        <div class="hiw-title">You own the vault</div>
+        <div class="hiw-desc">One vault, one URL — yours from day one, for life.</div>
+      </div>
+      <div class="hiw-arrow">→</div>
+      <div class="hiw-step">
+        <div class="hiw-num">4</div>
+        <div class="hiw-icon-wrap">↗</div>
+        <div class="hiw-title">Share securely</div>
+        <div class="hiw-desc">Pick documents, set an expiry, generate a watermarked link.</div>
+      </div>
+      <div class="hiw-arrow">→</div>
+      <div class="hiw-step">
+        <div class="hiw-num">5</div>
+        <div class="hiw-icon-wrap">✓</div>
+        <div class="hiw-title">Recipient verifies</div>
+        <div class="hiw-desc">Bank, employer, or agency gets a verifiable, tamper-evident copy.</div>
+      </div>
+      <div class="hiw-arrow">→</div>
+      <div class="hiw-step">
+        <div class="hiw-num">6</div>
+        <div class="hiw-icon-wrap">🛡</div>
+        <div class="hiw-title">You're in control</div>
+        <div class="hiw-desc">Review access anytime, revoke any share, instantly.</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- You stay in control -->
+  <div class="control-band">
+    <div class="control-headline">
+      <div class="ch-icon">⭐</div>
+      <div class="ch-text">You stay in control</div>
+    </div>
+    <div class="control-items">
+      <div class="control-item">
+        <div class="ci-icon">⏳</div>
+        <div class="ci-text">Set share<br>expiry</div>
+      </div>
+      <div class="control-item">
+        <div class="ci-icon">👤</div>
+        <div class="ci-text">Verify<br>recipients</div>
+      </div>
+      <div class="control-item">
+        <div class="ci-icon">📋</div>
+        <div class="ci-text">Review<br>access log</div>
+      </div>
+      <div class="control-item">
+        <div class="ci-icon">🛡</div>
+        <div class="ci-text">Audit &amp;<br>compliance</div>
+      </div>
+      <div class="control-item">
+        <div class="ci-icon">⏻</div>
+        <div class="ci-text">Revoke<br>anytime</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Footer -->
+  <div class="footer">
+    <div class="footer-left">
+      <div class="footer-avatar">🔐</div>
+      <div class="footer-text">
+        Your career.<br><b>One vault, forever yours.</b>
+      </div>
+    </div>
+    <div class="footer-right">
+      <div class="footer-brand">PRANA<span>·</span></div>
+      <div class="footer-url">Personal Repository And Networked Authentications</div>
+    </div>
+  </div>
+
+</div>
+
+</body>
+</html>

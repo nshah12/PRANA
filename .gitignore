@@ -1,0 +1,31 @@
+# Dev secrets — never commit
+keys/
+*.pem
+.env
+.env.*
+!.env.example
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+.venv/
+venv/
+.mypy_cache/
+.ruff_cache/
+.pytest_cache/
+htmlcov/
+.coverage
+
+# Node
+node_modules/
+dist/
+.expo/
+.next/
+
+# Docker
+*.log
+
+# OS
+.DS_Store
+Thumbs.db

@@ -1,0 +1,321 @@
+version: "3.9"
+
+# PRANA local dev stack — all infrastructure + 3 services
+#
+# Quick start:
+#   docker compose up -d
+#   docker compose logs -f prana-api
+#
+# Ports exposed on localhost:
+#   5433   — YugabyteDB (YSQL / PostgreSQL-compatible)
+#   6379   — Redis
+#   9092   — Kafka broker
+#   6333   — Qdrant HTTP  (vector store)
+#   6334   — Qdrant gRPC
+#   9010   — MinIO API    (S3-compatible object store)
+#   9011   — MinIO console
+#   7233   — Temporal     (workflow engine)
+#   8080   — Temporal Web UI
+#   8000   — prana-api    (FastAPI REST)
+#   8001   — prana-ai     (GPU pipeline worker)
+#   8002   — prana-ask    (RAG chatbot)
+#   7000   — YugabyteDB master UI
+#   9000   — YugabyteDB tserver UI
+
+x-prana-env: &prana-env
+  DB_DSN: postgresql://yugabyte:yugabyte@yugabyte:5433/prana
+  REDIS_URL: redis://redis:6379/0
+  KAFKA_BOOTSTRAP_SERVERS: kafka:9093
+  TEMPORAL_HOST: temporal:7233
+  TEMPORAL_NAMESPACE: prana-dev
+  QDRANT_URL: http://qdrant:6333
+  S3_ENDPOINT_URL: http://minio:9010
+  S3_BUCKET_DOCUMENTS: prana-documents-dev
+  S3_BUCKET_STAGING: prana-staging-dev
+  S3_ACCESS_KEY_ID: minioadmin
+  S3_SECRET_ACCESS_KEY: minioadmin
+  AWS_REGION: ap-south-1
+  DEBUG: "true"
+
+services:
+
+  # ── YugabyteDB ──────────────────────────────────────────────────────────────
+  yugabyte:
+    image: yugabytedb/yugabyte:2.20.1.0-b97
+    container_name: prana-yugabyte
+    command: >
+      bin/yugabyted start
+      --daemon=false
+      --tserver_flags="ysql_enable_auth=false"
+    ports:
+      - "5433:5433"
+      - "7000:7000"
+      - "9000:9000"
+    volumes:
+      - yugabyte_data:/home/yugabyte/var
+    healthcheck:
+      test: ["CMD", "bin/ysqlsh", "-h", "localhost", "-p", "5433", "-c", "SELECT 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 40s
+
+  # ── DB init — applies schema + seeds once ──────────────────────────────────
+  db-init:
+    image: yugabytedb/yugabyte:2.20.1.0-b97
+    container_name: prana-db-init
+    depends_on:
+      yugabyte:
+        condition: service_healthy
+    volumes:
+      - ./prana-db:/prana-db
+    entrypoint: >
+      sh -c "
+        bin/ysqlsh -h yugabyte -p 5433 -U yugabyte
+          -c 'CREATE DATABASE prana;' 2>/dev/null || true &&
+        bin/ysqlsh -h yugabyte -p 5433 -U yugabyte -d prana
+          -f /prana-db/schema.sql &&
+        bin/ysqlsh -h yugabyte -p 5433 -U yugabyte -d prana
+          -f /prana-db/seeds/dev_seed.sql &&
+        echo 'DB init complete'
+      "
+    restart: "no"
+
+  # ── Redis ───────────────────────────────────────────────────────────────────
+  redis:
+    image: redis:7.2-alpine
+    container_name: prana-redis
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+
+  # ── Kafka (KRaft — no ZooKeeper) ────────────────────────────────────────────
+  kafka:
+    image: confluentinc/cp-kafka:7.6.1
+    container_name: prana-kafka
+    ports:
+      - "9092:9092"    # external (host → container)
+    environment:
+      KAFKA_NODE_ID: 1
+      KAFKA_PROCESS_ROLES: broker,controller
+      KAFKA_CONTROLLER_QUORUM_VOTERS: 1@kafka:9094
+      KAFKA_LISTENERS: PLAINTEXT://0.0.0.0:9093,EXTERNAL://0.0.0.0:9092,CONTROLLER://0.0.0.0:9094
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:9093,EXTERNAL://localhost:9092
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: PLAINTEXT:PLAINTEXT,EXTERNAL:PLAINTEXT,CONTROLLER:PLAINTEXT
+      KAFKA_INTER_BROKER_LISTENER_NAME: PLAINTEXT
+      KAFKA_CONTROLLER_LISTENER_NAMES: CONTROLLER
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1
+      KAFKA_AUTO_CREATE_TOPICS_ENABLE: "false"
+      CLUSTER_ID: prana-dev-cluster-id-001
+    volumes:
+      - kafka_data:/var/lib/kafka/data
+    healthcheck:
+      test: ["CMD", "kafka-topics", "--bootstrap-server", "localhost:9093", "--list"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 30s
+
+  # ── Kafka topic init ────────────────────────────────────────────────────────
+  kafka-init:
+    image: confluentinc/cp-kafka:7.6.1
+    container_name: prana-kafka-init
+    depends_on:
+      kafka:
+        condition: service_healthy
+    entrypoint: >
+      sh -c "
+        kafka-topics --bootstrap-server kafka:9093 --create --if-not-exists
+          --topic prana.ingest.events    --partitions 12 --replication-factor 1 &&
+        kafka-topics --bootstrap-server kafka:9093 --create --if-not-exists
+          --topic prana.pipeline.events  --partitions 12 --replication-factor 1 &&
+        kafka-topics --bootstrap-server kafka:9093 --create --if-not-exists
+          --topic prana.audit.events     --partitions 12 --replication-factor 1 &&
+        kafka-topics --bootstrap-server kafka:9093 --create --if-not-exists
+          --topic prana.notifications    --partitions 12 --replication-factor 1 &&
+        kafka-topics --bootstrap-server kafka:9093 --create --if-not-exists
+          --topic prana.analytics.events --partitions 12 --replication-factor 1 &&
+        echo 'Kafka topics created'
+      "
+    restart: "no"
+
+  # ── Qdrant ──────────────────────────────────────────────────────────────────
+  qdrant:
+    image: qdrant/qdrant:v1.9.4
+    container_name: prana-qdrant
+    ports:
+      - "6333:6333"
+      - "6334:6334"
+    volumes:
+      - qdrant_data:/qdrant/storage
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:6333/readyz"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # ── MinIO (S3-compatible) ───────────────────────────────────────────────────
+  minio:
+    image: minio/minio:RELEASE.2024-05-01T01-11-10Z
+    container_name: prana-minio
+    command: server /data --console-address ":9011"
+    ports:
+      - "9010:9010"
+      - "9011:9011"
+    environment:
+      MINIO_ROOT_USER: minioadmin
+      MINIO_ROOT_PASSWORD: minioadmin
+      MINIO_ADDRESS: ":9010"
+    volumes:
+      - minio_data:/data
+    healthcheck:
+      test: ["CMD", "mc", "ready", "local"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # ── MinIO bucket init ───────────────────────────────────────────────────────
+  minio-init:
+    image: minio/mc:RELEASE.2024-04-29T09-56-05Z
+    container_name: prana-minio-init
+    depends_on:
+      minio:
+        condition: service_healthy
+    entrypoint: >
+      sh -c "
+        mc alias set local http://minio:9010 minioadmin minioadmin &&
+        mc mb --ignore-existing local/prana-documents-dev &&
+        mc mb --ignore-existing local/prana-staging-dev &&
+        echo 'MinIO buckets ready'
+      "
+    restart: "no"
+
+  # ── Temporal (workflow engine) ───────────────────────────────────────────────
+  temporal:
+    image: temporalio/auto-setup:1.24.2
+    container_name: prana-temporal
+    ports:
+      - "7233:7233"
+    environment:
+      - DB=postgres12
+      - DB_PORT=5433
+      - POSTGRES_USER=yugabyte
+      - POSTGRES_PWD=yugabyte
+      - POSTGRES_SEEDS=yugabyte
+      - DYNAMIC_CONFIG_FILE_PATH=config/dynamicconfig/development-sql.yaml
+    depends_on:
+      db-init:
+        condition: service_completed_successfully
+    healthcheck:
+      test: ["CMD", "tctl", "--address", "temporal:7233", "cluster", "health"]
+      interval: 15s
+      timeout: 5s
+      retries: 10
+      start_period: 60s
+
+  # ── Temporal Web UI ──────────────────────────────────────────────────────────
+  temporal-ui:
+    image: temporalio/ui:2.26.2
+    container_name: prana-temporal-ui
+    ports:
+      - "8080:8080"
+    environment:
+      - TEMPORAL_ADDRESS=temporal:7233
+      - TEMPORAL_CORS_ORIGINS=http://localhost:8080
+    depends_on:
+      - temporal
+
+  # ── prana-api ───────────────────────────────────────────────────────────────
+  prana-api:
+    build:
+      context: ./prana-api
+      dockerfile: Dockerfile
+    container_name: prana-api
+    ports:
+      - "8000:8000"
+    environment:
+      <<: *prana-env
+      APP_ENV: development
+      PRANA_AI_SECRET: dev-secret
+      PRANA_ASK_SECRET: dev-secret
+      AI_SERVICE_URL: http://prana-ai:8001
+      ASK_SERVICE_URL: http://prana-ask:8002
+      SMS_PROVIDER: dev
+      JWT_PUBLIC_KEY_PATH: /keys/jwt_public.pem
+      JWT_PRIVATE_KEY_PATH: /keys/jwt_private.pem
+    volumes:
+      - ./prana-api:/app
+      - ./keys:/keys:ro
+    depends_on:
+      db-init:
+        condition: service_completed_successfully
+      redis:
+        condition: service_healthy
+      kafka-init:
+        condition: service_completed_successfully
+      temporal:
+        condition: service_healthy
+    restart: on-failure
+
+  # ── prana-ai ────────────────────────────────────────────────────────────────
+  prana-ai:
+    build:
+      context: ./prana-ai
+      dockerfile: Dockerfile
+    container_name: prana-ai
+    ports:
+      - "8001:8001"
+    environment:
+      <<: *prana-env
+      PRANA_AI_SECRET: dev-secret
+      LLM_BASE_URL: http://ollama:11434/v1
+      EXTRACTION_LLM_MODEL: qwen2.5:14b
+      EMBEDDING_BASE_URL: http://ollama:11434/v1
+      EMBEDDING_MODEL: bge-m3
+      CLAMD_SOCKET: ""     # ClamAV optional in dev
+    depends_on:
+      db-init:
+        condition: service_completed_successfully
+      qdrant:
+        condition: service_healthy
+    restart: on-failure
+
+  # ── prana-ask ───────────────────────────────────────────────────────────────
+  prana-ask:
+    build:
+      context: ./prana-ask
+      dockerfile: Dockerfile
+    container_name: prana-ask
+    ports:
+      - "8002:8002"
+    environment:
+      <<: *prana-env
+      PRANA_ASK_SECRET: dev-secret
+      LLM_BASE_URL: http://ollama:11434/v1
+      ASK_LLM_MODEL: llama3.1:8b
+      EMBEDDING_BASE_URL: http://ollama:11434/v1
+      EMBEDDING_MODEL: bge-m3
+      REDIS_URL: redis://redis:6379/1
+    depends_on:
+      db-init:
+        condition: service_completed_successfully
+      redis:
+        condition: service_healthy
+      qdrant:
+        condition: service_healthy
+    restart: on-failure
+
+volumes:
+  yugabyte_data:
+  redis_data:
+  kafka_data:
+  qdrant_data:
+  minio_data:

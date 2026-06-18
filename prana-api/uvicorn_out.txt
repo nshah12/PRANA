@@ -1,0 +1,36 @@
+INFO:     127.0.0.1:49223 - "POST /auth/admin/login HTTP/1.1" 200 OK
+INFO:     127.0.0.1:49223 - "GET /admin/tenants HTTP/1.1" 401 Unauthorized
+INFO:     127.0.0.1:61239 - "GET /admin/tenants HTTP/1.1" 401 Unauthorized
+INFO:     127.0.0.1:61239 - "GET /admin/crypto HTTP/1.1" 401 Unauthorized
+INFO:     127.0.0.1:61239 - "GET /admin/rate-limits HTTP/1.1" 401 Unauthorized
+INFO:     127.0.0.1:61239 - "GET /admin/audit HTTP/1.1" 401 Unauthorized
+INFO:     127.0.0.1:61239 - "GET /admin/api-keys HTTP/1.1" 401 Unauthorized
+INFO:     127.0.0.1:60817 - "POST /auth/admin/login HTTP/1.1" 401 Unauthorized
+INFO:     127.0.0.1:61703 - "POST /auth/admin/login HTTP/1.1" 200 OK
+INFO:     127.0.0.1:62795 - "POST /auth/admin/totp HTTP/1.1" 200 OK
+INFO:     127.0.0.1:55892 - "GET /admin/meta-dashboard HTTP/1.1" 200 OK
+INFO:     127.0.0.1:64294 - "GET /admin/meta-dashboard HTTP/1.1" 200 OK
+INFO:     127.0.0.1:61068 - "GET /admin/tenants?status=PENDING HTTP/1.1" 200 OK
+INFO:     127.0.0.1:63361 - "GET /admin/tenants HTTP/1.1" 200 OK
+INFO:     127.0.0.1:65177 - "GET /admin/meta-dashboard HTTP/1.1" 200 OK
+INFO:     127.0.0.1:65178 - "GET /admin/tenants HTTP/1.1" 200 OK
+INFO:     127.0.0.1:58577 - "GET /admin/pipeline-health HTTP/1.1" 200 OK
+INFO:     127.0.0.1:64415 - "GET /admin/exceptions HTTP/1.1" 200 OK
+INFO:     127.0.0.1:56655 - "GET /admin/pipeline-health HTTP/1.1" 200 OK
+INFO:     127.0.0.1:61958 - "GET /admin/meta-dashboard HTTP/1.1" 200 OK
+INFO:     127.0.0.1:53771 - "GET /admin/pipeline-health HTTP/1.1" 200 OK
+INFO:     127.0.0.1:53770 - "GET /admin/meta-dashboard HTTP/1.1" 200 OK
+INFO:     127.0.0.1:64149 - "GET /admin/exceptions HTTP/1.1" 200 OK
+INFO:     127.0.0.1:53428 - "GET /admin/api-keys HTTP/1.1" 200 OK
+INFO:     127.0.0.1:64967 - "GET /admin/rate-limits HTTP/1.1" 200 OK
+INFO:     127.0.0.1:64822 - "GET /admin/secops HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:50459 - "GET /admin/secops HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:61969 - "GET /admin/anomalies HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:52727 - "GET /admin/anomalies HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:56645 - "GET /admin/incidents HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:49675 - "GET /admin/incidents HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:63705 - "GET /admin/crypto HTTP/1.1" 200 OK
+INFO:     127.0.0.1:65067 - "GET /admin/audit?offset=0&limit=100 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:64596 - "GET /admin/meta-dashboard HTTP/1.1" 200 OK
+INFO:     127.0.0.1:62988 - "GET /admin/tenants HTTP/1.1" 200 OK
+INFO:     127.0.0.1:64394 - "GET /admin/meta-dashboard HTTP/1.1" 200 OK

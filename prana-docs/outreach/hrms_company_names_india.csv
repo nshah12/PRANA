@@ -1,0 +1,309 @@
+HRMS System,Company Name,Sector,Sub-sector,HQ City,Listed,Notes
+Darwinbox,Paytm (One97 Communications),Fintech,Payments,Noida,Yes,Unicorn; large Darwinbox deployment
+Darwinbox,Razorpay,Fintech,Payment Gateway,Bengaluru,No,Unicorn; early adopter
+Darwinbox,CRED,Fintech,Credit / Rewards,Bengaluru,No,Unicorn
+Darwinbox,Groww,Fintech,Wealth-tech / Broking,Bengaluru,No,
+Darwinbox,Upstox,Fintech,Discount Broking,Bengaluru,No,
+Darwinbox,Angel One,BFSI,Broking,Mumbai,Yes,Listed NSE/BSE
+Darwinbox,Zepto,Fintech / Commerce,Quick Commerce,Mumbai,No,
+Darwinbox,Meesho,Commerce,Social Commerce,Bengaluru,No,
+Darwinbox,Nykaa,Commerce,Beauty / D2C,Mumbai,Yes,
+Darwinbox,Dream11,Gaming,Fantasy Sports,Mumbai,No,Unicorn
+Darwinbox,MPL (Mobile Premier League),Gaming,Fantasy Sports,Bengaluru,No,
+Darwinbox,ShareChat (Mohalla Tech),Technology,Social Media,Bengaluru,No,
+Darwinbox,Unacademy,Edtech,Online Learning,Bengaluru,No,
+Darwinbox,Vedantu,Edtech,Online Tutoring,Bengaluru,No,
+Darwinbox,Urban Company,Services,Home Services,Gurugram,No,
+Darwinbox,Pristyn Care,Healthtech,Surgical Care,Gurugram,No,
+Darwinbox,Purplle,Commerce,Beauty D2C,Mumbai,No,
+Darwinbox,Mamaearth (Honasa Consumer),Commerce,FMCG / D2C,Gurugram,Yes,
+Darwinbox,Lenskart,Commerce,Eyewear / D2C,New Delhi,No,
+Darwinbox,Cars24,Commerce,Used Auto,Gurugram,No,
+Darwinbox,CarDekho,Commerce,Auto,Jaipur,Yes,
+Darwinbox,Housing.com (PropTiger),Proptech,Real Estate,Mumbai,No,REA Group subsidiary
+Darwinbox,Policybazaar (PB Fintech),BFSI,Insurance Aggregator,Gurugram,Yes,
+Darwinbox,Acko Insurance,BFSI,General Insurance,Bengaluru,No,
+Darwinbox,Digit Insurance (Go Digit),BFSI,General Insurance,Bengaluru,Yes,
+Darwinbox,Tata 1mg,Healthtech,E-pharmacy,Gurugram,No,Tata Group
+Darwinbox,PharmEasy (API Holdings),Healthtech,E-pharmacy,Mumbai,No,
+Darwinbox,Practo,Healthtech,Doctor Discovery,Bengaluru,No,
+Darwinbox,MediBuddy,Healthtech,Corporate Health,Bengaluru,No,
+Darwinbox,Slice,Fintech,Neo-bank / Credit,Bengaluru,No,
+Darwinbox,Jupiter Money,Fintech,Neo-bank,Bengaluru,No,
+Darwinbox,Fi Money (epiFi),Fintech,Neo-bank,Bengaluru,No,
+Darwinbox,Niyo Solutions,Fintech,Neo-bank / Forex,Bengaluru,No,
+Darwinbox,Stashfin,Fintech,Consumer Lending,New Delhi,No,
+Darwinbox,Lendingkart,Fintech,SME Lending,Ahmedabad,No,
+Darwinbox,EarlySalary (Fibe),Fintech,Salary Advance,Pune,No,
+Darwinbox,ZestMoney,Fintech,BNPL,Bengaluru,No,
+Darwinbox,Indifi Technologies,Fintech,SME Lending,Gurugram,No,
+Darwinbox,Kissht (Ring),Fintech,Consumer Credit,Mumbai,No,
+Darwinbox,Progcap,Fintech,Supply Chain Finance,New Delhi,No,
+Keka HR,Mphasis,IT Services,BPO / Analytics,Bengaluru,Yes,
+Keka HR,Hexaware Technologies,IT Services,BPO / Tech,Mumbai,Yes,Carlyle Group
+Keka HR,KPIT Technologies,IT Services,Auto Tech,Pune,Yes,
+Keka HR,Persistent Systems,IT Services,Product Engineering,Pune,Yes,
+Keka HR,Cyient,IT Services,Engineering Services,Hyderabad,Yes,
+Keka HR,Zensar Technologies,IT Services,Digital Services,Pune,Yes,RPG Group
+Keka HR,Mastek,IT Services,Digital Transformation,Mumbai,Yes,
+Keka HR,Sasken Technologies,IT Services,Embedded Systems,Bengaluru,Yes,
+Keka HR,Mahindra CIE Automotive,Manufacturing,Auto Components,Mumbai,Yes,
+Keka HR,Endurance Technologies,Manufacturing,Auto Components,Aurangabad,Yes,
+Keka HR,Suprajit Engineering,Manufacturing,Cables / Auto,Bengaluru,Yes,
+Keka HR,Minda Industries,Manufacturing,Auto Components,Gurugram,Yes,
+Keka HR,Ramkrishna Forgings,Manufacturing,Forgings / Steel,Kolkata,Yes,
+Keka HR,Sundram Fasteners,Manufacturing,Auto Components,Chennai,Yes,TVS Group
+Keka HR,Schaeffler India,Manufacturing,Bearings,Pune,Yes,
+Keka HR,SKF India,Manufacturing,Bearings,Mumbai,Yes,
+Keka HR,Timken India,Manufacturing,Bearings / Steel,Mumbai,Yes,
+Keka HR,Grindwell Norton,Manufacturing,Abrasives,Mumbai,Yes,Saint-Gobain subsidiary
+Keka HR,Thermax Limited,Manufacturing,Energy / Environment,Pune,Yes,
+Keka HR,Cummins India,Manufacturing,Engines,Pune,Yes,
+Keka HR,Kirloskar Oil Engines,Manufacturing,Engines,Pune,Yes,
+Keka HR,Elgi Equipments,Manufacturing,Compressors,Coimbatore,Yes,
+Keka HR,Greaves Cotton,Manufacturing,Engines / EV,Mumbai,Yes,
+Keka HR,Triveni Engineering,Manufacturing,Sugar / Gears,Noida,Yes,
+Keka HR,Lakshmi Machine Works,Manufacturing,Textile Machinery,Coimbatore,Yes,
+Keka HR,Texmaco Rail,Manufacturing,Rail Infrastructure,Kolkata,Yes,
+Keka HR,TIL Limited,Manufacturing,Material Handling,Kolkata,No,
+Keka HR,Isgec Heavy Engineering,Manufacturing,Heavy Engineering,Noida,Yes,
+Keka HR,Stylam Industries,Manufacturing,Laminates,Panchkula,Yes,
+Keka HR,Century Plyboards,Manufacturing,Plywood,Kolkata,Yes,
+Keka HR,Greenply Industries,Manufacturing,Plywood,Kolkata,Yes,
+Keka HR,Fenoplast,Manufacturing,PVC / Packaging,Hyderabad,No,
+Keka HR,GHCL Limited,Manufacturing,Chemicals / Textiles,Ahmedabad,Yes,
+Keka HR,Vinati Organics,Manufacturing,Specialty Chemicals,Mumbai,Yes,
+Keka HR,Aarti Industries,Manufacturing,Specialty Chemicals,Mumbai,Yes,
+SAP SuccessFactors,State Bank of India,BFSI,PSU Bank,Mumbai,Yes,Largest SAP deployment in Indian banking
+SAP SuccessFactors,HDFC Bank,BFSI,Private Bank,Mumbai,Yes,
+SAP SuccessFactors,ICICI Bank,BFSI,Private Bank,Mumbai,Yes,
+SAP SuccessFactors,Axis Bank,BFSI,Private Bank,Mumbai,Yes,
+SAP SuccessFactors,Kotak Mahindra Bank,BFSI,Private Bank,Mumbai,Yes,
+SAP SuccessFactors,IndusInd Bank,BFSI,Private Bank,Mumbai,Yes,
+SAP SuccessFactors,Yes Bank,BFSI,Private Bank,Mumbai,Yes,
+SAP SuccessFactors,LIC of India,BFSI,Life Insurance,Mumbai,Yes,Largest insurer in India
+SAP SuccessFactors,SBI Life Insurance,BFSI,Life Insurance,Mumbai,Yes,
+SAP SuccessFactors,HDFC Life Insurance,BFSI,Life Insurance,Mumbai,Yes,
+SAP SuccessFactors,ICICI Prudential Life,BFSI,Life Insurance,Mumbai,Yes,
+SAP SuccessFactors,Bajaj Allianz Life Insurance,BFSI,Life Insurance,Pune,No,
+SAP SuccessFactors,Max Life Insurance,BFSI,Life Insurance,New Delhi,No,
+SAP SuccessFactors,Reliance Industries (RIL),Manufacturing,Conglomerate,Mumbai,Yes,O2C + Jio divisions
+SAP SuccessFactors,Tata Steel,Manufacturing,Steel,Mumbai,Yes,
+SAP SuccessFactors,JSW Steel,Manufacturing,Steel,Mumbai,Yes,
+SAP SuccessFactors,Hindalco Industries,Manufacturing,Aluminium / Copper,Mumbai,Yes,Aditya Birla Group
+SAP SuccessFactors,Vedanta Limited,Manufacturing,Mining / Metals,Mumbai,Yes,
+SAP SuccessFactors,Bharat Petroleum (BPCL),Manufacturing,Oil & Gas,Mumbai,Yes,PSU
+SAP SuccessFactors,Indian Oil Corporation,Manufacturing,Oil & Gas,New Delhi,Yes,PSU
+SAP SuccessFactors,ONGC,Manufacturing,Upstream Oil,New Delhi,Yes,PSU
+SAP SuccessFactors,NTPC,Manufacturing,Power Generation,New Delhi,Yes,PSU
+SAP SuccessFactors,Power Grid Corporation,Manufacturing,Power Transmission,Gurugram,Yes,PSU
+SAP SuccessFactors,SAIL,Manufacturing,Steel,New Delhi,Yes,PSU
+SAP SuccessFactors,Coal India Limited,Manufacturing,Mining,Kolkata,Yes,PSU
+SAP SuccessFactors,BHEL,Manufacturing,Heavy Electricals,New Delhi,Yes,PSU
+SAP SuccessFactors,Larsen & Toubro (L&T),Manufacturing,Engineering / Infra,Mumbai,Yes,
+SAP SuccessFactors,Adani Enterprises,Manufacturing,Conglomerate,Ahmedabad,Yes,
+SAP SuccessFactors,UltraTech Cement,Manufacturing,Cement,Mumbai,Yes,Aditya Birla Group
+SAP SuccessFactors,Grasim Industries,Manufacturing,Diversified,Mumbai,Yes,Aditya Birla Group
+SAP SuccessFactors,Tata Consultancy Services,IT Services,IT Consulting,Mumbai,Yes,
+SAP SuccessFactors,Infosys,IT Services,IT Consulting,Bengaluru,Yes,
+SAP SuccessFactors,Wipro,IT Services,IT Consulting,Bengaluru,Yes,
+SAP SuccessFactors,HCL Technologies,IT Services,IT Consulting,Noida,Yes,
+SAP SuccessFactors,Tech Mahindra,IT Services,IT Consulting,Pune,Yes,
+Workday,Citi India,BFSI,Global Bank,Mumbai,No,MNC
+Workday,JPMorgan Chase India,BFSI,Global Bank,Mumbai,No,MNC
+Workday,Goldman Sachs India,BFSI,Investment Bank,Bengaluru,No,MNC GCC
+Workday,Morgan Stanley India,BFSI,Investment Bank,Mumbai,No,MNC
+Workday,Deutsche Bank India,BFSI,Global Bank,Mumbai,No,MNC
+Workday,Standard Chartered India,BFSI,Global Bank,Mumbai,No,MNC
+Workday,HSBC India,BFSI,Global Bank,Mumbai,No,MNC
+Workday,Barclays India,BFSI,Investment Bank,Pune,No,MNC GCC
+Workday,BNP Paribas India,BFSI,Global Bank,Mumbai,No,MNC
+Workday,UBS India,BFSI,Investment Bank,Mumbai,No,MNC; post CS merger
+Workday,Nomura India,BFSI,Investment Bank,Mumbai,No,MNC
+Workday,Macquarie India,BFSI,Investment Bank,Mumbai,No,MNC
+Workday,American Express India,Fintech,Payments / Cards,Gurugram,No,MNC
+Workday,Mastercard India,Fintech,Payments Network,Pune,No,MNC
+Workday,Visa India,Fintech,Payments Network,Mumbai,No,MNC
+Workday,PayPal India,Fintech,Digital Payments,Chennai,No,MNC
+Workday,Fidelity India,BFSI,Asset Management,Chennai,No,MNC
+Workday,BlackRock India,BFSI,Asset Management,Mumbai,No,MNC
+Workday,Franklin Templeton India,BFSI,Mutual Funds,Chennai,Yes,
+Workday,Invesco Asset Management India,BFSI,Mutual Funds,Mumbai,No,MNC
+Workday,MetLife India (PNB MetLife),BFSI,Life Insurance,Mumbai,No,MNC JV
+Workday,AIA India,BFSI,Life Insurance,Mumbai,No,MNC
+Workday,Aegon Life India,BFSI,Life Insurance,Mumbai,No,MNC
+Workday,Munich Re India,BFSI,Reinsurance,Mumbai,No,MNC
+Workday,Swiss Re India,BFSI,Reinsurance,Mumbai,No,MNC
+Workday,Accenture India,IT Services,Management Consulting,Mumbai,No,MNC; 300K+ in India
+Workday,IBM India,IT Services,IT / Cloud,Bengaluru,No,MNC
+Workday,Capgemini India,IT Services,IT Services,Mumbai,No,MNC
+Workday,Cognizant India,IT Services,IT Services,Chennai,Yes,Listed NASDAQ
+Workday,Genpact India,IT / BPO,BPO,Gurugram,Yes,Listed NYSE
+Zoho People,BankBazaar,Fintech,Loan Aggregator,Chennai,No,
+Zoho People,ClearTax (Clear),Fintech,Tax / Compliance,Bengaluru,No,
+Zoho People,Fisdom,Fintech,Wealth-tech,Bengaluru,No,
+Zoho People,Scripbox,Fintech,Wealth-tech / MF,Bengaluru,No,Accenture acquired
+Zoho People,Kuvera,Fintech,Direct MF Platform,Bengaluru,No,
+Zoho People,INDmoney (Finzoom),Fintech,Personal Finance,Gurugram,No,
+Zoho People,Smallcase Technologies,Fintech,Portfolio Products,Bengaluru,No,
+Zoho People,5paisa Capital,BFSI,Discount Broking,Mumbai,Yes,
+Zoho People,Samco Securities,BFSI,Broking,Mumbai,No,
+Zoho People,Tradejini,BFSI,Discount Broking,Bengaluru,No,
+Zoho People,Finvasia (Shoonya),BFSI,Zero-brokerage,Chandigarh,No,
+Zoho People,Geojit Financial Services,BFSI,Broking / Wealth,Kochi,Yes,
+Zoho People,Profitmart Securities,BFSI,Broking,Ahmedabad,No,
+Zoho People,Enrich Money,Fintech,Payments,Mumbai,No,
+Zoho People,Moneyfronts,Fintech,MF Distribution,Mumbai,No,
+Zoho People,WealthDesk,Fintech,Portfolio Products,Mumbai,No,UBS subsidiary
+Zoho People,Tavaga Advisory,Fintech,Robo-advisory,Mumbai,No,
+Zoho People,Axio (Capital Float),Fintech,Consumer Lending,Bengaluru,No,
+Zoho People,Northern Arc Capital,Fintech,Debt Platform,Chennai,Yes,
+Zoho People,Vivriti Capital,Fintech,Debt Capital Markets,Chennai,No,
+Zoho People,Aye Finance,Fintech,Micro Lending,Gurugram,No,
+Zoho People,Anand Rathi Wealth,BFSI,Wealth Management,Mumbai,Yes,
+Zoho People,360 ONE Wealth,BFSI,Wealth Management,Mumbai,Yes,
+Zoho People,Nuvama Asset Management,BFSI,Asset Management,Mumbai,Yes,
+Zoho People,White Oak Capital,BFSI,AMC,Mumbai,No,
+Zoho People,IIFL Finance (SMB units),BFSI,NBFC,Mumbai,Yes,
+Zoho People,Motilal Oswal (SMB units),BFSI,Wealth / Broking,Mumbai,Yes,
+Zoho People,Paytail,Fintech,BNPL / EMI,Gurugram,No,
+Zoho People,Fisdom,Fintech,Wealth Advisory,Bengaluru,No,
+Zoho People,Piggy (Recur Club),Fintech,Child Savings,Mumbai,No,
+GreytHR,Alembic Pharmaceuticals,Manufacturing,Pharma,Vadodara,Yes,
+GreytHR,Aarti Industries,Manufacturing,Specialty Chemicals,Mumbai,Yes,
+GreytHR,Vinati Organics,Manufacturing,Specialty Chemicals,Mumbai,Yes,
+GreytHR,Deepak Nitrite,Manufacturing,Specialty Chemicals,Vadodara,Yes,
+GreytHR,Navin Fluorine,Manufacturing,Fluorochemicals,Mumbai,Yes,
+GreytHR,Sudarshan Chemical,Manufacturing,Pigments,Pune,Yes,
+GreytHR,Bharat Bijlee,Manufacturing,Transformers / Motors,Mumbai,Yes,
+GreytHR,Finolex Cables,Manufacturing,Cables,Pune,Yes,
+GreytHR,KEI Industries,Manufacturing,Cables,New Delhi,Yes,
+GreytHR,Orient Electric,Manufacturing,Fans / Appliances,New Delhi,Yes,
+GreytHR,V-Guard Industries,Manufacturing,Electricals,Kochi,Yes,
+GreytHR,Bajaj Electricals (select units),Manufacturing,Electricals,Mumbai,Yes,
+GreytHR,Crompton Greaves Consumer,Manufacturing,Fans / Pumps,Mumbai,Yes,
+GreytHR,Prince Pipes,Manufacturing,PVC Pipes,Mumbai,Yes,
+GreytHR,Supreme Industries (select),Manufacturing,Plastics / Pipes,Mumbai,Yes,
+GreytHR,Finolex Industries,Manufacturing,PVC Pipes,Pune,Yes,
+GreytHR,Shriram Finance (select divisions),BFSI,NBFC / Vehicle Finance,Chennai,Yes,
+GreytHR,Muthoot Finance (select divisions),BFSI,Gold Loan NBFC,Kochi,Yes,
+GreytHR,Manappuram Finance,BFSI,Gold Loan NBFC,Valapad,Yes,
+GreytHR,IIFL Gold Loan,BFSI,Gold Loan,Mumbai,Yes,IIFL subsidiary
+GreytHR,Arohan Financial Services,BFSI,Microfinance,Kolkata,No,
+GreytHR,Spandana Sphoorty,BFSI,Microfinance,Hyderabad,Yes,
+GreytHR,Satin Creditcare,BFSI,Microfinance,Gurugram,Yes,
+GreytHR,Asirvad Microfinance,BFSI,Microfinance,Kochi,No,Manappuram subsidiary
+GreytHR,Annapurna Finance,BFSI,Microfinance,Bhubaneswar,No,
+GreytHR,ESAF Small Finance Bank,BFSI,Small Finance Bank,Thrissur,Yes,
+GreytHR,Jana Small Finance Bank,BFSI,Small Finance Bank,Bengaluru,Yes,
+GreytHR,Suryoday Small Finance Bank,BFSI,Small Finance Bank,Mumbai,Yes,
+GreytHR,Ujjivan Small Finance Bank,BFSI,Small Finance Bank,Bengaluru,Yes,
+GreytHR,Equitas Small Finance Bank,BFSI,Small Finance Bank,Chennai,Yes,
+PeopleStrong,ICICI Lombard General Insurance,BFSI,General Insurance,Mumbai,Yes,
+PeopleStrong,New India Assurance,BFSI,General Insurance,Mumbai,Yes,PSU
+PeopleStrong,United India Insurance,BFSI,General Insurance,Chennai,No,PSU
+PeopleStrong,National Insurance Company,BFSI,General Insurance,Kolkata,No,PSU
+PeopleStrong,Oriental Insurance,BFSI,General Insurance,New Delhi,No,PSU
+PeopleStrong,Star Health Insurance,BFSI,Health Insurance,Chennai,Yes,
+PeopleStrong,Niva Bupa Health Insurance,BFSI,Health Insurance,New Delhi,Yes,
+PeopleStrong,Care Health Insurance,BFSI,Health Insurance,Gurugram,No,Religare subsidiary
+PeopleStrong,Aditya Birla Health Insurance,BFSI,Health Insurance,Mumbai,No,Aditya Birla Group
+PeopleStrong,HDFC ERGO General Insurance,BFSI,General Insurance,Mumbai,No,HDFC Group
+PeopleStrong,Tata AIG General Insurance,BFSI,General Insurance,Mumbai,No,Tata Group
+PeopleStrong,Future Generali India Insurance,BFSI,General Insurance,Mumbai,No,
+PeopleStrong,Reliance General Insurance,BFSI,General Insurance,Mumbai,No,
+PeopleStrong,Royal Sundaram General Insurance,BFSI,General Insurance,Chennai,No,Sundaram Group
+PeopleStrong,Cholamandalam MS General Insurance,BFSI,General Insurance,Chennai,Yes,Murugappa Group
+PeopleStrong,Mahindra & Mahindra (select divisions),Manufacturing,Auto OEM,Mumbai,Yes,
+PeopleStrong,Ashok Leyland,Manufacturing,Commercial Vehicles,Chennai,Yes,Hinduja Group
+PeopleStrong,Tata Motors (select plants),Manufacturing,Auto OEM,Mumbai,Yes,
+PeopleStrong,Hero MotoCorp (select units),Manufacturing,Two-wheelers,New Delhi,Yes,
+PeopleStrong,TVS Motor Company (select),Manufacturing,Two-wheelers,Chennai,Yes,
+PeopleStrong,Eicher Motors,Manufacturing,Two-wheelers / CV,New Delhi,Yes,
+PeopleStrong,Escorts Kubota,Manufacturing,Agri Equipment,Faridabad,Yes,
+PeopleStrong,Force Motors,Manufacturing,LCV / SUV,Pune,Yes,
+PeopleStrong,SML Isuzu,Manufacturing,Commercial Vehicles,Chandigarh,Yes,
+PeopleStrong,JBM Auto,Manufacturing,Auto Components,New Delhi,Yes,
+PeopleStrong,Minda Corporation,Manufacturing,Auto Components,Gurugram,Yes,
+PeopleStrong,Varroc Engineering,Manufacturing,Auto Lighting / EV,Pune,Yes,
+PeopleStrong,Sandhar Technologies,Manufacturing,Auto Components,New Delhi,Yes,
+PeopleStrong,Lumax Industries,Manufacturing,Lighting / Auto,New Delhi,Yes,
+PeopleStrong,Bosch India (select HR modules),Manufacturing,Auto Components,Bengaluru,Yes,
+Oracle HCM Cloud,Bank of Baroda,BFSI,PSU Bank,Vadodara,Yes,Large Oracle footprint
+Oracle HCM Cloud,Canara Bank,BFSI,PSU Bank,Bengaluru,Yes,
+Oracle HCM Cloud,Union Bank of India,BFSI,PSU Bank,Mumbai,Yes,Post-merger (Andhra + Corp)
+Oracle HCM Cloud,Indian Bank,BFSI,PSU Bank,Chennai,Yes,Post-merger with Allahabad Bank
+Oracle HCM Cloud,Punjab National Bank,BFSI,PSU Bank,New Delhi,Yes,Post-merger (OBC + UBI)
+Oracle HCM Cloud,Bank of India,BFSI,PSU Bank,Mumbai,Yes,
+Oracle HCM Cloud,Central Bank of India,BFSI,PSU Bank,Mumbai,Yes,
+Oracle HCM Cloud,UCO Bank,BFSI,PSU Bank,Kolkata,Yes,
+Oracle HCM Cloud,LIC Housing Finance,BFSI,Housing Finance,Mumbai,Yes,LIC subsidiary
+Oracle HCM Cloud,HUDCO,BFSI,Housing Finance,New Delhi,Yes,PSU
+Oracle HCM Cloud,PFC (Power Finance Corporation),BFSI,Infra Finance,New Delhi,Yes,PSU
+Oracle HCM Cloud,REC Limited,BFSI,Infra Finance,Gurugram,Yes,PSU
+Oracle HCM Cloud,IRFC,BFSI,Railway Finance,New Delhi,Yes,PSU
+Oracle HCM Cloud,NABARD,BFSI,Development Bank,Mumbai,No,PSU
+Oracle HCM Cloud,SIDBI,BFSI,Development Bank,Lucknow,No,PSU
+Oracle HCM Cloud,EXIM Bank,BFSI,Export Finance,Mumbai,No,PSU
+Oracle HCM Cloud,NHB (National Housing Bank),BFSI,Housing Finance,New Delhi,No,PSU Regulator
+Oracle HCM Cloud,NaBFID,BFSI,Infra Finance,Mumbai,No,New DFI
+Oracle HCM Cloud,IIFCL,BFSI,Infra Finance,New Delhi,No,PSU
+Oracle HCM Cloud,Birla Corporation,Manufacturing,Cement,Kolkata,Yes,M P Birla Group
+Oracle HCM Cloud,ACC Limited,Manufacturing,Cement,Mumbai,Yes,Adani Group
+Oracle HCM Cloud,Ambuja Cements,Manufacturing,Cement,Mumbai,Yes,Adani Group
+Oracle HCM Cloud,Shree Cement,Manufacturing,Cement,Kolkata,Yes,
+Oracle HCM Cloud,Dalmia Bharat,Manufacturing,Cement,New Delhi,Yes,
+Oracle HCM Cloud,JK Cement,Manufacturing,Cement,New Delhi,Yes,
+Oracle HCM Cloud,Ramco Cements,Manufacturing,Cement,Chennai,Yes,
+Oracle HCM Cloud,Star Cement,Manufacturing,Cement,Kolkata,Yes,NE India focus
+Oracle HCM Cloud,India Cements,Manufacturing,Cement,Chennai,Yes,
+Oracle HCM Cloud,Sagar Cements,Manufacturing,Cement,Hyderabad,Yes,
+Spine HR / HRMantra,Saraswat Cooperative Bank,BFSI,Urban Co-op Bank,Mumbai,No,Maharashtra; largest urban co-op
+Spine HR / HRMantra,Shamrao Vithal Cooperative Bank,BFSI,Urban Co-op Bank,Mumbai,No,Maharashtra
+Spine HR / HRMantra,Cosmos Cooperative Bank,BFSI,Urban Co-op Bank,Pune,No,
+Spine HR / HRMantra,Maharashtra State Cooperative Bank,BFSI,State Co-op Bank,Mumbai,No,Apex co-op bank MH
+Spine HR / HRMantra,Abhyudaya Cooperative Bank,BFSI,Urban Co-op Bank,Mumbai,No,
+Spine HR / HRMantra,Bassein Catholic Cooperative Bank,BFSI,Urban Co-op Bank,Vasai,No,
+Spine HR / HRMantra,Kalupur Commercial Cooperative Bank,BFSI,Urban Co-op Bank,Ahmedabad,No,
+Spine HR / HRMantra,Gujarat State Cooperative Bank,BFSI,State Co-op Bank,Ahmedabad,No,Apex bank Gujarat
+Spine HR / HRMantra,Rajkot Nagarik Sahakari Bank,BFSI,Urban Co-op Bank,Rajkot,No,Gujarat
+Spine HR / HRMantra,Mehsana Urban Cooperative Bank,BFSI,Urban Co-op Bank,Mehsana,No,Gujarat
+Spine HR / HRMantra,Maharashtra Gramin Bank,BFSI,Regional Rural Bank,Aurangabad,No,BoM sponsored
+Spine HR / HRMantra,Vidharbha Konkan Gramin Bank,BFSI,Regional Rural Bank,Nagpur,No,
+Spine HR / HRMantra,Wainganga Krishna Gramin Bank,BFSI,Regional Rural Bank,Nagpur,No,
+Spine HR / HRMantra,Rajasthan Gramin Bank,BFSI,Regional Rural Bank,Ajmer,No,
+Spine HR / HRMantra,Baroda Rajasthan Kshetriya Gramin Bank,BFSI,Regional Rural Bank,Ajmer,No,BoB sponsored
+Spine HR / HRMantra,Punjab & Sind Bank,BFSI,PSU Bank,New Delhi,Yes,
+Spine HR / HRMantra,Indian Overseas Bank,BFSI,PSU Bank,Chennai,Yes,
+Spine HR / HRMantra,Jalgaon People's Cooperative Bank,BFSI,Urban Co-op Bank,Jalgaon,No,Maharashtra
+Spine HR / HRMantra,The Akola Urban Cooperative Bank,BFSI,Urban Co-op Bank,Akola,No,Maharashtra
+Spine HR / HRMantra,Chhatrapati Sahakari Bank,BFSI,Urban Co-op Bank,Pune,No,Maharashtra
+Spine HR / HRMantra,Sangli Urban Cooperative Bank,BFSI,Urban Co-op Bank,Sangli,No,Maharashtra
+Spine HR / HRMantra,Zoroastrian Cooperative Bank,BFSI,Urban Co-op Bank,Mumbai,No,Parsi community bank
+Spine HR / HRMantra,Delhi State Cooperative Bank,BFSI,State Co-op Bank,New Delhi,No,
+Spine HR / HRMantra,Haryana State Cooperative Apex Bank,BFSI,State Co-op Bank,Chandigarh,No,
+Spine HR / HRMantra,Karnataka Vikas Grameena Bank,BFSI,Regional Rural Bank,Dharwad,No,Karnataka
+Beehive HRMS,Bandhan Bank (select modules),BFSI,Small Finance / Scheduled Bank,Kolkata,Yes,
+Beehive HRMS,Utkarsh Small Finance Bank,BFSI,Small Finance Bank,Varanasi,Yes,
+Beehive HRMS,Capital Small Finance Bank,BFSI,Small Finance Bank,Jalandhar,Yes,
+Beehive HRMS,North East Small Finance Bank,BFSI,Small Finance Bank,Guwahati,No,NE India focus
+Beehive HRMS,RGVN (NE) Microfinance,BFSI,Microfinance,Guwahati,No,NE India
+Beehive HRMS,Cashpor Micro Credit,BFSI,Microfinance,Varanasi,No,UP focus; Grameen model
+Beehive HRMS,Grameen Koota (Svasti),BFSI,Microfinance,Bengaluru,No,Karnataka
+Beehive HRMS,Belstar Microfinance,BFSI,Microfinance,Chennai,No,Muthoot subsidiary
+Beehive HRMS,Svatantra Microfin,BFSI,Microfinance,Mumbai,No,
+Beehive HRMS,Navachetana Microfin Services,BFSI,Microfinance,Bengaluru,No,Karnataka
+Beehive HRMS,Samasta Microfinance,BFSI,Microfinance,Bengaluru,No,IIFL subsidiary
+Beehive HRMS,Growing Opportunity Finance,BFSI,Microfinance,Bhopal,No,
+Beehive HRMS,Pahal Financial Services,BFSI,Microfinance,Indore,No,
+Beehive HRMS,Jagaran Microfin,BFSI,Microfinance,Varanasi,No,
+Beehive HRMS,Village Financial Services,BFSI,Microfinance,Kolkata,No,West Bengal
+Beehive HRMS,Adhikar Microfinance,BFSI,Microfinance,Bhubaneswar,No,Odisha
+Beehive HRMS,Ananya Finance for Inclusive Growth,BFSI,Microfinance,Guwahati,No,NE India
+Beehive HRMS,Nightingale Finserve,BFSI,Microfinance,Mumbai,No,
+Beehive HRMS,Madura Microfinance,BFSI,Microfinance,Madurai,No,Tamil Nadu
+Beehive HRMS,Arohan Financial Services,BFSI,Microfinance,Kolkata,No,Eastern India
+Beehive HRMS,Asirvad Microfinance,BFSI,Microfinance,Kochi,No,Kerala / TN
+Beehive HRMS,Varam Capital,BFSI,Microfinance,Chennai,No,Tamil Nadu
+Beehive HRMS,Equitas Holdings (early modules),BFSI,NBFC / SFB,Chennai,Yes,Listed parent
+Beehive HRMS,Share Microfin (legacy),BFSI,Microfinance,Hyderabad,No,Legacy system

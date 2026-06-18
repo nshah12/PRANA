@@ -1,0 +1,33 @@
+# PRANA AI Pipeline — GPU worker dependencies
+
+# HTTP server
+fastapi==0.115.0
+uvicorn[standard]==0.30.6
+pydantic==2.9.0
+
+# LLM / embeddings
+httpx==0.27.2
+openai==1.51.0        # OpenAI-compatible client (HuggingFace / Ollama / vLLM)
+
+# OCR
+pytesseract==0.3.13
+Pillow==10.4.0
+PyMuPDF==1.24.10      # fitz — PDF to image
+boto3==1.35.0         # AWS Textract fallback
+
+# Extraction
+rapidfuzz==3.10.0     # fuzzy name matching (Stage 05)
+
+# Scanning
+clamd==1.0.2          # ClamAV Python client
+# NSFW/CSAM: wire PhotoDNA or custom model — placeholder in stage03_scan.py
+
+# Encryption
+cryptography==43.0.1
+ff3==1.0.1
+
+# Vector similarity
+qdrant-client==1.12.0
+
+# Database (resolution service needs DB access)
+asyncpg==0.29.0
