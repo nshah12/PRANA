@@ -182,7 +182,7 @@ class OaEmergencyIn(BaseModel):
 
 
 @router.post("/oa-emergency/create")
-async def oa_emergency_create(body: OaEmergencyIn, db: DbConn, current=PA):
+async def oa_emergency_create(body: OaEmergencyIn, request: Request, db: DbConn, current=PA):
     tenant = await db.fetchrow("SELECT tenant_id FROM tenant WHERE domain=$1", body.tenant_domain)
     if not tenant:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="TENANT_NOT_FOUND")
