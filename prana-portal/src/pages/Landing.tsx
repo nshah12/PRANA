@@ -431,20 +431,29 @@ export function Landing() {
           })}
         </div>
 
-        {/* Small video placeholder */}
-        <div className="max-w-sm mx-auto">
-          <div className="bg-slate-900 rounded-2xl overflow-hidden border border-slate-700 aspect-video
-                          flex flex-col items-center justify-center gap-3 relative">
-            <div className="absolute inset-0 opacity-20"
-              style={{ background: 'radial-gradient(circle at 30% 50%, #6366F1, transparent 60%), radial-gradient(circle at 70% 50%, #22D3EE, transparent 60%)' }} />
-            <div className="relative z-10 flex flex-col items-center gap-2">
-              <div className="w-12 h-12 rounded-full flex items-center justify-center" style={{ background: GRAD }}>
-                <svg width="18" height="18" viewBox="0 0 24 24" fill="white"><path d="M8 5v14l11-7z"/></svg>
+        {/* 3 perspective video placeholders */}
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 max-w-4xl mx-auto">
+          {[
+            { label: 'For CHROs', sublabel: 'Vault health · compliance · zero manual work', color: '#6366F1', glow: '#6366F1' },
+            { label: 'For InfoSec', sublabel: 'Audit trail · access control · anomaly alerts', color: '#0EA5E9', glow: '#22D3EE' },
+            { label: 'For Employees', sublabel: 'Own your docs · share securely · ask PRANA', color: '#10B981', glow: '#10B981' },
+          ].map(v => (
+            <div key={v.label} className="bg-slate-900 rounded-2xl overflow-hidden border border-slate-700 aspect-video
+                            flex flex-col items-center justify-center gap-3 relative cursor-pointer group">
+              <div className="absolute inset-0 opacity-20 group-hover:opacity-30 transition-opacity"
+                style={{ background: `radial-gradient(circle at 50% 50%, ${v.glow}, transparent 70%)` }} />
+              <div className="relative z-10 flex flex-col items-center gap-2 px-4 text-center">
+                <div className="w-11 h-11 rounded-full flex items-center justify-center group-hover:scale-110 transition-transform"
+                  style={{ background: v.color }}>
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="white"><path d="M8 5v14l11-7z"/></svg>
+                </div>
+                <p className="text-white text-xs font-semibold">{v.label}</p>
+                <p className="text-slate-400 text-[10px] leading-relaxed">{v.sublabel}</p>
+                <span className="text-[9px] font-medium px-2 py-0.5 rounded-full mt-1"
+                  style={{ background: `${v.color}22`, color: v.color }}>60 sec · coming soon</span>
               </div>
-              <p className="text-white text-xs font-medium">Watch 2-min demo</p>
-              <p className="text-slate-400 text-[10px]">Video · coming soon</p>
             </div>
-          </div>
+          ))}
         </div>
       </section>
 
