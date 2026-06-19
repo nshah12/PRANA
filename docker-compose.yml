@@ -105,7 +105,7 @@ services:
       KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1
       KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1
       KAFKA_AUTO_CREATE_TOPICS_ENABLE: "false"
-      CLUSTER_ID: prana-dev-cluster-id-001
+      CLUSTER_ID: d-QxKFQXSqa4ovfvF8vmIQ
     volumes:
       - kafka_data:/var/lib/kafka/data
     healthcheck:
@@ -122,20 +122,9 @@ services:
     depends_on:
       kafka:
         condition: service_healthy
-    entrypoint: >
-      sh -c "
-        kafka-topics --bootstrap-server kafka:9093 --create --if-not-exists
-          --topic prana.ingest.events    --partitions 12 --replication-factor 1 &&
-        kafka-topics --bootstrap-server kafka:9093 --create --if-not-exists
-          --topic prana.pipeline.events  --partitions 12 --replication-factor 1 &&
-        kafka-topics --bootstrap-server kafka:9093 --create --if-not-exists
-          --topic prana.audit.events     --partitions 12 --replication-factor 1 &&
-        kafka-topics --bootstrap-server kafka:9093 --create --if-not-exists
-          --topic prana.notifications    --partitions 12 --replication-factor 1 &&
-        kafka-topics --bootstrap-server kafka:9093 --create --if-not-exists
-          --topic prana.analytics.events --partitions 12 --replication-factor 1 &&
-        echo 'Kafka topics created'
-      "
+    volumes:
+      - ./prana-db:/prana-db
+    entrypoint: ["sh", "/prana-db/kafka-init.sh"]
     restart: "no"
 
   # ── Qdrant ──────────────────────────────────────────────────────────────────
@@ -189,22 +178,37 @@ services:
       "
     restart: "no"
 
+  # ── PostgreSQL for Temporal (separate from YugabyteDB — Temporal uses generated columns YugabyteDB doesn't support) ─
+  temporal-postgres:
+    image: postgres:15-alpine
+    container_name: prana-temporal-postgres
+    environment:
+      POSTGRES_USER: temporal
+      POSTGRES_PASSWORD: temporal
+      POSTGRES_DB: temporal
+    volumes:
+      - temporal_postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U temporal"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
   # ── Temporal (workflow engine) ───────────────────────────────────────────────
   temporal:
-    image: temporalio/auto-setup:1.24.2
+    image: temporalio/auto-setup:latest
     container_name: prana-temporal
     ports:
       - "7233:7233"
     environment:
       - DB=postgres12
-      - DB_PORT=5433
-      - POSTGRES_USER=yugabyte
-      - POSTGRES_PWD=yugabyte
-      - POSTGRES_SEEDS=yugabyte
-      - DYNAMIC_CONFIG_FILE_PATH=config/dynamicconfig/development-sql.yaml
+      - DB_PORT=5432
+      - POSTGRES_USER=temporal
+      - POSTGRES_PWD=temporal
+      - POSTGRES_SEEDS=temporal-postgres
     depends_on:
-      db-init:
-        condition: service_completed_successfully
+      temporal-postgres:
+        condition: service_healthy
     healthcheck:
       test: ["CMD", "tctl", "--address", "temporal:7233", "cluster", "health"]
       interval: 15s
@@ -310,3 +314,4 @@ volumes:
   kafka_data:
   qdrant_data:
   minio_data:
+  temporal_postgres_data:
