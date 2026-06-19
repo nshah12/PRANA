@@ -142,29 +142,29 @@ INSERT INTO oa_user (
 -- ============================================================
 -- UPDATE TechCorp employee_master — give emp001-010 real names
 -- ============================================================
-UPDATE employee_master SET full_name = 'Rahul Sharma',   designation = 'Software Engineer',      department = 'Engineering',  grade = 'L2' WHERE employee_uuid = '40000000-0000-0001-0001-000000000001';
-UPDATE employee_master SET full_name = 'Priya Nair',     designation = 'Data Analyst',            department = 'Data Science', grade = 'L2' WHERE employee_uuid = '40000000-0000-0001-0002-000000000001';
-UPDATE employee_master SET full_name = 'Amit Patel',     designation = 'Lead Analyst',            department = 'Analytics',    grade = 'L3' WHERE employee_uuid = '40000000-0000-0001-0003-000000000001';
-UPDATE employee_master SET full_name = 'Deepika Reddy',  designation = 'Tech Lead - Analytics',   department = 'Data Science', grade = 'L4' WHERE employee_uuid = '40000000-0000-0001-0004-000000000001';
-UPDATE employee_master SET full_name = 'Kiran Kumar',    designation = 'Engineering Manager',      department = 'Engineering',  grade = 'L4' WHERE employee_uuid = '40000000-0000-0001-0005-000000000001';
-UPDATE employee_master SET full_name = 'Sneha Joshi',    designation = 'Director of Analytics',   department = 'Analytics',    grade = 'L5' WHERE employee_uuid = '40000000-0000-0001-0006-000000000001';
-UPDATE employee_master SET full_name = 'Rohan Mehta',    designation = 'VP Engineering',          department = 'Engineering',  grade = 'L6' WHERE employee_uuid = '40000000-0000-0001-0007-000000000001';
-UPDATE employee_master SET full_name = 'Ananya Singh',   designation = 'Chief Product Officer',   department = 'Product',      grade = 'L6' WHERE employee_uuid = '40000000-0000-0001-0008-000000000001';
-UPDATE employee_master SET full_name = 'Vikram Iyer',    designation = 'Chief Risk Officer',      department = 'Risk',         grade = 'L6' WHERE employee_uuid = '40000000-0000-0001-0009-000000000001';
-UPDATE employee_master SET full_name = 'Pooja Sharma',   designation = 'Chief Executive Officer', department = 'Leadership',   grade = 'L6' WHERE employee_uuid = '40000000-0000-0001-0010-000000000001';
+UPDATE employee_master SET full_name = 'Rahul Sharma',   designation = 'Software Engineer',      department = 'Engineering',  grade = 'L2' WHERE employee_uuid = '40000000-0000-0000-0001-000000000001';
+UPDATE employee_master SET full_name = 'Priya Nair',     designation = 'Data Analyst',            department = 'Data Science', grade = 'L2' WHERE employee_uuid = '40000000-0000-0000-0001-000000000002';
+UPDATE employee_master SET full_name = 'Amit Patel',     designation = 'Lead Analyst',            department = 'Analytics',    grade = 'L3' WHERE employee_uuid = '40000000-0000-0000-0001-000000000003';
+UPDATE employee_master SET full_name = 'Deepika Reddy',  designation = 'Tech Lead - Analytics',   department = 'Data Science', grade = 'L4' WHERE employee_uuid = '40000000-0000-0000-0001-000000000004';
+UPDATE employee_master SET full_name = 'Kiran Kumar',    designation = 'Engineering Manager',      department = 'Engineering',  grade = 'L4' WHERE employee_uuid = '40000000-0000-0000-0001-000000000005';
+UPDATE employee_master SET full_name = 'Sneha Joshi',    designation = 'Director of Analytics',   department = 'Analytics',    grade = 'L5' WHERE employee_uuid = '40000000-0000-0000-0001-000000000006';
+UPDATE employee_master SET full_name = 'Rohan Mehta',    designation = 'VP Engineering',          department = 'Engineering',  grade = 'L6' WHERE employee_uuid = '40000000-0000-0000-0001-000000000007';
+UPDATE employee_master SET full_name = 'Ananya Singh',   designation = 'Chief Product Officer',   department = 'Product',      grade = 'L6' WHERE employee_uuid = '40000000-0000-0000-0001-000000000008';
+UPDATE employee_master SET full_name = 'Vikram Iyer',    designation = 'Chief Risk Officer',      department = 'Risk',         grade = 'L6' WHERE employee_uuid = '40000000-0000-0000-0001-000000000009';
+UPDATE employee_master SET full_name = 'Pooja Sharma',   designation = 'Chief Executive Officer', department = 'Leadership',   grade = 'L6' WHERE employee_uuid = '40000000-0000-0000-0001-000000000010';
 
 -- Update TechCorp DOJ for emp001-010 (overwrite the generic formula from dev_seed)
 UPDATE employee_master SET doj = '2024-01-01' WHERE employee_uuid IN (
-  '40000000-0000-0001-0001-000000000001',
-  '40000000-0000-0001-0002-000000000001',
-  '40000000-0000-0001-0003-000000000001',
-  '40000000-0000-0001-0004-000000000001',
-  '40000000-0000-0001-0005-000000000001',
-  '40000000-0000-0001-0006-000000000001',
-  '40000000-0000-0001-0007-000000000001',
-  '40000000-0000-0001-0008-000000000001',
-  '40000000-0000-0001-0009-000000000001',
-  '40000000-0000-0001-0010-000000000001'
+  '40000000-0000-0000-0001-000000000001',
+  '40000000-0000-0000-0001-000000000002',
+  '40000000-0000-0000-0001-000000000003',
+  '40000000-0000-0000-0001-000000000004',
+  '40000000-0000-0000-0001-000000000005',
+  '40000000-0000-0000-0001-000000000006',
+  '40000000-0000-0000-0001-000000000007',
+  '40000000-0000-0000-0001-000000000008',
+  '40000000-0000-0000-0001-000000000009',
+  '40000000-0000-0000-0001-000000000010'
 );
 
 -- ============================================================
@@ -177,7 +177,7 @@ INSERT INTO employee_master (
   grade, location, employment_type, doj, dol, status
 ) VALUES
   -- emp009 at ABCD Bank: Credit Risk Analyst, 2000-01-01 → 2002-12-31
-  ('40000000-0000-0002-0009-000000000001',
+  ('40000000-0000-0000-0002-000000000009',
    '30000000-0000-0000-0000-000000000009',
    '10000000-0000-0000-0000-000000000002',
    encode(hmac('SYNTHETIC_PAN_009', 'dev_secret', 'sha256'), 'hex'),
@@ -186,7 +186,7 @@ INSERT INTO employee_master (
    'A1', 'Mumbai', 'PERMANENT', '2000-01-01', '2002-12-31', 'ALUMNI'),
 
   -- emp010 at ABCD Bank: Product Manager - Digital, 2003-01-01 → 2005-12-31
-  ('40000000-0000-0002-0010-000000000001',
+  ('40000000-0000-0000-0002-000000000010',
    '30000000-0000-0000-0000-000000000010',
    '10000000-0000-0000-0000-000000000002',
    encode(hmac('SYNTHETIC_PAN_010', 'dev_secret', 'sha256'), 'hex'),
@@ -204,7 +204,7 @@ INSERT INTO employee_master (
   grade, location, employment_type, doj, dol, status
 ) VALUES
   -- emp010 at PQRS Fintech: Junior Product Manager, 2000-01-01 → 2002-12-31
-  ('40000000-0000-0003-0010-000000000001',
+  ('40000000-0000-0000-0003-000000000010',
    '30000000-0000-0000-0000-000000000010',
    '10000000-0000-0000-0000-000000000003',
    encode(hmac('SYNTHETIC_PAN_010', 'dev_secret', 'sha256'), 'hex'),
@@ -418,32 +418,32 @@ CREATE TEMP TABLE _stints (
 
 INSERT INTO _stints VALUES
   -- ── Emp 001 Rahul Sharma ─────────────────────────────────────────────
-  (1,'Rahul Sharma','30000000-0000-0000-0000-000000000001','40000000-0000-0001-0001-000000000001','10000000-0000-0000-0000-000000000001','TechCorp Solutions Pvt Ltd','Software Engineer','2024-01-01',NULL,FALSE),
+  (1,'Rahul Sharma','30000000-0000-0000-0000-000000000001','40000000-0000-0000-0001-000000000001','10000000-0000-0000-0000-000000000001','TechCorp Solutions Pvt Ltd','Software Engineer','2024-01-01',NULL,FALSE),
   -- ── Emp 002 Priya Nair ───────────────────────────────────────────────
   (2,'Priya Nair','30000000-0000-0000-0000-000000000002','40000000-0000-0004-0002-000000000001','10000000-0000-0000-0000-000000000004','Nexus Software Pvt Ltd','Junior Data Analyst','2021-01-01','2023-12-31',TRUE),
-  (2,'Priya Nair','30000000-0000-0000-0000-000000000002','40000000-0000-0001-0002-000000000001','10000000-0000-0000-0000-000000000001','TechCorp Solutions Pvt Ltd','Data Analyst','2024-01-01',NULL,FALSE),
+  (2,'Priya Nair','30000000-0000-0000-0000-000000000002','40000000-0000-0000-0001-000000000002','10000000-0000-0000-0000-000000000001','TechCorp Solutions Pvt Ltd','Data Analyst','2024-01-01',NULL,FALSE),
   -- ── Emp 003 Amit Patel ───────────────────────────────────────────────
   (3,'Amit Patel','30000000-0000-0000-0000-000000000003','40000000-0000-0005-0003-000000000001','10000000-0000-0000-0000-000000000005','Meridian Capital Ltd','Credit Analyst','2018-01-01','2020-12-31',TRUE),
   (3,'Amit Patel','30000000-0000-0000-0000-000000000003','40000000-0000-0004-0003-000000000001','10000000-0000-0000-0000-000000000004','Nexus Software Pvt Ltd','Senior Analyst','2021-01-01','2023-12-31',TRUE),
-  (3,'Amit Patel','30000000-0000-0000-0000-000000000003','40000000-0000-0001-0003-000000000001','10000000-0000-0000-0000-000000000001','TechCorp Solutions Pvt Ltd','Lead Analyst','2024-01-01',NULL,FALSE),
+  (3,'Amit Patel','30000000-0000-0000-0000-000000000003','40000000-0000-0000-0001-000000000003','10000000-0000-0000-0000-000000000001','TechCorp Solutions Pvt Ltd','Lead Analyst','2024-01-01',NULL,FALSE),
   -- ── Emp 004 Deepika Reddy ────────────────────────────────────────────
   (4,'Deepika Reddy','30000000-0000-0000-0000-000000000004','40000000-0000-0006-0004-000000000001','10000000-0000-0000-0000-000000000006','Zephyr Analytics Pvt Ltd','Junior Data Scientist','2015-01-01','2017-12-31',TRUE),
   (4,'Deepika Reddy','30000000-0000-0000-0000-000000000004','40000000-0000-0005-0004-000000000001','10000000-0000-0000-0000-000000000005','Meridian Capital Ltd','Data Scientist','2018-01-01','2020-12-31',TRUE),
   (4,'Deepika Reddy','30000000-0000-0000-0000-000000000004','40000000-0000-0004-0004-000000000001','10000000-0000-0000-0000-000000000004','Nexus Software Pvt Ltd','Senior Data Scientist','2021-01-01','2023-12-31',TRUE),
-  (4,'Deepika Reddy','30000000-0000-0000-0000-000000000004','40000000-0000-0001-0004-000000000001','10000000-0000-0000-0000-000000000001','TechCorp Solutions Pvt Ltd','Tech Lead - Analytics','2024-01-01',NULL,FALSE),
+  (4,'Deepika Reddy','30000000-0000-0000-0000-000000000004','40000000-0000-0000-0001-000000000004','10000000-0000-0000-0000-000000000001','TechCorp Solutions Pvt Ltd','Tech Lead - Analytics','2024-01-01',NULL,FALSE),
   -- ── Emp 005 Kiran Kumar ──────────────────────────────────────────────
   (5,'Kiran Kumar','30000000-0000-0000-0000-000000000005','40000000-0000-0007-0005-000000000001','10000000-0000-0000-0000-000000000007','Pinnacle Manufacturing Ltd','Junior Engineer','2012-01-01','2014-12-31',TRUE),
   (5,'Kiran Kumar','30000000-0000-0000-0000-000000000005','40000000-0000-0006-0005-000000000001','10000000-0000-0000-0000-000000000006','Zephyr Analytics Pvt Ltd','Engineer','2015-01-01','2017-12-31',TRUE),
   (5,'Kiran Kumar','30000000-0000-0000-0000-000000000005','40000000-0000-0005-0005-000000000001','10000000-0000-0000-0000-000000000005','Meridian Capital Ltd','Senior Engineer','2018-01-01','2020-12-31',TRUE),
   (5,'Kiran Kumar','30000000-0000-0000-0000-000000000005','40000000-0000-0004-0005-000000000001','10000000-0000-0000-0000-000000000004','Nexus Software Pvt Ltd','Lead Engineer','2021-01-01','2023-12-31',TRUE),
-  (5,'Kiran Kumar','30000000-0000-0000-0000-000000000005','40000000-0000-0001-0005-000000000001','10000000-0000-0000-0000-000000000001','TechCorp Solutions Pvt Ltd','Engineering Manager','2024-01-01',NULL,FALSE),
+  (5,'Kiran Kumar','30000000-0000-0000-0000-000000000005','40000000-0000-0000-0001-000000000005','10000000-0000-0000-0000-000000000001','TechCorp Solutions Pvt Ltd','Engineering Manager','2024-01-01',NULL,FALSE),
   -- ── Emp 006 Sneha Joshi ──────────────────────────────────────────────
   (6,'Sneha Joshi','30000000-0000-0000-0000-000000000006','40000000-0000-0008-0006-000000000001','10000000-0000-0000-0000-000000000008','Horizon Consulting Pvt Ltd','Business Analyst','2009-01-01','2011-12-31',TRUE),
   (6,'Sneha Joshi','30000000-0000-0000-0000-000000000006','40000000-0000-0007-0006-000000000001','10000000-0000-0000-0000-000000000007','Pinnacle Manufacturing Ltd','Senior Analyst','2012-01-01','2014-12-31',TRUE),
   (6,'Sneha Joshi','30000000-0000-0000-0000-000000000006','40000000-0000-0006-0006-000000000001','10000000-0000-0000-0000-000000000006','Zephyr Analytics Pvt Ltd','Lead Analyst','2015-01-01','2017-12-31',TRUE),
   (6,'Sneha Joshi','30000000-0000-0000-0000-000000000006','40000000-0000-0005-0006-000000000001','10000000-0000-0000-0000-000000000005','Meridian Capital Ltd','Analytics Manager','2018-01-01','2020-12-31',TRUE),
   (6,'Sneha Joshi','30000000-0000-0000-0000-000000000006','40000000-0000-0004-0006-000000000001','10000000-0000-0000-0000-000000000004','Nexus Software Pvt Ltd','Senior Manager','2021-01-01','2023-12-31',TRUE),
-  (6,'Sneha Joshi','30000000-0000-0000-0000-000000000006','40000000-0000-0001-0006-000000000001','10000000-0000-0000-0000-000000000001','TechCorp Solutions Pvt Ltd','Director of Analytics','2024-01-01',NULL,FALSE),
+  (6,'Sneha Joshi','30000000-0000-0000-0000-000000000006','40000000-0000-0000-0001-000000000006','10000000-0000-0000-0000-000000000001','TechCorp Solutions Pvt Ltd','Director of Analytics','2024-01-01',NULL,FALSE),
   -- ── Emp 007 Rohan Mehta ──────────────────────────────────────────────
   (7,'Rohan Mehta','30000000-0000-0000-0000-000000000007','40000000-0000-0009-0007-000000000001','10000000-0000-0000-0000-000000000009','Aurora Pharma Ltd','Software Engineer','2006-01-01','2008-12-31',TRUE),
   (7,'Rohan Mehta','30000000-0000-0000-0000-000000000007','40000000-0000-0008-0007-000000000001','10000000-0000-0000-0000-000000000008','Horizon Consulting Pvt Ltd','Senior Engineer','2009-01-01','2011-12-31',TRUE),
@@ -451,7 +451,7 @@ INSERT INTO _stints VALUES
   (7,'Rohan Mehta','30000000-0000-0000-0000-000000000007','40000000-0000-0006-0007-000000000001','10000000-0000-0000-0000-000000000006','Zephyr Analytics Pvt Ltd','Engineering Manager','2015-01-01','2017-12-31',TRUE),
   (7,'Rohan Mehta','30000000-0000-0000-0000-000000000007','40000000-0000-0005-0007-000000000001','10000000-0000-0000-0000-000000000005','Meridian Capital Ltd','Senior Manager Engineering','2018-01-01','2020-12-31',TRUE),
   (7,'Rohan Mehta','30000000-0000-0000-0000-000000000007','40000000-0000-0004-0007-000000000001','10000000-0000-0000-0000-000000000004','Nexus Software Pvt Ltd','Director of Engineering','2021-01-01','2023-12-31',TRUE),
-  (7,'Rohan Mehta','30000000-0000-0000-0000-000000000007','40000000-0000-0001-0007-000000000001','10000000-0000-0000-0000-000000000001','TechCorp Solutions Pvt Ltd','VP Engineering','2024-01-01',NULL,FALSE),
+  (7,'Rohan Mehta','30000000-0000-0000-0000-000000000007','40000000-0000-0000-0001-000000000007','10000000-0000-0000-0000-000000000001','TechCorp Solutions Pvt Ltd','VP Engineering','2024-01-01',NULL,FALSE),
   -- ── Emp 008 Ananya Singh ─────────────────────────────────────────────
   (8,'Ananya Singh','30000000-0000-0000-0000-000000000008','40000000-0000-0010-0008-000000000001','10000000-0000-0000-0000-000000000010','Cascade Retail Pvt Ltd','Retail Analyst','2003-01-01','2005-12-31',TRUE),
   (8,'Ananya Singh','30000000-0000-0000-0000-000000000008','40000000-0000-0009-0008-000000000001','10000000-0000-0000-0000-000000000009','Aurora Pharma Ltd','Product Analyst','2006-01-01','2008-12-31',TRUE),
@@ -460,9 +460,9 @@ INSERT INTO _stints VALUES
   (8,'Ananya Singh','30000000-0000-0000-0000-000000000008','40000000-0000-0006-0008-000000000001','10000000-0000-0000-0000-000000000006','Zephyr Analytics Pvt Ltd','Director of Product','2015-01-01','2017-12-31',TRUE),
   (8,'Ananya Singh','30000000-0000-0000-0000-000000000008','40000000-0000-0005-0008-000000000001','10000000-0000-0000-0000-000000000005','Meridian Capital Ltd','VP Product','2018-01-01','2020-12-31',TRUE),
   (8,'Ananya Singh','30000000-0000-0000-0000-000000000008','40000000-0000-0004-0008-000000000001','10000000-0000-0000-0000-000000000004','Nexus Software Pvt Ltd','SVP Product','2021-01-01','2023-12-31',TRUE),
-  (8,'Ananya Singh','30000000-0000-0000-0000-000000000008','40000000-0000-0001-0008-000000000001','10000000-0000-0000-0000-000000000001','TechCorp Solutions Pvt Ltd','Chief Product Officer','2024-01-01',NULL,FALSE),
+  (8,'Ananya Singh','30000000-0000-0000-0000-000000000008','40000000-0000-0000-0001-000000000008','10000000-0000-0000-0000-000000000001','TechCorp Solutions Pvt Ltd','Chief Product Officer','2024-01-01',NULL,FALSE),
   -- ── Emp 009 Vikram Iyer ──────────────────────────────────────────────
-  (9,'Vikram Iyer','30000000-0000-0000-0000-000000000009','40000000-0000-0002-0009-000000000001','10000000-0000-0000-0000-000000000002','ABCD Bank Ltd','Credit Risk Analyst','2000-01-01','2002-12-31',TRUE),
+  (9,'Vikram Iyer','30000000-0000-0000-0000-000000000009','40000000-0000-0000-0002-000000000009','10000000-0000-0000-0000-000000000002','ABCD Bank Ltd','Credit Risk Analyst','2000-01-01','2002-12-31',TRUE),
   (9,'Vikram Iyer','30000000-0000-0000-0000-000000000009','40000000-0000-0010-0009-000000000001','10000000-0000-0000-0000-000000000010','Cascade Retail Pvt Ltd','Senior Risk Analyst','2003-01-01','2005-12-31',TRUE),
   (9,'Vikram Iyer','30000000-0000-0000-0000-000000000009','40000000-0000-0009-0009-000000000001','10000000-0000-0000-0000-000000000009','Aurora Pharma Ltd','Risk Manager','2006-01-01','2008-12-31',TRUE),
   (9,'Vikram Iyer','30000000-0000-0000-0000-000000000009','40000000-0000-0008-0009-000000000001','10000000-0000-0000-0000-000000000008','Horizon Consulting Pvt Ltd','Senior Manager Risk','2009-01-01','2011-12-31',TRUE),
@@ -470,10 +470,10 @@ INSERT INTO _stints VALUES
   (9,'Vikram Iyer','30000000-0000-0000-0000-000000000009','40000000-0000-0006-0009-000000000001','10000000-0000-0000-0000-000000000006','Zephyr Analytics Pvt Ltd','Director - Risk & Analytics','2015-01-01','2017-12-31',TRUE),
   (9,'Vikram Iyer','30000000-0000-0000-0000-000000000009','40000000-0000-0005-0009-000000000001','10000000-0000-0000-0000-000000000005','Meridian Capital Ltd','VP Risk Management','2018-01-01','2020-12-31',TRUE),
   (9,'Vikram Iyer','30000000-0000-0000-0000-000000000009','40000000-0000-0004-0009-000000000001','10000000-0000-0000-0000-000000000004','Nexus Software Pvt Ltd','SVP Risk & Compliance','2021-01-01','2023-12-31',TRUE),
-  (9,'Vikram Iyer','30000000-0000-0000-0000-000000000009','40000000-0000-0001-0009-000000000001','10000000-0000-0000-0000-000000000001','TechCorp Solutions Pvt Ltd','Chief Risk Officer','2024-01-01',NULL,FALSE),
+  (9,'Vikram Iyer','30000000-0000-0000-0000-000000000009','40000000-0000-0000-0001-000000000009','10000000-0000-0000-0000-000000000001','TechCorp Solutions Pvt Ltd','Chief Risk Officer','2024-01-01',NULL,FALSE),
   -- ── Emp 010 Pooja Sharma ─────────────────────────────────────────────
-  (10,'Pooja Sharma','30000000-0000-0000-0000-000000000010','40000000-0000-0003-0010-000000000001','10000000-0000-0000-0000-000000000003','PQRS Fintech Pvt Ltd','Junior Product Manager','2000-01-01','2002-12-31',TRUE),
-  (10,'Pooja Sharma','30000000-0000-0000-0000-000000000010','40000000-0000-0002-0010-000000000001','10000000-0000-0000-0000-000000000002','ABCD Bank Ltd','Product Manager - Digital','2003-01-01','2005-12-31',TRUE),
+  (10,'Pooja Sharma','30000000-0000-0000-0000-000000000010','40000000-0000-0000-0003-000000000010','10000000-0000-0000-0000-000000000003','PQRS Fintech Pvt Ltd','Junior Product Manager','2000-01-01','2002-12-31',TRUE),
+  (10,'Pooja Sharma','30000000-0000-0000-0000-000000000010','40000000-0000-0000-0002-000000000010','10000000-0000-0000-0000-000000000002','ABCD Bank Ltd','Product Manager - Digital','2003-01-01','2005-12-31',TRUE),
   (10,'Pooja Sharma','30000000-0000-0000-0000-000000000010','40000000-0000-0010-0010-000000000001','10000000-0000-0000-0000-000000000010','Cascade Retail Pvt Ltd','Senior Product Manager','2006-01-01','2008-12-31',TRUE),
   (10,'Pooja Sharma','30000000-0000-0000-0000-000000000010','40000000-0000-0009-0010-000000000001','10000000-0000-0000-0000-000000000009','Aurora Pharma Ltd','Product Director','2009-01-01','2011-12-31',TRUE),
   (10,'Pooja Sharma','30000000-0000-0000-0000-000000000010','40000000-0000-0008-0010-000000000001','10000000-0000-0000-0000-000000000008','Horizon Consulting Pvt Ltd','VP Product Strategy','2012-01-01','2014-12-31',TRUE),
@@ -481,7 +481,7 @@ INSERT INTO _stints VALUES
   (10,'Pooja Sharma','30000000-0000-0000-0000-000000000010','40000000-0000-0006-0010-000000000001','10000000-0000-0000-0000-000000000006','Zephyr Analytics Pvt Ltd','Chief Product Officer','2018-01-01','2020-12-31',TRUE),
   (10,'Pooja Sharma','30000000-0000-0000-0000-000000000010','40000000-0000-0005-0010-000000000001','10000000-0000-0000-0000-000000000005','Meridian Capital Ltd','Managing Director','2021-01-01','2023-12-31',TRUE),
   (10,'Pooja Sharma','30000000-0000-0000-0000-000000000010','40000000-0000-0004-0010-000000000001','10000000-0000-0000-0000-000000000004','Nexus Software Pvt Ltd','Co-Founder & CTO','2021-01-01','2023-12-31',TRUE),
-  (10,'Pooja Sharma','30000000-0000-0000-0000-000000000010','40000000-0000-0001-0010-000000000001','10000000-0000-0000-0000-000000000001','TechCorp Solutions Pvt Ltd','Chief Executive Officer','2024-01-01',NULL,FALSE);
+  (10,'Pooja Sharma','30000000-0000-0000-0000-000000000010','40000000-0000-0000-0001-000000000010','10000000-0000-0000-0000-000000000001','TechCorp Solutions Pvt Ltd','Chief Executive Officer','2024-01-01',NULL,FALSE);
 
 -- Helper to compute pan_token for each emp_n
 CREATE TEMP TABLE _pan AS

@@ -54,11 +54,11 @@ services:
     volumes:
       - yugabyte_data:/home/yugabyte/var
     healthcheck:
-      test: ["CMD", "bin/ysqlsh", "-h", "localhost", "-p", "5433", "-c", "SELECT 1"]
+      test: ["CMD-SHELL", "bin/ysqlsh -h $(hostname -i | cut -d' ' -f1) -p 5433 -U yugabyte -c 'SELECT 1'"]
       interval: 10s
       timeout: 5s
-      retries: 12
-      start_period: 40s
+      retries: 20
+      start_period: 60s
 
   # ── DB init — applies schema + seeds once ──────────────────────────────────
   db-init:
@@ -69,20 +69,7 @@ services:
         condition: service_healthy
     volumes:
       - ./prana-db:/prana-db
-    entrypoint: >
-      sh -c "
-        bin/ysqlsh -h yugabyte -p 5433 -U yugabyte
-          -c 'CREATE DATABASE prana;' 2>/dev/null || true &&
-        bin/ysqlsh -h yugabyte -p 5433 -U yugabyte -d prana
-          -f /prana-db/schema.sql &&
-        bin/ysqlsh -h yugabyte -p 5433 -U yugabyte -d prana
-          -f /prana-db/seeds/dev_seed.sql &&
-        bin/ysqlsh -h yugabyte -p 5433 -U yugabyte -d prana
-          -f /prana-db/seeds/dev_seed_emp_auth.sql &&
-        bin/ysqlsh -h yugabyte -p 5433 -U yugabyte -d prana
-          -f /prana-db/seeds/dev_seed_rich10.sql &&
-        echo 'DB init complete'
-      "
+    entrypoint: ["sh", "/prana-db/db-init.sh"]
     restart: "no"
 
   # ── Redis ───────────────────────────────────────────────────────────────────
