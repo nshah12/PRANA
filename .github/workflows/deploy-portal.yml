@@ -48,7 +48,7 @@ jobs:
           VITE_BASE_PATH: /${{ github.event.repository.name }}/
           # Optional: point the portal at a running backend. Leave empty for demo-only deploy.
           VITE_API_URL: ${{ github.event.inputs.api_url || secrets.PORTAL_API_URL || '' }}
-        run: npm run build
+        run: npx vite build
 
       - name: Upload Pages artifact
         uses: actions/upload-pages-artifact@v3
