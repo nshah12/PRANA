@@ -38,7 +38,7 @@ function parseChannels(raw: string | undefined): Set<Channel> {
 }
 
 export function OrgSettings() {
-  const { data, isLoading } = useQuery({
+  const { data } = useQuery({
     queryKey: ['org-settings'],
     queryFn: () => api.get('/org/settings').then(r => r.data),
   })

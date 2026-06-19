@@ -3,7 +3,7 @@ import { LineChart, Line, BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContai
 import { api } from '@/lib/api'
 
 export function PayrollIntelligence() {
-  const { data, isLoading } = useQuery({
+  const { data } = useQuery({
     queryKey: ['cfo-payroll'],
     queryFn: () => api.get('/cfo/payroll').then(r => r.data),
   })

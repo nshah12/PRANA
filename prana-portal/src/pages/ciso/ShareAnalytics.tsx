@@ -1,5 +1,5 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { Link2, Eye, EyeOff } from 'lucide-react'
+import { Link2 } from 'lucide-react'
 import { api } from '@/lib/api'
 import { fmtDateTime } from '@/lib/utils'
 

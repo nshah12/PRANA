@@ -1,5 +1,5 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { AlertTriangle, CheckCircle, RefreshCw, ShieldAlert } from 'lucide-react'
+import { CheckCircle, RefreshCw, ShieldAlert } from 'lucide-react'
 import { api } from '@/lib/api'
 
 const SEVERITY_STYLE: Record<string, string> = {

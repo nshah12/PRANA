@@ -2,7 +2,7 @@ import { useQuery } from '@tanstack/react-query'
 import { Upload, AlertTriangle, ShieldCheck, FileCheck } from 'lucide-react'
 import { api } from '@/lib/api'
 import { useAuthStore } from '@/store/auth'
-import { fmtDateTime, fmtRelative } from '@/lib/utils'
+import { fmtRelative } from '@/lib/utils'
 
 export function Dashboard() {
   const { user } = useAuthStore()

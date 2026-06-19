@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { ShieldAlert, Clock, CheckCircle2, XCircle, AlertTriangle, Timer } from 'lucide-react'
+import { Clock, CheckCircle2, XCircle, Timer } from 'lucide-react'
 import { api } from '@/lib/api'
 import { useAuthStore } from '@/store/auth'
 

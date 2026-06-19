@@ -1,9 +1,9 @@
 import { useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
-import { FileText, Eye, Trash2, Search, AlertTriangle } from 'lucide-react'
+import { FileText, Eye, Trash2, Search } from 'lucide-react'
 import { api } from '@/lib/api'
 import { useAuthStore } from '@/store/auth'
-import { fmtDate, fmtDateTime } from '@/lib/utils'
+import { fmtDate } from '@/lib/utils'
 import { PipelineStatusBadge } from './Dashboard'
 
 export function DocumentViewer() {
@@ -11,7 +11,7 @@ export function DocumentViewer() {
   const isAdmin = user?.role === 'oa_admin'
   const [search, setSearch] = useState('')
   const [docType, setDocType] = useState('')
-  const [page, setPage] = useState(0)
+  const [page] = useState(0)
   const limit = 20
 
   const { data, isLoading, refetch } = useQuery({

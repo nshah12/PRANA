@@ -283,7 +283,7 @@ export function ExceptionQueue() {
   })
 
   const breaching = items.filter(i => hoursAgo(i.raised_at) >= 24)
-  const warning   = items.filter(i => { const h = hoursAgo(i.raised_at); return h >= 4 && h < 24 })
+  const _warning  = items.filter(i => { const h = hoursAgo(i.raised_at); return h >= 4 && h < 24 })
 
   const filtered = filter === 'ALL'       ? items
                  : filter === 'BREACH'    ? breaching

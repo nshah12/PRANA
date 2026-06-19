@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
-import { Search, Download, FileText } from 'lucide-react'
+import { Search, Download } from 'lucide-react'
 import { api } from '@/lib/api'
 import { fmtDateTime } from '@/lib/utils'
 

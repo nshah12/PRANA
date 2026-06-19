@@ -84,7 +84,7 @@ export function EmployeeMaster() {
         {(data?.count ?? 0) > limit && (
           <div className="flex items-center justify-between px-5 py-3 border-t border-slate-100">
             <span className="text-xs text-slate-400">
-              Showing {page * limit + 1}–{Math.min((page + 1) * limit, data?.count)} of {data?.count}
+              Showing {page * limit + 1}–{Math.min((page + 1) * limit, data?.count ?? 0)} of {data?.count}
             </span>
             <div className="flex gap-2">
               <button onClick={() => setPage(p => p - 1)} disabled={page === 0}

@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { Flag, FlagOff } from 'lucide-react'
+import { FlagOff } from 'lucide-react'
 import { api } from '@/lib/api'
 import { fmtDateTime } from '@/lib/utils'
 

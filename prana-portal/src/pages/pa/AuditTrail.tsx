@@ -7,7 +7,7 @@ import { fmtDateTime } from '@/lib/utils'
 export function AuditTrail() {
   const [search, setSearch] = useState('')
   const [eventType, setEventType] = useState('')
-  const [page, setPage] = useState(0)
+  const [page] = useState(0)
 
   const { data, isLoading } = useQuery({
     queryKey: ['pa-audit', search, eventType, page],

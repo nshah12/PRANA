@@ -1,10 +1,9 @@
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
+import { useQuery, useMutation } from '@tanstack/react-query'
 import { CheckCircle, XCircle, Clock } from 'lucide-react'
 import { api } from '@/lib/api'
 import { fmtDateTime } from '@/lib/utils'
 
 export function ConsentDashboard() {
-  const qc = useQueryClient()
   const { data } = useQuery({
     queryKey: ['consent-dashboard'],
     queryFn: () => api.get('/org/consent').then(r => r.data),

@@ -47,7 +47,6 @@ import { AlertConfig }          from '@/pages/chro/AlertConfig'
 import { StatutoryCompliance }  from '@/pages/chro/StatutoryCompliance'
 
 // CFO pages
-import { CfoDashboard }        from '@/pages/cfo/CfoDashboard'
 import { PayrollIntelligence } from '@/pages/cfo/PayrollIntelligence'
 import { AnomalyAlerts }       from '@/pages/cfo/AnomalyAlerts'
 // CFO screens (formerly stubs)

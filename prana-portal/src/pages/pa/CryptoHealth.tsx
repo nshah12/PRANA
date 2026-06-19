@@ -1,5 +1,5 @@
 import { useQuery } from '@tanstack/react-query'
-import { Lock, CheckCircle, AlertTriangle, RefreshCw } from 'lucide-react'
+import { Lock, CheckCircle, RefreshCw } from 'lucide-react'
 import { api } from '@/lib/api'
 import { fmtDateTime } from '@/lib/utils'
 
