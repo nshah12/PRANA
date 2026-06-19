@@ -77,6 +77,10 @@ services:
           -f /prana-db/schema.sql &&
         bin/ysqlsh -h yugabyte -p 5433 -U yugabyte -d prana
           -f /prana-db/seeds/dev_seed.sql &&
+        bin/ysqlsh -h yugabyte -p 5433 -U yugabyte -d prana
+          -f /prana-db/seeds/dev_seed_emp_auth.sql &&
+        bin/ysqlsh -h yugabyte -p 5433 -U yugabyte -d prana
+          -f /prana-db/seeds/dev_seed_rich10.sql &&
         echo 'DB init complete'
       "
     restart: "no"
