@@ -1,0 +1,71 @@
+name: prana-db CI
+
+on:
+  push:
+    paths:
+      - 'prana-db/**'
+      - '.github/workflows/ci-db.yml'
+  pull_request:
+    paths:
+      - 'prana-db/**'
+
+jobs:
+  migration-check:
+    name: Migration smoke test
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        # Use standard Postgres as YugabyteDB substitute in CI
+        # Real YugabyteDB DDL validation runs in staging only
+        image: postgres:16-alpine
+        env:
+          POSTGRES_DB: prana_test
+          POSTGRES_USER: prana
+          POSTGRES_PASSWORD: prana_test_pw
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Apply schema from scratch
+        run: |
+          psql postgresql://prana:prana_test_pw@localhost:5432/prana_test \
+            -f prana-db/schema.sql
+        env:
+          PGPASSWORD: prana_test_pw
+
+      - name: Apply all migrations in order
+        run: |
+          for f in $(ls prana-db/migrations/*.sql | sort); do
+            echo "Applying $f"
+            psql postgresql://prana:prana_test_pw@localhost:5432/prana_test -f "$f"
+          done
+        env:
+          PGPASSWORD: prana_test_pw
+
+      - name: Verify table count
+        run: |
+          TABLE_COUNT=$(psql postgresql://prana:prana_test_pw@localhost:5432/prana_test \
+            -t -c "SELECT COUNT(*) FROM information_schema.tables WHERE table_schema='public'")
+          echo "Tables created: $TABLE_COUNT"
+          # Must have at least 26 tables (schema baseline)
+          [ "$TABLE_COUNT" -ge 26 ] || (echo "FAIL: expected ≥26 tables, got $TABLE_COUNT" && exit 1)
+        env:
+          PGPASSWORD: prana_test_pw
+
+      - name: Check migration rollback comments exist
+        run: |
+          # Every migration must have a -- ROLLBACK: comment
+          for f in prana-db/migrations/*.sql; do
+            if ! grep -q "ROLLBACK" "$f"; then
+              echo "FAIL: $f has no rollback comment"
+              exit 1
+            fi
+          done
+          echo "All migrations have rollback comments"
