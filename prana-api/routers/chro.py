@@ -16,13 +16,18 @@ from __future__ import annotations
 
 import json
 from datetime import date, datetime, timedelta, timezone
-from typing import Any
+from typing import Any, Literal
 
 from fastapi import APIRouter, Depends, HTTPException
 from fastapi.responses import Response
 from pydantic import BaseModel
 
+from fastapi import Query
+
 from dependencies import DbConn, require_oa
+from services.digest_service import DigestService, period_window, validate_window
+
+_digest_svc = DigestService()
 
 router = APIRouter()
 CHRO = Depends(require_oa("chro", "oa_admin"))
@@ -547,115 +552,96 @@ async def save_alert_config(body: AlertConfigBody, db: DbConn, current=CHRO):
     return {"saved": True}
 
 
-# ── Digest: weekly ────────────────────────────────────────────────────────────
+# ── Digest: settings ─────────────────────────────────────────────────────────
+
+
+class DigestConfigBody(BaseModel):
+    recipients: list[str]
+    schedules: dict
+    sections: list[str]
+    format: Literal["email", "email_pdf"]
+    active: bool
+
+
+@router.get("/digest/settings")
+async def get_digest_settings(db: DbConn, current=CHRO):
+    config = await _digest_svc.get_config(db, current.tenant_id, "chro")
+    return {"digest_settings": config}
+
+
+@router.put("/digest/settings")
+async def save_digest_settings(body: DigestConfigBody, db: DbConn, current=CHRO):
+    await _digest_svc.save_config(
+        db, current.tenant_id, "chro", body.model_dump(), str(current.user_id)
+    )
+    return {"message": "CHRO digest settings saved"}
+
+
+# ── Digest: data endpoints ────────────────────────────────────────────────────
+
+def _resolve_window(
+    period: str,
+    from_date: date | None,
+    to_date: date | None,
+) -> tuple[datetime, datetime]:
+    """
+    Resolve (from_dt, to_dt) UTC from either explicit dates or a period preset.
+    Validates bounds — raises HTTPException 400 on violation.
+    """
+    if from_date is not None or to_date is not None:
+        if from_date is None or to_date is None:
+            raise HTTPException(400, detail={
+                "error": "DATE_RANGE_INCOMPLETE",
+                "message": "Provide both from_date and to_date, or neither (uses period preset).",
+            })
+        from_dt = datetime.combine(from_date, datetime.min.time()).replace(tzinfo=timezone.utc)
+        to_dt   = datetime.combine(to_date,   datetime.min.time()).replace(tzinfo=timezone.utc) + timedelta(days=1)
+    else:
+        from_dt, to_dt = period_window(period)  # type: ignore[arg-type]
+
+    try:
+        validate_window(from_dt, to_dt)
+    except ValueError as exc:
+        raise HTTPException(400, detail=exc.args[0])
+    return from_dt, to_dt
+
 
 @router.get("/digest/weekly")
-async def weekly_digest_preview(db: DbConn, current=CHRO):
-    week_ago = _now() - timedelta(days=7)
-
-    docs_pushed = int(await db.fetchval(
-        "SELECT COUNT(*) FROM document WHERE tenant_id=$1 AND pushed_at >= $2 AND is_deleted=FALSE",
-        current.tenant_id, week_ago,
-    ) or 0)
-    open_exceptions = int(await db.fetchval(
-        "SELECT COUNT(*) FROM exception_queue WHERE tenant_id=$1 AND status='OPEN'",
-        current.tenant_id,
-    ) or 0)
-    health_row = await db.fetchrow(
-        """
-        SELECT ROUND(AVG(vhs.overall_score))::int AS score
-        FROM vault_health_score vhs
-        JOIN employee_user eu ON eu.pan_token = vhs.pan_token
-        JOIN employee_master em ON em.employee_user_id = eu.employee_user_id
-        WHERE em.tenant_id = $1 AND em.status = 'ACTIVE'
-        """,
-        current.tenant_id,
-    )
-    next_deadline_row = await db.fetchrow(
-        """
-        SELECT obligation_name, statutory_ref, deadline, status
-        FROM compliance_obligation
-        WHERE tenant_id = $1 AND deadline >= CURRENT_DATE AND status != 'COMPLETE'
-        ORDER BY deadline ASC
-        LIMIT 1
-        """,
-        current.tenant_id,
-    )
-
-    return {
-        "overall_score":          int(health_row["score"]) if health_row and health_row["score"] else None,
-        "docs_pushed_this_week":  docs_pushed,
-        "open_exceptions":        open_exceptions,
-        "next_deadline": {
-            "name":          next_deadline_row["obligation_name"],
-            "statutory_ref": next_deadline_row["statutory_ref"],
-            "deadline":      next_deadline_row["deadline"].isoformat()
-                             if hasattr(next_deadline_row["deadline"], "isoformat")
-                             else str(next_deadline_row["deadline"]),
-            "status":        next_deadline_row["status"],
-        } if next_deadline_row else None,
-        "risk_flag": "Exception SLA breach risk" if open_exceptions > 5 else None,
-    }
+async def weekly_digest(
+    db: DbConn,
+    current=CHRO,
+    from_date: date | None = Query(None, alias="from"),
+    to_date:   date | None = Query(None, alias="to"),
+):
+    from_dt, to_dt = _resolve_window("weekly", from_date, to_date)
+    return {"digest": await _digest_svc.build_chro_digest(db, current.tenant_id, from_dt, to_dt)}
 
 
 @router.post("/digest/weekly/send-test")
 async def send_weekly_test(current=CHRO):
-    # Actual delivery via DigestWorkflow triggered by digest_weekly_cron config
-    return {"message": "Test digest queued for delivery"}
+    return {"message": "Test digest queued — DigestWorkflow will deliver via NotifConsumer"}
 
-
-# ── Digest: monthly ───────────────────────────────────────────────────────────
 
 @router.get("/digest/monthly")
-async def monthly_summary(db: DbConn, current=CHRO):
-    now = _now()
-    month_start = now.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
-    prev_month_start = (month_start - timedelta(days=1)).replace(day=1)
+async def monthly_digest(
+    db: DbConn,
+    current=CHRO,
+    from_date: date | None = Query(None, alias="from"),
+    to_date:   date | None = Query(None, alias="to"),
+):
+    from_dt, to_dt = _resolve_window("monthly", from_date, to_date)
+    return {"digest": await _digest_svc.build_chro_digest(db, current.tenant_id, from_dt, to_dt)}
 
-    active_employees = int(await db.fetchval(
-        "SELECT COUNT(*) FROM employee_master WHERE tenant_id=$1 AND status='ACTIVE'",
-        current.tenant_id,
-    ) or 0)
-    docs_this_month = int(await db.fetchval(
-        "SELECT COUNT(*) FROM document WHERE tenant_id=$1 AND pushed_at >= $2 AND is_deleted=FALSE",
-        current.tenant_id, month_start,
-    ) or 0)
-    docs_prev_month = int(await db.fetchval(
-        """
-        SELECT COUNT(*) FROM document
-        WHERE tenant_id=$1 AND pushed_at >= $2 AND pushed_at < $3 AND is_deleted=FALSE
-        """,
-        current.tenant_id, prev_month_start, month_start,
-    ) or 0)
-    open_exceptions = int(await db.fetchval(
-        "SELECT COUNT(*) FROM exception_queue WHERE tenant_id=$1 AND status='OPEN'",
-        current.tenant_id,
-    ) or 0)
-    health_row = await db.fetchrow(
-        """
-        SELECT ROUND(AVG(vhs.overall_score))::int AS score
-        FROM vault_health_score vhs
-        JOIN employee_user eu ON eu.pan_token = vhs.pan_token
-        JOIN employee_master em ON em.employee_user_id = eu.employee_user_id
-        WHERE em.tenant_id = $1 AND em.status = 'ACTIVE'
-        """,
-        current.tenant_id,
-    )
-    overdue_obligations = int(await db.fetchval(
-        "SELECT COUNT(*) FROM compliance_obligation WHERE tenant_id=$1 AND status='OVERDUE'",
-        current.tenant_id,
-    ) or 0)
 
-    return {
-        "vault_health_current":  int(health_row["score"]) if health_row and health_row["score"] else None,
-        "vault_health_prev":     None,
-        "docs_pushed":           docs_this_month,
-        "docs_pushed_prev":      docs_prev_month,
-        "active_employees":      active_employees,
-        "open_exceptions":       open_exceptions,
-        "overdue_obligations":   overdue_obligations,
-        "compliance_items":      [],
-    }
+@router.get("/digest/quarterly")
+async def quarterly_digest(
+    db: DbConn,
+    current=CHRO,
+    from_date: date | None = Query(None, alias="from"),
+    to_date:   date | None = Query(None, alias="to"),
+):
+    from_dt, to_dt = _resolve_window("quarterly", from_date, to_date)
+    return {"digest": await _digest_svc.build_chro_digest(db, current.tenant_id, from_dt, to_dt)}
 
 
 # ── PDF helpers ───────────────────────────────────────────────────────────────

@@ -1,77 +1,161 @@
+import { useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
-import { Download, TrendingUp, TrendingDown } from 'lucide-react'
+import { Download, TrendingUp, TrendingDown, Users, FileText, Settings } from 'lucide-react'
 import { api } from '@/lib/api'
+import { Link } from 'react-router-dom'
+import { DigestDatePicker, type DateWindow } from '@/components/digest/DigestDatePicker'
+
+function todayISO() { return new Date().toISOString().split('T')[0] }
+function daysAgoISO(n: number) {
+  const d = new Date(); d.setDate(d.getDate() - n); return d.toISOString().split('T')[0]
+}
 
 export function MonthlySummary() {
+  const [window, setWindow] = useState<DateWindow>({ from: daysAgoISO(30), to: todayISO() })
+
   const { data, isLoading, isError, refetch } = useQuery({
-    queryKey: ['chro-monthly'],
-    queryFn: () => api.get('/v1/chro/digest/monthly').then(r => r.data),
+    queryKey: ['chro-monthly-digest', window.from, window.to],
+    queryFn:  () => api.get(`/v1/chro/digest/monthly?from=${window.from}&to=${window.to}`)
+                       .then(r => r.data.digest),
+    enabled: !!window.from && !!window.to,
   })
 
-  if (isLoading) return (
-    <div className="space-y-6 max-w-2xl animate-pulse">
-      <div className="h-6 w-44 bg-slate-200 rounded" />
-      <div className="grid grid-cols-2 gap-4">
-        {[...Array(4)].map((_, i) => <div key={i} className="h-20 bg-slate-100 rounded-xl" />)}
+  // Header + date picker always visible — not gated behind loading/error
+  const header = (
+    <div className="space-y-4">
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="text-xl font-semibold text-slate-800">Monthly Summary</h1>
+          <p className="text-xs text-slate-400 mt-0.5">
+            {data ? `${data.from} → ${data.to}` : 'Loading…'}
+          </p>
+        </div>
+        <div className="flex items-center gap-2">
+          <Link to="/org/digest-settings"
+                className="flex items-center gap-1.5 text-sm text-slate-500 border border-slate-200
+                           px-3 py-1.5 rounded-lg hover:bg-canvas2">
+            <Settings size={13}/> Settings
+          </Link>
+          <button className="flex items-center gap-2 px-4 py-2 border border-slate-200
+                             rounded-lg text-sm font-medium text-slate-600 hover:bg-canvas2">
+            <Download size={14}/> Export PDF
+          </button>
+        </div>
       </div>
-      <div className="h-48 bg-slate-100 rounded-xl" />
+
+      <DigestDatePicker
+        accentColor="bg-indigo-600"
+        accentText="text-indigo-600"
+        accentBorder="border-indigo-600"
+        onChange={setWindow}
+      />
     </div>
   )
+
+  if (isLoading) return (
+    <div className="space-y-6 max-w-2xl">
+      {header}
+      <div className="animate-pulse space-y-4">
+        <div className="grid grid-cols-4 gap-3">
+          {[...Array(4)].map((_, i) => <div key={i} className="h-20 bg-slate-100 rounded-xl" />)}
+        </div>
+        <div className="h-48 bg-slate-100 rounded-xl" />
+      </div>
+    </div>
+  )
+
   if (isError) return (
-    <div className="flex flex-col items-center justify-center py-20 text-slate-400">
-      <p className="text-sm">Failed to load monthly summary.</p>
-      <button onClick={() => refetch()} className="mt-3 text-xs text-indigo-600 hover:underline">Retry</button>
+    <div className="space-y-6 max-w-2xl">
+      {header}
+      <div className="flex flex-col items-center justify-center py-20 text-slate-400">
+        <p className="text-sm">Failed to load monthly summary.</p>
+        <button onClick={() => refetch()} className="mt-3 text-xs text-indigo-600 hover:underline">Retry</button>
+      </div>
     </div>
   )
+
+  const stats = [
+    { label: 'Docs processed',     value: data?.docs_processed     ?? '—', trend: 'up'   },
+    { label: 'Vault completeness', value: data?.vault_completeness_pct != null ? `${data.vault_completeness_pct}%` : '—', trend: 'up' },
+    { label: 'Exceptions open',    value: data?.exceptions_open    ?? '—', trend: 'down' },
+    { label: 'Alumni self-served', value: data?.alumni_self_served ?? '—', trend: 'up'   },
+  ]
 
   return (
     <div className="space-y-6 max-w-2xl">
-      <div className="flex items-center justify-between">
-        <h1 className="text-xl font-semibold text-slate-800">Monthly Summary</h1>
-        <button className="flex items-center gap-2 px-4 py-2 border border-slate-200
-                           rounded-lg text-sm font-medium text-slate-600 hover:bg-canvas2">
-          <Download size={14}/> Download PDF
-        </button>
+      {header}
+
+      <div className="grid grid-cols-4 gap-3">
+        {stats.map(s => (
+          <div key={s.label} className="bg-white rounded-xl border border-slate-100 shadow-sm p-4">
+            <p className="text-xs text-slate-400">{s.label}</p>
+            <p className="text-xl font-bold font-mono text-slate-800 mt-1">{s.value}</p>
+            <div className={`flex items-center gap-1 mt-1 text-xs font-medium
+              ${s.trend === 'up' ? 'text-emerald-600' : 'text-red-500'}`}>
+              {s.trend === 'up' ? <TrendingUp size={10}/> : <TrendingDown size={10}/>}
+              {s.trend === 'up' ? 'positive' : 'needs action'}
+            </div>
+          </div>
+        ))}
       </div>
 
-      <div className="grid grid-cols-2 gap-4">
-        {[
-          { label: 'Vault health', current: data?.vault_health_current, prev: data?.vault_health_prev, unit: '%' },
-          { label: 'Docs pushed', current: data?.docs_pushed, prev: data?.docs_pushed_prev, unit: '' },
-          { label: 'Active employees', current: data?.active_employees, prev: null, unit: '' },
-          { label: 'Open exceptions', current: data?.open_exceptions, prev: null, unit: '' },
-        ].map(card => {
-          const delta = card.prev != null && card.current != null ? card.current - card.prev : null
-          return (
-            <div key={card.label} className="stat-card">
-              <p className="text-2xl font-bold font-mono text-slate-800">
-                {card.current ?? '—'}{card.unit}
-              </p>
-              <p className="text-xs text-slate-500 mt-1">{card.label}</p>
-              {delta != null && (
-                <p className={`text-xs mt-1 flex items-center gap-1 font-medium ${delta >= 0 ? 'text-emerald-600' : 'text-red-500'}`}>
-                  {delta >= 0 ? <TrendingUp size={11}/> : <TrendingDown size={11}/>}
-                  {delta > 0 ? '+' : ''}{delta}{card.unit} vs last month
-                </p>
-              )}
-            </div>
-          )
-        })}
-      </div>
-
-      <div className="bg-white rounded-xl border border-slate-100 shadow-sm p-6">
-        <h2 className="font-medium text-slate-800 mb-4">Statutory compliance</h2>
-        <div className="space-y-2">
-          {data?.compliance_items?.map((item: any, i: number) => (
-            <div key={i} className="flex items-center gap-3 py-2 border-b border-slate-50 last:border-0">
-              <span className={`w-2 h-2 rounded-full flex-shrink-0 ${item.compliant ? 'bg-emerald-500' : 'bg-red-500'}`}/>
-              <p className="text-sm text-slate-700 flex-1">{item.obligation}</p>
-              <span className={`badge ${item.compliant ? 'badge-emerald' : 'badge-red'}`}>
-                {item.compliant ? 'Compliant' : 'Gap'}
-              </span>
-            </div>
-          ))}
+      {(data?.vault_by_department?.length ?? 0) > 0 && (
+        <div className="bg-white rounded-xl border border-slate-100 shadow-sm p-5">
+          <div className="flex items-center gap-2 mb-4">
+            <Users size={14} className="text-slate-400"/>
+            <h2 className="text-sm font-medium text-slate-700">Vault completeness by department</h2>
+          </div>
+          <div className="space-y-2.5">
+            {data.vault_by_department.map((row: any) => (
+              <div key={row.department} className="flex items-center gap-3">
+                <span className="text-xs text-slate-500 w-28 text-right flex-shrink-0">{row.department}</span>
+                <div className="flex-1 h-2 bg-slate-100 rounded-full overflow-hidden">
+                  <div className="h-full rounded-full"
+                       style={{ width: `${row.score}%`, background: row.score >= 90 ? '#10b981' : row.score >= 75 ? '#6366f1' : '#f59e0b' }} />
+                </div>
+                <span className={`text-xs font-mono w-8 text-right font-medium
+                  ${row.score >= 90 ? 'text-emerald-600' : row.score >= 75 ? 'text-indigo-600' : 'text-amber-600'}`}>
+                  {row.score}%
+                </span>
+              </div>
+            ))}
+          </div>
         </div>
+      )}
+
+      {(data?.docs_by_type?.length ?? 0) > 0 && (
+        <div className="bg-white rounded-xl border border-slate-100 shadow-sm p-5">
+          <div className="flex items-center gap-2 mb-4">
+            <FileText size={14} className="text-slate-400"/>
+            <h2 className="text-sm font-medium text-slate-700">Documents by type</h2>
+          </div>
+          <div className="space-y-2.5">
+            {data.docs_by_type.map((row: any) => {
+              const total = data.docs_by_type.reduce((s: number, r: any) => s + r.count, 0) || 1
+              const pct = Math.round((row.count / total) * 100)
+              return (
+                <div key={row.doc_type} className="flex items-center gap-3">
+                  <span className="text-xs text-slate-500 w-28 text-right flex-shrink-0">
+                    {row.doc_type.replace(/_/g, ' ')}
+                  </span>
+                  <div className="flex-1 h-2 bg-slate-100 rounded-full overflow-hidden">
+                    <div className="h-full bg-indigo-500 rounded-full" style={{ width: `${pct}%` }} />
+                  </div>
+                  <span className="text-xs text-slate-700 w-8 text-right font-mono">{row.count}</span>
+                </div>
+              )
+            })}
+          </div>
+        </div>
+      )}
+
+      <div className="flex items-center gap-3 p-4 bg-indigo-50 border border-indigo-100 rounded-xl">
+        <p className="text-sm text-indigo-700 flex-1">
+          Ready to export this period's board-grade report?
+        </p>
+        <button className="text-sm font-medium text-indigo-700 border border-indigo-300 px-3 py-1.5 rounded-lg hover:bg-indigo-100">
+          Export for townhall →
+        </button>
       </div>
     </div>
   )

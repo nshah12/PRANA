@@ -103,6 +103,7 @@ from workflows.activities import (
     stage02_encrypt as stage02_encrypt_impl,
     stage03_scan as stage03_scan_impl,
     stage04_extract as stage04_extract_impl,
+    stage04_write_unclassified as stage04_write_unclassified_impl,
     stage05_resolve as stage05_resolve_impl,
     stage06_route as stage06_route_impl,
     stage06_raise_exception as stage06_raise_exception_impl,
@@ -179,6 +180,7 @@ WORKERS: dict[str, dict] = {
         ],
         "activities": [
             stage02_encrypt_impl, stage03_scan_impl, stage04_extract_impl,
+            stage04_write_unclassified_impl,
             stage05_resolve_impl, stage06_route_impl, stage06_raise_exception_impl,
             update_pipeline_status_impl, get_batch_config_impl,
             write_batch_summary_impl, mark_batch_straggler_impl,

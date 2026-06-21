@@ -44,6 +44,10 @@ class Settings:
     # ── ClamAV ────────────────────────────────────────────────────────────────
     clamd_socket: str = field(default_factory=lambda: os.getenv("CLAMD_SOCKET", "/var/run/clamav/clamd.ctl"))
 
+    # ── prana-api internal — ManifestClient fetches manifests via HTTP ────────
+    prana_api_base_url:      str = field(default_factory=lambda: os.getenv("PRANA_API_BASE_URL", "http://localhost:8000"))
+    internal_service_token:  str = field(default_factory=lambda: os.getenv("INTERNAL_SERVICE_TOKEN", "dev-internal-token"))
+
 
 @lru_cache(maxsize=1)
 def get_settings() -> Settings:

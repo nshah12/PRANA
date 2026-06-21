@@ -43,9 +43,11 @@ class AiPipelineClient:
         file_bytes: bytes,
         ext: str,
         doc_type: str,
+        tenant_id: str,
         doc_period: Optional[str] = None,
     ) -> dict:
-        """Stage 04 — OCR + LLM extraction. Slowest call (~30–120s)."""
+        """Stage 04 — OCR + LLM extraction. Slowest call (~30–120s).
+        Returns dict with status='ok' or status='unclassified'."""
         async with httpx.AsyncClient(timeout=self._timeout) as client:
             resp = await client.post(
                 f"{self._base}/pipeline/extract",
@@ -54,16 +56,45 @@ class AiPipelineClient:
                     "file_b64": base64.b64encode(file_bytes).decode(),
                     "ext": ext,
                     "doc_type": doc_type,
+                    "tenant_id": tenant_id,
                     "doc_period": doc_period,
                 },
             )
             resp.raise_for_status()
             return resp.json()
 
+    async def write_unclassified(
+        self,
+        document_id: str,
+        tenant_id: str,
+        declared_doc_type: Optional[str],
+        best_guess_doc_type: Optional[str],
+        best_guess_score: float,
+        partial_fields: dict,
+        reason: str = "AUTO_DETECT_FAILED",
+    ) -> None:
+        """Stage 06 path — doc type could not be determined → unclassified_queue."""
+        async with httpx.AsyncClient(timeout=self._timeout) as client:
+            resp = await client.post(
+                f"{self._base}/pipeline/unclassified",
+                headers=self._headers(),
+                json={
+                    "document_id": document_id,
+                    "tenant_id": tenant_id,
+                    "declared_doc_type": declared_doc_type,
+                    "best_guess_doc_type": best_guess_doc_type,
+                    "best_guess_score": best_guess_score,
+                    "partial_fields": partial_fields,
+                    "reason": reason,
+                },
+            )
+            resp.raise_for_status()
+
     async def resolve(
         self,
-        pan_token: str,
+        pan_token: Optional[str],
         tenant_id: str,
+        doc_type: str,
         extracted_fields: dict,
     ) -> dict:
         """Stage 05 — identity resolution (pan_token → employee_uuid)."""
@@ -74,6 +105,7 @@ class AiPipelineClient:
                 json={
                     "pan_token": pan_token,
                     "tenant_id": tenant_id,
+                    "doc_type": doc_type,
                     "extracted_fields": extracted_fields,
                 },
             )

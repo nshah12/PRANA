@@ -7,12 +7,12 @@ export function AnomalyAlerts() {
   const qc = useQueryClient()
   const { data, isLoading } = useQuery({
     queryKey: ['cfo-anomalies'],
-    queryFn: () => api.get('/cfo/anomalies').then(r => r.data),
+    queryFn: () => api.get('/v1/cfo/anomalies').then(r => r.data?.anomalies ?? r.data),
     refetchInterval: 60_000,
   })
 
   const ackMutation = useMutation({
-    mutationFn: (id: string) => api.post(`/cfo/anomalies/${id}/acknowledge`),
+    mutationFn: (id: string) => api.post(`/v1/cfo/anomalies/${id}/acknowledge`),
     onSuccess: () => qc.invalidateQueries({ queryKey: ['cfo-anomalies'] }),
   })
 

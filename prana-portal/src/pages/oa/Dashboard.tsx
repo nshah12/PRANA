@@ -10,17 +10,17 @@ export function Dashboard() {
 
   const { data: stats, isLoading: statsLoading, isError: statsError, refetch: refetchStats } = useQuery({
     queryKey: ['oa-dashboard-stats'],
-    queryFn: () => api.get('/ingest/stats').then(r => r.data),
+    queryFn: () => api.get('/v1/ingest/stats').then(r => r.data),
   })
 
   const { data: recent, isLoading: recentLoading } = useQuery({
     queryKey: ['recent-batches'],
-    queryFn: () => api.get('/ingest/documents?limit=8').then(r => r.data),
+    queryFn: () => api.get('/v1/ingest/documents?limit=8').then(r => r.data),
   })
 
   const { data: exceptions, isLoading: exceptionsLoading } = useQuery({
     queryKey: ['exceptions-summary'],
-    queryFn: () => api.get('/ingest/exceptions').then(r => r.data),
+    queryFn: () => api.get('/v1/org/exceptions').then(r => r.data?.exceptions ?? r.data),
   })
 
   const isLoading = statsLoading || recentLoading || exceptionsLoading

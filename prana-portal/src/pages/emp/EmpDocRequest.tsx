@@ -14,11 +14,11 @@ export function EmpDocRequest() {
 
   const { data: profileData } = useQuery({
     queryKey: ['emp-vault-profile'],
-    queryFn: () => api.get('/vault/profile').then(r => r.data),
+    queryFn: () => api.get('/v1/vault/profile').then(r => r.data),
   })
   const { data: requestsData, refetch } = useQuery({
     queryKey: ['emp-requests'],
-    queryFn: () => api.get('/vault/requests').then(r => r.data),
+    queryFn: () => api.get('/v1/vault/requests').then(r => r.data),
   })
 
   const employers: any[] = profileData?.employers ?? []
@@ -28,7 +28,7 @@ export function EmpDocRequest() {
     if (!employer || !docType) return
     setSubmitting(true)
     try {
-      const res = await api.post('/vault/requests', { tenant_id: employer, doc_type: docType, period, note })
+      const res = await api.post('/v1/vault/requests', { tenant_id: employer, doc_type: docType, period, note })
       setToast(`📨 Formal request sent — tracking ID: REQ-${(res.data.doc_request_id ?? '').slice(0,8).toUpperCase()}`)
       setDocType(''); setPeriod(''); setNote('')
       refetch()

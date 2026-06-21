@@ -1,0 +1,309 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Digest Settings UI — Wireframe</title>
+<!--
+  PRANA — Digest Settings UI Wireframe
+  ----------------------------------------
+  Reference widget for CHRO / CFO / CISO digest configuration page.
+  Each role owner configures their own digest independently.
+
+  When implementing in production:
+
+  Config storage:
+    tenant_config rows (one per digest type per tenant):
+      config_key = "digest_chro_config" | "digest_cfo_config" | "digest_ciso_config"
+      config_value = JSON:
+        {
+          "recipients": [{ "email": "...", "name": "...", "role": "..." }],
+          "weekly":     { "on": true,  "day": "Monday", "time": "08:00" },
+          "monthly":    { "on": true,  "date": 1 },
+          "quarterly":  { "on": true },
+          "format":     "email_only" | "email_pdf",
+          "sections":   ["Vault completeness", "Headcount movement", ...]
+        }
+
+  Portal endpoints:
+    GET  /v1/settings/digest/:type          → read current config
+    PUT  /v1/settings/digest/:type          → save config → triggers DigestWorkflow reschedule
+    POST /v1/settings/digest/:type/test     → send test email immediately
+
+  Temporal workflow:
+    DigestWorkflow (one instance per tenant per digest type)
+    Workflow ID: "digest-{type}-{tenant_id}"  e.g. "digest-chro-tenant-001"
+    On config save → signal DigestWorkflow with new schedule
+    Workflow fires on schedule → DigestService.build_digest()
+    → publishes to prana.notifications topic
+    → NotifConsumer → AWS SES → all configured recipients
+
+  Who can access which settings page:
+    CHRO tab   → oa_user WHERE role = 'CHRO'
+    CFO tab    → oa_user WHERE role = 'CFO'
+    CISO tab   → oa_user WHERE role = 'CISO' (tenant CISO only, not Portal Admin)
+    Each role can only see and edit their own digest config.
+
+  Sections available per digest type:
+    CHRO:  Vault completeness, Headcount movement, Exception summary,
+           Alumni self-serve, Townhall data points, Document type breakdown
+    CFO:   Workforce cost trend, Anomaly acknowledgements, Compliance cost indicators,
+           Audit readiness score, PF & gratuity indicators, Budget vs actuals
+    CISO:  Access anomaly feed, Flagged sessions, Force-logout events,
+           Share token usage, DPDP requests, Failed login spikes, Accounts locked
+-->
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+    background: #F8FAFC;
+    padding: 24px 16px;
+    color: #0F172A;
+  }
+</style>
+</head>
+<body>
+<div id="root" style="max-width:660px;margin:0 auto;"></div>
+
+<script>
+const ROLES = [
+  { id:"chro", label:"CHRO digest",     color:"#4F46E5", desc:"Vault health, headcount, exceptions, alumni" },
+  { id:"cfo",  label:"CFO digest",      color:"#0891B2", desc:"Cost trends, anomalies, audit readiness" },
+  { id:"ciso", label:"InfoSec digest",  color:"#059669", desc:"Access anomalies, flags, DPDP requests" }
+];
+
+const DAYS = ["Monday","Tuesday","Wednesday","Thursday","Friday"];
+
+const SECTIONS = {
+  chro: ["Vault completeness","Headcount movement","Exception summary","Alumni self-serve","Townhall data points","Document type breakdown"],
+  cfo:  ["Workforce cost trend","Anomaly acknowledgements","Compliance cost indicators","Audit readiness score","PF & gratuity indicators","Budget vs actuals"],
+  ciso: ["Access anomaly feed","Flagged sessions","Force-logout events","Share token usage","DPDP requests","Failed login spikes","Accounts locked"]
+};
+
+const state = {
+  role: "chro",
+  configs: {
+    chro: {
+      recipients:[
+        {email:"priya.sharma@techserve.in", name:"Priya Sharma",  role:"CHRO", self:true},
+        {email:"ceo@techserve.in",          name:"Rajesh Kumar",  role:"CEO",  self:false}
+      ],
+      weekly:{on:true, day:"Monday", time:"08:00"},
+      monthly:{on:true, date:1},
+      quarterly:{on:true},
+      format:"email_pdf",
+      sections:["Vault completeness","Headcount movement","Exception summary","Alumni self-serve"]
+    },
+    cfo: {
+      recipients:[
+        {email:"amit.joshi@techserve.in", name:"Amit Joshi", role:"CFO", self:true}
+      ],
+      weekly:{on:false, day:"Monday", time:"09:00"},
+      monthly:{on:true, date:1},
+      quarterly:{on:true},
+      format:"email_pdf",
+      sections:["Workforce cost trend","Anomaly acknowledgements","Audit readiness score"]
+    },
+    ciso: {
+      recipients:[
+        {email:"nandini.rao@techserve.in", name:"Nandini Rao", role:"CISO", self:true}
+      ],
+      weekly:{on:true, day:"Friday", time:"17:00"},
+      monthly:{on:true, date:5},
+      quarterly:{on:false},
+      format:"email_only",
+      sections:["Access anomaly feed","Flagged sessions","DPDP requests"]
+    }
+  },
+  adding: false,
+  newEmail: "",
+  newName: "",
+  newRole: "",
+  saved: false
+};
+
+function cfg() { return state.configs[state.role]; }
+
+function render() {
+  const r = document.getElementById("root");
+  const c = cfg();
+  const role = ROLES.find(x => x.id === state.role);
+
+  const roleTabs = ROLES.map(ro => {
+    const active = ro.id === state.role;
+    return `<button onclick="setRole('${ro.id}')" style="flex:1;padding:8px 4px;border-radius:8px;border:1px solid ${active ? ro.color : "#CBD5E1"};font-size:12px;cursor:pointer;background:${active ? ro.color : "#fff"};color:${active ? "#fff" : "#64748B"};font-weight:${active?"500":"400"};line-height:1.4;text-align:center;">
+      ${ro.label}<br><span style="font-size:10px;opacity:0.75;">${ro.desc}</span>
+    </button>`;
+  }).join("");
+
+  const recipients = c.recipients.map((rec,i) => `
+    <div style="display:flex;align-items:center;gap:10px;padding:10px 14px;border-bottom:0.5px solid #F1F5F9;">
+      <div style="width:34px;height:34px;border-radius:50%;background:${role.color}22;display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:500;color:${role.color};flex-shrink:0;">
+        ${rec.name.split(" ").map(n=>n[0]).join("").slice(0,2)}
+      </div>
+      <div style="flex:1;">
+        <div style="font-size:13px;font-weight:500;color:#0F172A;">${rec.name} ${rec.self ? `<span style="font-size:10px;background:${role.color}15;color:${role.color};padding:2px 6px;border-radius:10px;margin-left:4px;">you</span>` : ""}</div>
+        <div style="font-size:11px;color:#94A3B8;">${rec.email} · ${rec.role}</div>
+      </div>
+      ${rec.self ? "" : `<button onclick="removeRecipient(${i})" style="border:none;background:none;cursor:pointer;font-size:20px;color:#94A3B8;padding:4px;line-height:1;">×</button>`}
+    </div>`).join("");
+
+  const addForm = state.adding ? `
+    <div style="padding:12px 14px;background:#F8FAFC;border-bottom:0.5px solid #E2E8F0;">
+      <div style="display:grid;grid-template-columns:1fr 1fr 120px;gap:8px;margin-bottom:8px;">
+        <input placeholder="Full name"     value="${state.newName}"  oninput="state.newName=this.value"  style="font-size:12px;padding:6px 10px;border-radius:6px;border:0.5px solid #CBD5E1;background:#fff;">
+        <input placeholder="Email address" value="${state.newEmail}" oninput="state.newEmail=this.value" style="font-size:12px;padding:6px 10px;border-radius:6px;border:0.5px solid #CBD5E1;background:#fff;">
+        <input placeholder="Role / title"  value="${state.newRole}"  oninput="state.newRole=this.value"  style="font-size:12px;padding:6px 10px;border-radius:6px;border:0.5px solid #CBD5E1;background:#fff;">
+      </div>
+      <div style="display:flex;gap:6px;">
+        <button onclick="confirmAdd()" style="font-size:12px;padding:5px 14px;border-radius:6px;border:none;background:${role.color};color:#fff;cursor:pointer;">Add recipient</button>
+        <button onclick="state.adding=false;render();" style="font-size:12px;padding:5px 14px;border-radius:6px;border:0.5px solid #CBD5E1;background:#fff;color:#64748B;cursor:pointer;">Cancel</button>
+      </div>
+    </div>` : `
+    <div style="padding:10px 14px;border-bottom:0.5px solid #F1F5F9;">
+      <button onclick="state.adding=true;render();" style="font-size:12px;padding:6px 14px;border-radius:6px;border:0.5px solid #CBD5E1;background:#fff;color:#64748B;cursor:pointer;">+ Add recipient</button>
+    </div>`;
+
+  const schedSection = `
+    <div>
+      <div style="display:flex;align-items:center;gap:12px;padding:10px 14px;border-bottom:0.5px solid #F1F5F9;">
+        <label style="position:relative;display:inline-block;width:36px;height:20px;flex-shrink:0;cursor:pointer;">
+          <input type="checkbox" ${c.weekly.on?"checked":""} onchange="toggleSched('weekly',this.checked)" style="opacity:0;width:0;height:0;position:absolute;">
+          <span style="position:absolute;inset:0;border-radius:10px;background:${c.weekly.on ? role.color : "#CBD5E1"};"></span>
+          <span style="position:absolute;top:2px;left:${c.weekly.on?"18":"2"}px;width:16px;height:16px;border-radius:50%;background:#fff;transition:left .2s;"></span>
+        </label>
+        <div style="flex:1;">
+          <div style="font-size:13px;font-weight:500;color:#0F172A;">Weekly digest</div>
+          <div style="font-size:11px;color:#94A3B8;">Snapshot — exceptions, docs processed, alumni</div>
+        </div>
+        ${c.weekly.on ? `
+        <select onchange="c.weekly.day=this.value;render();" style="font-size:12px;padding:4px 8px;border-radius:6px;border:0.5px solid #CBD5E1;background:#fff;">
+          ${DAYS.map(d=>`<option ${c.weekly.day===d?"selected":""}>${d}</option>`).join("")}
+        </select>
+        <input type="time" value="${c.weekly.time}" onchange="c.weekly.time=this.value" style="font-size:12px;padding:4px 8px;border-radius:6px;border:0.5px solid #CBD5E1;background:#fff;width:90px;">` : ""}
+      </div>
+
+      <div style="display:flex;align-items:center;gap:12px;padding:10px 14px;border-bottom:0.5px solid #F1F5F9;">
+        <label style="position:relative;display:inline-block;width:36px;height:20px;flex-shrink:0;cursor:pointer;">
+          <input type="checkbox" ${c.monthly.on?"checked":""} onchange="toggleSched('monthly',this.checked)" style="opacity:0;width:0;height:0;position:absolute;">
+          <span style="position:absolute;inset:0;border-radius:10px;background:${c.monthly.on ? role.color : "#CBD5E1"};"></span>
+          <span style="position:absolute;top:2px;left:${c.monthly.on?"18":"2"}px;width:16px;height:16px;border-radius:50%;background:#fff;transition:left .2s;"></span>
+        </label>
+        <div style="flex:1;">
+          <div style="font-size:13px;font-weight:500;color:#0F172A;">Monthly digest</div>
+          <div style="font-size:11px;color:#94A3B8;">Full report — departments, joiners, exits, townhall data</div>
+        </div>
+        ${c.monthly.on ? `<span style="font-size:12px;color:#64748B;">Day of month</span>
+        <select onchange="c.monthly.date=+this.value;render();" style="font-size:12px;padding:4px 8px;border-radius:6px;border:0.5px solid #CBD5E1;background:#fff;">
+          ${[1,2,3,5,7,10,15].map(d=>`<option ${c.monthly.date===d?"selected":""}>${d}</option>`).join("")}
+        </select>` : ""}
+      </div>
+
+      <div style="display:flex;align-items:center;gap:12px;padding:10px 14px;">
+        <label style="position:relative;display:inline-block;width:36px;height:20px;flex-shrink:0;cursor:pointer;">
+          <input type="checkbox" ${c.quarterly.on?"checked":""} onchange="toggleSched('quarterly',this.checked)" style="opacity:0;width:0;height:0;position:absolute;">
+          <span style="position:absolute;inset:0;border-radius:10px;background:${c.quarterly.on ? role.color : "#CBD5E1"};"></span>
+          <span style="position:absolute;top:2px;left:${c.quarterly.on?"18":"2"}px;width:16px;height:16px;border-radius:50%;background:#fff;transition:left .2s;"></span>
+        </label>
+        <div style="flex:1;">
+          <div style="font-size:13px;font-weight:500;color:#0F172A;">Quarterly board digest</div>
+          <div style="font-size:11px;color:#94A3B8;">Board-grade — growth, compliance score, cost savings, DPDP</div>
+        </div>
+        ${c.quarterly.on ? `<span style="font-size:11px;color:#94A3B8;">Auto · first Monday of quarter</span>` : ""}
+      </div>
+    </div>`;
+
+  const allSections = SECTIONS[state.role];
+  const sectionToggles = allSections.map(s => {
+    const on = c.sections.includes(s);
+    return `<div onclick="toggleSection('${s}')" style="display:flex;align-items:center;gap:8px;padding:6px 10px;border-radius:6px;border:0.5px solid ${on ? role.color : "#E2E8F0"};background:${on ? role.color+"12" : "#fff"};cursor:pointer;">
+      <span style="width:14px;height:14px;border-radius:3px;border:1px solid ${on ? role.color : "#CBD5E1"};background:${on ? role.color : "transparent"};display:flex;align-items:center;justify-content:center;flex-shrink:0;">
+        ${on ? `<span style="color:#fff;font-size:10px;line-height:1;">✓</span>` : ""}
+      </span>
+      <span style="font-size:12px;color:${on ? role.color : "#64748B"};">${s}</span>
+    </div>`;
+  }).join("");
+
+  const formatRow = `
+    <div style="display:flex;gap:8px;">
+      ${[["email_only","Email summary only"],["email_pdf","Email + PDF attachment"]].map(([val,lbl]) => `
+        <div onclick="c.format='${val}';render();" style="flex:1;padding:10px 12px;border-radius:8px;border:1px solid ${c.format===val ? role.color : "#E2E8F0"};background:${c.format===val ? role.color+"10" : "#fff"};cursor:pointer;">
+          <div style="display:flex;align-items:center;gap:6px;">
+            <div style="width:14px;height:14px;border-radius:50%;border:1.5px solid ${c.format===val ? role.color : "#CBD5E1"};display:flex;align-items:center;justify-content:center;">
+              ${c.format===val ? `<div style="width:7px;height:7px;border-radius:50%;background:${role.color};"></div>` : ""}
+            </div>
+            <span style="font-size:12px;font-weight:500;color:${c.format===val ? role.color : "#0F172A"};">${lbl}</span>
+          </div>
+        </div>`).join("")}
+    </div>`;
+
+  const savedBanner = state.saved ? `
+    <div style="padding:10px 14px;background:#DCFCE7;border-top:0.5px solid #BBF7D0;font-size:12px;color:#166534;display:flex;align-items:center;gap:6px;">
+      ✓ Saved — DigestWorkflow updated. Next delivery: ${c.weekly.on ? c.weekly.day+" at "+c.weekly.time : "per your schedule"}.
+    </div>` : "";
+
+  r.innerHTML = `
+    <div style="font-size:12px;color:#94A3B8;margin-bottom:12px;font-weight:500;text-transform:uppercase;letter-spacing:.05em;">Digest settings · TechServe India</div>
+    <div style="display:flex;gap:6px;margin-bottom:16px;">${roleTabs}</div>
+
+    <div style="background:#fff;border:0.5px solid #E2E8F0;border-radius:12px;overflow:hidden;">
+
+      <div style="padding:14px 16px;border-bottom:0.5px solid #F1F5F9;display:flex;align-items:center;gap:10px;">
+        <div style="width:8px;height:8px;border-radius:50%;background:${role.color};"></div>
+        <div>
+          <div style="font-size:14px;font-weight:500;color:#0F172A;">${role.label}</div>
+          <div style="font-size:11px;color:#94A3B8;">${role.desc}</div>
+        </div>
+      </div>
+
+      <div style="padding:12px 14px 4px;border-bottom:0.5px solid #F1F5F9;">
+        <div style="font-size:11px;font-weight:500;color:#94A3B8;text-transform:uppercase;letter-spacing:.05em;margin-bottom:8px;">Recipients</div>
+      </div>
+      ${recipients}
+      ${addForm}
+
+      <div style="padding:12px 14px 4px;border-bottom:0.5px solid #F1F5F9;">
+        <div style="font-size:11px;font-weight:500;color:#94A3B8;text-transform:uppercase;letter-spacing:.05em;">Schedule</div>
+      </div>
+      <div style="border-bottom:0.5px solid #F1F5F9;">${schedSection}</div>
+
+      <div style="padding:12px 14px;border-bottom:0.5px solid #F1F5F9;">
+        <div style="font-size:11px;font-weight:500;color:#94A3B8;text-transform:uppercase;letter-spacing:.05em;margin-bottom:10px;">Sections to include</div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;">${sectionToggles}</div>
+      </div>
+
+      <div style="padding:12px 14px;border-bottom:0.5px solid #F1F5F9;">
+        <div style="font-size:11px;font-weight:500;color:#94A3B8;text-transform:uppercase;letter-spacing:.05em;margin-bottom:10px;">Delivery format</div>
+        ${formatRow}
+      </div>
+
+      <div style="padding:12px 14px;display:flex;align-items:center;justify-content:space-between;gap:10px;">
+        <button onclick="alert('Test digest queued — arriving in ~30 seconds')" style="font-size:12px;padding:8px 16px;border-radius:8px;border:0.5px solid #E2E8F0;background:#fff;color:#64748B;cursor:pointer;">Send test digest now</button>
+        <button onclick="save()" style="font-size:13px;padding:8px 20px;border-radius:8px;border:none;background:${role.color};color:#fff;cursor:pointer;font-weight:500;">Save & activate workflow</button>
+      </div>
+
+      ${savedBanner}
+    </div>`;
+}
+
+window.setRole        = k => { state.role = k; state.adding = false; state.saved = false; render(); };
+window.removeRecipient= i => { cfg().recipients.splice(i,1); render(); };
+window.confirmAdd     = () => {
+  if (!state.newEmail || !state.newName) return;
+  cfg().recipients.push({ email:state.newEmail, name:state.newName, role:state.newRole||"Recipient", self:false });
+  state.newEmail=""; state.newName=""; state.newRole=""; state.adding=false;
+  render();
+};
+window.toggleSched    = (k,v) => { cfg()[k].on = v; render(); };
+window.toggleSection  = s => {
+  const secs = cfg().sections;
+  const i = secs.indexOf(s);
+  if (i===-1) secs.push(s); else secs.splice(i,1);
+  render();
+};
+window.save = () => { state.saved=true; render(); setTimeout(()=>{ state.saved=false; render(); }, 4000); };
+
+render();
+</script>
+</body>
+</html>

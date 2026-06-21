@@ -6,7 +6,7 @@ import { api } from '@/lib/api'
 export function AttritionCost() {
   const { data, isLoading, isError, refetch } = useQuery({
     queryKey: ['cfo-attrition'],
-    queryFn: () => api.get('/cfo/attrition').then(r => r.data),
+    queryFn: () => api.get('/v1/cfo/attrition').then(r => r.data),
   })
 
   if (isLoading) return (

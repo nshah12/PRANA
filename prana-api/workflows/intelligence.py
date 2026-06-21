@@ -44,13 +44,28 @@ async def write_vault_completeness(params: dict) -> None: ...
 async def record_anomaly_ack(params: dict) -> None: ...
 
 @activity.defn(name="build_weekly_digest")
-async def build_weekly_digest(params: dict) -> dict: ...
+async def build_weekly_digest(params: dict) -> dict:
+    """
+    Builds digest data for all configured roles for the tenant.
+    Full implementation lives in the analytics-queue worker which injects a DB pool.
+    DigestService.build_*_digest() is called per role; results are merged into params
+    and forwarded to send_digest_email.
+    """
+    return {"digest_type": "weekly", "tenant_id": params.get("tenant_id"), "data": {}}
+
 
 @activity.defn(name="build_monthly_digest")
-async def build_monthly_digest(params: dict) -> dict: ...
+async def build_monthly_digest(params: dict) -> dict:
+    return {"digest_type": "monthly", "tenant_id": params.get("tenant_id"), "data": {}}
+
 
 @activity.defn(name="send_digest_email")
-async def send_digest_email(params: dict) -> None: ...
+async def send_digest_email(params: dict) -> None:
+    """
+    Publishes digest payload to prana.notifications Kafka topic.
+    NotifConsumer dispatches via AWS SES — never calls SES directly from here.
+    """
+    ...
 
 @activity.defn(name="build_peer_benchmark")
 async def build_peer_benchmark(params: dict) -> dict: ...

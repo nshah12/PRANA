@@ -5,15 +5,17 @@ All queries scoped by tenant_id from JWT. Never sees document contents, salary, 
 import json
 import uuid
 import datetime
-from typing import Optional
+from typing import Literal, Optional
 
-from fastapi import APIRouter, Depends, HTTPException, Request, status
+from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
 from pydantic import BaseModel
 
 from dependencies import DbConn, require_oa
+from services.digest_service import DigestService, period_window, validate_window
 
 router = APIRouter()
 CISO = Depends(require_oa("ciso", "oa_admin"))
+_digest_svc = DigestService()
 
 
 # ── Security overview ──────────────────────────────────────────────────────────
@@ -699,3 +701,192 @@ async def elevation_history(
         ],
         "total": int(total or 0),
     }
+
+
+# ── Digest: settings ─────────────────────────────────────────────────────────
+
+
+class DigestConfigBody(BaseModel):
+    recipients: list[str]
+    schedules: dict
+    sections: list[str]
+    format: Literal["email", "email_pdf"]
+    active: bool
+
+
+@router.get("/digest/settings")
+async def get_digest_settings(db: DbConn, current=CISO):
+    config = await _digest_svc.get_config(db, current.tenant_id, "ciso")
+    return {"digest_settings": config}
+
+
+@router.put("/digest/settings")
+async def save_digest_settings(body: DigestConfigBody, db: DbConn, current=CISO):
+    await _digest_svc.save_config(
+        db, current.tenant_id, "ciso", body.model_dump(), str(current.user_id)
+    )
+    return {"message": "CISO digest settings saved"}
+
+
+# ── Digest: data endpoints ────────────────────────────────────────────────────
+
+def _resolve_window(period: str, from_date: datetime.date | None, to_date: datetime.date | None):
+    if from_date is not None or to_date is not None:
+        if from_date is None or to_date is None:
+            raise HTTPException(400, detail={
+                "error": "DATE_RANGE_INCOMPLETE",
+                "message": "Provide both from_date and to_date, or neither (uses period preset).",
+            })
+        from_dt = datetime.datetime.combine(from_date, datetime.datetime.min.time()).replace(tzinfo=datetime.timezone.utc)
+        to_dt   = datetime.datetime.combine(to_date,   datetime.datetime.min.time()).replace(tzinfo=datetime.timezone.utc) + datetime.timedelta(days=1)
+    else:
+        from_dt, to_dt = period_window(period)  # type: ignore[arg-type]
+    try:
+        validate_window(from_dt, to_dt)
+    except ValueError as exc:
+        raise HTTPException(400, detail=exc.args[0])
+    return from_dt, to_dt
+
+
+@router.get("/digest/weekly")
+async def weekly_digest(
+    db: DbConn, current=CISO,
+    from_date: datetime.date | None = Query(None, alias="from"),
+    to_date:   datetime.date | None = Query(None, alias="to"),
+):
+    from_dt, to_dt = _resolve_window("weekly", from_date, to_date)
+    return {"digest": await _digest_svc.build_ciso_digest(db, current.tenant_id, from_dt, to_dt)}
+
+
+@router.get("/digest/monthly")
+async def monthly_digest(
+    db: DbConn, current=CISO,
+    from_date: datetime.date | None = Query(None, alias="from"),
+    to_date:   datetime.date | None = Query(None, alias="to"),
+):
+    from_dt, to_dt = _resolve_window("monthly", from_date, to_date)
+    return {"digest": await _digest_svc.build_ciso_digest(db, current.tenant_id, from_dt, to_dt)}
+
+
+@router.get("/digest/quarterly")
+async def quarterly_digest(
+    db: DbConn, current=CISO,
+    from_date: datetime.date | None = Query(None, alias="from"),
+    to_date:   datetime.date | None = Query(None, alias="to"),
+):
+    from_dt, to_dt = _resolve_window("quarterly", from_date, to_date)
+    return {"digest": await _digest_svc.build_ciso_digest(db, current.tenant_id, from_dt, to_dt)}
+
+
+# ── Security incidents ─────────────────────────────────────────────────────────
+
+@router.get("/incidents")
+async def list_incidents(
+    db: DbConn,
+    current=CISO,
+    severity: Optional[str] = Query(None),
+    status: Optional[str] = Query(None),
+):
+    """CISO: list security incidents for own tenant only."""
+    from services.incident_service import IncidentService
+    svc = IncidentService(db=db)
+    items = await svc.get_incidents(
+        tenant_id=current.tenant_id,
+        severity=severity,
+        status=status,
+    )
+    return {"items": items, "total": len(items)}
+
+
+class ResolveIncidentBody(BaseModel):
+    resolution_note: str
+
+
+@router.patch("/incidents/{incident_id}/resolve")
+async def resolve_incident(
+    incident_id: str,
+    body: ResolveIncidentBody,
+    db: DbConn,
+    current=CISO,
+):
+    """CISO: resolve a security incident on their tenant."""
+    from services.incident_service import IncidentService
+    svc = IncidentService(db=db)
+    try:
+        await svc.resolve_incident(
+            incident_id=incident_id,
+            resolved_by=current.user_id,
+            resolution_note=body.resolution_note,
+            tenant_id=current.tenant_id,
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,
+                            detail=str(exc)) from exc
+    return {"status": "resolved"}
+
+
+@router.patch("/incidents/{incident_id}/escalate")
+async def escalate_incident(incident_id: str, db: DbConn, current=CISO):
+    """CISO: escalate a P2/P3 incident to P1."""
+    from services.incident_service import IncidentService
+    svc = IncidentService(db=db)
+    try:
+        await svc.escalate_incident(
+            incident_id=incident_id,
+            tenant_id=current.tenant_id,
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,
+                            detail=str(exc)) from exc
+    return {"status": "escalated"}
+
+
+# ── Notification log ───────────────────────────────────────────────────────────
+
+@router.get("/notification-log")
+async def notification_log(
+    db: DbConn,
+    current=CISO,
+    channel: Optional[str] = Query(None),
+    event_type: Optional[str] = Query(None),
+    limit: int = Query(50, le=200),
+):
+    """CISO: view security notification_log rows for own tenant."""
+    conditions = ["tenant_id = $1"]
+    params: list = [current.tenant_id]
+    idx = 2
+    if channel:
+        conditions.append(f"channel = ${idx}")
+        params.append(channel)
+        idx += 1
+    if event_type:
+        conditions.append(f"event_type = ${idx}")
+        params.append(event_type)
+        idx += 1
+    params.append(limit)
+    rows = await db.fetch(
+        f"""
+        SELECT notification_id, event_type, channel, template_id,
+               status, sent_at, failed_at, error_message, created_at
+          FROM notification_log
+         WHERE {' AND '.join(conditions)}
+         ORDER BY created_at DESC
+         LIMIT ${idx}
+        """,
+        *params,
+    )
+    items = [
+        {
+            "notification_id": str(r["notification_id"]),
+            "event_type":      r["event_type"],
+            "channel":         r["channel"],
+            "template_id":     r["template_id"],
+            "status":          r["status"],
+            "sent_at":         r["sent_at"].isoformat() if r["sent_at"] else None,
+            "failed_at":       r["failed_at"].isoformat() if r["failed_at"] else None,
+            "error_message":   r["error_message"],
+            "created_at":      r["created_at"].isoformat() if r["created_at"] else None,
+        }
+        for r in rows
+    ]
+    return {"items": items, "total": len(items)}

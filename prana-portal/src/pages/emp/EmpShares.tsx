@@ -45,7 +45,7 @@ export function EmpShares() {
 
   const { data, isLoading } = useQuery({
     queryKey: ['emp-shares'],
-    queryFn: () => api.get<{ shares: ShareLink[] }>('/vault/share').then(r => r.data),
+    queryFn: () => api.get<{ shares: ShareLink[] }>('/v1/vault/share').then(r => r.data),
   })
 
   const shares = data?.shares ?? []
@@ -53,7 +53,7 @@ export function EmpShares() {
   const inactive = shares.filter(s => !s.is_active || new Date(s.expires_at) <= new Date())
 
   const revokeMut = useMutation({
-    mutationFn: (id: string) => api.delete(`/vault/shares/${id}`),
+    mutationFn: (id: string) => api.delete(`/v1/vault/shares/${id}`),
     onSuccess: () => { qc.invalidateQueries({ queryKey: ['emp-shares'] }); setRevokeTarget(null) },
   })
 

@@ -6,11 +6,11 @@ import { fmtDateTime } from '@/lib/utils'
 export function ConsentDashboard() {
   const { data } = useQuery({
     queryKey: ['consent-dashboard'],
-    queryFn: () => api.get('/org/consent').then(r => r.data),
+    queryFn: () => api.get('/v1/org/consent').then(r => r.data),
   })
 
   const exportMut = useMutation({
-    mutationFn: () => api.post('/org/consent/export', {}).then(r => r.data),
+    mutationFn: () => api.post('/v1/org/consent/export', {}).then(r => r.data),
   })
 
   const stats = [

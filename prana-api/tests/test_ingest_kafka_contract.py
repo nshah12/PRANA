@@ -228,3 +228,151 @@ async def test_sse_endpoint_subscribes_to_redis_not_db(client, mock_db, mock_red
 
     # Verify DB was only queried once (ownership check) — not polled in a loop
     assert mock_db.fetchrow.call_count == 1
+
+
+@pytest.mark.asyncio
+async def test_sse_returns_404_for_unknown_document(client, mock_db, mock_redis):
+    """SSE endpoint must 404 when the document doesn't exist or belongs to another tenant."""
+    _set_auth(client)
+    mock_db.fetchrow = AsyncMock(return_value=None)  # document not found
+
+    resp = await client.get(
+        "/v1/ingest/status/nonexistent-doc",
+        headers={**AUTH_HEADER, "Accept": "text/event-stream"},
+    )
+
+    assert resp.status_code == 404
+
+
+@pytest.mark.asyncio
+async def test_sse_returns_immediately_for_already_routed_document(client, mock_db, mock_redis):
+    """If document is already in terminal state ROUTED, SSE must emit one frame and close."""
+    _set_auth(client)
+    mock_db.fetchrow = AsyncMock(return_value={"pipeline_status": "ROUTED"})
+
+    pubsub_mock = MagicMock()
+    pubsub_mock.subscribe   = AsyncMock()
+    pubsub_mock.unsubscribe = AsyncMock()
+    pubsub_mock.close       = AsyncMock()
+
+    async def _no_messages():
+        return
+        yield  # never yields — listener should not be called for terminal state
+
+    pubsub_mock.listen = _no_messages
+    mock_redis.pubsub  = MagicMock(return_value=pubsub_mock)
+
+    resp = await client.get(
+        "/v1/ingest/status/doc-already-routed",
+        headers={**AUTH_HEADER, "Accept": "text/event-stream"},
+    )
+
+    assert resp.status_code == 200
+    body = resp.text
+    assert "ROUTED" in body
+    # Must NOT have opened a Redis subscription for an already-terminal document
+    pubsub_mock.subscribe.assert_not_called()
+
+
+@pytest.mark.asyncio
+async def test_sse_returns_immediately_for_exception_state(client, mock_db, mock_redis):
+    """EXCEPTION is a terminal state — SSE must emit the frame and close without subscribing."""
+    _set_auth(client)
+    mock_db.fetchrow = AsyncMock(return_value={"pipeline_status": "EXCEPTION"})
+
+    pubsub_mock = MagicMock()
+    pubsub_mock.subscribe   = AsyncMock()
+    pubsub_mock.unsubscribe = AsyncMock()
+    pubsub_mock.close       = AsyncMock()
+    mock_redis.pubsub = MagicMock(return_value=pubsub_mock)
+
+    resp = await client.get(
+        "/v1/ingest/status/doc-exception-state",
+        headers={**AUTH_HEADER, "Accept": "text/event-stream"},
+    )
+
+    assert resp.status_code == 200
+    assert "EXCEPTION" in resp.text
+    pubsub_mock.subscribe.assert_not_called()
+
+
+@pytest.mark.asyncio
+async def test_sse_closes_stream_when_terminal_status_arrives(client, mock_db, mock_redis):
+    """SSE stream must close when ROUTED arrives mid-stream — no more frames after that."""
+    _set_auth(client)
+    mock_db.fetchrow = AsyncMock(return_value={"pipeline_status": "EXTRACTING"})
+
+    pubsub_mock = MagicMock()
+    pubsub_mock.subscribe   = AsyncMock()
+    pubsub_mock.unsubscribe = AsyncMock()
+    pubsub_mock.close       = AsyncMock()
+
+    async def _messages():
+        yield {"type": "subscribe",  "data": 1}
+        yield {"type": "message",    "data": '{"document_id":"doc-mid","pipeline_status":"RESOLVING","event_type":"STAGE_CHANGED"}'}
+        yield {"type": "message",    "data": '{"document_id":"doc-mid","pipeline_status":"ROUTED","event_type":"STAGE_CHANGED"}'}
+        # This should never be yielded — consumer should have closed after ROUTED
+        yield {"type": "message",    "data": '{"document_id":"doc-mid","pipeline_status":"AFTER_CLOSE","event_type":"STAGE_CHANGED"}'}
+
+    pubsub_mock.listen = _messages
+    mock_redis.pubsub  = MagicMock(return_value=pubsub_mock)
+
+    resp = await client.get(
+        "/v1/ingest/status/doc-mid",
+        headers={**AUTH_HEADER, "Accept": "text/event-stream"},
+    )
+
+    assert resp.status_code == 200
+    body = resp.text
+    assert "ROUTED" in body
+    assert "AFTER_CLOSE" not in body
+
+
+@pytest.mark.asyncio
+async def test_sse_tenant_isolation(client, mock_db, mock_redis):
+    """SSE endpoint checks document ownership — another tenant's doc must return 404."""
+    # Auth as tenant-001, but document belongs to tenant-002
+    _set_auth(client, tenant_id="tenant-001")
+
+    # fetchrow returns None because WHERE clause includes tenant_id=$2 (tenant-001)
+    # and the document belongs to tenant-002 — DB returns nothing
+    mock_db.fetchrow = AsyncMock(return_value=None)
+
+    resp = await client.get(
+        "/v1/ingest/status/doc-belongs-to-other-tenant",
+        headers={**AUTH_HEADER, "Accept": "text/event-stream"},
+    )
+
+    assert resp.status_code == 404
+
+
+@pytest.mark.asyncio
+async def test_sse_initial_frame_contains_document_id_and_status(client, mock_db, mock_redis):
+    """First SSE frame must contain both document_id and pipeline_status."""
+    _set_auth(client)
+    mock_db.fetchrow = AsyncMock(return_value={"pipeline_status": "SCANNING"})
+
+    pubsub_mock = MagicMock()
+    pubsub_mock.subscribe   = AsyncMock()
+    pubsub_mock.unsubscribe = AsyncMock()
+    pubsub_mock.close       = AsyncMock()
+
+    async def _one_terminal():
+        yield {"type": "message", "data": '{"pipeline_status":"ROUTED"}'}
+
+    pubsub_mock.listen = _one_terminal
+    mock_redis.pubsub  = MagicMock(return_value=pubsub_mock)
+
+    resp = await client.get(
+        "/v1/ingest/status/doc-frame-check",
+        headers={**AUTH_HEADER, "Accept": "text/event-stream"},
+    )
+
+    assert resp.status_code == 200
+    import json as _json
+    # Parse first SSE frame
+    first_frame = resp.text.split("\n\n")[0]
+    assert first_frame.startswith("data: ")
+    data = _json.loads(first_frame[len("data: "):])
+    assert data["document_id"]     == "doc-frame-check"
+    assert data["pipeline_status"] == "SCANNING"

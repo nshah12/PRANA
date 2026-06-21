@@ -16,19 +16,19 @@ export function DocumentViewer() {
 
   const { data, isLoading, refetch } = useQuery({
     queryKey: ['documents', docType, page],
-    queryFn: () => api.get('/ingest/documents', {
+    queryFn: () => api.get('/v1/ingest/documents', {
       params: { doc_type: docType || undefined, pipeline_status: 'ROUTED', limit, offset: page * limit },
-    }).then(r => r.data),
+    }).then(r => r.data?.documents ?? r.data),
   })
 
   async function openDoc(docId: string) {
     // Opens in new tab — every view is logged server-side
-    window.open(`/api/vault/documents/${docId}`, '_blank')
+    window.open(`/api/v1/vault/documents/${docId}`, '_blank')
   }
 
   async function deleteDoc(docId: string) {
     if (!confirm('Mark this document as deleted? This cannot be undone.')) return
-    await api.delete(`/ingest/documents/${docId}`)
+    await api.delete(`/v1/ingest/documents/${docId}`)
     refetch()
   }
 

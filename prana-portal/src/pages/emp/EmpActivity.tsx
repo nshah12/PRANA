@@ -19,7 +19,7 @@ function fmtTs(ts: string | null) {
 export function EmpActivity() {
   const { data, isLoading } = useQuery({
     queryKey: ['emp-activity'],
-    queryFn: () => api.get('/vault/activity').then(r => r.data),
+    queryFn: () => api.get('/v1/vault/activity').then(r => r.data),
   })
 
   const accessLog: any[]   = data?.access_log ?? []

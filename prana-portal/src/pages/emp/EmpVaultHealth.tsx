@@ -4,15 +4,15 @@ import { api } from '@/lib/api'
 export function EmpVaultHealth() {
   const { data, isLoading } = useQuery({
     queryKey: ['emp-vault-health'],
-    queryFn: () => api.get('/vault/health').then(r => r.data),
+    queryFn: () => api.get('/v1/vault/health').then(r => r.data),
   })
   const { data: profileData } = useQuery({
     queryKey: ['emp-vault-profile'],
-    queryFn: () => api.get('/vault/profile').then(r => r.data),
+    queryFn: () => api.get('/v1/vault/profile').then(r => r.data),
   })
   const { data: docsData } = useQuery({
     queryKey: ['emp-vault-docs'],
-    queryFn: () => api.get('/vault/documents', { params: { limit: 100 } }).then(r => r.data),
+    queryFn: () => api.get('/v1/vault/documents', { params: { limit: 100 } }).then(r => r.data),
   })
 
   const score      = data?.overall_score ?? 0

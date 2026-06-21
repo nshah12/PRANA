@@ -7,7 +7,7 @@ export function StorageRequests() {
   const qc = useQueryClient()
   const { data, isLoading } = useQuery({
     queryKey: ['pa-storage'],
-    queryFn: () => api.get('/admin/storage-requests').then(r => r.data),
+    queryFn: () => api.get('/admin/storage-requests').then(r => r.data?.requests ?? r.data),
   })
   const decideMutation = useMutation({
     mutationFn: ({ id, decision }: { id: string; decision: 'approve'|'reject'|'hold' }) =>

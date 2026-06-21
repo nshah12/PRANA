@@ -1,11 +1,12 @@
 """
 WorkflowConsumer — prana.ingest.events
 
-Listens for DOC_INGESTED and BATCH_UPLOADED events.
+Listens for DOC_INGESTED, BATCH_UPLOADED, and DOC_RECLASSIFIED events.
 Starts Temporal workflows so the HTTP handler never has to.
 
-DOC_INGESTED   → DocumentPipelineWorkflow + BatchTimeoutMonitorWorkflow (per file)
-BATCH_UPLOADED → BatchProgressWorkflow (parent tracker, only when batch_id present)
+DOC_INGESTED     → DocumentPipelineWorkflow + BatchTimeoutMonitorWorkflow (per file)
+BATCH_UPLOADED   → BatchProgressWorkflow (parent tracker, only when batch_id present)
+DOC_RECLASSIFIED → DocumentPipelineWorkflow restart with OA-Admin resolved doc_type
 """
 import asyncio
 import logging
@@ -46,6 +47,8 @@ class WorkflowConsumer:
                         await self._handle_doc_ingested(event)
                     elif etype == "BATCH_UPLOADED":
                         await self._handle_batch_uploaded(event)
+                    elif etype == "DOC_RECLASSIFIED":
+                        await self._handle_doc_reclassified(event)
                 except Exception:
                     log.exception("WorkflowConsumer error event_type=%s document_id=%s",
                                   etype, event.get("document_id"))
@@ -83,6 +86,56 @@ class WorkflowConsumer:
                 id=f"doc-timeout-{doc_id}",
                 task_queue=TASK_QUEUE,
             )
+        except Exception as exc:
+            if "already" not in str(exc).lower():
+                raise
+
+    async def _handle_doc_reclassified(self, event: dict) -> None:
+        """
+        OA-Admin resolved an unclassified document.
+        Re-start DocumentPipelineWorkflow with the manually-assigned doc_type.
+        Uses a new workflow ID (suffix -reclassified-{n}) so Temporal doesn't
+        collide with the original pipeline run.
+        """
+        doc_id    = event["document_id"]
+        tenant_id = event["tenant_id"]
+        doc_type  = event["doc_type"]       # OA-Admin's classification
+
+        # Fetch S3 key from DB — the file is still in staging/documents bucket
+        # WorkflowConsumer has read-only DB access via the app's existing pool
+        # (injected via settings; re-use the same asyncpg DSN prana-api uses)
+        import asyncpg
+        from config import get_settings
+        settings = get_settings()
+        db = await asyncpg.connect(settings.db_dsn)
+        try:
+            row = await db.fetchrow(
+                "SELECT s3_key, s3_bucket FROM document WHERE document_id=$1", doc_id
+            )
+        finally:
+            await db.close()
+
+        if not row:
+            log.error("DOC_RECLASSIFIED: document %s not found in DB", doc_id)
+            return
+
+        # Increment suffix to produce a unique workflow ID each re-attempt
+        run_suffix = event.get("run_attempt", 1)
+        try:
+            await self._temporal.start_workflow(
+                DocumentPipelineWorkflow.run,
+                {
+                    "document_id": doc_id,
+                    "tenant_id":   tenant_id,
+                    "doc_type":    doc_type,
+                    "doc_period":  event.get("doc_period"),
+                    "s3_key":      row["s3_key"],
+                    "s3_bucket":   row["s3_bucket"],
+                },
+                id=f"doc-pipeline-{doc_id}-reclassified-{run_suffix}",
+                task_queue=TASK_QUEUE,
+            )
+            log.info("Restarted pipeline for reclassified doc=%s doc_type=%s", doc_id, doc_type)
         except Exception as exc:
             if "already" not in str(exc).lower():
                 raise

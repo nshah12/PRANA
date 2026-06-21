@@ -1,73 +1,182 @@
+import { useState } from 'react'
 import { useQuery, useMutation } from '@tanstack/react-query'
-import { Send, Mail } from 'lucide-react'
+import { Send, Mail, TrendingUp, TrendingDown, AlertTriangle, Users, FileText, Settings } from 'lucide-react'
 import { api } from '@/lib/api'
+import { Link } from 'react-router-dom'
+import { DigestDatePicker, type DateWindow } from '@/components/digest/DigestDatePicker'
+
+function todayISO() { return new Date().toISOString().split('T')[0] }
+function daysAgoISO(n: number) {
+  const d = new Date(); d.setDate(d.getDate() - n); return d.toISOString().split('T')[0]
+}
 
 export function WeeklyDigest() {
-  const { data } = useQuery({
-    queryKey: ['chro-weekly-digest'],
-    queryFn: () => api.get('/v1/chro/digest/weekly').then(r => r.data),
+  const [window, setWindow] = useState<DateWindow>({ from: daysAgoISO(7), to: todayISO() })
+
+  const { data, isLoading, isError, refetch } = useQuery({
+    queryKey: ['chro-digest', window.from, window.to],
+    queryFn:  () => api.get(`/v1/chro/digest/weekly?from=${window.from}&to=${window.to}`)
+                       .then(r => r.data.digest),
+    enabled: !!window.from && !!window.to,
   })
 
   const sendTest = useMutation({
     mutationFn: () => api.post('/v1/chro/digest/weekly/send-test'),
   })
 
-  return (
-    <div className="space-y-6 max-w-xl">
-      <h1 className="text-xl font-semibold text-slate-800">Weekly Digest</h1>
-
-      <div className="bg-white rounded-xl border border-slate-100 shadow-sm p-6 space-y-5">
-        <div className="flex items-center justify-between">
-          <p className="text-sm text-slate-500">Sent every <strong>Monday 6:00 AM IST</strong></p>
+  // Header + date picker always visible — not gated behind loading/error
+  const header = (
+    <div className="space-y-4">
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="text-xl font-semibold text-slate-800">CHRO Digest</h1>
+          <p className="text-xs text-slate-400 mt-0.5">
+            {data ? `${data.from} → ${data.to}` : 'Loading…'}
+          </p>
+        </div>
+        <div className="flex items-center gap-2">
+          <Link to="/org/digest-settings"
+                className="flex items-center gap-1.5 text-sm text-slate-500 border border-slate-200
+                           px-3 py-1.5 rounded-lg hover:bg-canvas2">
+            <Settings size={13}/> Settings
+          </Link>
           <button onClick={() => sendTest.mutate()}
                   disabled={sendTest.isPending}
-                  className="flex items-center gap-2 text-sm font-medium text-violet-600
-                             border border-violet-200 px-3 py-1.5 rounded-lg hover:bg-violet-50">
+                  className="flex items-center gap-1.5 text-sm font-medium text-indigo-600
+                             border border-indigo-200 px-3 py-1.5 rounded-lg hover:bg-indigo-50">
             <Send size={13}/> {sendTest.isPending ? 'Sending…' : 'Send test'}
           </button>
         </div>
+      </div>
+      <DigestDatePicker
+        accentColor="bg-indigo-600"
+        accentText="text-indigo-600"
+        accentBorder="border-indigo-600"
+        onChange={setWindow}
+      />
+    </div>
+  )
 
-        {/* Preview */}
-        <div className="border border-slate-200 rounded-xl overflow-hidden">
-          <div className="bg-shell px-5 py-3 flex items-center gap-2">
-            <Mail size={14} className="text-slate-400" />
-            <span className="text-xs font-mono text-slate-400">Preview — Monday digest</span>
-          </div>
-          <div className="p-5 space-y-4 text-sm text-slate-700">
-            <p className="font-semibold text-base">PRANA Weekly Digest</p>
-            <div className="grid grid-cols-2 gap-3">
-              {[
-                ['Vault health', data?.overall_score ? `${data.overall_score}%` : '—'],
-                ['Docs pushed', data?.docs_pushed_this_week ?? '—'],
-                ['Open exceptions', data?.open_exceptions ?? '—'],
-                ['Next deadline', data?.next_deadline ? `${data.next_deadline.deadline} — ${data.next_deadline.name}` : '—'],
-              ].map(([k, v]) => (
-                <div key={k} className="bg-canvas2 rounded-lg p-3">
-                  <p className="text-xs text-slate-400">{k}</p>
-                  <p className="font-semibold font-mono text-slate-800 mt-0.5">{v}</p>
-                </div>
-              ))}
+  if (isLoading) return (
+    <div className="space-y-6 max-w-2xl">
+      {header}
+      <div className="animate-pulse space-y-4">
+        <div className="grid grid-cols-4 gap-3">
+          {[...Array(4)].map((_, i) => <div key={i} className="h-20 bg-slate-100 rounded-xl" />)}
+        </div>
+        <div className="h-48 bg-slate-100 rounded-xl" />
+      </div>
+    </div>
+  )
+
+  if (isError) return (
+    <div className="space-y-6 max-w-2xl">
+      {header}
+      <div className="flex flex-col items-center justify-center py-20 text-slate-400">
+        <p className="text-sm">Failed to load digest.</p>
+        <button onClick={() => refetch()} className="mt-3 text-xs text-indigo-600 hover:underline">Retry</button>
+      </div>
+    </div>
+  )
+
+  const stats = [
+    { label: 'Docs processed',     value: data?.docs_processed ?? '—',         up: true  },
+    { label: 'Vault completeness', value: data?.vault_completeness_pct != null ? `${data.vault_completeness_pct}%` : '—', up: true },
+    { label: 'Exceptions open',    value: data?.exceptions_open ?? '—',         up: false },
+    { label: 'Alumni self-served', value: data?.alumni_self_served ?? '—',      up: true  },
+  ]
+
+  return (
+    <div className="space-y-6 max-w-2xl">
+      {header}
+
+      <div className="grid grid-cols-4 gap-3">
+        {stats.map(s => (
+          <div key={s.label} className="bg-white rounded-xl border border-slate-100 shadow-sm p-4">
+            <p className="text-xs text-slate-400">{s.label}</p>
+            <p className="text-xl font-bold font-mono text-slate-800 mt-1">{s.value}</p>
+            <div className={`flex items-center gap-1 mt-1 text-xs font-medium ${s.up ? 'text-emerald-600' : 'text-red-500'}`}>
+              {s.up ? <TrendingUp size={10}/> : <TrendingDown size={10}/>}
+              {s.up ? 'up' : 'needs action'}
             </div>
-            {data?.risk_flag && (
-              <div className="bg-amber-50 border border-amber-200 rounded-lg px-3 py-2">
-                <p className="text-xs font-medium text-amber-700">⚠ {data.risk_flag}</p>
-              </div>
-            )}
+          </div>
+        ))}
+      </div>
+
+      {(data?.docs_by_type?.length ?? 0) > 0 && (
+        <div className="bg-white rounded-xl border border-slate-100 shadow-sm p-5">
+          <div className="flex items-center gap-2 mb-4">
+            <FileText size={14} className="text-slate-400"/>
+            <h2 className="text-sm font-medium text-slate-700">Documents processed</h2>
+          </div>
+          <div className="space-y-2.5">
+            {data.docs_by_type.map((row: any) => {
+              const total = data.docs_by_type.reduce((s: number, r: any) => s + r.count, 0) || 1
+              const pct = Math.round((row.count / total) * 100)
+              return (
+                <div key={row.doc_type} className="flex items-center gap-3">
+                  <span className="text-xs text-slate-500 w-28 text-right flex-shrink-0">
+                    {row.doc_type.replace(/_/g, ' ')}
+                  </span>
+                  <div className="flex-1 h-2 bg-slate-100 rounded-full overflow-hidden">
+                    <div className="h-full bg-indigo-500 rounded-full" style={{ width: `${pct}%` }} />
+                  </div>
+                  <span className="text-xs text-slate-700 w-8 text-right font-mono">{row.count}</span>
+                </div>
+              )
+            })}
           </div>
         </div>
+      )}
 
-        {/* Channel prefs */}
-        <div className="space-y-2">
-          <p className="text-xs font-medium text-slate-500 uppercase tracking-wide">Delivery channel</p>
-          <div className="flex gap-2">
-            {['Email', 'WhatsApp', 'In-app'].map(ch => (
-              <label key={ch} className="flex items-center gap-2 text-sm text-slate-600 cursor-pointer">
-                <input type="checkbox" defaultChecked={ch !== 'WhatsApp'}
-                       className="accent-violet-600" />
-                {ch}
-              </label>
+      {(data?.vault_by_department?.length ?? 0) > 0 && (
+        <div className="bg-white rounded-xl border border-slate-100 shadow-sm p-5">
+          <div className="flex items-center gap-2 mb-4">
+            <Users size={14} className="text-slate-400"/>
+            <h2 className="text-sm font-medium text-slate-700">Vault completeness by department</h2>
+          </div>
+          <div className="space-y-2.5">
+            {data.vault_by_department.map((row: any) => (
+              <div key={row.department} className="flex items-center gap-3">
+                <span className="text-xs text-slate-500 w-28 text-right flex-shrink-0">{row.department}</span>
+                <div className="flex-1 h-2 bg-slate-100 rounded-full overflow-hidden">
+                  <div className="h-full rounded-full"
+                       style={{ width: `${row.score}%`, background: row.score >= 90 ? '#10b981' : row.score >= 75 ? '#6366f1' : '#f59e0b' }} />
+                </div>
+                <span className={`text-xs font-mono w-8 text-right font-medium
+                  ${row.score >= 90 ? 'text-emerald-600' : row.score >= 75 ? 'text-indigo-600' : 'text-amber-600'}`}>
+                  {row.score}%
+                </span>
+              </div>
             ))}
           </div>
+        </div>
+      )}
+
+      {(data?.exceptions_open ?? 0) > 0 && (
+        <div className="flex items-start gap-3 bg-amber-50 border border-amber-200 rounded-xl px-4 py-3">
+          <AlertTriangle size={15} className="text-amber-500 mt-0.5 flex-shrink-0"/>
+          <div>
+            <p className="text-sm font-medium text-amber-800">
+              {data.exceptions_open} open exception{data.exceptions_open !== 1 ? 's' : ''} need attention
+            </p>
+            <p className="text-xs text-amber-600 mt-0.5">
+              Documents stuck in RESOLVING — OA-Admin identity match needed
+            </p>
+          </div>
+        </div>
+      )}
+
+      <div className="border border-slate-200 rounded-xl overflow-hidden">
+        <div className="bg-slate-50 px-4 py-2.5 flex items-center gap-2 border-b border-slate-200">
+          <Mail size={13} className="text-slate-400"/>
+          <span className="text-xs text-slate-400 font-mono">Email preview — sent to configured recipients</span>
+        </div>
+        <div className="px-4 py-3">
+          <p className="text-xs text-slate-400">
+            Configure recipients and schedule in{' '}
+            <Link to="/org/digest-settings" className="text-indigo-600 hover:underline">Digest Settings</Link>.
+          </p>
         </div>
       </div>
     </div>

@@ -36,15 +36,15 @@ function fmtMonth(d: string | null) {
 export function EmpCareer() {
   const { data: profileData } = useQuery({
     queryKey: ['emp-vault-profile'],
-    queryFn: () => api.get('/vault/profile').then(r => r.data),
+    queryFn: () => api.get('/v1/vault/profile').then(r => r.data),
   })
   const { data: careerData, isLoading } = useQuery({
     queryKey: ['emp-career'],
-    queryFn: () => api.get('/vault/career').then(r => r.data),
+    queryFn: () => api.get('/v1/vault/career').then(r => r.data),
   })
   const { data: docsData } = useQuery({
     queryKey: ['emp-vault-docs'],
-    queryFn: () => api.get('/vault/documents', { params: { limit: 100 } }).then(r => r.data),
+    queryFn: () => api.get('/v1/vault/documents', { params: { limit: 100 } }).then(r => r.data),
   })
 
   const employers: any[] = (profileData?.employers ?? []).slice().sort((a:any, b:any) =>

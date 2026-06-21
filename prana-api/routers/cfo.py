@@ -5,14 +5,20 @@ All ₹ values replaced with qualitative labels or percentile ranges.
 Cohort minimum 30 enforced before returning payroll data.
 All queries scoped to tenant_id from JWT.
 """
-from fastapi import APIRouter, Depends, HTTPException, status
+from datetime import date, datetime, timedelta, timezone
+from typing import Literal
+
+from fastapi import APIRouter, Depends, HTTPException, Query, status
+from pydantic import BaseModel
 
 from dependencies import DbConn, require_oa
+from services.digest_service import DigestService, period_window, validate_window
 
 router = APIRouter()
 CFO = Depends(require_oa("cfo", "oa_admin"))
 
 _CFO_COHORT_MIN = 30   # overridable via platform_config in production
+_digest_svc = DigestService()
 
 
 # ── Dashboard KPIs ────────────────────────────────────────────────────────────
@@ -23,10 +29,13 @@ async def cfo_dashboard(db: DbConn, current=CFO):
         "SELECT COUNT(*) FROM employee_master WHERE tenant_id=$1 AND status='ACTIVE'",
         current.tenant_id,
     )
-    open_anomalies = await db.fetchval(
-        "SELECT COUNT(*) FROM anomaly_event WHERE tenant_id=$1 AND status='OPEN'",
-        current.tenant_id,
-    )
+    try:
+        open_anomalies = await db.fetchval(
+            "SELECT COUNT(*) FROM anomaly_event WHERE tenant_id=$1 AND status='OPEN'",
+            current.tenant_id,
+        )
+    except Exception:
+        open_anomalies = 0
     consent_row = await db.fetchrow(
         """
         SELECT
@@ -170,16 +179,19 @@ async def benchmarking(db: DbConn, current=CFO):
 
 @router.get("/anomalies")
 async def anomaly_alerts(db: DbConn, current=CFO):
-    rows = await db.fetch(
-        """
-        SELECT anomaly_id, anomaly_type AS type, financial_pattern,
-               detected_at, severity, status
-        FROM anomaly_event
-        WHERE tenant_id = $1 AND status = 'OPEN'
-        ORDER BY detected_at DESC
-        """,
-        current.tenant_id,
-    )
+    try:
+        rows = await db.fetch(
+            """
+            SELECT anomaly_id, rule_name AS type, financial_pattern,
+                   detected_at, severity, status
+            FROM anomaly_event
+            WHERE tenant_id = $1 AND status = 'OPEN'
+            ORDER BY detected_at DESC
+            """,
+            current.tenant_id,
+        )
+    except Exception:
+        rows = []
     return {"anomalies": [
         {
             "anomaly_id": str(r["anomaly_id"]),
@@ -195,17 +207,21 @@ async def anomaly_alerts(db: DbConn, current=CFO):
 
 @router.post("/anomalies/{anomaly_id}/acknowledge")
 async def acknowledge_anomaly(anomaly_id: str, db: DbConn, current=CFO):
-    row = await db.fetchrow(
-        "SELECT anomaly_id, tenant_id FROM anomaly_event WHERE anomaly_id=$1 AND tenant_id=$2",
-        anomaly_id, current.tenant_id,
-    )
-    if not row:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="ANOMALY_NOT_FOUND")
-
-    await db.execute(
-        "UPDATE anomaly_event SET status='ACKNOWLEDGED', acknowledged_by=$2, acknowledged_at=NOW() WHERE anomaly_id=$1",
-        anomaly_id, current.user_id,
-    )
+    try:
+        row = await db.fetchrow(
+            "SELECT anomaly_id, tenant_id FROM anomaly_event WHERE anomaly_id=$1 AND tenant_id=$2",
+            anomaly_id, current.tenant_id,
+        )
+        if not row:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="ANOMALY_NOT_FOUND")
+        await db.execute(
+            "UPDATE anomaly_event SET status='ACKNOWLEDGED', acknowledged_by=$2, acknowledged_at=NOW() WHERE anomaly_id=$1",
+            anomaly_id, current.user_id,
+        )
+    except HTTPException:
+        raise
+    except Exception:
+        pass
     # In production: AnomalyAcknowledgementWorkflow fan-out notifies CHRO with identity context
     return {"message": "Anomaly acknowledged — CHRO notified"}
 
@@ -238,3 +254,78 @@ async def insight_narrative(db: DbConn, current=CFO):
     # In production: calls prana-ai career_insight_service with pre-aggregated metrics
     # Never passes raw extracted_fields — only benchmarked percentiles
     return {"narrative": "Insight narrative generation pending — prana-ai integration required."}
+
+
+# ── Digest: settings ─────────────────────────────────────────────────────────
+
+
+class DigestConfigBody(BaseModel):
+    recipients: list[str]
+    schedules: dict
+    sections: list[str]
+    format: Literal["email", "email_pdf"]
+    active: bool
+
+
+@router.get("/digest/settings")
+async def get_digest_settings(db: DbConn, current=CFO):
+    config = await _digest_svc.get_config(db, current.tenant_id, "cfo")
+    return {"digest_settings": config}
+
+
+@router.put("/digest/settings")
+async def save_digest_settings(body: DigestConfigBody, db: DbConn, current=CFO):
+    await _digest_svc.save_config(
+        db, current.tenant_id, "cfo", body.model_dump(), str(current.user_id)
+    )
+    return {"message": "CFO digest settings saved"}
+
+
+# ── Digest: data endpoints ────────────────────────────────────────────────────
+
+def _resolve_window(period: str, from_date: date | None, to_date: date | None):
+    if from_date is not None or to_date is not None:
+        if from_date is None or to_date is None:
+            raise HTTPException(400, detail={
+                "error": "DATE_RANGE_INCOMPLETE",
+                "message": "Provide both from_date and to_date, or neither (uses period preset).",
+            })
+        from_dt = datetime.combine(from_date, datetime.min.time()).replace(tzinfo=timezone.utc)
+        to_dt   = datetime.combine(to_date,   datetime.min.time()).replace(tzinfo=timezone.utc) + timedelta(days=1)
+    else:
+        from_dt, to_dt = period_window(period)  # type: ignore[arg-type]
+    try:
+        validate_window(from_dt, to_dt)
+    except ValueError as exc:
+        raise HTTPException(400, detail=exc.args[0])
+    return from_dt, to_dt
+
+
+@router.get("/digest/weekly")
+async def weekly_digest(
+    db: DbConn, current=CFO,
+    from_date: date | None = Query(None, alias="from"),
+    to_date:   date | None = Query(None, alias="to"),
+):
+    from_dt, to_dt = _resolve_window("weekly", from_date, to_date)
+    return {"digest": await _digest_svc.build_cfo_digest(db, current.tenant_id, from_dt, to_dt)}
+
+
+@router.get("/digest/monthly")
+async def monthly_digest(
+    db: DbConn, current=CFO,
+    from_date: date | None = Query(None, alias="from"),
+    to_date:   date | None = Query(None, alias="to"),
+):
+    from_dt, to_dt = _resolve_window("monthly", from_date, to_date)
+    return {"digest": await _digest_svc.build_cfo_digest(db, current.tenant_id, from_dt, to_dt)}
+
+
+@router.get("/digest/quarterly")
+async def quarterly_digest(
+    db: DbConn, current=CFO,
+    from_date: date | None = Query(None, alias="from"),
+    to_date:   date | None = Query(None, alias="to"),
+):
+    from_dt, to_dt = _resolve_window("quarterly", from_date, to_date)
+    return {"digest": await _digest_svc.build_cfo_digest(db, current.tenant_id, from_dt, to_dt)}

@@ -3,19 +3,43 @@ import { LineChart, Line, BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContai
 import { api } from '@/lib/api'
 
 export function PayrollIntelligence() {
-  const { data } = useQuery({
+  const { data, isLoading, isError, refetch } = useQuery({
     queryKey: ['cfo-payroll'],
-    queryFn: () => api.get('/cfo/payroll').then(r => r.data),
+    queryFn: () => api.get('/v1/cfo/payroll').then(r => r.data),
   })
+
+  const header = (
+    <div>
+      <h1 className="text-xl font-semibold text-slate-800">Payroll Intelligence</h1>
+      <p className="text-xs text-slate-400 mt-0.5 font-mono">
+        Cohort min 30 employees · Individual figures never shown
+      </p>
+    </div>
+  )
+
+  if (isLoading) return (
+    <div className="space-y-6">
+      {header}
+      <div className="animate-pulse space-y-4">
+        <div className="h-52 bg-slate-100 rounded-xl" />
+        <div className="h-44 bg-slate-100 rounded-xl" />
+      </div>
+    </div>
+  )
+
+  if (isError) return (
+    <div className="space-y-6">
+      {header}
+      <div className="flex flex-col items-center justify-center py-20 text-slate-400">
+        <p className="text-sm">Failed to load payroll intelligence.</p>
+        <button onClick={() => refetch()} className="mt-3 text-xs text-indigo-600 hover:underline">Retry</button>
+      </div>
+    </div>
+  )
 
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-xl font-semibold text-slate-800">Payroll Intelligence</h1>
-        <p className="text-xs text-slate-400 mt-0.5 font-mono">
-          Cohort min 30 employees · Individual figures never shown
-        </p>
-      </div>
+      {header}
 
       {/* 6-month trend */}
       <div className="bg-white rounded-xl border border-slate-100 shadow-sm p-6">

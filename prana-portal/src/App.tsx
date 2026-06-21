@@ -49,13 +49,13 @@ import { StatutoryCompliance }  from '@/pages/chro/StatutoryCompliance'
 // CFO pages
 import { PayrollIntelligence } from '@/pages/cfo/PayrollIntelligence'
 import { AnomalyAlerts }       from '@/pages/cfo/AnomalyAlerts'
-// CFO screens (formerly stubs)
 import { AttritionCost }     from '@/pages/cfo/AttritionCost'
 import { Benchmarking }      from '@/pages/cfo/Benchmarking'
 import { ConsentDashboard }  from '@/pages/cfo/ConsentDashboard'
+import { CfoDigest }         from '@/pages/cfo/CfoDigest'
 import { CompliancePosture } from '@/pages/chro/CompliancePosture'
 
-// CISO screens (formerly stubs)
+// CISO pages
 import { ShareAnalytics }    from '@/pages/ciso/ShareAnalytics'
 import { KeyHealth }         from '@/pages/ciso/KeyHealth'
 import { DataResidency }     from '@/pages/ciso/DataResidency'
@@ -63,13 +63,21 @@ import { AccessFlags }       from '@/pages/ciso/AccessFlags'
 import { AccountLocks }      from '@/pages/ciso/AccountLocks'
 import { AnomalyQueue }      from '@/pages/ciso/AnomalyQueue'
 import { ElevationHistory }  from '@/pages/ciso/ElevationHistory'
+import { CisoDigest }        from '@/pages/ciso/CisoDigest'
+import { SecurityIncidents } from '@/pages/ciso/SecurityIncidents'
+import { NotificationLog }   from '@/pages/ciso/NotificationLog'
+
+// Shared pages
+import { DigestSettings }    from '@/pages/DigestSettings'
 
 // Portal Admin screens (formerly stubs)
 import { ExceptionOverview } from '@/pages/pa/ExceptionOverview'
 import { SecOpsDashboard }   from '@/pages/pa/SecOpsDashboard'
 import { AnomalyDetection }  from '@/pages/pa/AnomalyDetection'
-import { IncidentRegister }  from '@/pages/pa/IncidentRegister'
-import { CryptoHealth }      from '@/pages/pa/CryptoHealth'
+import { IncidentRegister }         from '@/pages/pa/IncidentRegister'
+import { SecurityIncidentRegister } from '@/pages/pa/SecurityIncidentRegister'
+import { PaNotificationLog }        from '@/pages/pa/PaNotificationLog'
+import { CryptoHealth }             from '@/pages/pa/CryptoHealth'
 import { ApiKeys }           from '@/pages/pa/ApiKeys'
 
 // CISO pages
@@ -130,13 +138,13 @@ function PortalLayout({ children }: { children: React.ReactNode }) {
   // Errors caught in queryFn (returns null) — no blocking loading/error state needed for layout shell
   const { data: activeElevation, isLoading: elevationLoading } = useQuery<{ elevation_id: string; ends_at: string } | null>({
     queryKey: ['elevation-active'],
-    queryFn:  () => api.get('/org/elevations/active').then(r => r.data).catch(() => null),
+    queryFn:  () => api.get('/v1/org/elevations/active').then(r => r.data).catch(() => null),
     refetchInterval: 60_000,
     enabled: user?.role === 'oa_operator',
   })
 
   const endEarlyMutation = useMutation({
-    mutationFn: (id: string) => api.post(`/org/elevations/${id}/end-early`),
+    mutationFn: (id: string) => api.post(`/v1/org/elevations/${id}/end-early`),
     onSuccess: () => qc.invalidateQueries({ queryKey: ['elevation-active'] }),
   })
 
@@ -213,6 +221,7 @@ export default function App() {
       <Route path="/org/benchmarking" element={<RequireAuth><PortalLayout><Benchmarking /></PortalLayout></RequireAuth>} />
       <Route path="/org/anomalies"    element={<RequireAuth><PortalLayout><AnomalyAlerts /></PortalLayout></RequireAuth>} />
       <Route path="/org/consent"      element={<RequireAuth><PortalLayout><ConsentDashboard /></PortalLayout></RequireAuth>} />
+      <Route path="/org/cfo-digest"   element={<RequireAuth><PortalLayout><CfoDigest /></PortalLayout></RequireAuth>} />
 
       {/* CISO routes */}
       <Route path="/org/overview"       element={<RequireAuth><PortalLayout><SecurityOverview /></PortalLayout></RequireAuth>} />
@@ -225,6 +234,12 @@ export default function App() {
       <Route path="/org/account-locks"      element={<RequireAuth><PortalLayout><AccountLocks /></PortalLayout></RequireAuth>} />
       <Route path="/org/anomaly-queue"      element={<RequireAuth><PortalLayout><AnomalyQueue /></PortalLayout></RequireAuth>} />
       <Route path="/org/elevation-history"  element={<RequireAuth><PortalLayout><ElevationHistory /></PortalLayout></RequireAuth>} />
+      <Route path="/org/ciso-digest"        element={<RequireAuth><PortalLayout><CisoDigest /></PortalLayout></RequireAuth>} />
+      <Route path="/org/ciso-incidents"    element={<RequireAuth><PortalLayout><SecurityIncidents /></PortalLayout></RequireAuth>} />
+      <Route path="/org/ciso-notif-log"   element={<RequireAuth><PortalLayout><NotificationLog /></PortalLayout></RequireAuth>} />
+
+      {/* Shared — digest settings (role-aware, works for CHRO / CFO / CISO) */}
+      <Route path="/org/digest-settings" element={<RequireAuth><PortalLayout><DigestSettings /></PortalLayout></RequireAuth>} />
 
       {/* Portal Admin routes */}
       <Route path="/admin/dashboard"  element={<RequireAuth><PortalLayout><MetaDashboard /></PortalLayout></RequireAuth>} />
@@ -237,7 +252,9 @@ export default function App() {
       <Route path="/admin/exceptions" element={<RequireAuth><PortalLayout><ExceptionOverview /></PortalLayout></RequireAuth>} />
       <Route path="/admin/secops"     element={<RequireAuth><PortalLayout><SecOpsDashboard /></PortalLayout></RequireAuth>} />
       <Route path="/admin/anomalies"  element={<RequireAuth><PortalLayout><AnomalyDetection /></PortalLayout></RequireAuth>} />
-      <Route path="/admin/incidents"  element={<RequireAuth><PortalLayout><IncidentRegister /></PortalLayout></RequireAuth>} />
+      <Route path="/admin/incidents"           element={<RequireAuth><PortalLayout><IncidentRegister /></PortalLayout></RequireAuth>} />
+      <Route path="/admin/security-incidents" element={<RequireAuth><PortalLayout><SecurityIncidentRegister /></PortalLayout></RequireAuth>} />
+      <Route path="/admin/notifications"      element={<RequireAuth><PortalLayout><PaNotificationLog /></PortalLayout></RequireAuth>} />
       <Route path="/admin/crypto"     element={<RequireAuth><PortalLayout><CryptoHealth /></PortalLayout></RequireAuth>} />
       <Route path="/admin/audit"      element={<RequireAuth><PortalLayout><AuditTrail /></PortalLayout></RequireAuth>} />
       <Route path="/admin/api-keys"   element={<RequireAuth><PortalLayout><ApiKeys /></PortalLayout></RequireAuth>} />

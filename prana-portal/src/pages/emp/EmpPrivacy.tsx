@@ -4,19 +4,19 @@ import { api } from '@/lib/api'
 export function EmpPrivacy() {
   const { data: profileData, isLoading: profileLoading } = useQuery({
     queryKey: ['emp-vault-profile'],
-    queryFn: () => api.get('/vault/profile').then(r => r.data),
+    queryFn: () => api.get('/v1/vault/profile').then(r => r.data),
   })
   const { data: activityData, isLoading: activityLoading } = useQuery({
     queryKey: ['emp-activity'],
-    queryFn: () => api.get('/vault/activity').then(r => r.data),
+    queryFn: () => api.get('/v1/vault/activity').then(r => r.data),
   })
   const { data: sharesData, isLoading: sharesLoading } = useQuery({
     queryKey: ['emp-vault-shares'],
-    queryFn: () => api.get('/vault/share').then(r => r.data),
+    queryFn: () => api.get('/v1/vault/share').then(r => r.data),
   })
   const { data: docsData, isLoading: docsLoading } = useQuery({
     queryKey: ['emp-vault-docs'],
-    queryFn: () => api.get('/vault/documents', { params: { limit: 100 } }).then(r => r.data),
+    queryFn: () => api.get('/v1/vault/documents', { params: { limit: 100 } }).then(r => r.data),
   })
 
   const isLoading = profileLoading || activityLoading || sharesLoading || docsLoading

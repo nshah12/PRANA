@@ -40,7 +40,7 @@ function parseChannels(raw: string | undefined): Set<Channel> {
 export function OrgSettings() {
   const { data } = useQuery({
     queryKey: ['org-settings'],
-    queryFn: () => api.get('/org/settings').then(r => r.data),
+    queryFn: () => api.get('/v1/org/settings').then(r => r.data),
   })
 
   const [channels, setChannels] = useState<Set<Channel>>(new Set(['personal_email']))
@@ -73,7 +73,7 @@ export function OrgSettings() {
   }
 
   const saveMutation = useMutation({
-    mutationFn: () => api.patch('/org/settings', {
+    mutationFn: () => api.patch('/v1/org/settings', {
       employee_activation_channels: [...channels].join(','),
     }),
     onSuccess: () => {

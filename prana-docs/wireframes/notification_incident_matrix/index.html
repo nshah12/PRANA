@@ -1,0 +1,718 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>PRANA — Notification & Incident Matrix</title>
+<style>
+  :root {
+    --bg: #0f1117;
+    --bg2: #1a1d27;
+    --bg3: #22263a;
+    --border: #2d3148;
+    --text: #e2e8f0;
+    --muted: #8892a4;
+    --accent: #6366f1;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { background: var(--bg); color: var(--text); font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; font-size: 13px; padding: 24px; }
+  h1 { font-size: 18px; font-weight: 600; margin-bottom: 4px; color: #fff; }
+  .subtitle { color: var(--muted); font-size: 12px; margin-bottom: 20px; }
+  .tabs { display: flex; gap: 2px; border-bottom: 1px solid var(--border); margin-bottom: 18px; flex-wrap: wrap; }
+  .tab { padding: 8px 14px; cursor: pointer; font-size: 12px; color: var(--muted); border-bottom: 2px solid transparent; white-space: nowrap; transition: color .15s; }
+  .tab:hover { color: var(--text); }
+  .tab.active { color: #fff; border-bottom-color: var(--accent); font-weight: 500; }
+  .panel { display: none; } .panel.active { display: block; }
+  table { width: 100%; border-collapse: collapse; font-size: 11px; }
+  th { text-align: left; padding: 7px 8px; background: var(--bg3); font-weight: 500; color: var(--muted); border-bottom: 1px solid var(--border); white-space: nowrap; font-size: 10px; text-transform: uppercase; letter-spacing: .05em; }
+  td { padding: 7px 8px; border-bottom: 1px solid var(--border); vertical-align: top; line-height: 1.5; }
+  tr:hover td { background: var(--bg2); }
+  .ch { display: inline-block; font-size: 9px; font-weight: 600; padding: 2px 6px; border-radius: 10px; margin: 1px 1px 1px 0; white-space: nowrap; }
+  .email  { background: #1e3a5f; color: #93c5fd; }
+  .sms    { background: #14432a; color: #86efac; }
+  .wa     { background: #14432a; color: #4ade80; }
+  .push   { background: #3b2a14; color: #fcd34d; }
+  .bell   { background: #3b1f5e; color: #c084fc; }
+  .p0     { background: #4c1414; color: #fca5a5; font-weight: 700; }
+  .p1     { background: #3b2a14; color: #fcd34d; font-weight: 700; }
+  .p2     { background: #1e3a5f; color: #93c5fd; }
+  .p3     { background: var(--bg3); color: var(--muted); }
+  .yes    { color: #4ade80; font-weight: 600; }
+  .no     { color: var(--muted); }
+  .section-title { font-size: 10px; font-weight: 600; letter-spacing: .08em; text-transform: uppercase; color: var(--muted); padding: 12px 0 6px; border-bottom: 1px solid var(--border); margin-bottom: 10px; }
+  .legend { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 12px; }
+  .box { background: var(--bg2); border: 1px solid var(--border); border-radius: 8px; padding: 12px 14px; margin-bottom: 10px; }
+  .box-title { font-size: 12px; font-weight: 600; margin-bottom: 6px; }
+  .box-body { font-size: 11px; color: var(--muted); line-height: 1.8; }
+  code { font-family: 'JetBrains Mono', 'Fira Code', monospace; font-size: 10px; background: var(--bg3); padding: 1px 4px; border-radius: 3px; color: #a5b4fc; }
+  .grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+  @media (max-width: 700px) { .grid2 { grid-template-columns: 1fr; } }
+  .badge { display: inline-block; font-size: 9px; font-weight: 600; padding: 1px 6px; border-radius: 10px; }
+  .cascade-step { display: flex; align-items: flex-start; gap: 8px; margin-bottom: 8px; }
+  .step-num { min-width: 20px; height: 20px; border-radius: 50%; background: var(--accent); color: #fff; font-size: 10px; font-weight: 700; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
+  .step-text { font-size: 11px; color: var(--muted); line-height: 1.5; }
+  .step-text b { color: var(--text); }
+  .arrow { color: var(--muted); margin: 0 4px; }
+  .stamp { font-size: 10px; color: var(--muted); margin-top: 20px; border-top: 1px solid var(--border); padding-top: 10px; }
+</style>
+</head>
+<body>
+
+<h1>PRANA — Notification &amp; Incident Matrix</h1>
+<p class="subtitle">Who gets notified · Which channel · Where stored · How incidents are generated · SLAs &nbsp;|&nbsp; Last updated: 2026-06-19 &nbsp;|&nbsp; Status: <span style="color:#4ade80;font-weight:600">APPROVED &amp; IMPLEMENTED</span></p>
+
+<div class="tabs">
+  <div class="tab active" onclick="sw('sec')">Security → CISO</div>
+  <div class="tab" onclick="sw('ops')">Ops → OA</div>
+  <div class="tab" onclick="sw('emp')">Employee</div>
+  <div class="tab" onclick="sw('pa')">Platform Admin</div>
+  <div class="tab" onclick="sw('cascade')">Delivery Cascade</div>
+  <div class="tab" onclick="sw('incident')">Incident Escalation</div>
+  <div class="tab" onclick="sw('storage')">Storage &amp; Scrutiny</div>
+  <div class="tab" onclick="sw('tables')">DB Tables</div>
+  <div class="tab" onclick="sw('endpoints')">API Endpoints</div>
+  <div class="tab" onclick="sw('templates')">Templates</div>
+</div>
+
+<!-- ── Security → CISO ────────────────────────────────────────────────────── -->
+<div id="sec" class="panel active">
+  <div class="legend">
+    <span class="ch email">Email/SES</span><span class="ch sms">SMS/MSG91</span>
+    <span class="ch wa">WhatsApp</span><span class="ch push">Push</span><span class="ch bell">Portal Bell</span>
+    <span class="ch p0">P0 30min</span><span class="ch p1">P1 4hr</span><span class="ch p2">P2 24hr</span><span class="ch p3">P3 —</span>
+  </div>
+  <table>
+    <tr><th>Event</th><th>Triggered by</th><th>Recipient</th><th>Channels</th><th>notification_log</th><th>Incident auto-created</th><th>SLA</th></tr>
+    <tr>
+      <td>Anomaly <span class="ch p0">P0</span> detected</td>
+      <td>AnomalyDetectionWorkflow</td>
+      <td>CISO + Portal Admin</td>
+      <td><span class="ch email">Email</span><span class="ch sms">SMS</span><span class="ch bell">Bell</span></td>
+      <td class="yes">YES</td>
+      <td class="yes">YES — P0<br><small style="color:var(--muted)">CISO + PA assigned</small></td>
+      <td>30 min</td>
+    </tr>
+    <tr>
+      <td>Anomaly <span class="ch p1">P1</span> detected</td>
+      <td>AnomalyDetectionWorkflow</td>
+      <td>CISO</td>
+      <td><span class="ch email">Email</span><span class="ch bell">Bell</span></td>
+      <td class="yes">YES</td>
+      <td class="yes">YES — P1<br><small style="color:var(--muted)">CISO assigned</small></td>
+      <td>4 hr</td>
+    </tr>
+    <tr>
+      <td>Anomaly <span class="ch p2">P2</span> detected</td>
+      <td>AnomalyDetectionWorkflow</td>
+      <td>CISO</td>
+      <td><span class="ch bell">Bell only</span></td>
+      <td class="yes">YES</td>
+      <td class="no">NO (manual escalate)</td>
+      <td>24 hr</td>
+    </tr>
+    <tr>
+      <td>Anomaly <span class="ch p3">P3</span> detected</td>
+      <td>AnomalyDetectionWorkflow</td>
+      <td>CISO</td>
+      <td><em style="color:var(--muted)">Dashboard query only</em></td>
+      <td class="no">NO</td>
+      <td class="no">NO</td>
+      <td>—</td>
+    </tr>
+    <tr>
+      <td>Account locked (policy)</td>
+      <td>PolicyLockWorkflow</td>
+      <td>CISO + OA-Admin</td>
+      <td><span class="ch email">Email</span><span class="ch bell">Bell</span></td>
+      <td class="yes">YES</td>
+      <td class="no">NO</td>
+      <td>Auto-unlock per config</td>
+    </tr>
+    <tr>
+      <td>5 consecutive TOTP failures</td>
+      <td>TOTPLockoutWorkflow</td>
+      <td>CISO</td>
+      <td><span class="ch bell">Bell</span></td>
+      <td class="yes">YES</td>
+      <td class="no">NO</td>
+      <td>—</td>
+    </tr>
+    <tr>
+      <td>Foreign IP login</td>
+      <td>AnomalyDetectionWorkflow</td>
+      <td>CISO</td>
+      <td><span class="ch email">Email</span><span class="ch bell">Bell</span></td>
+      <td class="yes">YES</td>
+      <td class="yes">YES — P1</td>
+      <td>4 hr</td>
+    </tr>
+    <tr>
+      <td>Document access flagged</td>
+      <td>vault handler inline</td>
+      <td>CISO</td>
+      <td><span class="ch bell">Bell</span></td>
+      <td class="yes">YES</td>
+      <td class="no">NO</td>
+      <td>—</td>
+    </tr>
+    <tr>
+      <td>Share token anomaly</td>
+      <td>ShareExpiryWorkflow</td>
+      <td>CISO</td>
+      <td><span class="ch bell">Bell</span><span class="ch email">Email</span></td>
+      <td class="yes">YES</td>
+      <td class="no">NO</td>
+      <td>—</td>
+    </tr>
+    <tr>
+      <td>KMS key rotation failed</td>
+      <td>KMSKeyRotationWorkflow</td>
+      <td>CISO + PA</td>
+      <td><span class="ch email">Email</span></td>
+      <td class="yes">YES</td>
+      <td class="yes">YES — P0</td>
+      <td>Immediate</td>
+    </tr>
+    <tr>
+      <td>CSAM detected</td>
+      <td>CSAMReportingWorkflow</td>
+      <td>PA only</td>
+      <td><span class="ch email">Email</span><span class="ch sms">SMS</span></td>
+      <td class="yes">YES</td>
+      <td class="yes">YES — P0</td>
+      <td>Immediate</td>
+    </tr>
+  </table>
+</div>
+
+<!-- ── Ops → OA ───────────────────────────────────────────────────────────── -->
+<div id="ops" class="panel">
+  <table>
+    <tr><th>Event</th><th>Trigger</th><th>Recipient</th><th>Channels</th><th>notification_log</th><th>Incident</th><th>SLA</th></tr>
+    <tr>
+      <td>Document exception raised</td>
+      <td>DocumentPipelineWorkflow</td>
+      <td>OA-Operator (ingested) + OA-Admin</td>
+      <td><span class="ch bell">Bell</span><span class="ch email">Email</span></td>
+      <td class="yes">YES</td>
+      <td class="no">NO</td>
+      <td>4 hr resolve</td>
+    </tr>
+    <tr>
+      <td>Exception SLA breach (4 hr)</td>
+      <td>Temporal timer</td>
+      <td>OA-Admin + PA</td>
+      <td><span class="ch email">Email</span></td>
+      <td class="yes">YES</td>
+      <td class="yes">YES — P2</td>
+      <td>Immediate</td>
+    </tr>
+    <tr>
+      <td>Exception SLA breach (24 hr)</td>
+      <td>Same workflow</td>
+      <td>PA only</td>
+      <td><span class="ch email">Email</span><span class="ch sms">SMS</span></td>
+      <td class="yes">YES</td>
+      <td>Escalate existing</td>
+      <td>Immediate</td>
+    </tr>
+    <tr>
+      <td>Elevation request created</td>
+      <td>ElevationWorkflow</td>
+      <td>OA-Admin</td>
+      <td><span class="ch bell">Bell</span><span class="ch email">Email</span></td>
+      <td class="yes">YES</td>
+      <td class="no">NO</td>
+      <td>—</td>
+    </tr>
+    <tr>
+      <td>Elevation approved</td>
+      <td>ElevationWorkflow</td>
+      <td>OA-Operator</td>
+      <td><span class="ch email">Email</span></td>
+      <td class="yes">YES</td>
+      <td class="no">NO</td>
+      <td>—</td>
+    </tr>
+    <tr>
+      <td>Elevation denied</td>
+      <td>ElevationWorkflow</td>
+      <td>OA-Operator</td>
+      <td><span class="ch email">Email</span></td>
+      <td class="yes">YES</td>
+      <td class="no">NO</td>
+      <td>—</td>
+    </tr>
+    <tr>
+      <td>Elevation auto-expired</td>
+      <td>ElevationWorkflow</td>
+      <td>OA-Operator</td>
+      <td><span class="ch email">Email</span></td>
+      <td class="yes">YES</td>
+      <td class="no">NO</td>
+      <td>—</td>
+    </tr>
+    <tr>
+      <td>New OA user created</td>
+      <td>oa_users handler</td>
+      <td>New OA user</td>
+      <td><span class="ch email">Email (OA_WELCOME)</span></td>
+      <td class="yes">YES</td>
+      <td class="no">NO</td>
+      <td>—</td>
+    </tr>
+    <tr>
+      <td>Vault completeness drops &gt;10%</td>
+      <td>VaultCompletenessWorkflow</td>
+      <td>CHRO</td>
+      <td><span class="ch email">Email</span><span class="ch bell">Bell</span></td>
+      <td class="yes">YES</td>
+      <td class="no">NO</td>
+      <td>—</td>
+    </tr>
+    <tr>
+      <td>DPDP deadline approaching (7 days)</td>
+      <td>RetentionWorkflow</td>
+      <td>CHRO + OA-Admin</td>
+      <td><span class="ch email">Email</span></td>
+      <td class="yes">YES</td>
+      <td class="no">NO</td>
+      <td>—</td>
+    </tr>
+    <tr>
+      <td>Weekly/Monthly digest ready</td>
+      <td>DigestWorkflow</td>
+      <td>CHRO / CFO / CISO (per config)</td>
+      <td><span class="ch email">Email (PDF)</span></td>
+      <td class="yes">YES</td>
+      <td class="no">NO</td>
+      <td>Scheduled</td>
+    </tr>
+  </table>
+</div>
+
+<!-- ── Employee ───────────────────────────────────────────────────────────── -->
+<div id="emp" class="panel">
+  <table>
+    <tr><th>Event</th><th>Trigger</th><th>Channels</th><th>notification_log</th></tr>
+    <tr>
+      <td>Document routed to vault</td>
+      <td>DocumentPipelineWorkflow</td>
+      <td><span class="ch push">Push</span><span class="ch wa">WhatsApp</span><span class="ch sms">SMS fallback</span></td>
+      <td class="yes">YES</td>
+    </tr>
+    <tr>
+      <td>Share accessed by recipient</td>
+      <td>DocumentShareWorkflow</td>
+      <td><span class="ch email">Email</span></td>
+      <td class="yes">YES</td>
+    </tr>
+    <tr>
+      <td>Share about to expire (1 hr)</td>
+      <td>ShareExpiryWorkflow</td>
+      <td><span class="ch push">Push</span></td>
+      <td class="yes">YES</td>
+    </tr>
+    <tr>
+      <td>Share revoked</td>
+      <td>ShareRevocationWorkflow</td>
+      <td><span class="ch push">Push</span><span class="ch email">Email</span></td>
+      <td class="yes">YES</td>
+    </tr>
+    <tr>
+      <td>DPDP erasure complete</td>
+      <td>ErasureConfirmationWorkflow</td>
+      <td><span class="ch email">Email (ERASURE_COMPLETE)</span></td>
+      <td class="yes">YES</td>
+    </tr>
+    <tr>
+      <td>DPDP export ready</td>
+      <td>DataExportWorkflow</td>
+      <td><span class="ch email">Email with download link</span></td>
+      <td class="yes">YES</td>
+    </tr>
+    <tr>
+      <td>Consent withdrawal confirmed</td>
+      <td>ConsentWithdrawalWorkflow</td>
+      <td><span class="ch email">Email</span></td>
+      <td class="yes">YES</td>
+    </tr>
+    <tr>
+      <td>DPDP correction processed</td>
+      <td>DataCorrectionWorkflow</td>
+      <td><span class="ch email">Email</span></td>
+      <td class="yes">YES</td>
+    </tr>
+    <tr>
+      <td>Account locked (employee)</td>
+      <td>AccountDormancyWorkflow</td>
+      <td><span class="ch sms">SMS</span></td>
+      <td class="yes">YES</td>
+    </tr>
+    <tr>
+      <td>Nominee access granted</td>
+      <td>NomineeAccessWorkflow</td>
+      <td><span class="ch email">Email</span><span class="ch sms">SMS</span></td>
+      <td class="yes">YES</td>
+    </tr>
+  </table>
+</div>
+
+<!-- ── Platform Admin ─────────────────────────────────────────────────────── -->
+<div id="pa" class="panel">
+  <table>
+    <tr><th>Event</th><th>Trigger</th><th>Channels</th><th>notification_log</th><th>Incident</th></tr>
+    <tr>
+      <td>Tenant provisioned</td>
+      <td>TenantProvisioningWorkflow</td>
+      <td><span class="ch email">Email</span></td>
+      <td class="yes">YES</td>
+      <td class="no">NO</td>
+    </tr>
+    <tr>
+      <td>Tenant suspended</td>
+      <td>admin handler inline</td>
+      <td><span class="ch email">Email</span></td>
+      <td class="yes">YES</td>
+      <td class="no">NO</td>
+    </tr>
+    <tr>
+      <td>Storage quota 80%</td>
+      <td>StorageQuotaCheckWorkflow</td>
+      <td><span class="ch email">Email</span></td>
+      <td class="yes">YES</td>
+      <td class="no">NO</td>
+    </tr>
+    <tr>
+      <td>Storage quota 100%</td>
+      <td>StorageQuotaCheckWorkflow</td>
+      <td><span class="ch email">Email</span><span class="ch sms">SMS</span></td>
+      <td class="yes">YES</td>
+      <td class="yes">YES — P1</td>
+    </tr>
+    <tr>
+      <td>Platform health degraded</td>
+      <td>SystemHealthWorkflow</td>
+      <td><span class="ch email">Email</span></td>
+      <td class="yes">YES</td>
+      <td class="yes">YES — P1, 30 min</td>
+    </tr>
+    <tr>
+      <td>CSAM detected</td>
+      <td>CSAMReportingWorkflow</td>
+      <td><span class="ch email">Email</span><span class="ch sms">SMS</span></td>
+      <td class="yes">YES</td>
+      <td class="yes">YES — P0, immediate</td>
+    </tr>
+    <tr>
+      <td>KMS rotation failed</td>
+      <td>KMSKeyRotationWorkflow</td>
+      <td><span class="ch email">Email</span></td>
+      <td class="yes">YES</td>
+      <td class="yes">YES — P0</td>
+    </tr>
+    <tr>
+      <td>API rate limit breach</td>
+      <td>Kong webhook</td>
+      <td><span class="ch email">Email</span></td>
+      <td class="yes">YES</td>
+      <td class="no">NO</td>
+    </tr>
+    <tr>
+      <td>DPDP grievance filed</td>
+      <td>GrievanceWorkflow</td>
+      <td><span class="ch email">Email (48 hr ack)</span></td>
+      <td class="yes">YES</td>
+      <td class="yes">YES — grievance ticket</td>
+    </tr>
+  </table>
+</div>
+
+<!-- ── Delivery Cascade ───────────────────────────────────────────────────── -->
+<div id="cascade" class="panel">
+  <div class="section-title">Employee notification cascade</div>
+  <div class="box" style="max-width:560px">
+    <div class="cascade-step">
+      <div class="step-num">1</div>
+      <div class="step-text"><b>WhatsApp WABA</b> — if employee opted in AND Meta template is approved<br><span style="color:var(--muted);font-size:10px">Opt-out or template not approved → skip to next</span></div>
+    </div>
+    <div class="cascade-step">
+      <div class="step-num">2</div>
+      <div class="step-text"><b>SMS via MSG91</b> (primary) → <b>Exotel</b> (fallback on 5 consecutive MSG91 failures)<br><span style="color:var(--muted);font-size:10px">DND registered or network failure → skip to next</span></div>
+    </div>
+    <div class="cascade-step">
+      <div class="step-num">3</div>
+      <div class="step-text"><b>Email via SES</b><br><span style="color:var(--muted);font-size:10px">Bounced or no email on file → skip to next</span></div>
+    </div>
+    <div class="cascade-step">
+      <div class="step-num">4</div>
+      <div class="step-text"><b>Push notification</b> (Expo mobile) — if app installed and token valid<br><span style="color:var(--muted);font-size:10px">App uninstalled or token expired → skip to next</span></div>
+    </div>
+    <div class="cascade-step">
+      <div class="step-num">5</div>
+      <div class="step-text"><b>In-vault bell</b> — always available, seen on next login<br><span style="color:var(--muted);font-size:10px">Written to notification_log; visible in vault header badge</span></div>
+    </div>
+  </div>
+
+  <div class="section-title" style="margin-top:18px">OA / CISO / CHRO / CFO cascade</div>
+  <div class="box" style="max-width:560px">
+    <div class="cascade-step">
+      <div class="step-num">1</div>
+      <div class="step-text"><b>Email via SES</b> (primary — work email always present)</div>
+    </div>
+    <div class="cascade-step">
+      <div class="step-num">2</div>
+      <div class="step-text"><b>Portal bell</b> — always written, regardless of email delivery status</div>
+    </div>
+    <div class="cascade-step">
+      <div class="step-num">3</div>
+      <div class="step-text"><b>SMS</b> — only for <span class="ch p0">P0</span> and <span class="ch p1">P1</span> severity incidents</div>
+    </div>
+  </div>
+
+  <div class="section-title" style="margin-top:18px">Bounce / suppression rules</div>
+  <div class="box" style="max-width:560px">
+    <div class="box-body">
+      SES bounce webhook → SNS → <code>NotifConsumer</code> → <code>notification_log.status = 'BOUNCED'</code> + insert into <code>email_suppression</code><br><br>
+      All future EMAIL notifications check <code>email_suppression</code> before sending (<code>check_suppression=True</code>).<br>
+      Suppressed emails log <code>status = 'SUPPRESSED'</code> in <code>notification_log</code> — never silently dropped.
+    </div>
+  </div>
+</div>
+
+<!-- ── Incident Escalation ────────────────────────────────────────────────── -->
+<div id="incident" class="panel">
+  <div class="grid2">
+    <div class="box" style="border-left: 3px solid #dc2626">
+      <div class="box-title"><span class="ch p0">P0</span> Incident — 30 min SLA</div>
+      <div class="box-body">
+        <b>Triggers:</b> Anomaly P0, KMS rotation failed, CSAM detected<br><br>
+        Auto-create <code>incident</code> row → assign to CISO + PA<br>
+        Email + SMS dispatched immediately<br><br>
+        <b>T+30 min:</b> If not resolved → SMS escalation to PA + CISO<br>
+        <b>T+2 hr:</b> <code>incident.status = ESCALATED</code>, PA notified again
+      </div>
+    </div>
+    <div class="box" style="border-left: 3px solid #d97706">
+      <div class="box-title"><span class="ch p1">P1</span> Incident — 4 hr SLA</div>
+      <div class="box-body">
+        <b>Triggers:</b> Anomaly P1, Foreign IP login, Storage 100%, Platform health degraded<br><br>
+        Auto-create <code>incident</code> row → assign to CISO (security) or PA (platform)<br>
+        Email at creation<br><br>
+        <b>T+4 hr:</b> If not resolved → email escalation to PA<br>
+        <b>T+8 hr:</b> <code>incident.status = ESCALATED</code>
+      </div>
+    </div>
+    <div class="box" style="border-left: 3px solid #2563eb">
+      <div class="box-title"><span class="ch p2">P2</span> Incident — 24 hr SLA</div>
+      <div class="box-body">
+        <b>Triggers:</b> Exception SLA breach (4 hr), CISO manually escalates P3<br><br>
+        Auto-create <code>incident</code> row → assign to OA-Admin<br>
+        No SMS — email only at creation<br><br>
+        CISO can manually promote P3 anomaly → P2 incident created
+      </div>
+    </div>
+    <div class="box" style="border-left: 3px solid #16a34a">
+      <div class="box-title">DPDP Grievance Ticket</div>
+      <div class="box-body">
+        GrievanceWorkflow → <code>dpdp_grievance</code> row + <code>incident</code> row<br>
+        <code>incident_type = 'DPDP_GRIEVANCE'</code><br>
+        Assign to: Grievance Officer (from <code>tenant_config</code>)<br><br>
+        <b>SLA 48 hr ack:</b> Auto-ack email sent to employee immediately<br>
+        <b>SLA 30 day resolve</b>
+      </div>
+    </div>
+  </div>
+
+  <div class="section-title" style="margin-top:8px">Who can see incidents</div>
+  <table>
+    <tr><th>Role</th><th>Sees</th><th>Via</th></tr>
+    <tr><td>CISO</td><td>Own tenant security incidents</td><td><code>GET /v1/ciso/incidents</code></td></tr>
+    <tr><td>OA-Admin</td><td>Own tenant operational incidents</td><td>Portal badge + <code>GET /v1/org/incidents</code> (planned)</td></tr>
+    <tr><td>Portal Admin</td><td>All tenants, all incident types</td><td><code>GET /admin/security-incidents</code></td></tr>
+    <tr><td>Grievance Officer</td><td>DPDP grievance tickets only</td><td>Email link → Portal (planned)</td></tr>
+    <tr><td>CHRO / CFO</td><td>None directly</td><td>Weekly digest summary only</td></tr>
+  </table>
+</div>
+
+<!-- ── Storage & Scrutiny ─────────────────────────────────────────────────── -->
+<div id="storage" class="panel">
+  <div class="section-title">Where everything is stored</div>
+  <table>
+    <tr><th>What</th><th>Table</th><th>Hot retention</th><th>Cold archive</th><th>Who queries</th></tr>
+    <tr>
+      <td>Every notification sent</td>
+      <td><code>notification_log</code> <span class="ch p0">NEW</span></td>
+      <td>2 yr YugabyteDB</td>
+      <td>Apache Iceberg / S3</td>
+      <td>PA + CISO</td>
+    </tr>
+    <tr>
+      <td>Delivery status, provider ref</td>
+      <td><code>notification_log.status</code><br><code>.provider_ref</code></td>
+      <td>2 yr</td>
+      <td>Iceberg</td>
+      <td>PA + CISO</td>
+    </tr>
+    <tr>
+      <td>Incident tickets</td>
+      <td><code>incident</code> <span class="ch p0">NEW</span></td>
+      <td>7 yr (legal)</td>
+      <td>Iceberg</td>
+      <td>PA + CISO</td>
+    </tr>
+    <tr>
+      <td>Incident resolution trail</td>
+      <td><code>incident.resolution_note</code><br><code>.resolved_by</code><br><code>.escalated_at</code></td>
+      <td>7 yr</td>
+      <td>Iceberg</td>
+      <td>PA + CISO</td>
+    </tr>
+    <tr>
+      <td>All state changes (audit)</td>
+      <td><code>audit_event</code> (append-only)</td>
+      <td>7 yr</td>
+      <td>Iceberg</td>
+      <td>PA + CISO + CHRO</td>
+    </tr>
+    <tr>
+      <td>Security anomalies (source)</td>
+      <td><code>anomaly_event</code></td>
+      <td>7 yr</td>
+      <td>Iceberg</td>
+      <td>CISO + PA</td>
+    </tr>
+    <tr>
+      <td>DPDP grievance tickets</td>
+      <td><code>dpdp_grievance</code></td>
+      <td>7 yr</td>
+      <td>Iceberg</td>
+      <td>PA + Grievance Officer</td>
+    </tr>
+    <tr>
+      <td>Bounce / complaint register</td>
+      <td><code>email_suppression</code><br><code>notification_log.status='BOUNCED'</code></td>
+      <td>Permanent</td>
+      <td>—</td>
+      <td>PA</td>
+    </tr>
+    <tr>
+      <td>Cold archive (all tables)</td>
+      <td>Apache Iceberg on S3</td>
+      <td>Older than 2 yr</td>
+      <td>Permanent</td>
+      <td>PA via Athena</td>
+    </tr>
+  </table>
+</div>
+
+<!-- ── DB Tables ─────────────────────────────────────────────────────────── -->
+<div id="tables" class="panel">
+  <div class="box">
+    <div class="box-title">notification_log &nbsp;<span style="color:var(--muted);font-size:10px">migration 017</span></div>
+    <div class="box-body" style="font-family:monospace;font-size:10px;line-height:2">
+      notification_id  UUID PK DEFAULT gen_random_uuid()<br>
+      tenant_id        UUID → tenant (NULL for platform-level)<br>
+      event_type       VARCHAR(40)  e.g. ANOMALY_DETECTED, DOC_ROUTED<br>
+      source_id        UUID  → anomaly_event / audit_event / etc.<br>
+      source_table     VARCHAR(40)<br>
+      recipient_id     UUID  → oa_user_id / employee_user_id / portal_admin_id<br>
+      recipient_type   VARCHAR(20) OA_USER / EMPLOYEE / PORTAL_ADMIN<br>
+      recipient_email  TEXT<br>
+      recipient_phone  TEXT<br>
+      channel          VARCHAR(20) EMAIL / SMS / WHATSAPP / PUSH / PORTAL_BELL<br>
+      template_id      VARCHAR(50)<br>
+      template_data    JSONB  (no PII — privacy-guarded at service layer)<br>
+      status           VARCHAR(20) QUEUED / SENT / FAILED / BOUNCED / SUPPRESSED<br>
+      provider_ref     TEXT  SES message_id / MSG91 ref<br>
+      sent_at          TIMESTAMPTZ<br>
+      failed_at        TIMESTAMPTZ<br>
+      error_message    TEXT<br>
+      retry_count      SMALLINT DEFAULT 0<br>
+      created_at       TIMESTAMPTZ DEFAULT NOW()
+    </div>
+  </div>
+  <div class="box" style="margin-top:10px">
+    <div class="box-title">incident &nbsp;<span style="color:var(--muted);font-size:10px">migration 017</span></div>
+    <div class="box-body" style="font-family:monospace;font-size:10px;line-height:2">
+      incident_id      UUID PK DEFAULT gen_random_uuid()<br>
+      tenant_id        UUID → tenant (NULL for platform incidents)<br>
+      incident_type    VARCHAR(40) SECURITY_ANOMALY / SLA_BREACH / DPDP_GRIEVANCE / PLATFORM_HEALTH<br>
+      severity         VARCHAR(5)  P0 / P1 / P2 / P3<br>
+      title            TEXT<br>
+      description      TEXT<br>
+      source_table     VARCHAR(40)  anomaly_event / exception_queue / dpdp_grievance<br>
+      source_id        UUID<br>
+      assigned_to      UUID  oa_user_id or portal_admin_id<br>
+      assigned_role    VARCHAR(20) CISO / OA_ADMIN / PA / GRIEVANCE_OFFICER<br>
+      status           VARCHAR(20) OPEN / IN_PROGRESS / RESOLVED / ESCALATED<br>
+      sla_deadline     TIMESTAMPTZ<br>
+      escalated_at     TIMESTAMPTZ<br>
+      resolved_at      TIMESTAMPTZ<br>
+      resolved_by      UUID<br>
+      resolution_note  TEXT<br>
+      created_at       TIMESTAMPTZ DEFAULT NOW()
+    </div>
+  </div>
+</div>
+
+<!-- ── API Endpoints ──────────────────────────────────────────────────────── -->
+<div id="endpoints" class="panel">
+  <div class="section-title">Implemented</div>
+  <table>
+    <tr><th>Method</th><th>Endpoint</th><th>Role</th><th>Description</th></tr>
+    <tr><td>GET</td><td><code>/v1/ciso/incidents</code></td><td>CISO / OA-Admin</td><td>Security incidents — own tenant only</td></tr>
+    <tr><td>PATCH</td><td><code>/v1/ciso/incidents/{id}/resolve</code></td><td>CISO</td><td>Mark incident resolved with note</td></tr>
+    <tr><td>PATCH</td><td><code>/v1/ciso/incidents/{id}/escalate</code></td><td>CISO</td><td>Escalate P3 → P2 manually</td></tr>
+    <tr><td>GET</td><td><code>/v1/ciso/notification-log</code></td><td>CISO</td><td>View security notifications for own tenant</td></tr>
+    <tr><td>GET</td><td><code>/admin/security-incidents</code></td><td>PA</td><td>All incidents, all tenants — filterable</td></tr>
+    <tr><td>PATCH</td><td><code>/admin/security-incidents/{id}/resolve</code></td><td>PA</td><td>Resolve any incident (no tenant scope)</td></tr>
+    <tr><td>PATCH</td><td><code>/admin/security-incidents/{id}/escalate</code></td><td>PA</td><td>Escalate any incident</td></tr>
+    <tr><td>GET</td><td><code>/admin/notifications</code></td><td>PA</td><td>Full notification_log, all tenants</td></tr>
+  </table>
+
+  <div class="section-title" style="margin-top:18px">Query params</div>
+  <table>
+    <tr><th>Endpoint</th><th>Filter params</th></tr>
+    <tr><td><code>/admin/security-incidents</code></td><td><code>?tenant_id=&amp;severity=P0&amp;incident_status=OPEN&amp;limit=100</code></td></tr>
+    <tr><td><code>/admin/notifications</code></td><td><code>?tenant_id=&amp;channel=EMAIL&amp;notif_status=FAILED&amp;event_type=ANOMALY_DETECTED&amp;limit=200</code></td></tr>
+    <tr><td><code>/v1/ciso/incidents</code></td><td><code>?severity=P1&amp;status=OPEN</code></td></tr>
+    <tr><td><code>/v1/ciso/notification-log</code></td><td><code>?channel=EMAIL&amp;event_type=ANOMALY_DETECTED&amp;limit=50</code></td></tr>
+  </table>
+</div>
+
+<!-- ── Templates ─────────────────────────────────────────────────────────── -->
+<div id="templates" class="panel">
+  <table>
+    <tr><th>template_id</th><th>Recipient</th><th>Channel</th><th>Variables (no PII)</th></tr>
+    <tr><td><code>OA_WELCOME</code></td><td>New OA user</td><td>Email</td><td>name, org_name, login_url</td></tr>
+    <tr><td><code>EXCEPTION_ALERT</code></td><td>OA-Operator / OA-Admin</td><td>Email + Bell</td><td>document_id, exception_type, sla_hours</td></tr>
+    <tr><td><code>ELEVATION_APPROVED</code></td><td>OA-Operator</td><td>Email</td><td>duration_hours, expires_at</td></tr>
+    <tr><td><code>ELEVATION_DENIED</code></td><td>OA-Operator</td><td>Email</td><td>reason</td></tr>
+    <tr><td><code>ANOMALY_P0_ALERT</code></td><td>CISO + PA</td><td>Email + SMS</td><td>rule_name, severity, detected_at, tenant_name</td></tr>
+    <tr><td><code>ANOMALY_P1_ALERT</code></td><td>CISO</td><td>Email + Bell</td><td>rule_name, severity, detected_at</td></tr>
+    <tr><td><code>ANOMALY_P2_ALERT</code></td><td>CISO</td><td>Bell only</td><td>rule_name</td></tr>
+    <tr><td><code>ACCOUNT_LOCKED</code></td><td>CISO / OA-Admin</td><td>Email + Bell</td><td>locked_user_email, lock_reason</td></tr>
+    <tr><td><code>DOC_ROUTED</code></td><td>Employee</td><td>Push + WhatsApp</td><td>doc_type, employer_name</td></tr>
+    <tr><td><code>SHARE_ACCESSED</code></td><td>Employee</td><td>Email</td><td>recipient_name, accessed_at, share_expires_at</td></tr>
+    <tr><td><code>ERASURE_COMPLETE</code></td><td>Employee</td><td>Email</td><td>request_date, completion_date</td></tr>
+    <tr><td><code>EXPORT_READY</code></td><td>Employee</td><td>Email</td><td>download_url, expires_at</td></tr>
+    <tr><td><code>DIGEST_WEEKLY</code></td><td>CHRO / CFO / CISO</td><td>Email</td><td>period, key_metrics (no raw ₹ or PAN)</td></tr>
+    <tr><td><code>INCIDENT_CREATED</code></td><td>CISO / PA</td><td>Email</td><td>incident_id, severity, title, sla_deadline</td></tr>
+    <tr><td><code>INCIDENT_SLA_BREACH</code></td><td>PA</td><td>Email + SMS</td><td>incident_id, hours_overdue</td></tr>
+    <tr><td><code>CSAM_ALERT</code></td><td>PA</td><td>Email + SMS</td><td>tenant_name, doc_ref (encrypted, no content)</td></tr>
+  </table>
+  <p style="margin-top:10px;color:var(--muted);font-size:10px">All template_ids are stored in <code>platform_config</code> — never hardcoded in service code. Privacy guard in <code>NotificationService.notify()</code> rejects any <code>template_data</code> containing PAN, NIK, or raw salary keys.</p>
+</div>
+
+<p class="stamp">PRANA Platform · prana-docs/wireframes/notification_incident_matrix.html · Generated 2026-06-19 · Approved &amp; implemented</p>
+
+<script>
+function sw(name) {
+  const ids = ['sec','ops','emp','pa','cascade','incident','storage','tables','endpoints','templates'];
+  document.querySelectorAll('.tab').forEach((t,i) => t.classList.toggle('active', ids[i] === name));
+  document.querySelectorAll('.panel').forEach(p => p.classList.toggle('active', p.id === name));
+}
+</script>
+</body>
+</html>

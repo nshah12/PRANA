@@ -3,6 +3,12 @@ import react from '@vitejs/plugin-react'
 import path from 'path'
 
 export default defineConfig({
+  test: {
+    globals: true,
+    environment: 'jsdom',
+    setupFiles: ['./src/test/setup.ts'],
+    css: false,
+  },
   plugins: [react()],
   // VITE_BASE_PATH is set by the GitHub Actions deploy workflow to /<repo-name>/
   // Defaults to '/' for local dev.

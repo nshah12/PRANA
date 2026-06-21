@@ -37,6 +37,12 @@ async def stage06_route(params: dict) -> dict: ...
 @activity.defn(name="stage06_raise_exception")
 async def stage06_raise_exception(params: dict) -> dict: ...
 
+@activity.defn(name="stage04_write_unclassified")
+async def stage04_write_unclassified(params: dict) -> dict: ...
+
+@activity.defn(name="stage05_handle_cross_tenant_violation")
+async def stage05_handle_cross_tenant_violation(params: dict) -> dict: ...
+
 @activity.defn(name="update_pipeline_status")
 async def update_pipeline_status(params: dict) -> None: ...
 
@@ -100,6 +106,28 @@ class DocumentPipelineWorkflow:
             retry_policy=_RETRY,
         )
 
+        # AUTO_DETECT failed — doc type unknown, OA-Admin must classify manually
+        if extract_result.get("status") == "unclassified":
+            await workflow.execute_activity(
+                update_pipeline_status,
+                {"document_id": document_id, "status": "UNCLASSIFIED"},
+                start_to_close_timeout=timedelta(minutes=2),
+            )
+            await workflow.execute_activity(
+                stage04_write_unclassified,
+                {
+                    "document_id":        document_id,
+                    "tenant_id":          tenant_id,
+                    "doc_type":           params.get("doc_type"),
+                    "best_guess_doc_type": extract_result.get("best_guess_doc_type"),
+                    "best_guess_score":    extract_result.get("best_guess_score", 0.0),
+                    "partial_fields":      extract_result.get("partial_fields", {}),
+                    "reason":              "AUTO_DETECT_FAILED",
+                },
+                start_to_close_timeout=timedelta(minutes=5),
+            )
+            return {"status": "UNCLASSIFIED", "document_id": document_id}
+
         # Stage 05
         await workflow.execute_activity(
             update_pipeline_status,
@@ -111,6 +139,15 @@ class DocumentPipelineWorkflow:
             start_to_close_timeout=timedelta(minutes=5),
             retry_policy=_RETRY,
         )
+
+        # Cross-tenant contamination — reject, write anomaly, alert CISO + PA Admin
+        if resolve_result.get("violation_type") == "CROSS_TENANT":
+            await workflow.execute_activity(
+                stage05_handle_cross_tenant_violation,
+                {**params, **resolve_result},
+                start_to_close_timeout=timedelta(minutes=5),
+            )
+            return {"status": "CROSS_TENANT_REJECTED", "document_id": document_id}
 
         # Exception path: wait up to 7 days for OA-Admin signal
         if resolve_result.get("needs_exception"):

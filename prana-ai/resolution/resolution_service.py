@@ -58,6 +58,9 @@ class ResolutionService:
         tenant_id: UUID,
         pan_token: str | None,
         extracted_fields: dict,
+        skip_emp_id: bool = False,
+        skip_fuzzy: bool = False,
+        skip_embedding: bool = False,
     ) -> ResolutionResult:
         """
         Attempt to resolve extracted document fields to an employee_master row.
@@ -73,22 +76,25 @@ class ResolutionService:
                 return ResolutionResult(result, ResolutionMethod.EXACT_PAN, 1.0, [])
 
         # Level 2 — employee_id exact match
-        emp_id = _field_value(extracted_fields, "employee_id")
-        if emp_id:
-            result = await self._match_employee_id(tenant_id, emp_id)
-            if result:
-                return ResolutionResult(result, ResolutionMethod.EMP_ID, 1.0, [])
+        if not skip_emp_id:
+            emp_id = _field_value(extracted_fields, "employee_id")
+            if emp_id:
+                result = await self._match_employee_id(tenant_id, emp_id)
+                if result:
+                    return ResolutionResult(result, ResolutionMethod.EMP_ID, 1.0, [])
 
         # Level 3 — fuzzy name + DOJ
         name = _field_value(extracted_fields, "employee_name")
         doj  = _field_value(extracted_fields, "date_of_joining")
-        if name:
+        if not skip_fuzzy and name:
             result, score = await self._fuzzy.match(tenant_id, name, doj)
             if result:
                 return ResolutionResult(result, ResolutionMethod.FUZZY_NAME, score / 100, [])
 
         # Level 4 — embedding cosine similarity
-        candidates = await self._match_embedding(tenant_id, extracted_fields)
+        candidates = []
+        if not skip_embedding:
+            candidates = await self._match_embedding(tenant_id, extracted_fields)
         if candidates and candidates[0]["score"] >= 0.92:
             return ResolutionResult(
                 candidates[0]["employee_uuid"],

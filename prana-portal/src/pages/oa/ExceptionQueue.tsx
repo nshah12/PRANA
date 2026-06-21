@@ -78,7 +78,7 @@ function ExceptionCard({
     if (!searchQ.trim()) return
     setSearching(true)
     try {
-      const res = await api.get('/employees/search', { params: { q: searchQ } })
+      const res = await api.get('/v1/org/employees/search', { params: { q: searchQ } })
       setSearchResults(res.data)
     } finally {
       setSearching(false)
@@ -267,18 +267,18 @@ export function ExceptionQueue() {
 
   const { data: items = [], isLoading } = useQuery<ExceptionItem[]>({
     queryKey: ['exceptions'],
-    queryFn: () => api.get('/ingest/exceptions').then(r => r.data),
+    queryFn: () => api.get('/v1/org/exceptions').then(r => r.data?.exceptions ?? r.data),
     refetchInterval: 30_000,
   })
 
   const assignMutation = useMutation({
     mutationFn: ({ exId, empUuid }: { exId: string; empUuid: string; empName: string }) =>
-      api.post(`/ingest/exceptions/${exId}/resolve`, { employee_uuid: empUuid }),
+      api.post(`/v1/org/exceptions/${exId}/resolve`, { employee_uuid: empUuid }),
     onSuccess: () => qc.invalidateQueries({ queryKey: ['exceptions'] }),
   })
 
   const dismissMutation = useMutation({
-    mutationFn: (exId: string) => api.post(`/ingest/exceptions/${exId}/dismiss`),
+    mutationFn: (exId: string) => api.post(`/v1/org/exceptions/${exId}/dismiss`),
     onSuccess: () => qc.invalidateQueries({ queryKey: ['exceptions'] }),
   })
 

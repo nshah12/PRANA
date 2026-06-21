@@ -54,6 +54,30 @@ async def test_list_employees_requires_auth(client, mock_db):
     assert resp.status_code in (401, 403)
 
 
+@pytest.mark.asyncio
+async def test_list_employees_chro_blocked(client, mock_db):
+    """CHRO cannot access the employee list — analytics role only."""
+    _set_auth(client, role="chro")
+    resp = await client.get("/v1/org/employees", headers=AUTH_HEADER)
+    assert resp.status_code == 403
+
+
+@pytest.mark.asyncio
+async def test_list_employees_cfo_blocked(client, mock_db):
+    """CFO cannot access the employee list — analytics role only."""
+    _set_auth(client, role="cfo")
+    resp = await client.get("/v1/org/employees", headers=AUTH_HEADER)
+    assert resp.status_code == 403
+
+
+@pytest.mark.asyncio
+async def test_list_employees_ciso_blocked(client, mock_db):
+    """CISO cannot access the employee list — security observer role only."""
+    _set_auth(client, role="ciso")
+    resp = await client.get("/v1/org/employees", headers=AUTH_HEADER)
+    assert resp.status_code == 403
+
+
 # -- Tenant scoping ------------------------------------------------------------
 
 @pytest.mark.asyncio

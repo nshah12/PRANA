@@ -1,0 +1,224 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>CHRO Activity Digest — Wireframe</title>
+<!--
+  PRANA — CHRO Activity Digest Wireframe
+  ----------------------------------------
+  Reference widget for the Weekly / Monthly / Quarterly digest email/dashboard.
+  Designed for: TechServe India (2,000 employees, 7 months live on PRANA).
+
+  When implementing in production:
+  - Replace static DATA object with API calls to prana-api analytics endpoints
+  - Weekly:    GET /v1/analytics/digest/weekly?tenant_id=...
+  - Monthly:   GET /v1/analytics/digest/monthly?tenant_id=...&month=YYYY-MM
+  - Quarterly: GET /v1/analytics/digest/quarterly?tenant_id=...&quarter=YYYY-QN
+  - Export CTA: POST /v1/analytics/digest/export { period, format: "pdf"|"xlsx" }
+  - Stat cards, bar charts, and alert rows all map to real DB columns (see prana-db/schema.sql)
+  - vault_health_score table → completeness bars
+  - document table → doc type breakdown bars
+  - exception_queue table → alert rows
+  - audit_event table → alumni self-serve count
+
+  Colors used:
+  - Indigo #4F46E5  — primary accent, active tab, CTA bar
+  - Green  #16A34A  — positive deltas
+  - Red    #DC2626  — negative deltas / warnings
+  - Amber  #F59E0B  — alert dots (action needed)
+  - Green  #22C55E  — alert dots (all good)
+  - Purple #6366F1  — bar fills (primary)
+  - Teal   #22D3EE  — bar fills (secondary)
+  - Emerald #10B981 — bar fills (good/high completion)
+-->
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+    background: #F8FAFC;
+    padding: 24px 16px;
+    color: #0F172A;
+  }
+  #root {
+    max-width: 620px;
+    margin: 0 auto;
+  }
+  button { font-family: inherit; }
+</style>
+</head>
+<body>
+<div id="root"></div>
+
+<script>
+const DATA = {
+  weekly: {
+    badge: "Week 32 · 5–11 Aug 2025",
+    badgeColor: "#EEF2FF",
+    badgeText: "#4338CA",
+    title: "Your weekly vault snapshot",
+    stats: [
+      { label: "Docs processed",      val: "214",   delta: "↑ 18 vs last week",   up: true  },
+      { label: "Vault completeness",  val: "87%",   delta: "↑ 1.2% this week",    up: true  },
+      { label: "Exceptions open",     val: "4",     delta: "2 past SLA",           up: false },
+      { label: "Alumni self-served",  val: "7",     delta: "0 calls to HR",        up: true  }
+    ],
+    barsTitle: "Documents by type this week",
+    bars: [
+      { label: "Salary slip",   pct: 74, count: "158", color: "#6366F1" },
+      { label: "Offer letter",  pct: 18, count: "38",  color: "#22D3EE" },
+      { label: "Form 16",       pct: 6,  count: "13",  color: "#10B981" },
+      { label: "Relieving ltr", pct: 2,  count: "5",   color: "#F59E0B" }
+    ],
+    alerts: [
+      { dot: "#F59E0B", text: "4 exceptions unresolved — 2 past 4-hr SLA. Ranjita Mehta, Suresh Iyer pending identity match.", sub: "Oldest: 31 hrs ago" },
+      { dot: "#22C55E", text: "7 ex-employees downloaded their own documents. No HR intervention needed.", sub: "Avg retrieval: 38 seconds" },
+      { dot: "#6366F1", text: "SAP batch upload: 186 of 190 files routed. 4 flagged for OCR review.", sub: "Monday 8:14 AM" }
+    ],
+    cta: "Open exception queue — 2 past SLA"
+  },
+
+  monthly: {
+    badge: "July 2025 · Monthly digest",
+    badgeColor: "#F0FDF4",
+    badgeText: "#166534",
+    title: "July at a glance — your people, your vault",
+    stats: [
+      { label: "Docs processed",       val: "912",   delta: "↑ 11% vs June",        up: true },
+      { label: "Vault completeness",   val: "87%",   delta: "↑ 4.8% vs June",        up: true },
+      { label: "Exceptions resolved",  val: "31/34", delta: "91% resolution rate",    up: true },
+      { label: "Alumni self-served",   val: "43",    delta: "Est. 18 hrs HR saved",   up: true }
+    ],
+    barsTitle: "Vault completeness by department",
+    bars: [
+      { label: "Engineering", pct: 93, count: "93%", color: "#6366F1" },
+      { label: "Finance",     pct: 96, count: "96%", color: "#10B981" },
+      { label: "Operations",  pct: 88, count: "88%", color: "#6366F1" },
+      { label: "Sales",       pct: 81, count: "81%", color: "#F59E0B" },
+      { label: "HR & Admin",  pct: 79, count: "79%", color: "#F59E0B" }
+    ],
+    alerts: [
+      { dot: "#22C55E", text: "1,848 active employees in vault. 47 new joiners onboarded this month.", sub: "Townhall ready" },
+      { dot: "#22C55E", text: "22 exits this month — documents auto-archived, alumni access activated.", sub: "Zero manual steps" },
+      { dot: "#F59E0B", text: "Sales and HR & Admin below 80% completeness. Recommend HRMS push in August.", sub: "Action needed" }
+    ],
+    cta: "Export for townhall — PDF ready in 30 seconds"
+  },
+
+  quarterly: {
+    badge: "Q2 FY2025–26 · Board digest",
+    badgeColor: "#FFF7ED",
+    badgeText: "#92400E",
+    title: "Q2 board report — workforce & vault intelligence",
+    stats: [
+      { label: "Total docs in vault",  val: "19.2K",   delta: "↑ 38% vs Q1",          up: true },
+      { label: "Vault completeness",   val: "87%",     delta: "Was 61% at go-live",     up: true },
+      { label: "HR hours saved",       val: "214 hrs", delta: "Alumni: 0 HR calls",     up: true },
+      { label: "Compliance score",     val: "96/100",  delta: "Audit-ready",            up: true }
+    ],
+    barsTitle: "Vault completeness — growth since go-live",
+    bars: [
+      { label: "Go-live",  pct: 61, count: "61%", color: "#6366F1" },
+      { label: "Month 2",  pct: 68, count: "68%", color: "#6366F1" },
+      { label: "Month 3",  pct: 72, count: "72%", color: "#6366F1" },
+      { label: "Month 5",  pct: 79, count: "79%", color: "#6366F1" },
+      { label: "Month 7",  pct: 87, count: "87%", color: "#6366F1" }
+    ],
+    alerts: [
+      { dot: "#22C55E", text: "100% audit trail coverage. Every access logged with IP, timestamp, watermark.", sub: "Board-grade" },
+      { dot: "#22C55E", text: "3 DPDP erasure requests — all completed within 30-day statutory deadline.", sub: "Compliant" },
+      { dot: "#22C55E", text: "112 alumni self-served this quarter. Zero salary or PAN data in any log.", sub: "Privacy maintained" },
+      { dot: "#F59E0B", text: "Sales (79%) and HR & Admin (81%) below 80% completeness. HRMS push recommended.", sub: "Q3 action item" }
+    ],
+    cta: "Export board deck — PDF + Excel data tables"
+  }
+};
+
+let cur = "weekly";
+
+function render() {
+  const d = DATA[cur];
+  const root = document.getElementById("root");
+
+  const tabs = ["weekly", "monthly", "quarterly"].map(k => {
+    const active = k === cur;
+    return `<button onclick="setCur('${k}')" style="
+      padding:6px 16px;border-radius:8px;
+      border:1px solid ${active ? "#4F46E5" : "#CBD5E1"};
+      font-size:13px;cursor:pointer;
+      background:${active ? "#4F46E5" : "#fff"};
+      color:${active ? "#fff" : "#64748B"};
+    ">${k.charAt(0).toUpperCase() + k.slice(1)}</button>`;
+  }).join("");
+
+  const stats = d.stats.map(s => `
+    <div style="background:#F1F5F9;border-radius:8px;padding:12px;">
+      <div style="font-size:11px;color:#64748B;margin-bottom:4px;">${s.label}</div>
+      <div style="font-size:20px;font-weight:500;color:#0F172A;line-height:1;">${s.val}</div>
+      <div style="font-size:11px;margin-top:3px;color:${s.up ? "#16A34A" : "#DC2626"};">${s.delta}</div>
+    </div>`).join("");
+
+  const bars = d.bars.map(b => `
+    <div style="display:flex;align-items:center;gap:10px;margin-bottom:8px;">
+      <div style="font-size:12px;color:#64748B;width:88px;flex-shrink:0;text-align:right;">${b.label}</div>
+      <div style="flex:1;height:8px;background:#E2E8F0;border-radius:4px;overflow:hidden;">
+        <div style="width:${b.pct}%;height:100%;background:${b.color};border-radius:4px;"></div>
+      </div>
+      <div style="font-size:12px;color:#0F172A;width:36px;text-align:right;">${b.count}</div>
+    </div>`).join("");
+
+  const alerts = d.alerts.map(a => `
+    <div style="display:flex;align-items:flex-start;gap:10px;padding:8px 0;border-bottom:1px solid #F1F5F9;">
+      <div style="width:8px;height:8px;border-radius:50%;background:${a.dot};flex-shrink:0;margin-top:4px;"></div>
+      <div>
+        <div style="font-size:12px;color:#0F172A;line-height:1.5;">${a.text}</div>
+        <div style="font-size:11px;color:#94A3B8;">${a.sub}</div>
+      </div>
+    </div>`).join("");
+
+  root.innerHTML = `
+    <div style="display:flex;gap:6px;margin-bottom:16px;">${tabs}</div>
+    <div style="background:#fff;border:1px solid #E2E8F0;border-radius:12px;overflow:hidden;">
+
+      <div style="padding:20px 20px 16px;border-bottom:1px solid #F1F5F9;">
+        <div style="display:inline-flex;align-items:center;gap:5px;font-size:11px;font-weight:500;
+                    padding:3px 10px;border-radius:20px;background:${d.badgeColor};color:${d.badgeText};margin-bottom:8px;">
+          ${d.badge}
+        </div>
+        <div style="font-size:17px;font-weight:500;color:#0F172A;margin-bottom:2px;">${d.title}</div>
+        <div style="font-size:12px;color:#94A3B8;">TechServe India · 2,000 employees · PRANA live 7 months</div>
+      </div>
+
+      <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:10px;padding:16px 20px;border-bottom:1px solid #F1F5F9;">
+        ${stats}
+      </div>
+
+      <div style="padding:16px 20px;border-bottom:1px solid #F1F5F9;">
+        <div style="font-size:11px;font-weight:500;color:#94A3B8;text-transform:uppercase;letter-spacing:.05em;margin-bottom:10px;">
+          ${d.barsTitle}
+        </div>
+        ${bars}
+      </div>
+
+      <div style="padding:4px 20px 0;border-bottom:1px solid #F1F5F9;">
+        ${alerts}
+      </div>
+
+      <div style="padding:14px 20px;background:#4F46E5;display:flex;align-items:center;justify-content:space-between;cursor:pointer;">
+        <span style="font-size:13px;font-weight:500;color:#fff;">${d.cta}</span>
+        <span style="color:#fff;font-size:18px;">→</span>
+      </div>
+
+      <div style="padding:10px 20px;font-size:11px;color:#94A3B8;display:flex;justify-content:space-between;">
+        <span>PRANA · TechServe India</span>
+        <span>Unsubscribe · Settings</span>
+      </div>
+
+    </div>`;
+}
+
+window.setCur = function(k) { cur = k; render(); };
+render();
+</script>
+</body>
+</html>

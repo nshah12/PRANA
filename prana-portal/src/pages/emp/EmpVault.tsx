@@ -30,15 +30,15 @@ export function EmpVault() {
 
   const { data: profileData } = useQuery({
     queryKey: ['emp-vault-profile'],
-    queryFn: () => api.get('/vault/profile').then(r => r.data),
+    queryFn: () => api.get('/v1/vault/profile').then(r => r.data),
   })
   const { data: docsData, isLoading } = useQuery({
     queryKey: ['emp-vault-docs'],
-    queryFn: () => api.get('/vault/documents', { params: { limit: 100 } }).then(r => r.data),
+    queryFn: () => api.get('/v1/vault/documents', { params: { limit: 100 } }).then(r => r.data),
   })
   const { data: sharesData } = useQuery({
     queryKey: ['emp-vault-shares'],
-    queryFn: () => api.get('/vault/share').then(r => r.data),
+    queryFn: () => api.get('/v1/vault/share').then(r => r.data),
   })
 
   const employers: any[] = (profileData?.employers ?? []).slice().sort((a: any, b: any) =>
@@ -255,7 +255,7 @@ export function EmpVault() {
 
                     {/* Hover actions */}
                     <div className="hidden group-hover:flex items-center gap-1.5 shrink-0">
-                      <a href={`/api/vault/documents/${d.document_id}?download=true`}
+                      <a href={`/api/v1/vault/documents/${d.document_id}?download=true`}
                         className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-medium border border-slate-200 text-slate-600 hover:bg-slate-100 transition-colors">
                         <Download size={11}/> Download
                       </a>

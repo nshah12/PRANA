@@ -1,0 +1,1178 @@
+[
+  {
+    "email": "chro@techcorp.in",
+    "role": "chro",
+    "org": "TechCorp",
+    "auth": "OK",
+    "auth_note": "TOTP_SETUP_OK",
+    "ok": 1,
+    "fail": 11,
+    "forbidden": 0,
+    "error": 1,
+    "total": 13,
+    "endpoints": [
+      {
+        "method": "GET",
+        "path": "/v1/chro/digest/weekly",
+        "label": "Weekly digest",
+        "status": 500,
+        "body": "keys=['error'] error=INTERNAL_ERROR"
+      },
+      {
+        "method": "GET",
+        "path": "/v1/chro/digest/monthly",
+        "label": "Monthly digest",
+        "status": 0,
+        "body": "EXCEPTION:[WinError 10054] An existing connection was forcibly closed by the remote host"
+      },
+      {
+        "method": "GET",
+        "path": "/v1/chro/digest/settings",
+        "label": "Digest settings",
+        "status": 200,
+        "body": "keys=['digest_settings']"
+      },
+      {
+        "method": "GET",
+        "path": "/v1/chro/vault/health",
+        "label": "Vault health",
+        "status": 404,
+        "body": "keys=['detail']"
+      },
+      {
+        "method": "GET",
+        "path": "/v1/chro/vault/completeness",
+        "label": "Vault completeness",
+        "status": 404,
+        "body": "keys=['detail']"
+      },
+      {
+        "method": "GET",
+        "path": "/v1/chro/compliance/posture",
+        "label": "Compliance posture",
+        "status": 404,
+        "body": "keys=['detail']"
+      },
+      {
+        "method": "GET",
+        "path": "/v1/chro/compliance/calendar",
+        "label": "Compliance calendar",
+        "status": 404,
+        "body": "keys=['detail']"
+      },
+      {
+        "method": "GET",
+        "path": "/v1/chro/statutory",
+        "label": "Statutory",
+        "status": 404,
+        "body": "keys=['detail']"
+      },
+      {
+        "method": "GET",
+        "path": "/v1/chro/alerts",
+        "label": "Alerts",
+        "status": 404,
+        "body": "keys=['detail']"
+      },
+      {
+        "method": "GET",
+        "path": "/v1/chro/employees/summary",
+        "label": "Employees summary",
+        "status": 404,
+        "body": "keys=['detail']"
+      },
+      {
+        "method": "GET",
+        "path": "/v1/chro/insights/trend",
+        "label": "Insights trend",
+        "status": 404,
+        "body": "keys=['detail']"
+      },
+      {
+        "method": "GET",
+        "path": "/v1/chro/insights/exceptions",
+        "label": "Insights exceptions",
+        "status": 404,
+        "body": "keys=['detail']"
+      },
+      {
+        "method": "GET",
+        "path": "/v1/chro/insights/career",
+        "label": "Career insights",
+        "status": 404,
+        "body": "keys=['detail']"
+      },
+      {
+        "method": "GET",
+        "path": "/v1/cfo/digest",
+        "label": "ACCESS_CONTROL",
+        "status": 404,
+        "expected": 403
+      },
+      {
+        "method": "GET",
+        "path": "/v1/ciso/overview",
+        "label": "ACCESS_CONTROL",
+        "status": 403,
+        "expected": 403
+      },
+      {
+        "method": "GET",
+        "path": "/v1/org/employees",
+        "label": "ACCESS_CONTROL",
+        "status": 200,
+        "expected": 403
+      }
+    ]
+  },
+  {
+    "email": "cfo@techcorp.in",
+    "role": "cfo",
+    "org": "TechCorp",
+    "auth": "OK",
+    "auth_note": "TOTP_SETUP_OK",
+    "ok": 3,
+    "fail": 8,
+    "forbidden": 0,
+    "error": 1,
+    "total": 12,
+    "endpoints": [
+      {
+        "method": "GET",
+        "path": "/v1/cfo/digest",
+        "label": "CFO digest",
+        "status": 404,
+        "body": "keys=['detail']"
+      },
+      {
+        "method": "GET",
+        "path": "/v1/cfo/digest/settings",
+        "label": "Digest settings",
+        "status": 200,
+        "body": "keys=['digest_settings']"
+      },
+      {
+        "method": "GET",
+        "path": "/v1/cfo/payroll",
+        "label": "Payroll intelligence",
+        "status": 200,
+        "body": "keys=['trend', 'band_distribution', 'integrity_flags']"
+      },
+      {
+        "method": "GET",
+        "path": "/v1/cfo/attrition",
+        "label": "Attrition cost",
+        "status": 200,
+        "body": "keys=['exit_count_qtd', 'tenure_distribution', 'replacement_multiplier']"
+      },
+      {
+        "method": "GET",
+        "path": "/v1/cfo/benchmarking",
+        "label": "Benchmarking",
+        "status": 404,
+        "body": "keys=['detail']"
+      },
+      {
+        "method": "GET",
+        "path": "/v1/cfo/anomalies",
+        "label": "Anomalies",
+        "status": 500,
+        "body": "keys=['error'] error=INTERNAL_ERROR"
+      },
+      {
+        "method": "GET",
+        "path": "/v1/cfo/consent/dashboard",
+        "label": "Consent dashboard",
+        "status": 0,
+        "body": "EXCEPTION:[WinError 10053] An established connection was aborted by the software in your host machine"
+      },
+      {
+        "method": "GET",
+        "path": "/v1/cfo/headcount",
+        "label": "Headcount",
+        "status": 404,
+        "body": "keys=['detail']"
+      },
+      {
+        "method": "GET",
+        "path": "/v1/cfo/exits-joiners",
+        "label": "Exits & joiners",
+        "status": 404,
+        "body": "keys=['detail']"
+      },
+      {
+        "method": "GET",
+        "path": "/v1/cfo/trends/payroll",
+        "label": "Payroll trend",
+        "status": 404,
+        "body": "keys=['detail']"
+      },
+      {
+        "method": "GET",
+        "path": "/v1/cfo/trends/headcount",
+        "label": "Headcount trend",
+        "status": 404,
+        "body": "keys=['detail']"
+      },
+      {
+        "method": "GET",
+        "path": "/v1/cfo/salary-bands",
+        "label": "Salary bands",
+        "status": 404,
+        "body": "keys=['detail']"
+      },
+      {
+        "method": "GET",
+        "path": "/v1/chro/digest/weekly",
+        "label": "ACCESS_CONTROL",
+        "status": 403,
+        "expected": 403
+      },
+      {
+        "method": "GET",
+        "path": "/v1/ciso/overview",
+        "label": "ACCESS_CONTROL",
+        "status": 403,
+        "expected": 403
+      },
+      {
+        "method": "GET",
+        "path": "/v1/org/employees",
+        "label": "ACCESS_CONTROL",
+        "status": 200,
+        "expected": 403
+      }
+    ]
+  },
+  {
+    "email": "ciso@techcorp.in",
+    "role": "ciso",
+    "org": "TechCorp",
+    "auth": "OK",
+    "auth_note": "TOTP_SETUP_OK",
+    "ok": 1,
+    "fail": 11,
+    "forbidden": 0,
+    "error": 0,
+    "total": 12,
+    "endpoints": [
+      {
+        "method": "GET",
+        "path": "/v1/ciso/digest",
+        "label": "InfoSec digest",
+        "status": 404,
+        "body": "keys=['detail']"
+      },
+      {
+        "method": "GET",
+        "path": "/v1/ciso/digest/settings",
+        "label": "Digest settings",
+        "status": 200,
+        "body": "keys=['digest_settings']"
+      },
+      {
+        "method": "GET",
+        "path": "/v1/ciso/overview",
+        "label": "Security overview",
+        "status": 500,
+        "body": "keys=['error'] error=INTERNAL_ERROR"
+      },
+      {
+        "method": "GET",
+        "path": "/v1/ciso/auth/feed",
+        "label": "Auth anomaly feed",
+        "status": 404,
+        "body": "keys=['detail']"
+      },
+      {
+        "method": "GET",
+        "path": "/v1/ciso/accounts/locks",
+        "label": "Account locks",
+        "status": 404,
+        "body": "keys=['detail']"
+      },
+      {
+        "method": "GET",
+        "path": "/v1/ciso/access/flags",
+        "label": "Access flags",
+        "status": 404,
+        "body": "keys=['detail']"
+      },
+      {
+        "method": "GET",
+        "path": "/v1/ciso/anomalies",
+        "label": "Anomaly queue",
+        "status": 404,
+        "body": "keys=['detail']"
+      },
+      {
+        "method": "GET",
+        "path": "/v1/ciso/keys/health",
+        "label": "Key health",
+        "status": 404,
+        "body": "keys=['detail']"
+      },
+      {
+        "method": "GET",
+        "path": "/v1/ciso/shares/analytics",
+        "label": "Share analytics",
+        "status": 404,
+        "body": "keys=['detail']"
+      },
+      {
+        "method": "GET",
+        "path": "/v1/ciso/sessions",
+        "label": "Active sessions",
+        "status": 404,
+        "body": "keys=['detail']"
+      },
+      {
+        "method": "GET",
+        "path": "/v1/ciso/audit/trail",
+        "label": "Audit trail",
+        "status": 404,
+        "body": "keys=['detail']"
+      },
+      {
+        "method": "GET",
+        "path": "/v1/ciso/alerts",
+        "label": "Alerts",
+        "status": 404,
+        "body": "keys=['detail']"
+      },
+      {
+        "method": "GET",
+        "path": "/v1/chro/digest/weekly",
+        "label": "ACCESS_CONTROL",
+        "status": 403,
+        "expected": 403
+      },
+      {
+        "method": "GET",
+        "path": "/v1/cfo/digest",
+        "label": "ACCESS_CONTROL",
+        "status": 404,
+        "expected": 403
+      },
+      {
+        "method": "GET",
+        "path": "/v1/org/employees",
+        "label": "ACCESS_CONTROL",
+        "status": 200,
+        "expected": 403
+      }
+    ]
+  },
+  {
+    "email": "admin@techcorp.in",
+    "role": "oa_admin",
+    "org": "TechCorp",
+    "auth": "OK",
+    "auth_note": "TOTP_SETUP_OK",
+    "ok": 6,
+    "fail": 4,
+    "forbidden": 0,
+    "error": 1,
+    "total": 11,
+    "endpoints": [
+      {
+        "method": "GET",
+        "path": "/v1/org/employees",
+        "label": "Employee list",
+        "status": 200,
+        "body": "[{'employee_uuid': '40000000-0000-0000-0001-000000000003', 'employee_user_id': '"
+      },
+      {
+        "method": "GET",
+        "path": "/v1/org/users",
+        "label": "OA user list",
+        "status": 200,
+        "body": "keys=['users']"
+      },
+      {
+        "method": "GET",
+        "path": "/v1/org/elevations",
+        "label": "Elevation requests",
+        "status": 200,
+        "body": "[]"
+      },
+      {
+        "method": "GET",
+        "path": "/v1/org/elevations/active",
+        "label": "Active elevation",
+        "status": 200,
+        "body": "None"
+      },
+      {
+        "method": "GET",
+        "path": "/v1/org/exceptions",
+        "label": "Exception queue",
+        "status": 200,
+        "body": "keys=['exceptions', 'total', 'sla_breached']"
+      },
+      {
+        "method": "GET",
+        "path": "/v1/org/settings",
+        "label": "Org settings",
+        "status": 200,
+        "body": "keys=['tenant_id', 'tenant_name', 'domain', 'status', 'home_region']"
+      },
+      {
+        "method": "GET",
+        "path": "/v1/org/profile",
+        "label": "Org profile",
+        "status": 500,
+        "body": "keys=['error'] error=INTERNAL_ERROR"
+      },
+      {
+        "method": "GET",
+        "path": "/v1/ingest/exceptions",
+        "label": "Ingest exceptions",
+        "status": 0,
+        "body": "EXCEPTION:[WinError 10053] An established connection was aborted by the software in your host machine"
+      },
+      {
+        "method": "GET",
+        "path": "/v1/ingest/health",
+        "label": "Ingest health",
+        "status": 404,
+        "body": "keys=['detail']"
+      },
+      {
+        "method": "GET",
+        "path": "/v1/vault/compliance/overview",
+        "label": "Compliance overview",
+        "status": 404,
+        "body": "keys=['detail']"
+      },
+      {
+        "method": "GET",
+        "path": "/v1/vault/compliance/audit-log",
+        "label": "Audit log",
+        "status": 404,
+        "body": "keys=['detail']"
+      }
+    ]
+  },
+  {
+    "email": "operator@techcorp.in",
+    "role": "oa_operator",
+    "org": "TechCorp",
+    "auth": "OK",
+    "auth_note": "TOTP_SETUP_OK",
+    "ok": 4,
+    "fail": 1,
+    "forbidden": 3,
+    "error": 0,
+    "total": 8,
+    "endpoints": [
+      {
+        "method": "GET",
+        "path": "/v1/org/employees",
+        "label": "Employee list",
+        "status": 200,
+        "body": "[{'employee_uuid': '40000000-0000-0000-0001-000000000003', 'employee_user_id': '"
+      },
+      {
+        "method": "GET",
+        "path": "/v1/org/elevations",
+        "label": "Elevation requests",
+        "status": 403,
+        "body": "keys=['detail']"
+      },
+      {
+        "method": "GET",
+        "path": "/v1/org/elevations/active",
+        "label": "Active elevation",
+        "status": 200,
+        "body": "None"
+      },
+      {
+        "method": "GET",
+        "path": "/v1/org/exceptions",
+        "label": "Exception queue",
+        "status": 403,
+        "body": "keys=['detail']"
+      },
+      {
+        "method": "GET",
+        "path": "/v1/ingest/exceptions",
+        "label": "Ingest exceptions",
+        "status": 200,
+        "body": "keys=['exceptions', 'total']"
+      },
+      {
+        "method": "GET",
+        "path": "/v1/ingest/health",
+        "label": "Ingest health",
+        "status": 404,
+        "body": "keys=['detail']"
+      },
+      {
+        "method": "GET",
+        "path": "/v1/org/users",
+        "label": "OA user list [403 expected]",
+        "status": 403,
+        "body": "keys=['detail']"
+      },
+      {
+        "method": "GET",
+        "path": "/v1/org/settings",
+        "label": "Org settings [403 expected]",
+        "status": 200,
+        "body": "keys=['tenant_id', 'tenant_name', 'domain', 'status', 'home_region']"
+      },
+      {
+        "method": "GET",
+        "path": "/v1/org/users",
+        "label": "ACCESS_CONTROL",
+        "status": 403,
+        "expected": 403
+      },
+      {
+        "method": "GET",
+        "path": "/v1/org/settings",
+        "label": "ACCESS_CONTROL",
+        "status": 200,
+        "expected": 403
+      }
+    ]
+  },
+  {
+    "email": "admin@nexussoftware.in",
+    "role": "oa_admin",
+    "org": "NexusSoftware",
+    "auth": "OK",
+    "auth_note": "TOTP_SETUP_OK",
+    "ok": 7,
+    "fail": 4,
+    "forbidden": 0,
+    "error": 0,
+    "total": 11,
+    "endpoints": [
+      {
+        "method": "GET",
+        "path": "/v1/org/employees",
+        "label": "Employee list",
+        "status": 200,
+        "body": "[]"
+      },
+      {
+        "method": "GET",
+        "path": "/v1/org/users",
+        "label": "OA user list",
+        "status": 200,
+        "body": "keys=['users']"
+      },
+      {
+        "method": "GET",
+        "path": "/v1/org/elevations",
+        "label": "Elevation requests",
+        "status": 200,
+        "body": "[]"
+      },
+      {
+        "method": "GET",
+        "path": "/v1/org/elevations/active",
+        "label": "Active elevation",
+        "status": 200,
+        "body": "None"
+      },
+      {
+        "method": "GET",
+        "path": "/v1/org/exceptions",
+        "label": "Exception queue",
+        "status": 200,
+        "body": "keys=['exceptions', 'total', 'sla_breached']"
+      },
+      {
+        "method": "GET",
+        "path": "/v1/org/settings",
+        "label": "Org settings",
+        "status": 200,
+        "body": "keys=['tenant_id', 'tenant_name', 'domain', 'status', 'home_region']"
+      },
+      {
+        "method": "GET",
+        "path": "/v1/org/profile",
+        "label": "Org profile",
+        "status": 500,
+        "body": "keys=['error'] error=INTERNAL_ERROR"
+      },
+      {
+        "method": "GET",
+        "path": "/v1/ingest/exceptions",
+        "label": "Ingest exceptions",
+        "status": 200,
+        "body": "keys=['exceptions', 'total']"
+      },
+      {
+        "method": "GET",
+        "path": "/v1/ingest/health",
+        "label": "Ingest health",
+        "status": 404,
+        "body": "keys=['detail']"
+      },
+      {
+        "method": "GET",
+        "path": "/v1/vault/compliance/overview",
+        "label": "Compliance overview",
+        "status": 404,
+        "body": "keys=['detail']"
+      },
+      {
+        "method": "GET",
+        "path": "/v1/vault/compliance/audit-log",
+        "label": "Audit log",
+        "status": 404,
+        "body": "keys=['detail']"
+      }
+    ]
+  },
+  {
+    "email": "admin@meridiancapital.in",
+    "role": "oa_admin",
+    "org": "MeridianCapital",
+    "auth": "OK",
+    "auth_note": "TOTP_SETUP_OK",
+    "ok": 7,
+    "fail": 4,
+    "forbidden": 0,
+    "error": 0,
+    "total": 11,
+    "endpoints": [
+      {
+        "method": "GET",
+        "path": "/v1/org/employees",
+        "label": "Employee list",
+        "status": 200,
+        "body": "[]"
+      },
+      {
+        "method": "GET",
+        "path": "/v1/org/users",
+        "label": "OA user list",
+        "status": 200,
+        "body": "keys=['users']"
+      },
+      {
+        "method": "GET",
+        "path": "/v1/org/elevations",
+        "label": "Elevation requests",
+        "status": 200,
+        "body": "[]"
+      },
+      {
+        "method": "GET",
+        "path": "/v1/org/elevations/active",
+        "label": "Active elevation",
+        "status": 200,
+        "body": "None"
+      },
+      {
+        "method": "GET",
+        "path": "/v1/org/exceptions",
+        "label": "Exception queue",
+        "status": 200,
+        "body": "keys=['exceptions', 'total', 'sla_breached']"
+      },
+      {
+        "method": "GET",
+        "path": "/v1/org/settings",
+        "label": "Org settings",
+        "status": 200,
+        "body": "keys=['tenant_id', 'tenant_name', 'domain', 'status', 'home_region']"
+      },
+      {
+        "method": "GET",
+        "path": "/v1/org/profile",
+        "label": "Org profile",
+        "status": 500,
+        "body": "keys=['error'] error=INTERNAL_ERROR"
+      },
+      {
+        "method": "GET",
+        "path": "/v1/ingest/exceptions",
+        "label": "Ingest exceptions",
+        "status": 200,
+        "body": "keys=['exceptions', 'total']"
+      },
+      {
+        "method": "GET",
+        "path": "/v1/ingest/health",
+        "label": "Ingest health",
+        "status": 404,
+        "body": "keys=['detail']"
+      },
+      {
+        "method": "GET",
+        "path": "/v1/vault/compliance/overview",
+        "label": "Compliance overview",
+        "status": 404,
+        "body": "keys=['detail']"
+      },
+      {
+        "method": "GET",
+        "path": "/v1/vault/compliance/audit-log",
+        "label": "Audit log",
+        "status": 404,
+        "body": "keys=['detail']"
+      }
+    ]
+  },
+  {
+    "email": "admin@zephyranalytics.in",
+    "role": "oa_admin",
+    "org": "ZephyrAnalytics",
+    "auth": "OK",
+    "auth_note": "TOTP_SETUP_OK",
+    "ok": 7,
+    "fail": 4,
+    "forbidden": 0,
+    "error": 0,
+    "total": 11,
+    "endpoints": [
+      {
+        "method": "GET",
+        "path": "/v1/org/employees",
+        "label": "Employee list",
+        "status": 200,
+        "body": "[]"
+      },
+      {
+        "method": "GET",
+        "path": "/v1/org/users",
+        "label": "OA user list",
+        "status": 200,
+        "body": "keys=['users']"
+      },
+      {
+        "method": "GET",
+        "path": "/v1/org/elevations",
+        "label": "Elevation requests",
+        "status": 200,
+        "body": "[]"
+      },
+      {
+        "method": "GET",
+        "path": "/v1/org/elevations/active",
+        "label": "Active elevation",
+        "status": 200,
+        "body": "None"
+      },
+      {
+        "method": "GET",
+        "path": "/v1/org/exceptions",
+        "label": "Exception queue",
+        "status": 200,
+        "body": "keys=['exceptions', 'total', 'sla_breached']"
+      },
+      {
+        "method": "GET",
+        "path": "/v1/org/settings",
+        "label": "Org settings",
+        "status": 200,
+        "body": "keys=['tenant_id', 'tenant_name', 'domain', 'status', 'home_region']"
+      },
+      {
+        "method": "GET",
+        "path": "/v1/org/profile",
+        "label": "Org profile",
+        "status": 500,
+        "body": "keys=['error'] error=INTERNAL_ERROR"
+      },
+      {
+        "method": "GET",
+        "path": "/v1/ingest/exceptions",
+        "label": "Ingest exceptions",
+        "status": 200,
+        "body": "keys=['exceptions', 'total']"
+      },
+      {
+        "method": "GET",
+        "path": "/v1/ingest/health",
+        "label": "Ingest health",
+        "status": 404,
+        "body": "keys=['detail']"
+      },
+      {
+        "method": "GET",
+        "path": "/v1/vault/compliance/overview",
+        "label": "Compliance overview",
+        "status": 404,
+        "body": "keys=['detail']"
+      },
+      {
+        "method": "GET",
+        "path": "/v1/vault/compliance/audit-log",
+        "label": "Audit log",
+        "status": 404,
+        "body": "keys=['detail']"
+      }
+    ]
+  },
+  {
+    "email": "admin@pinnacleindia.in",
+    "role": "oa_admin",
+    "org": "PinnacleIndia",
+    "auth": "OK",
+    "auth_note": "TOTP_SETUP_OK",
+    "ok": 7,
+    "fail": 4,
+    "forbidden": 0,
+    "error": 0,
+    "total": 11,
+    "endpoints": [
+      {
+        "method": "GET",
+        "path": "/v1/org/employees",
+        "label": "Employee list",
+        "status": 200,
+        "body": "[]"
+      },
+      {
+        "method": "GET",
+        "path": "/v1/org/users",
+        "label": "OA user list",
+        "status": 200,
+        "body": "keys=['users']"
+      },
+      {
+        "method": "GET",
+        "path": "/v1/org/elevations",
+        "label": "Elevation requests",
+        "status": 200,
+        "body": "[]"
+      },
+      {
+        "method": "GET",
+        "path": "/v1/org/elevations/active",
+        "label": "Active elevation",
+        "status": 200,
+        "body": "None"
+      },
+      {
+        "method": "GET",
+        "path": "/v1/org/exceptions",
+        "label": "Exception queue",
+        "status": 200,
+        "body": "keys=['exceptions', 'total', 'sla_breached']"
+      },
+      {
+        "method": "GET",
+        "path": "/v1/org/settings",
+        "label": "Org settings",
+        "status": 200,
+        "body": "keys=['tenant_id', 'tenant_name', 'domain', 'status', 'home_region']"
+      },
+      {
+        "method": "GET",
+        "path": "/v1/org/profile",
+        "label": "Org profile",
+        "status": 500,
+        "body": "keys=['error'] error=INTERNAL_ERROR"
+      },
+      {
+        "method": "GET",
+        "path": "/v1/ingest/exceptions",
+        "label": "Ingest exceptions",
+        "status": 200,
+        "body": "keys=['exceptions', 'total']"
+      },
+      {
+        "method": "GET",
+        "path": "/v1/ingest/health",
+        "label": "Ingest health",
+        "status": 404,
+        "body": "keys=['detail']"
+      },
+      {
+        "method": "GET",
+        "path": "/v1/vault/compliance/overview",
+        "label": "Compliance overview",
+        "status": 404,
+        "body": "keys=['detail']"
+      },
+      {
+        "method": "GET",
+        "path": "/v1/vault/compliance/audit-log",
+        "label": "Audit log",
+        "status": 404,
+        "body": "keys=['detail']"
+      }
+    ]
+  },
+  {
+    "email": "admin@horizonconsulting.in",
+    "role": "oa_admin",
+    "org": "HorizonConsulting",
+    "auth": "OK",
+    "auth_note": "TOTP_SETUP_OK",
+    "ok": 7,
+    "fail": 4,
+    "forbidden": 0,
+    "error": 0,
+    "total": 11,
+    "endpoints": [
+      {
+        "method": "GET",
+        "path": "/v1/org/employees",
+        "label": "Employee list",
+        "status": 200,
+        "body": "[]"
+      },
+      {
+        "method": "GET",
+        "path": "/v1/org/users",
+        "label": "OA user list",
+        "status": 200,
+        "body": "keys=['users']"
+      },
+      {
+        "method": "GET",
+        "path": "/v1/org/elevations",
+        "label": "Elevation requests",
+        "status": 200,
+        "body": "[]"
+      },
+      {
+        "method": "GET",
+        "path": "/v1/org/elevations/active",
+        "label": "Active elevation",
+        "status": 200,
+        "body": "None"
+      },
+      {
+        "method": "GET",
+        "path": "/v1/org/exceptions",
+        "label": "Exception queue",
+        "status": 200,
+        "body": "keys=['exceptions', 'total', 'sla_breached']"
+      },
+      {
+        "method": "GET",
+        "path": "/v1/org/settings",
+        "label": "Org settings",
+        "status": 200,
+        "body": "keys=['tenant_id', 'tenant_name', 'domain', 'status', 'home_region']"
+      },
+      {
+        "method": "GET",
+        "path": "/v1/org/profile",
+        "label": "Org profile",
+        "status": 500,
+        "body": "keys=['error'] error=INTERNAL_ERROR"
+      },
+      {
+        "method": "GET",
+        "path": "/v1/ingest/exceptions",
+        "label": "Ingest exceptions",
+        "status": 200,
+        "body": "keys=['exceptions', 'total']"
+      },
+      {
+        "method": "GET",
+        "path": "/v1/ingest/health",
+        "label": "Ingest health",
+        "status": 404,
+        "body": "keys=['detail']"
+      },
+      {
+        "method": "GET",
+        "path": "/v1/vault/compliance/overview",
+        "label": "Compliance overview",
+        "status": 404,
+        "body": "keys=['detail']"
+      },
+      {
+        "method": "GET",
+        "path": "/v1/vault/compliance/audit-log",
+        "label": "Audit log",
+        "status": 404,
+        "body": "keys=['detail']"
+      }
+    ]
+  },
+  {
+    "email": "admin@aurorapharma.in",
+    "role": "oa_admin",
+    "org": "AuroraPharma",
+    "auth": "OK",
+    "auth_note": "TOTP_SETUP_OK",
+    "ok": 7,
+    "fail": 4,
+    "forbidden": 0,
+    "error": 0,
+    "total": 11,
+    "endpoints": [
+      {
+        "method": "GET",
+        "path": "/v1/org/employees",
+        "label": "Employee list",
+        "status": 200,
+        "body": "[]"
+      },
+      {
+        "method": "GET",
+        "path": "/v1/org/users",
+        "label": "OA user list",
+        "status": 200,
+        "body": "keys=['users']"
+      },
+      {
+        "method": "GET",
+        "path": "/v1/org/elevations",
+        "label": "Elevation requests",
+        "status": 200,
+        "body": "[]"
+      },
+      {
+        "method": "GET",
+        "path": "/v1/org/elevations/active",
+        "label": "Active elevation",
+        "status": 200,
+        "body": "None"
+      },
+      {
+        "method": "GET",
+        "path": "/v1/org/exceptions",
+        "label": "Exception queue",
+        "status": 200,
+        "body": "keys=['exceptions', 'total', 'sla_breached']"
+      },
+      {
+        "method": "GET",
+        "path": "/v1/org/settings",
+        "label": "Org settings",
+        "status": 200,
+        "body": "keys=['tenant_id', 'tenant_name', 'domain', 'status', 'home_region']"
+      },
+      {
+        "method": "GET",
+        "path": "/v1/org/profile",
+        "label": "Org profile",
+        "status": 500,
+        "body": "keys=['error'] error=INTERNAL_ERROR"
+      },
+      {
+        "method": "GET",
+        "path": "/v1/ingest/exceptions",
+        "label": "Ingest exceptions",
+        "status": 200,
+        "body": "keys=['exceptions', 'total']"
+      },
+      {
+        "method": "GET",
+        "path": "/v1/ingest/health",
+        "label": "Ingest health",
+        "status": 404,
+        "body": "keys=['detail']"
+      },
+      {
+        "method": "GET",
+        "path": "/v1/vault/compliance/overview",
+        "label": "Compliance overview",
+        "status": 404,
+        "body": "keys=['detail']"
+      },
+      {
+        "method": "GET",
+        "path": "/v1/vault/compliance/audit-log",
+        "label": "Audit log",
+        "status": 404,
+        "body": "keys=['detail']"
+      }
+    ]
+  },
+  {
+    "email": "admin@cascaderetail.in",
+    "role": "oa_admin",
+    "org": "CascadeRetail",
+    "auth": "OK",
+    "auth_note": "TOTP_SETUP_OK",
+    "ok": 7,
+    "fail": 4,
+    "forbidden": 0,
+    "error": 0,
+    "total": 11,
+    "endpoints": [
+      {
+        "method": "GET",
+        "path": "/v1/org/employees",
+        "label": "Employee list",
+        "status": 200,
+        "body": "[]"
+      },
+      {
+        "method": "GET",
+        "path": "/v1/org/users",
+        "label": "OA user list",
+        "status": 200,
+        "body": "keys=['users']"
+      },
+      {
+        "method": "GET",
+        "path": "/v1/org/elevations",
+        "label": "Elevation requests",
+        "status": 200,
+        "body": "[]"
+      },
+      {
+        "method": "GET",
+        "path": "/v1/org/elevations/active",
+        "label": "Active elevation",
+        "status": 200,
+        "body": "None"
+      },
+      {
+        "method": "GET",
+        "path": "/v1/org/exceptions",
+        "label": "Exception queue",
+        "status": 200,
+        "body": "keys=['exceptions', 'total', 'sla_breached']"
+      },
+      {
+        "method": "GET",
+        "path": "/v1/org/settings",
+        "label": "Org settings",
+        "status": 200,
+        "body": "keys=['tenant_id', 'tenant_name', 'domain', 'status', 'home_region']"
+      },
+      {
+        "method": "GET",
+        "path": "/v1/org/profile",
+        "label": "Org profile",
+        "status": 500,
+        "body": "keys=['error'] error=INTERNAL_ERROR"
+      },
+      {
+        "method": "GET",
+        "path": "/v1/ingest/exceptions",
+        "label": "Ingest exceptions",
+        "status": 200,
+        "body": "keys=['exceptions', 'total']"
+      },
+      {
+        "method": "GET",
+        "path": "/v1/ingest/health",
+        "label": "Ingest health",
+        "status": 404,
+        "body": "keys=['detail']"
+      },
+      {
+        "method": "GET",
+        "path": "/v1/vault/compliance/overview",
+        "label": "Compliance overview",
+        "status": 404,
+        "body": "keys=['detail']"
+      },
+      {
+        "method": "GET",
+        "path": "/v1/vault/compliance/audit-log",
+        "label": "Audit log",
+        "status": 404,
+        "body": "keys=['detail']"
+      }
+    ]
+  }
+]

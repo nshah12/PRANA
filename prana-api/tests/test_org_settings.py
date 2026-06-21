@@ -52,9 +52,17 @@ async def test_update_settings_unauthenticated_rejected(client, mock_db):
 
 
 @pytest.mark.asyncio
-async def test_get_settings_accessible_to_oa_operator(client, mock_db):
-    """GET /settings is accessible to any OA role including oa_operator."""
+async def test_get_settings_requires_oa_admin(client, mock_db):
+    """GET /settings is oa_admin only — oa_operator must be denied."""
     _set_auth(client, role="oa_operator")
+    resp = await client.get("/v1/org/settings", headers=AUTH_HEADER)
+    assert resp.status_code == 403
+
+
+@pytest.mark.asyncio
+async def test_get_settings_accessible_to_oa_admin(client, mock_db):
+    """GET /settings is accessible to oa_admin."""
+    _set_auth(client, role="oa_admin")
     mock_db.fetchrow.return_value = {
         "tenant_id": "tenant-001",
         "tenant_name": "Acme Corp",

@@ -232,3 +232,210 @@ async def test_ciso_auth_anomaly_feed_shape(client, mock_db):
     assert "ip_address" in item
     assert "anomaly_type" in item
     assert "detected_at" in item
+
+
+# ── Digest endpoints ──────────────────────────────────────────────────────────
+
+def _digest_db_setup(mock_db):
+    mock_db.fetchval.side_effect = [1847, 3, 2, 1, 34]
+    mock_db.fetch.side_effect = [
+        [{"access_channel": "MOBILE", "cnt": 1256}],
+        [],
+    ]
+
+
+@pytest.mark.asyncio
+async def test_ciso_weekly_digest_shape(client, mock_db):
+    _set_auth(client)
+    _digest_db_setup(mock_db)
+    resp = await client.get("/v1/ciso/digest/weekly", headers=AUTH_HEADER)
+    assert resp.status_code == 200
+    d = resp.json()["digest"]
+    assert "from" in d and "to" in d
+    assert "period" not in d
+    assert d["total_accesses"] == 1847
+    assert d["anomalies_total"] == 3
+    assert d["anomalies_open"] == 2
+    assert d["force_logouts"] == 1
+    assert d["share_tokens_period"] == 34
+    assert isinstance(d["by_channel"], list)
+    assert isinstance(d["incidents"], list)
+
+
+@pytest.mark.asyncio
+async def test_ciso_monthly_digest_shape(client, mock_db):
+    _set_auth(client)
+    _digest_db_setup(mock_db)
+    resp = await client.get("/v1/ciso/digest/monthly", headers=AUTH_HEADER)
+    assert resp.status_code == 200
+    assert "from" in resp.json()["digest"]
+
+
+@pytest.mark.asyncio
+async def test_ciso_quarterly_digest_shape(client, mock_db):
+    _set_auth(client)
+    _digest_db_setup(mock_db)
+    resp = await client.get("/v1/ciso/digest/quarterly", headers=AUTH_HEADER)
+    assert resp.status_code == 200
+    assert "from" in resp.json()["digest"]
+
+
+@pytest.mark.asyncio
+async def test_ciso_digest_rejects_range_over_184_days(client, mock_db):
+    _set_auth(client)
+    resp = await client.get(
+        "/v1/ciso/digest/weekly?from=2025-01-01&to=2025-08-05",
+        headers=AUTH_HEADER,
+    )
+    assert resp.status_code == 400
+    assert resp.json()["detail"]["error"] == "DATE_RANGE_TOO_LARGE"
+
+
+@pytest.mark.asyncio
+async def test_ciso_digest_privacy(client, mock_db):
+    _set_auth(client)
+    _digest_db_setup(mock_db)
+    resp = await client.get("/v1/ciso/digest/weekly", headers=AUTH_HEADER)
+    import json as _j
+    text = _j.dumps(resp.json()).lower()
+    assert "pan" not in text
+    assert "salary" not in text
+
+
+@pytest.mark.asyncio
+async def test_ciso_digest_settings_get(client, mock_db):
+    _set_auth(client)
+    import json as _json
+    mock_db.fetchrow.return_value = {
+        "config_value": _json.dumps({"recipients": [], "active": False,
+                                      "schedules": {}, "sections": [], "format": "email"})
+    }
+    resp = await client.get("/v1/ciso/digest/settings", headers=AUTH_HEADER)
+    assert resp.status_code == 200
+    assert "digest_settings" in resp.json()
+
+
+@pytest.mark.asyncio
+async def test_ciso_digest_settings_put(client, mock_db):
+    _set_auth(client)
+    mock_db.execute.return_value = None
+    body = {"recipients": ["ciso@corp.in"], "schedules": {}, "sections": [], "format": "email", "active": True}
+    resp = await client.put("/v1/ciso/digest/settings", headers=AUTH_HEADER, json=body)
+    assert resp.status_code == 200
+    mock_db.execute.assert_called_once()
+
+
+@pytest.mark.asyncio
+async def test_ciso_digest_requires_auth(client):
+    from unittest.mock import MagicMock, AsyncMock
+    jwt = client.app.state.jwt_service
+    jwt.decode = MagicMock(return_value={"sub": "x", "user_type": "oa_user", "role": "ciso",
+                                          "tenant_id": "tenant-001", "jti": "s"})
+    jwt.is_revoked = AsyncMock(return_value=True)
+    resp = await client.get("/v1/ciso/digest/weekly", headers=AUTH_HEADER)
+    assert resp.status_code in (401, 403)
+
+
+# ── Incident endpoints ──────────────────────────────────────────────────────────
+
+@pytest.mark.asyncio
+async def test_ciso_incidents_list_requires_auth(client, mock_db):
+    """Unauthenticated request to /incidents must be rejected."""
+    resp = await client.get("/v1/ciso/incidents")
+    assert resp.status_code in (401, 403)
+
+
+@pytest.mark.asyncio
+async def test_ciso_incidents_list_shape(client, mock_db):
+    """GET /incidents returns items list scoped to tenant."""
+    _set_auth(client)
+    mock_db.fetch.return_value = [
+        {
+            "incident_id": "inc-uuid-001",
+            "tenant_id": "tenant-001",
+            "incident_type": "SECURITY_ANOMALY",
+            "severity": "P1",
+            "title": "Bulk access detected",
+            "status": "OPEN",
+            "sla_deadline": datetime.datetime(2026, 6, 19, 14, 0, 0, tzinfo=datetime.timezone.utc),
+            "escalated_at": None,
+            "resolved_at": None,
+            "created_at": datetime.datetime(2026, 6, 19, 10, 0, 0, tzinfo=datetime.timezone.utc),
+            "assigned_role": "CISO",
+            "assigned_to": None,
+        }
+    ]
+    resp = await client.get("/v1/ciso/incidents", headers=AUTH_HEADER)
+    assert resp.status_code == 200
+    data = resp.json()
+    assert "items" in data
+    assert data["total"] == 1
+    assert data["items"][0]["severity"] == "P1"
+
+
+@pytest.mark.asyncio
+async def test_ciso_incidents_scoped_to_tenant(client, mock_db):
+    """incident list DB call must include the CISO's tenant_id."""
+    _set_auth(client, tenant_id="tenant-001")
+    mock_db.fetch.return_value = []
+    await client.get("/v1/ciso/incidents", headers=AUTH_HEADER)
+    sql, *args = mock_db.fetch.call_args[0]
+    assert "tenant-001" in args
+
+
+@pytest.mark.asyncio
+async def test_ciso_resolve_incident_happy_path(client, mock_db):
+    """PATCH /incidents/{id}/resolve returns 200 on success."""
+    _set_auth(client)
+    mock_db.fetchrow.return_value = {
+        "incident_id": "inc-uuid-001",
+        "tenant_id": "tenant-001",
+        "status": "OPEN",
+    }
+    mock_db.execute.return_value = None
+    resp = await client.patch(
+        "/v1/ciso/incidents/inc-uuid-001/resolve",
+        headers=AUTH_HEADER,
+        json={"resolution_note": "False positive — confirmed bulk export job"},
+    )
+    assert resp.status_code == 200
+    assert resp.json()["status"] == "resolved"
+
+
+@pytest.mark.asyncio
+async def test_ciso_resolve_incident_not_found(client, mock_db):
+    """Resolving non-existent incident returns 404."""
+    _set_auth(client)
+    mock_db.fetchrow.return_value = None
+    resp = await client.patch(
+        "/v1/ciso/incidents/does-not-exist/resolve",
+        headers=AUTH_HEADER,
+        json={"resolution_note": "test"},
+    )
+    assert resp.status_code == 404
+
+
+# ── Notification log endpoint ───────────────────────────────────────────────────
+
+@pytest.mark.asyncio
+async def test_ciso_notification_log_shape(client, mock_db):
+    """GET /notification-log returns items scoped to tenant."""
+    _set_auth(client)
+    mock_db.fetch.return_value = [
+        {
+            "notification_id": "notif-uuid-001",
+            "event_type": "ANOMALY_DETECTED",
+            "channel": "EMAIL",
+            "template_id": "ANOMALY_P1_ALERT",
+            "status": "SENT",
+            "sent_at": datetime.datetime(2026, 6, 19, 10, 0, 0, tzinfo=datetime.timezone.utc),
+            "failed_at": None,
+            "error_message": None,
+            "created_at": datetime.datetime(2026, 6, 19, 10, 0, 0, tzinfo=datetime.timezone.utc),
+        }
+    ]
+    resp = await client.get("/v1/ciso/notification-log", headers=AUTH_HEADER)
+    assert resp.status_code == 200
+    data = resp.json()
+    assert "items" in data
+    assert data["items"][0]["channel"] == "EMAIL"

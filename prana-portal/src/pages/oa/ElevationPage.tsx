@@ -61,17 +61,17 @@ function OperatorView({ active }: { active: ActiveElevation | null }) {
 
   const { data: history = [] } = useQuery<ElevationRequest[]>({
     queryKey: ['elevation-history'],
-    queryFn: () => api.get('/org/elevations/history').then(r => r.data),
+    queryFn: () => api.get('/v1/org/elevations/history').then(r => r.data),
   })
 
   const { data: adminName } = useQuery<string>({
     queryKey: ['oa-admin-name'],
-    queryFn: () => api.get('/org/admin-name').then(r => r.data.name),
+    queryFn: () => api.get('/v1/org/admin-name').then(r => r.data.name),
     staleTime: 60_000,
   })
 
   const requestMutation = useMutation({
-    mutationFn: () => api.post('/org/elevations', { duration_hours: duration, reason }),
+    mutationFn: () => api.post('/v1/org/elevations', { duration_hours: duration, reason }),
     onSuccess: () => {
       setSubmitted(true)
       setReason('')
@@ -80,7 +80,7 @@ function OperatorView({ active }: { active: ActiveElevation | null }) {
   })
 
   const endEarlyMutation = useMutation({
-    mutationFn: (id: string) => api.post(`/org/elevations/${id}/end-early`),
+    mutationFn: (id: string) => api.post(`/v1/org/elevations/${id}/end-early`),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['elevation-active'] })
       qc.invalidateQueries({ queryKey: ['elevation-history'] })
@@ -226,17 +226,17 @@ function AdminView() {
 
   const { data: pending = [] } = useQuery<ElevationRequest[]>({
     queryKey: ['elevation-pending'],
-    queryFn:  () => api.get('/org/elevations/pending').then(r => r.data),
+    queryFn:  () => api.get('/v1/org/elevations/pending').then(r => r.data?.elevations ?? r.data),
     refetchInterval: 15_000,
   })
 
   const { data: history = [] } = useQuery<ElevationRequest[]>({
     queryKey: ['elevation-history'],
-    queryFn:  () => api.get('/org/elevations/history').then(r => r.data),
+    queryFn:  () => api.get('/v1/org/elevations/history').then(r => r.data?.elevations ?? r.data),
   })
 
   const approveMutation = useMutation({
-    mutationFn: (id: string) => api.post(`/org/elevations/${id}/approve`),
+    mutationFn: (id: string) => api.post(`/v1/org/elevations/${id}/approve`),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['elevation-pending'] })
       qc.invalidateQueries({ queryKey: ['elevation-history'] })
@@ -244,7 +244,7 @@ function AdminView() {
   })
 
   const denyMutation = useMutation({
-    mutationFn: (id: string) => api.post(`/org/elevations/${id}/deny`),
+    mutationFn: (id: string) => api.post(`/v1/org/elevations/${id}/deny`),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['elevation-pending'] })
       qc.invalidateQueries({ queryKey: ['elevation-history'] })
@@ -366,7 +366,7 @@ export function ElevationPage() {
 
   const { data: active } = useQuery<ActiveElevation | null>({
     queryKey: ['elevation-active'],
-    queryFn:  () => api.get('/org/elevations/active').then(r => r.data).catch(() => null),
+    queryFn:  () => api.get('/v1/org/elevations/active').then(r => r.data).catch(() => null),
     refetchInterval: 60_000,
     enabled: !isAdmin,
   })

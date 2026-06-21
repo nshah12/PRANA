@@ -1,0 +1,36 @@
+-- Migration 016: Add extended enterprise profile fields to tenant table.
+-- TenantService.create_pending() and TenantService.get() reference these columns.
+-- All columns are nullable — existing tenant rows remain valid without backfill.
+
+ALTER TABLE tenant
+    ADD COLUMN IF NOT EXISTS brand_name                VARCHAR(200),
+    ADD COLUMN IF NOT EXISTS entity_type               VARCHAR(50),
+    ADD COLUMN IF NOT EXISTS pan_entity                VARCHAR(10),
+    ADD COLUMN IF NOT EXISTS tan                       VARCHAR(10),
+    ADD COLUMN IF NOT EXISTS incorporation_date        DATE,
+    ADD COLUMN IF NOT EXISTS roc_jurisdiction          VARCHAR(50),
+    ADD COLUMN IF NOT EXISTS reg_address               JSONB,
+    ADD COLUMN IF NOT EXISTS corp_address              JSONB,
+    ADD COLUMN IF NOT EXISTS primary_contact           JSONB,
+    ADD COLUMN IF NOT EXISTS dpo_name                  VARCHAR(200),
+    ADD COLUMN IF NOT EXISTS dpo_email                 VARCHAR(200),
+    ADD COLUMN IF NOT EXISTS grievance_officer_name    VARCHAR(200),
+    ADD COLUMN IF NOT EXISTS grievance_officer_email   VARCHAR(200),
+    ADD COLUMN IF NOT EXISTS dpa_accepted_at           TIMESTAMPTZ,
+    ADD COLUMN IF NOT EXISTS dpa_version               VARCHAR(10),
+    ADD COLUMN IF NOT EXISTS industry                  VARCHAR(100),
+    ADD COLUMN IF NOT EXISTS employee_headcount_band   VARCHAR(20),
+    ADD COLUMN IF NOT EXISTS payroll_frequency         VARCHAR(20)  DEFAULT 'MONTHLY',
+    ADD COLUMN IF NOT EXISTS fiscal_year_start         VARCHAR(20)  DEFAULT 'APRIL',
+    ADD COLUMN IF NOT EXISTS hrms_system               VARCHAR(100),
+    ADD COLUMN IF NOT EXISTS document_ingestion_method VARCHAR(50)  DEFAULT 'PORTAL_UPLOAD',
+    ADD COLUMN IF NOT EXISTS additional_domains        TEXT[],
+    ADD COLUMN IF NOT EXISTS pf_registration           VARCHAR(30),
+    ADD COLUMN IF NOT EXISTS esic_registration         VARCHAR(30),
+    ADD COLUMN IF NOT EXISTS logo_url                  TEXT,
+    ADD COLUMN IF NOT EXISTS brand_colour              VARCHAR(7),
+    ADD COLUMN IF NOT EXISTS support_email             VARCHAR(200),
+    ADD COLUMN IF NOT EXISTS sla_tier                  VARCHAR(20)  DEFAULT 'STANDARD',
+    ADD COLUMN IF NOT EXISTS onboarding_tier           VARCHAR(20)  DEFAULT 'ASSISTED',
+    ADD COLUMN IF NOT EXISTS contract_type             VARCHAR(20)  DEFAULT 'ANNUAL',
+    ADD COLUMN IF NOT EXISTS account_manager           VARCHAR(200);

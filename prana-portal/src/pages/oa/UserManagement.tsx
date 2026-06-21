@@ -12,11 +12,11 @@ export function UserManagement() {
 
   const { data, isLoading } = useQuery({
     queryKey: ['oa-users'],
-    queryFn: () => api.get('/org/users').then(r => r.data),
+    queryFn: () => api.get('/v1/org/users').then(r => r.data),
   })
 
   const deactivateMutation = useMutation({
-    mutationFn: (userId: string) => api.delete(`/org/users/${userId}`),
+    mutationFn: (userId: string) => api.delete(`/v1/org/users/${userId}`),
     onSuccess: () => qc.invalidateQueries({ queryKey: ['oa-users'] }),
     onError: (e: any) => {
       if (e.response?.data?.detail === 'MIN_ADMIN_CONSTRAINT') {
@@ -27,7 +27,7 @@ export function UserManagement() {
 
   const changeRoleMutation = useMutation({
     mutationFn: ({ userId, role }: { userId: string; role: string }) =>
-      api.patch(`/org/users/${userId}/role`, { role }),
+      api.patch(`/v1/org/users/${userId}/role`, { role }),
     onSuccess: () => qc.invalidateQueries({ queryKey: ['oa-users'] }),
     onError: (e: any) => {
       if (e.response?.data?.detail === 'MIN_ADMIN_CONSTRAINT') {
@@ -132,7 +132,7 @@ function CreateUserModal({ onClose }: { onClose: () => void }) {
     e.preventDefault()
     setError('')
     try {
-      await api.post('/org/users', form)
+      await api.post('/v1/org/users', form)
       qc.invalidateQueries({ queryKey: ['oa-users'] })
       onClose()
     } catch (e: any) {

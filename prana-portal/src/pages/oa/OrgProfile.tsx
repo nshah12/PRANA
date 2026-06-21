@@ -90,7 +90,7 @@ export function OrgProfile() {
   const qc = useQueryClient()
   const { data: profile, isLoading } = useQuery({
     queryKey: ['org-profile'],
-    queryFn: () => api.get('/org/profile').then(r => r.data),
+    queryFn: () => api.get('/v1/org/profile').then(r => r.data),
   })
 
   const [form, setForm] = useState<Record<string, any>>({})
@@ -143,7 +143,7 @@ export function OrgProfile() {
         payload.reg_address = form.reg_address
       if (form.corp_address && form.corp_address.line1)
         payload.corp_address = form.corp_address
-      return api.patch('/org/profile', payload).then(r => r.data)
+      return api.patch('/v1/org/profile', payload).then(r => r.data)
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['org-profile'] })

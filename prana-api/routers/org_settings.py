@@ -15,11 +15,10 @@ from services.tenant_service import TenantService
 
 router = APIRouter()
 OAAdmin = Depends(require_oa("oa_admin"))
-AnyOA   = Depends(require_oa("oa_admin", "oa_operator", "chro", "cfo", "ciso"))
 
 
 @router.get("/settings")
-async def get_settings(db: DbConn, current=AnyOA):
+async def get_settings(db: DbConn, current=OAAdmin):
     tenant = await db.fetchrow(
         """
         SELECT t.tenant_id, t.tenant_name, t.domain, t.status, t.home_region,
@@ -86,7 +85,7 @@ async def update_settings(body: UpdateSettingsIn, db: DbConn, current=OAAdmin):
 
 
 @router.get("/profile")
-async def get_org_profile(db: DbConn, current=AnyOA):
+async def get_org_profile(db: DbConn, current=OAAdmin):
     svc = TenantService(db, None)
     profile = await svc.get(current.tenant_id)
     if not profile:

@@ -1,0 +1,235 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>CFO Activity Digest — Wireframe</title>
+<!--
+  PRANA — CFO Activity Digest Wireframe
+  ----------------------------------------
+  Reference widget for the CFO Weekly / Monthly / Quarterly digest.
+  Designed for: TechServe India (2,000 employees, 7 months live on PRANA).
+
+  When implementing in production:
+
+  API endpoints:
+    GET /v1/analytics/digest/cfo/weekly?tenant_id=...
+    GET /v1/analytics/digest/cfo/monthly?tenant_id=...&month=YYYY-MM
+    GET /v1/analytics/digest/cfo/quarterly?tenant_id=...&quarter=YYYY-QN
+    POST /v1/analytics/digest/export { role:"cfo", period, format:"pdf"|"xlsx" }
+
+  Data sources (prana-db/schema.sql):
+    Headcount:          employee_master WHERE is_active=TRUE
+    Attrition:          career_event WHERE event_type='EXIT' AND period
+    Document compliance: document WHERE doc_type IN ('SALARY_SLIP','FORM_16','OFFER_LETTER','PF_STATEMENT')
+    Anomalies pending:  anomaly_event WHERE acknowledged_by IS NULL AND role_scope='CFO'
+    Cost indicators:    Computed — headcount × avg CTC from tenant_config.avg_ctc_estimate
+    Alumni self-serve:  audit_event WHERE actor_type='ALUMNI' AND action='SELF_SERVE'
+
+  Color: #0891B2 (teal/cyan — CFO brand)
+
+  Cost figures note:
+    avg_ctc_estimate and replacement_cost_estimate stored in tenant_config.
+    NEVER store actual salary figures — only estimates configured by CFO/HR.
+    Privacy contract: no raw ₹ salary data in DB or API responses.
+    Payroll figures shown are CFO-configured estimates, not extracted from docs.
+
+  Anomaly acknowledgement flow:
+    CFO opens anomaly → POST /v1/cfo/anomalies/{id}/acknowledge
+    → AnomalyAcknowledgementWorkflow starts
+    → audit_event written by AuditConsumer
+    → anomaly_event.acknowledged_by = cfo_user_id
+-->
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+    background: #F8FAFC;
+    padding: 24px 16px;
+    color: #0F172A;
+  }
+</style>
+</head>
+<body>
+<div id="root" style="max-width:620px;margin:0 auto;"></div>
+
+<script>
+const COLOR = "#0891B2";
+
+const DATA = {
+  weekly:{
+    badge:"Week 32 · 5–11 Aug 2025", badgeColor:"#ECFEFF", badgeText:"#155E75",
+    title:"Weekly cost & compliance pulse",
+    stats:[
+      {label:"Headcount (active)",   val:"1,997", delta:"Budget: 2,050 · −53 open",      up:false},
+      {label:"Exits this week",      val:"6",     delta:"Replacement cost est. ₹9L",      up:false},
+      {label:"Joiners this week",    val:"11",    delta:"11 offer letters auto-pushed",    up:true },
+      {label:"Anomalies pending",    val:"2",     delta:"Awaiting CFO ack",               up:false}
+    ],
+    barsTitle:"Document compliance — financial docs",
+    bars:[
+      {label:"Salary slips",  pct:98,  count:"98%",  color:COLOR},
+      {label:"Form 16",       pct:96,  count:"96%",  color:COLOR},
+      {label:"Offer letters", pct:100, count:"100%", color:"#059669"},
+      {label:"PF statements", pct:81,  count:"81%",  color:"#F59E0B"}
+    ],
+    costBox: null,
+    alerts:[
+      {dot:"#F59E0B", text:"2 payroll anomalies flagged — bulk salary revision, 47 employees, ₹2.3L delta. Awaiting CFO acknowledgement.", sub:"Flagged Mon 10:14 AM · SLA: 48 hrs"},
+      {dot:"#22C55E", text:"11 new joiners — offer letters and compensation letters auto-pushed to PRANA on day 1. Zero HR ops steps.", sub:"Avg time to vault: 4 min"},
+      {dot:"#0891B2", text:"PF statements for 381 employees not yet in vault. HRMS push scheduled for Friday.", sub:"Coverage: 81% · Target: 95%"}
+    ],
+    cta:"Acknowledge 2 pending anomalies"
+  },
+
+  monthly:{
+    badge:"July 2025 · Monthly CFO digest", badgeColor:"#ECFEFF", badgeText:"#155E75",
+    title:"July workforce cost report",
+    stats:[
+      {label:"Total headcount",       val:"1,997",  delta:"vs budget 2,050 · gap: 53",  up:false},
+      {label:"Attrition (July)",      val:"22",     delta:"1.1% monthly · 13.2% ann.",   up:false},
+      {label:"Replacement cost est.", val:"₹33L",   delta:"22 exits × avg ₹1.5L/hire",  up:false},
+      {label:"HR doc compliance",     val:"94.2%",  delta:"↑ 2.1% vs June",             up:true }
+    ],
+    barsTitle:"Headcount vs budget — by function",
+    bars:[
+      {label:"Engineering", pct:96,  count:"96%",  color:COLOR},
+      {label:"Sales",       pct:88,  count:"88%",  color:"#F59E0B"},
+      {label:"Operations",  pct:101, count:"101%", color:"#059669"},
+      {label:"Finance",     pct:100, count:"100%", color:"#059669"},
+      {label:"HR & Admin",  pct:91,  count:"91%",  color:COLOR}
+    ],
+    costBox:[
+      {label:"Est. monthly payroll",  val:"₹9.8 Cr", note:"Active 1,997 × avg CTC"},
+      {label:"Attrition cost",        val:"₹33L",    note:"22 exits × ₹1.5L replacement"},
+      {label:"Unfilled budget",       val:"₹18L",    note:"53 open roles vs budget"}
+    ],
+    alerts:[
+      {dot:"#22C55E", text:"Form 16 delivery: 1,921 of 2,000 employees (96%). Remaining 79 — new joiners mid-year, Form 16 not yet due.", sub:"Audit-ready"},
+      {dot:"#F59E0B", text:"Sales headcount at 88% of budget. 14 open positions — ₹18L unfilled compensation budget this month.", sub:"Flagged for Q3 review"},
+      {dot:"#22C55E", text:"43 ex-employees self-served their financial documents this month. Zero HR ops involvement. Est. savings: ₹1.1L.", sub:"Alumni self-serve working"}
+    ],
+    cta:"Export July cost report — PDF + Excel"
+  },
+
+  quarterly:{
+    badge:"Q2 FY2025–26 · Board CFO digest", badgeColor:"#ECFEFF", badgeText:"#155E75",
+    title:"Q2 workforce cost & compliance — board summary",
+    stats:[
+      {label:"Avg headcount Q2",      val:"1,989",  delta:"Budget utilisation: 97%",   up:true },
+      {label:"Total attrition Q2",    val:"61",     delta:"Replacement est. ₹91.5L",   up:false},
+      {label:"Admin cost saved",      val:"₹6.2L",  delta:"Via alumni self-serve",      up:true },
+      {label:"Compliance score",      val:"94.2%",  delta:"↑ from 78% at go-live",     up:true }
+    ],
+    barsTitle:"Financial document compliance — growth since go-live",
+    bars:[
+      {label:"Go-live",  pct:78, count:"78%", color:COLOR},
+      {label:"Month 2",  pct:83, count:"83%", color:COLOR},
+      {label:"Month 4",  pct:89, count:"89%", color:COLOR},
+      {label:"Month 6",  pct:92, count:"92%", color:COLOR},
+      {label:"Month 7",  pct:94, count:"94%", color:COLOR}
+    ],
+    costBox:[
+      {label:"Est. Q2 payroll",   val:"₹29.4 Cr", note:"3-month avg headcount"},
+      {label:"Attrition cost Q2", val:"₹91.5L",   note:"61 exits × ₹1.5L est."},
+      {label:"Admin savings",     val:"₹6.2L",     note:"Alumni self-serve · 112 cases"}
+    ],
+    alerts:[
+      {dot:"#22C55E", text:"₹6.2L estimated admin savings from 112 alumni self-serving financial docs. Zero calls to HR or Finance.", sub:"Q2 total · Board-grade"},
+      {dot:"#22C55E", text:"3 DPDP data requests — 2 erasure, 1 export. All completed within statutory timelines. No financial exposure.", sub:"Compliant"},
+      {dot:"#F59E0B", text:"PF statement coverage at 81% — below 90% target. Finance team to coordinate EPFO data pull in Q3.", sub:"Q3 action item"},
+      {dot:"#22C55E", text:"Salary slip delivery: 98% on-time across 7 months. Audit trail 100% coverage. Zero payslip disputes logged.", sub:"Audit-ready"}
+    ],
+    cta:"Export board deck — PDF + Excel data tables"
+  }
+};
+
+let cur = "weekly";
+
+function render(){
+  const d = DATA[cur];
+  const root = document.getElementById("root");
+
+  const tabs = ["weekly","monthly","quarterly"].map(k=>{
+    const active = k===cur;
+    return `<button onclick="setCur('${k}')" style="padding:6px 16px;border-radius:8px;border:1px solid ${active?COLOR:"#CBD5E1"};font-size:13px;cursor:pointer;background:${active?COLOR:"#fff"};color:${active?"#fff":"#64748B"};">${k.charAt(0).toUpperCase()+k.slice(1)}</button>`;
+  }).join("");
+
+  const stats = d.stats.map(s=>`
+    <div style="background:#F1F5F9;border-radius:8px;padding:12px;">
+      <div style="font-size:11px;color:#64748B;margin-bottom:4px;">${s.label}</div>
+      <div style="font-size:18px;font-weight:500;color:#0F172A;line-height:1.2;">${s.val}</div>
+      <div style="font-size:11px;margin-top:3px;color:${s.up?"#16A34A":"#DC2626"};">${s.delta}</div>
+    </div>`).join("");
+
+  const bars = d.bars.map(b=>{
+    const pct = Math.min(b.pct,100);
+    const over = b.pct>100;
+    return `
+    <div style="display:flex;align-items:center;gap:10px;margin-bottom:8px;">
+      <div style="font-size:12px;color:#64748B;width:88px;flex-shrink:0;text-align:right;">${b.label}</div>
+      <div style="flex:1;height:8px;background:#E2E8F0;border-radius:4px;overflow:hidden;">
+        <div style="width:${pct}%;height:100%;background:${over?"#059669":b.color};border-radius:4px;"></div>
+      </div>
+      <div style="font-size:12px;color:${over?"#059669":b.pct<90?"#F59E0B":"#0F172A"};width:40px;text-align:right;font-weight:500;">${b.count}</div>
+    </div>`;}).join("");
+
+  const costBox = d.costBox ? `
+    <div style="padding:14px 20px;border-bottom:0.5px solid #F1F5F9;background:#F8FAFC;">
+      <div style="font-size:11px;font-weight:500;color:#94A3B8;text-transform:uppercase;letter-spacing:.05em;margin-bottom:10px;">Cost indicators</div>
+      <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px;">
+        ${d.costBox.map(c=>`
+          <div style="background:#fff;border:0.5px solid #E2E8F0;border-radius:8px;padding:10px;">
+            <div style="font-size:11px;color:#64748B;margin-bottom:3px;">${c.label}</div>
+            <div style="font-size:16px;font-weight:500;color:#0F172A;">${c.val}</div>
+            <div style="font-size:10px;color:#94A3B8;margin-top:2px;">${c.note}</div>
+          </div>`).join("")}
+      </div>
+    </div>` : "";
+
+  const alerts = d.alerts.map(a=>`
+    <div style="display:flex;align-items:flex-start;gap:10px;padding:8px 0;border-bottom:0.5px solid #F1F5F9;">
+      <div style="width:8px;height:8px;border-radius:50%;background:${a.dot};flex-shrink:0;margin-top:5px;"></div>
+      <div>
+        <div style="font-size:12px;color:#0F172A;line-height:1.5;">${a.text}</div>
+        <div style="font-size:11px;color:#94A3B8;margin-top:1px;">${a.sub}</div>
+      </div>
+    </div>`).join("");
+
+  root.innerHTML = `
+    <div style="display:flex;gap:6px;margin-bottom:16px;">${tabs}</div>
+    <div style="background:#fff;border:0.5px solid #E2E8F0;border-radius:12px;overflow:hidden;">
+
+      <div style="padding:20px 20px 16px;border-bottom:0.5px solid #F1F5F9;">
+        <div style="display:inline-flex;align-items:center;gap:5px;font-size:11px;font-weight:500;padding:3px 10px;border-radius:20px;background:${d.badgeColor};color:${d.badgeText};margin-bottom:8px;">${d.badge}</div>
+        <div style="font-size:17px;font-weight:500;color:#0F172A;margin-bottom:2px;">${d.title}</div>
+        <div style="font-size:12px;color:#94A3B8;">TechServe India · 2,000 employees · PRANA live 7 months</div>
+      </div>
+
+      <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:10px;padding:16px 20px;border-bottom:0.5px solid #F1F5F9;">${stats}</div>
+
+      ${costBox}
+
+      <div style="padding:16px 20px;border-bottom:0.5px solid #F1F5F9;">
+        <div style="font-size:11px;font-weight:500;color:#94A3B8;text-transform:uppercase;letter-spacing:.05em;margin-bottom:10px;">${d.barsTitle}</div>
+        ${bars}
+      </div>
+
+      <div style="padding:4px 20px 0;border-bottom:0.5px solid #F1F5F9;">${alerts}</div>
+
+      <div style="padding:14px 20px;background:${COLOR};display:flex;align-items:center;justify-content:space-between;cursor:pointer;">
+        <span style="font-size:13px;font-weight:500;color:#fff;">${d.cta}</span>
+        <span style="color:#fff;font-size:18px;">→</span>
+      </div>
+
+      <div style="padding:10px 20px;font-size:11px;color:#94A3B8;display:flex;justify-content:space-between;">
+        <span>PRANA · TechServe India · CFO digest</span><span>Settings · Unsubscribe</span>
+      </div>
+    </div>`;
+}
+
+window.setCur = k => { cur=k; render(); };
+render();
+</script>
+</body>
+</html>

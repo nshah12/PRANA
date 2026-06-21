@@ -129,7 +129,7 @@ export function UploadDocuments() {
 
   function openSSE(localId: string, documentId: string) {
     const base = (import.meta as any).env?.VITE_API_BASE ?? ''
-    const es   = new EventSource(`${base}/api/ingest/status/${documentId}`, { withCredentials: true })
+    const es   = new EventSource(`${base}/api/v1/ingest/status/${documentId}`, { withCredentials: true })
     esRefs.current[localId] = es
 
     es.onmessage = (e) => {
@@ -178,7 +178,7 @@ export function UploadDocuments() {
     setFiles([])
 
     try {
-      const res = await api.post('/ingest/upload', form, {
+      const res = await api.post('/v1/ingest/upload', form, {
         headers: { 'Content-Type': 'multipart/form-data' },
       })
       const apiFiles: Array<{ filename: string; document_id?: string; error?: string }> =

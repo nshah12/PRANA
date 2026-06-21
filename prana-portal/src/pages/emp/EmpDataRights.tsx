@@ -23,7 +23,7 @@ function AccessPanel() {
           <CheckCircle size={16}/> <span className="text-sm font-medium">Export requested. We'll notify you when it's ready (typically within 2 hours).</span>
         </div>
       ) : (
-        <button onClick={async () => { setLoading(true); try { await api.post('/dpdp/export'); setRequested(true) } catch {} finally { setLoading(false) }}}
+        <button onClick={async () => { setLoading(true); try { await api.post('/v1/dpdp/export'); setRequested(true) } catch {} finally { setLoading(false) }}}
           disabled={loading}
           className="flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-semibold text-white disabled:opacity-50"
           style={{ background:'#6366F1' }}>
@@ -68,7 +68,7 @@ function CorrectionPanel() {
       <button onClick={async () => {
         if (!field || !correct) { setErr('Field and correct value required.'); return }
         setErr(''); setLoading(true)
-        try { await api.post('/dpdp/correction', { field, current_value: cur, correct_value: correct, evidence_note: note }); setDone(true) }
+        try { await api.post('/v1/dpdp/correction', { field, current_value: cur, correct_value: correct, evidence_note: note }); setDone(true) }
         catch { setErr('Submission failed. Try again.') }
         finally { setLoading(false) }
       }} disabled={loading} className="flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-semibold text-white disabled:opacity-50"
@@ -110,7 +110,7 @@ function ErasurePanel() {
       <button onClick={async () => {
         if (!confirmed) { setErr('Please confirm you understand.'); return }
         setErr(''); setLoading(true)
-        try { await api.post('/dpdp/erasure', { reason }); setDone(true) }
+        try { await api.post('/v1/dpdp/erasure', { reason }); setDone(true) }
         catch { setErr('Submission failed. Try again.') }
         finally { setLoading(false) }
       }} disabled={loading || !confirmed}
@@ -148,7 +148,7 @@ function GrievancePanel() {
       <button onClick={async () => {
         if (!sub || !desc) { setErr('Subject and description required.'); return }
         setErr(''); setLoading(true)
-        try { await api.post('/dpdp/grievance', { subject: sub, description: desc }); setDone(true) }
+        try { await api.post('/v1/dpdp/grievance', { subject: sub, description: desc }); setDone(true) }
         catch { setErr('Submission failed.') }
         finally { setLoading(false) }
       }} disabled={loading} className="flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-semibold text-white disabled:opacity-50"
@@ -204,10 +204,10 @@ function ConsentPanel() {
   const qc = useQueryClient()
   const { data, isLoading } = useQuery({
     queryKey: ['emp-consents'],
-    queryFn: () => api.get<{ consents: ConsentRecord[] }>('/dpdp/consents').then(r => r.data),
+    queryFn: () => api.get<{ consents: ConsentRecord[] }>('/v1/dpdp/consents').then(r => r.data),
   })
   const withdrawMut = useMutation({
-    mutationFn: (id: string) => api.post(`/dpdp/consents/${id}/withdraw`),
+    mutationFn: (id: string) => api.post(`/v1/dpdp/consents/${id}/withdraw`),
     onSuccess: () => qc.invalidateQueries({ queryKey: ['emp-consents'] }),
   })
 

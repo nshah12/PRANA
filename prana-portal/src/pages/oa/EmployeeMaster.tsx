@@ -11,7 +11,7 @@ export function EmployeeMaster() {
 
   const { data, isLoading } = useQuery({
     queryKey: ['employees', search, page],
-    queryFn: () => api.get('/org/employees', {
+    queryFn: () => api.get('/v1/org/employees', {
       params: { name: search || undefined, limit, active_only: false },
     }).then(r => {
       // API returns a plain array; normalise to { employees, count }

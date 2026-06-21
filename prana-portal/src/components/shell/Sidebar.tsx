@@ -3,7 +3,7 @@ import { cn } from '@/lib/utils'
 import { useAuthStore, ROLE_COLOR, type UserRole } from '@/store/auth'
 import {
   LayoutDashboard, Users, Upload, FileText, AlertTriangle,
-  Settings, ShieldCheck, TrendingUp, BarChart3, Calendar,
+  Settings, ShieldCheck, ShieldAlert, TrendingUp, BarChart3, Calendar,
   Lock, Key, Activity, Globe, ChevronDown, ChevronRight,
   Building2, Zap, FileSearch, Bell, ClipboardList, MessageSquare,
 } from 'lucide-react'
@@ -73,6 +73,7 @@ function navForRole(role: UserRole, base: string, counts: BadgeCounts = {}): Nav
           { label: 'Monthly Summary',    to: `${base}/monthly`,         icon: <ClipboardList size={16}/> },
           { label: 'Quarterly Report',   to: `${base}/quarterly`,       icon: <TrendingUp size={16}/> },
           { label: 'Alert Config',       to: `${base}/alerts`,          icon: <Settings size={16}/> },
+          { label: 'Digest Settings',    to: `${base}/digest-settings`, icon: <Bell size={16}/> },
         ],
       }]
 
@@ -86,6 +87,8 @@ function navForRole(role: UserRole, base: string, counts: BadgeCounts = {}): Nav
           { label: 'Benchmarking',       to: `${base}/benchmarking`,    icon: <BarChart3 size={16}/> },
           { label: 'Anomaly Alerts',     to: `${base}/anomalies`,       icon: <AlertTriangle size={16}/>, ...(counts.anomalies ? { badge: { count: counts.anomalies, color: 'red' as const } } : {}) },
           { label: 'Consent Dashboard',  to: `${base}/consent`,         icon: <Lock size={16}/> },
+          { label: 'CFO Digest',         to: `${base}/cfo-digest`,      icon: <ClipboardList size={16}/> },
+          { label: 'Digest Settings',    to: `${base}/digest-settings`, icon: <Settings size={16}/> },
         ],
       }]
 
@@ -98,6 +101,10 @@ function navForRole(role: UserRole, base: string, counts: BadgeCounts = {}): Nav
           { label: 'Key Health',         to: `${base}/keys`,            icon: <Key size={16}/> },
           { label: 'Auth Anomaly Feed',  to: `${base}/auth-anomalies`,  icon: <AlertTriangle size={16}/> },
           { label: 'Data Residency',     to: `${base}/residency`,       icon: <Globe size={16}/> },
+          { label: 'InfoSec Digest',     to: `${base}/ciso-digest`,     icon: <ClipboardList size={16}/> },
+          { label: 'Security Incidents', to: `${base}/ciso-incidents`,  icon: <ShieldAlert size={16}/>, ...(counts.securityAlerts ? { badge: { count: counts.securityAlerts, color: 'red' as const } } : {}) },
+          { label: 'Notification Log',   to: `${base}/ciso-notif-log`,  icon: <Bell size={16}/> },
+          { label: 'Digest Settings',    to: `${base}/digest-settings`, icon: <Settings size={16}/> },
         ],
       }]
 
@@ -135,11 +142,13 @@ function navForRole(role: UserRole, base: string, counts: BadgeCounts = {}): Nav
           label: 'SECURITY & COMPLIANCE',
           collapsible: true,
           items: [
-            { label: 'SecOps Dashboard', to: `${base}/secops`,          icon: <ShieldCheck size={16}/> },
-            { label: 'Anomaly Detection',to: `${base}/anomalies`,       icon: <AlertTriangle size={16}/>, ...(counts.anomalies ? { badge: { count: counts.anomalies, color: 'amber' as const } } : {}) },
-            { label: 'Incident Register',to: `${base}/incidents`,       icon: <ClipboardList size={16}/>, ...(counts.incidents ? { badge: { count: counts.incidents, color: 'red' as const } } : {}) },
-            { label: 'Cryptographic Health',to:`${base}/crypto`,        icon: <Key size={16}/> },
-            { label: 'Audit Trail',      to: `${base}/audit`,           icon: <FileSearch size={16}/> },
+            { label: 'SecOps Dashboard',   to: `${base}/secops`,              icon: <ShieldCheck size={16}/> },
+            { label: 'Anomaly Detection', to: `${base}/anomalies`,          icon: <AlertTriangle size={16}/>, ...(counts.anomalies ? { badge: { count: counts.anomalies, color: 'amber' as const } } : {}) },
+            { label: 'Incident Register', to: `${base}/incidents`,          icon: <ClipboardList size={16}/>, ...(counts.incidents ? { badge: { count: counts.incidents, color: 'red' as const } } : {}) },
+            { label: 'Security Incidents',to: `${base}/security-incidents`, icon: <ShieldAlert size={16}/> },
+            { label: 'Notification Log',  to: `${base}/notifications`,      icon: <Bell size={16}/> },
+            { label: 'Cryptographic Health',to:`${base}/crypto`,            icon: <Key size={16}/> },
+            { label: 'Audit Trail',       to: `${base}/audit`,              icon: <FileSearch size={16}/> },
           ],
         },
       ]
@@ -222,8 +231,8 @@ export function Sidebar() {
       }
       if (user.role === 'oa_admin') {
         const [exc, elev] = await Promise.all([
-          api.get('/org/exceptions/count').then(r => r.data.count).catch(() => 0),
-          api.get('/org/elevations/pending-count').then(r => r.data.count).catch(() => 0),
+          api.get('/v1/org/exceptions/count').then(r => r.data.count).catch(() => 0),
+          api.get('/v1/org/elevations/pending-count').then(r => r.data.count).catch(() => 0),
         ])
         return { exceptions: exc, elevations: elev } as BadgeCounts
       }

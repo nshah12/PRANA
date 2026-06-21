@@ -4,7 +4,7 @@ import { api } from '@/lib/api'
 export function CfoDashboard() {
   const { data, isLoading, isError, refetch } = useQuery({
     queryKey: ['cfo-dashboard'],
-    queryFn: () => api.get('/cfo/dashboard').then(r => r.data),
+    queryFn: () => api.get('/v1/cfo/dashboard').then(r => r.data),
   })
 
   if (isLoading) return (

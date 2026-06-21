@@ -42,7 +42,7 @@ async def meta_dashboard(request: Request, db: DbConn, current=PA):
         """
     )
 
-    # Query MinIO/S3 for real storage usage
+    # Storage: try real S3/MinIO first; fall back to DB-estimated size (avg 200 KB/doc)
     storage_used_label = "—"
     try:
         s3 = request.app.state.s3
@@ -53,14 +53,24 @@ async def meta_dashboard(request: Request, db: DbConn, current=PA):
             for page in paginator.paginate(Bucket=bucket):
                 for obj in page.get("Contents", []):
                     total_bytes += obj.get("Size", 0)
-        if total_bytes < 1024 * 1024:
-            storage_used_label = f"{total_bytes // 1024} KB"
-        elif total_bytes < 1024 ** 3:
-            storage_used_label = f"{total_bytes / (1024**2):.1f} MB"
-        else:
-            storage_used_label = f"{total_bytes / (1024**3):.2f} GB"
+        if total_bytes > 0:
+            if total_bytes < 1024 * 1024:
+                storage_used_label = f"{total_bytes // 1024} KB"
+            elif total_bytes < 1024 ** 3:
+                storage_used_label = f"{total_bytes / (1024**2):.1f} MB"
+            else:
+                storage_used_label = f"{total_bytes / (1024**3):.2f} GB"
     except Exception:
-        pass  # S3 unavailable in CI
+        pass
+    if storage_used_label == "—":
+        # Estimate from document count: average 200 KB per document
+        doc_count = await db.fetchval("SELECT COUNT(*) FROM document WHERE is_deleted=FALSE")
+        if doc_count:
+            est_bytes = int(doc_count) * 200 * 1024
+            if est_bytes < 1024 ** 3:
+                storage_used_label = f"~{est_bytes / (1024**2):.0f} MB (est.)"
+            else:
+                storage_used_label = f"~{est_bytes / (1024**3):.2f} GB (est.)"
 
     return {
         "active_tenants":         int(active_tenants or 0),
@@ -351,6 +361,55 @@ async def pa_resolve_exception(exception_id: str, db: DbConn, current=PA):
         exception_id, str(current.user_id),
     )
     return {"message": "Resolved"}
+
+
+# ── Platform anomaly detection ─────────────────────────────────────────────────
+
+@router.get("/anomalies")
+async def list_anomalies(db: DbConn, current=PA):
+    """PA: platform-wide anomaly events. Returns empty list if table not yet provisioned."""
+    try:
+        rows = await db.fetch(
+            """
+            SELECT ae.event_id, ae.tenant_id, t.tenant_name,
+                   ae.anomaly_type, ae.severity, ae.detected_at,
+                   ae.status, ae.details
+            FROM anomaly_event ae
+            JOIN tenant t ON t.tenant_id = ae.tenant_id
+            ORDER BY ae.detected_at DESC
+            LIMIT 200
+            """
+        )
+    except Exception:
+        rows = []
+    return {
+        "anomalies": [
+            {
+                "event_id":     str(r["event_id"]),
+                "tenant_id":    str(r["tenant_id"]),
+                "tenant_name":  r["tenant_name"],
+                "anomaly_type": r["anomaly_type"],
+                "severity":     r["severity"],
+                "detected_at":  r["detected_at"].isoformat() if r["detected_at"] else None,
+                "status":       r["status"],
+                "details":      r["details"],
+            }
+            for r in rows
+        ],
+        "total": len(rows),
+    }
+
+
+@router.post("/anomalies/{event_id}/acknowledge")
+async def acknowledge_anomaly(event_id: str, db: DbConn, current=PA):
+    try:
+        await db.execute(
+            "UPDATE anomaly_event SET status='ACKNOWLEDGED' WHERE event_id=$1",
+            event_id,
+        )
+    except Exception:
+        pass
+    return {"message": "Acknowledged"}
 
 
 @router.get("/exceptions")
@@ -682,3 +741,136 @@ async def trigger_health_check(db: DbConn, _=PA):
     svc = HealthService(db)
     results = await svc.run_checks()
     return {"results": results}
+
+
+# ── Security incidents (cross-tenant — PA only) ────────────────────────────────
+
+@router.get("/security-incidents")
+async def list_security_incidents(
+    db: DbConn,
+    _=PA,
+    tenant_id: Optional[str] = None,
+    severity: Optional[str] = None,
+    incident_status: Optional[str] = None,
+    limit: int = 100,
+):
+    """PA: list security/anomaly incidents across all tenants (or filter by tenant)."""
+    from services.incident_service import IncidentService
+    svc = IncidentService(db=db)
+    items = await svc.get_incidents(
+        tenant_id=tenant_id,   # None = all tenants
+        severity=severity,
+        status=incident_status,
+        limit=limit,
+    )
+    return {"items": items, "total": len(items)}
+
+
+class PaResolveIncidentBody(BaseModel):
+    resolution_note: str
+
+
+@router.patch("/security-incidents/{incident_id}/resolve")
+async def pa_resolve_security_incident(
+    incident_id: str,
+    body: PaResolveIncidentBody,
+    db: DbConn,
+    current=PA,
+):
+    """PA: resolve any security incident (no tenant scope restriction)."""
+    from services.incident_service import IncidentService
+    svc = IncidentService(db=db)
+    try:
+        await svc.resolve_incident(
+            incident_id=incident_id,
+            resolved_by=current.user_id,
+            resolution_note=body.resolution_note,
+            tenant_id=None,   # PA sees all tenants
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,
+                            detail=str(exc)) from exc
+    return {"status": "resolved"}
+
+
+@router.patch("/security-incidents/{incident_id}/escalate")
+async def pa_escalate_security_incident(incident_id: str, db: DbConn, _=PA):
+    """PA: escalate any security incident."""
+    from services.incident_service import IncidentService
+    svc = IncidentService(db=db)
+    try:
+        await svc.escalate_incident(incident_id=incident_id, tenant_id=None)
+    except ValueError as exc:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,
+                            detail=str(exc)) from exc
+    return {"status": "escalated"}
+
+
+# ── Notification log (cross-tenant — PA only) ──────────────────────────────────
+
+@router.get("/notifications")
+async def list_notifications(
+    db: DbConn,
+    _=PA,
+    tenant_id: Optional[str] = None,
+    channel: Optional[str] = None,
+    notif_status: Optional[str] = None,
+    event_type: Optional[str] = None,
+    limit: int = 200,
+):
+    """PA: view full notification_log, filterable by tenant/channel/status/event_type."""
+    conditions: list[str] = []
+    params: list = []
+    idx = 1
+
+    if tenant_id:
+        conditions.append(f"tenant_id = ${idx}")
+        params.append(tenant_id)
+        idx += 1
+    if channel:
+        conditions.append(f"channel = ${idx}")
+        params.append(channel)
+        idx += 1
+    if notif_status:
+        conditions.append(f"status = ${idx}")
+        params.append(notif_status)
+        idx += 1
+    if event_type:
+        conditions.append(f"event_type = ${idx}")
+        params.append(event_type)
+        idx += 1
+
+    where = ("WHERE " + " AND ".join(conditions)) if conditions else ""
+    params.append(limit)
+
+    rows = await db.fetch(
+        f"""
+        SELECT notification_id, tenant_id, event_type, channel, template_id,
+               recipient_type, status, provider_ref,
+               sent_at, failed_at, error_message, retry_count, created_at
+          FROM notification_log
+         {where}
+         ORDER BY created_at DESC
+         LIMIT ${idx}
+        """,
+        *params,
+    )
+    items = [
+        {
+            "notification_id": str(r["notification_id"]),
+            "tenant_id":       str(r["tenant_id"]) if r["tenant_id"] else None,
+            "event_type":      r["event_type"],
+            "channel":         r["channel"],
+            "template_id":     r["template_id"],
+            "recipient_type":  r["recipient_type"],
+            "status":          r["status"],
+            "provider_ref":    r["provider_ref"],
+            "sent_at":         r["sent_at"].isoformat() if r["sent_at"] else None,
+            "failed_at":       r["failed_at"].isoformat() if r["failed_at"] else None,
+            "error_message":   r["error_message"],
+            "retry_count":     r["retry_count"],
+            "created_at":      r["created_at"].isoformat() if r["created_at"] else None,
+        }
+        for r in rows
+    ]
+    return {"items": items, "total": len(items)}

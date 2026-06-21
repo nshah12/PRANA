@@ -1,0 +1,248 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>InfoSec Activity Digest — Wireframe</title>
+<!--
+  PRANA — InfoSec (CISO) Activity Digest Wireframe
+  --------------------------------------------------
+  Reference widget for the CISO Weekly / Monthly / Quarterly digest.
+  Designed for: TechServe India (2,000 employees, 7 months live on PRANA).
+
+  When implementing in production:
+
+  API endpoints:
+    GET /v1/analytics/digest/ciso/weekly?tenant_id=...
+    GET /v1/analytics/digest/ciso/monthly?tenant_id=...&month=YYYY-MM
+    GET /v1/analytics/digest/ciso/quarterly?tenant_id=...&quarter=YYYY-QN
+    POST /v1/analytics/digest/export { role:"ciso", period, format:"pdf" }
+
+  Data sources (prana-db/schema.sql):
+    Total accesses:     document_access_log WHERE tenant_id=$1 AND period
+    Anomalies:          anomaly_event WHERE tenant_id=$1 AND period
+    Force-logouts:      audit_event WHERE action='SESSION_REVOKED' AND reason='ANOMALY'
+    Share tokens:       share_token WHERE tenant_id=$1 AND period
+    Accounts locked:    account_status_event WHERE event_type='POLICY_LOCK' AND period
+    DPDP requests:      dpdp_grievance WHERE tenant_id=$1 AND period
+    Heatmap:            document_access_log GROUP BY EXTRACT(HOUR FROM accessed_at)
+
+  Access heatmap note:
+    Weekly view only — shows access distribution by hour across Mon–Sun.
+    Helps CISO spot unusual off-hours access patterns at a glance.
+    Data: SELECT EXTRACT(HOUR FROM accessed_at), COUNT(*) FROM document_access_log
+          WHERE tenant_id=$1 AND accessed_at >= now() - interval '7 days'
+          GROUP BY 1 ORDER BY 1
+
+  Incident severity classification:
+    High:   Bulk access anomaly (>20 docs/session in <10 min), confirmed foreign IP
+    Medium: Unconfirmed foreign IP login, repeated failed TOTP (≥4), unusual hours access
+    Low:    Single failed TOTP, expired share token still attempted, minor config change
+
+  Privacy rules for CISO digest:
+    CISO sees full IP address in digest — not city-only (different from employee view)
+    No PAN, salary, or document content in digest — only access metadata
+    document_access_log.watermark_applied must be TRUE for all flagged accesses
+
+  Color: #059669 (emerald green — InfoSec brand)
+-->
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+    background: #F8FAFC;
+    padding: 24px 16px;
+    color: #0F172A;
+  }
+</style>
+</head>
+<body>
+<div id="root" style="max-width:620px;margin:0 auto;"></div>
+
+<script>
+const COLOR = "#059669";
+
+const DATA = {
+  weekly:{
+    badge:"Week 32 · 5–11 Aug 2025", badgeColor:"#ECFDF5", badgeText:"#065F46",
+    title:"Weekly security & access pulse",
+    stats:[
+      {label:"Total doc accesses",  val:"1,847", delta:"All watermarked · logged",    neutral:true},
+      {label:"Anomalies flagged",   val:"3",     delta:"1 auto-resolved · 2 open",    neutral:false, up:false},
+      {label:"Force-logouts",       val:"1",     delta:"Bulk access · Rajkot IP",     neutral:false, up:false},
+      {label:"Share tokens issued", val:"34",    delta:"31 expired · 3 active",       neutral:true}
+    ],
+    barsTitle:"Access by channel this week",
+    bars:[
+      {label:"Mobile app",  pct:68, count:"1,256", color:COLOR},
+      {label:"Portal",      pct:21, count:"388",   color:"#0891B2"},
+      {label:"Share links", pct:8,  count:"148",   color:"#F59E0B"},
+      {label:"API (HRMS)",  pct:3,  count:"55",    color:"#6366F1"}
+    ],
+    showHeat: true,
+    threatRows:[
+      {sev:"high",   label:"Bulk access anomaly",  detail:"Session 8a2f — 47 docs in 4 min, Rajkot IP 103.21.x.x. Force-logout applied. Watermark trail preserved.", time:"Tue 11:47 PM", resolved:true},
+      {sev:"medium", label:"Foreign IP login",     detail:"OA-Operator Kavya Reddy logged in from Singapore IP 103.8.x.x. Location unusual. Monitoring active.", time:"Thu 2:14 PM",  resolved:false},
+      {sev:"low",    label:"Failed TOTP × 4",      detail:"Portal Admin login — 4 consecutive TOTP failures, account auto-locked 30 min. No breach confirmed.", time:"Fri 9:02 AM",  resolved:true}
+    ],
+    cta:"Review 2 open anomalies in security dashboard"
+  },
+
+  monthly:{
+    badge:"July 2025 · Monthly InfoSec digest", badgeColor:"#ECFDF5", badgeText:"#065F46",
+    title:"July access & security report",
+    stats:[
+      {label:"Total doc accesses", val:"7,914",  delta:"100% watermarked & logged",   neutral:true},
+      {label:"Anomalies flagged",  val:"11",     delta:"9 resolved · 2 monitoring",   neutral:false, up:false},
+      {label:"DPDP requests",      val:"2",      delta:"Both completed within SLA",   neutral:true},
+      {label:"Accounts locked",    val:"4",      delta:"3 auto-unlocked · 1 manual",  neutral:false, up:false}
+    ],
+    barsTitle:"Anomaly breakdown — July",
+    bars:[
+      {label:"Bulk access",   pct:36, count:"4", color:"#DC2626"},
+      {label:"Foreign IP",    pct:27, count:"3", color:"#F59E0B"},
+      {label:"Failed TOTP",   pct:27, count:"3", color:"#F59E0B"},
+      {label:"Unusual hours", pct:9,  count:"1", color:COLOR}
+    ],
+    showHeat: false,
+    threatRows:[
+      {sev:"high",   label:"Bulk access × 2",    detail:"2 bulk-access sessions force-logged out. Avg response: 3.8 min from detection to revocation. No data exfil confirmed.", time:"July total", resolved:true},
+      {sev:"medium", label:"3 foreign IP logins", detail:"Singapore, Dubai, UK. 2 confirmed employee travel. 1 still under review — account flagged.", time:"July total",  resolved:false},
+      {sev:"low",    label:"2 DPDP requests",     detail:"1 erasure (completed Day 12), 1 data export (completed Day 3). Both within statutory SLA. Audit logged.", time:"July total",  resolved:true}
+    ],
+    cta:"Export July security report — PDF"
+  },
+
+  quarterly:{
+    badge:"Q2 FY2025–26 · Board InfoSec digest", badgeColor:"#ECFDF5", badgeText:"#065F46",
+    title:"Q2 security posture — board summary",
+    stats:[
+      {label:"Total accesses Q2",  val:"23,182", delta:"100% logged & watermarked",   neutral:true},
+      {label:"Anomalies Q2",       val:"31",     delta:"29 resolved · 2 monitoring",  neutral:false, up:false},
+      {label:"Avg response time",  val:"4.2 min",delta:"Detect → force-logout",       neutral:true},
+      {label:"DPDP compliance",    val:"100%",   delta:"All 5 requests within SLA",   neutral:true}
+    ],
+    barsTitle:"Security posture score — growth since go-live",
+    bars:[
+      {label:"Go-live",  pct:61, count:"61%", color:COLOR},
+      {label:"Month 2",  pct:70, count:"70%", color:COLOR},
+      {label:"Month 4",  pct:79, count:"79%", color:COLOR},
+      {label:"Month 6",  pct:88, count:"88%", color:COLOR},
+      {label:"Month 7",  pct:94, count:"94%", color:COLOR}
+    ],
+    showHeat: false,
+    threatRows:[
+      {sev:"high",   label:"5 force-logouts Q2",  detail:"All bulk-access events. Avg response 4.2 min. Full watermark trail on all accessed docs. No data exfil in any case.", time:"Q2 total", resolved:true},
+      {sev:"medium", label:"Zero PAN exposure",    detail:"Audit confirmed: no plaintext PAN in any log, cache, or API response across Q2. Privacy contract 100% intact.", time:"Q2 total", resolved:true},
+      {sev:"low",    label:"Share token audit",    detail:"312 tokens issued. 308 expired normally. 4 revoked early by employees. Zero token abuse or unauthorized access detected.", time:"Q2 total", resolved:true}
+    ],
+    cta:"Export board security report — PDF + evidence pack"
+  }
+};
+
+const SEV = {
+  high:   {color:"#DC2626", bg:"#FEF2F2", label:"High"},
+  medium: {color:"#F59E0B", bg:"#FFFBEB", label:"Medium"},
+  low:    {color:COLOR,     bg:"#ECFDF5", label:"Low"}
+};
+
+let cur = "weekly";
+
+function render(){
+  const d = DATA[cur];
+  const root = document.getElementById("root");
+
+  const tabs = ["weekly","monthly","quarterly"].map(k=>{
+    const active = k===cur;
+    return `<button onclick="setCur('${k}')" style="padding:6px 16px;border-radius:8px;border:1px solid ${active?COLOR:"#CBD5E1"};font-size:13px;cursor:pointer;background:${active?COLOR:"#fff"};color:${active?"#fff":"#64748B"};">${k.charAt(0).toUpperCase()+k.slice(1)}</button>`;
+  }).join("");
+
+  const stats = d.stats.map(s=>`
+    <div style="background:#F1F5F9;border-radius:8px;padding:12px;">
+      <div style="font-size:11px;color:#64748B;margin-bottom:4px;">${s.label}</div>
+      <div style="font-size:18px;font-weight:500;color:#0F172A;line-height:1.2;">${s.val}</div>
+      <div style="font-size:11px;margin-top:3px;color:${s.neutral?"#94A3B8":s.up?"#16A34A":"#DC2626"};">${s.delta}</div>
+    </div>`).join("");
+
+  const bars = d.bars.map(b=>`
+    <div style="display:flex;align-items:center;gap:10px;margin-bottom:8px;">
+      <div style="font-size:12px;color:#64748B;width:88px;flex-shrink:0;text-align:right;">${b.label}</div>
+      <div style="flex:1;height:8px;background:#E2E8F0;border-radius:4px;overflow:hidden;">
+        <div style="width:${b.pct}%;height:100%;background:${b.color};border-radius:4px;"></div>
+      </div>
+      <div style="font-size:12px;color:#0F172A;width:44px;text-align:right;">${b.count}</div>
+    </div>`).join("");
+
+  const heatmap = d.showHeat ? `
+    <div style="padding:14px 20px;border-bottom:0.5px solid #F1F5F9;">
+      <div style="font-size:11px;font-weight:500;color:#94A3B8;text-transform:uppercase;letter-spacing:.05em;margin-bottom:10px;">Access heatmap — by hour (Mon–Sun)</div>
+      <div style="display:grid;grid-template-columns:repeat(24,1fr);gap:2px;margin-bottom:4px;">
+        ${Array.from({length:24},(_,h)=>{
+          const intensity = h<8?0.05:h<9?0.2:h<12?0.7:h<13?0.4:h<17?0.85:h<19?0.5:h<22?0.25:0.08;
+          return `<div title="${h}:00" style="height:24px;border-radius:2px;background:${COLOR};opacity:${intensity};"></div>`;
+        }).join("")}
+      </div>
+      <div style="display:flex;justify-content:space-between;font-size:10px;color:#94A3B8;">
+        <span>12 AM</span><span>6 AM</span><span>12 PM</span><span>6 PM</span><span>11 PM</span>
+      </div>
+    </div>` : "";
+
+  const threats = d.threatRows.map(t=>`
+    <div style="padding:10px 14px;border-bottom:0.5px solid #F1F5F9;display:flex;align-items:flex-start;gap:10px;">
+      <div style="flex-shrink:0;margin-top:2px;">
+        <span style="display:inline-block;font-size:10px;font-weight:500;padding:2px 7px;border-radius:10px;background:${SEV[t.sev].bg};color:${SEV[t.sev].color};">${SEV[t.sev].label}</span>
+      </div>
+      <div style="flex:1;min-width:0;">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:2px;gap:8px;">
+          <span style="font-size:12px;font-weight:500;color:#0F172A;">${t.label}</span>
+          <span style="font-size:10px;color:#94A3B8;flex-shrink:0;">${t.time}</span>
+        </div>
+        <div style="font-size:11px;color:#64748B;line-height:1.5;">${t.detail}</div>
+      </div>
+      <div style="flex-shrink:0;margin-top:2px;">
+        ${t.resolved
+          ? `<span style="font-size:10px;color:#059669;background:#ECFDF5;padding:2px 7px;border-radius:10px;">Resolved</span>`
+          : `<span style="font-size:10px;color:#F59E0B;background:#FFFBEB;padding:2px 7px;border-radius:10px;">Open</span>`}
+      </div>
+    </div>`).join("");
+
+  root.innerHTML = `
+    <div style="display:flex;gap:6px;margin-bottom:16px;">${tabs}</div>
+    <div style="background:#fff;border:0.5px solid #E2E8F0;border-radius:12px;overflow:hidden;">
+
+      <div style="padding:20px 20px 16px;border-bottom:0.5px solid #F1F5F9;">
+        <div style="display:inline-flex;align-items:center;gap:5px;font-size:11px;font-weight:500;padding:3px 10px;border-radius:20px;background:${d.badgeColor};color:${d.badgeText};margin-bottom:8px;">${d.badge}</div>
+        <div style="font-size:17px;font-weight:500;color:#0F172A;margin-bottom:2px;">${d.title}</div>
+        <div style="font-size:12px;color:#94A3B8;">TechServe India · 2,000 employees · PRANA live 7 months</div>
+      </div>
+
+      <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:10px;padding:16px 20px;border-bottom:0.5px solid #F1F5F9;">${stats}</div>
+
+      ${heatmap}
+
+      <div style="padding:16px 20px;border-bottom:0.5px solid #F1F5F9;">
+        <div style="font-size:11px;font-weight:500;color:#94A3B8;text-transform:uppercase;letter-spacing:.05em;margin-bottom:10px;">${d.barsTitle}</div>
+        ${bars}
+      </div>
+
+      <div style="border-bottom:0.5px solid #F1F5F9;">
+        <div style="padding:12px 14px 4px;font-size:11px;font-weight:500;color:#94A3B8;text-transform:uppercase;letter-spacing:.05em;">Incidents & events</div>
+        ${threats}
+      </div>
+
+      <div style="padding:14px 20px;background:${COLOR};display:flex;align-items:center;justify-content:space-between;cursor:pointer;">
+        <span style="font-size:13px;font-weight:500;color:#fff;">${d.cta}</span>
+        <span style="color:#fff;font-size:18px;">→</span>
+      </div>
+
+      <div style="padding:10px 20px;font-size:11px;color:#94A3B8;display:flex;justify-content:space-between;">
+        <span>PRANA · TechServe India · InfoSec digest</span><span>Settings · Unsubscribe</span>
+      </div>
+    </div>`;
+}
+
+window.setCur = k => { cur=k; render(); };
+render();
+</script>
+</body>
+</html>

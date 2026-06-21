@@ -60,7 +60,7 @@ def _svc(request: Request, db: DbConn) -> EmployeeService:
     )
 
 
-@router.get("", status_code=status.HTTP_200_OK, dependencies=[OAUser])
+@router.get("", status_code=status.HTTP_200_OK, dependencies=[OAOperator])
 async def search_employees(
     request: Request,
     db: DbConn,
@@ -109,7 +109,7 @@ async def create_employee(
     return result
 
 
-@router.get("/{employee_uuid}", status_code=status.HTTP_200_OK, dependencies=[OAUser])
+@router.get("/{employee_uuid}", status_code=status.HTTP_200_OK, dependencies=[OAOperator])
 async def get_employee(
     employee_uuid: str,
     request: Request,

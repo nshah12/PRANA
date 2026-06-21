@@ -134,7 +134,7 @@ def create_app() -> FastAPI:
         tenants, employees, oa_users, ingest, elevations, exceptions,
         vault, share_access, compliance, dpdp,
         chro, cfo, ciso, pa_admin, org_settings, sessions,
-        ask, public,
+        ask, public, doc_manifest,
     )
     # ── Unversioned — internal/auth (no external HRMS callers) ───────────────────
     app.include_router(auth_employee.router, prefix="/auth/employee",        tags=["auth"])
@@ -164,6 +164,7 @@ def create_app() -> FastAPI:
     app.include_router(cfo.router,           prefix="/v1/cfo",               tags=["v1:cfo"])
     app.include_router(ciso.router,          prefix="/v1/ciso",              tags=["v1:ciso"])
     app.include_router(ask.router,           prefix="/v1/ask",               tags=["v1:ask"])
+    app.include_router(doc_manifest.router,                                  tags=["v1:manifests"])
 
     # ── v2 — mount here when ready (import v2 routers from routers/v2/) ────────
     # from routers.v2 import ingest as ingest_v2

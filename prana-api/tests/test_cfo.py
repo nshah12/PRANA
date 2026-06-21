@@ -172,6 +172,37 @@ async def test_cfo_tenant_isolation_blocks_cross_tenant(client, mock_db):
         assert "tenant-001" in args, f"DB call missing tenant scope: {call}"
 
 
+# -- Anomaly list --------------------------------------------------------------
+
+@pytest.mark.asyncio
+async def test_cfo_anomalies_list_shape(client, mock_db):
+    """GET /anomalies returns anomalies keyed by rule_name (not anomaly_type)."""
+    _set_auth(client)
+    mock_db.fetch.return_value = [
+        {
+            "anomaly_id": "anom-uuid-001",
+            "type": "BULK_ACCESS",        # asyncpg returns the column alias
+            "financial_pattern": "high_volume",
+            "detected_at": None,
+            "severity": "P1",
+            "status": "OPEN",
+        }
+    ]
+    resp = await client.get("/v1/cfo/anomalies", headers=AUTH_HEADER)
+    assert resp.status_code == 200
+    data = resp.json()
+    assert "anomalies" in data
+    assert data["total"] == 1
+    assert data["anomalies"][0]["type"] == "BULK_ACCESS"
+
+
+@pytest.mark.asyncio
+async def test_cfo_anomalies_requires_cfo_role(client, mock_db):
+    _set_auth(client, role="oa_operator")
+    resp = await client.get("/v1/cfo/anomalies", headers=AUTH_HEADER)
+    assert resp.status_code == 403
+
+
 # -- Anomaly acknowledgement ---------------------------------------------------
 
 @pytest.mark.asyncio
@@ -206,3 +237,114 @@ async def test_cfo_anomaly_acknowledge_missing_returns_404(client, mock_db):
     )
 
     assert resp.status_code == 404
+
+
+# ── Digest endpoints ──────────────────────────────────────────────────────────
+
+def _digest_db_setup(mock_db):
+    """Configure mock_db with enough side_effects for CFO digest (all periods)."""
+    import json as _json
+    mock_db.fetchval.side_effect = [1997, 22, 11, 2]
+    mock_db.fetchrow.side_effect = [
+        {"config_value": "1500000"},
+        {"config_value": "150000"},
+        {"config_value": "2050"},
+    ]
+    mock_db.fetch.side_effect = [
+        [{"doc_type": "SALARY_SLIP", "covered": 1960}],
+        [{"department": "Engineering", "cnt": 800}],
+    ]
+
+
+@pytest.mark.asyncio
+async def test_cfo_weekly_digest_shape(client, mock_db):
+    _set_auth(client)
+    _digest_db_setup(mock_db)
+    resp = await client.get("/v1/cfo/digest/weekly", headers=AUTH_HEADER)
+    assert resp.status_code == 200
+    d = resp.json()["digest"]
+    assert "from" in d and "to" in d
+    assert "period" not in d
+    assert d["headcount"] == 1997
+    assert d["exits"] == 22
+    assert d["joiners"] == 11
+    assert d["anomalies_pending"] == 2
+    assert "cost_indicators" in d
+    assert "note" in d["cost_indicators"]
+
+
+@pytest.mark.asyncio
+async def test_cfo_monthly_digest_shape(client, mock_db):
+    _set_auth(client)
+    _digest_db_setup(mock_db)
+    resp = await client.get("/v1/cfo/digest/monthly", headers=AUTH_HEADER)
+    assert resp.status_code == 200
+    assert "from" in resp.json()["digest"]
+
+
+@pytest.mark.asyncio
+async def test_cfo_quarterly_digest_shape(client, mock_db):
+    _set_auth(client)
+    _digest_db_setup(mock_db)
+    resp = await client.get("/v1/cfo/digest/quarterly", headers=AUTH_HEADER)
+    assert resp.status_code == 200
+    assert "from" in resp.json()["digest"]
+
+
+@pytest.mark.asyncio
+async def test_cfo_digest_rejects_range_over_184_days(client, mock_db):
+    _set_auth(client)
+    resp = await client.get(
+        "/v1/cfo/digest/weekly?from=2025-01-01&to=2025-08-05",
+        headers=AUTH_HEADER,
+    )
+    assert resp.status_code == 400
+    assert resp.json()["detail"]["error"] == "DATE_RANGE_TOO_LARGE"
+
+
+@pytest.mark.asyncio
+async def test_cfo_digest_privacy(client, mock_db):
+    """cost_indicators must never leak raw salary — only CFO estimates."""
+    _set_auth(client)
+    _digest_db_setup(mock_db)
+    resp = await client.get("/v1/cfo/digest/weekly", headers=AUTH_HEADER)
+    import json as _j
+    text = _j.dumps(resp.json()).lower()
+    assert "pan" not in text
+    assert "nik" not in text
+    # cost_indicators.note must confirm these are estimates
+    note = resp.json()["digest"]["cost_indicators"]["note"].lower()
+    assert "estimate" in note
+
+
+@pytest.mark.asyncio
+async def test_cfo_digest_settings_get(client, mock_db):
+    _set_auth(client)
+    import json as _json
+    mock_db.fetchrow.return_value = {
+        "config_value": _json.dumps({"recipients": ["cfo@corp.in"], "active": False,
+                                      "schedules": {}, "sections": [], "format": "email"})
+    }
+    resp = await client.get("/v1/cfo/digest/settings", headers=AUTH_HEADER)
+    assert resp.status_code == 200
+    assert "digest_settings" in resp.json()
+
+
+@pytest.mark.asyncio
+async def test_cfo_digest_settings_put(client, mock_db):
+    _set_auth(client)
+    mock_db.execute.return_value = None
+    body = {"recipients": ["cfo@corp.in"], "schedules": {}, "sections": [], "format": "email", "active": True}
+    resp = await client.put("/v1/cfo/digest/settings", headers=AUTH_HEADER, json=body)
+    assert resp.status_code == 200
+    mock_db.execute.assert_called_once()
+
+
+@pytest.mark.asyncio
+async def test_cfo_digest_requires_auth(client):
+    jwt = client.app.state.jwt_service
+    jwt.decode = MagicMock(return_value={"sub": "x", "user_type": "oa_user", "role": "cfo",
+                                          "tenant_id": "tenant-001", "jti": "s"})
+    jwt.is_revoked = AsyncMock(return_value=True)
+    resp = await client.get("/v1/cfo/digest/weekly", headers=AUTH_HEADER)
+    assert resp.status_code in (401, 403)

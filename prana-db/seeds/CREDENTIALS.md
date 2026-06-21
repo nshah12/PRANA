@@ -1,9 +1,10 @@
 # PRANA Dev Credentials
 
-> Seed files: `dev_seed.sql` → `dev_seed_emp_auth.sql` → `dev_seed_rich10.sql`  
-> All passwords: **`DevEmp@123`**  
-> TOTP: **each OA user sets up their own** — portal shows a unique QR code on first login after password auth. Scan with any TOTP app (Google Authenticator, Authy, etc.), enter the 6-digit code, done. Subsequent logins: password + live TOTP code.  
-> Employee OTP: SMS-based (enter the code received on mobile)
+> Reset script: `cd prana-api && python scripts/reset_dev.py`  
+> All passwords: **`Prana@Admin0124`**  
+> TOTP (OA users + Portal Admin): **fixed dev secret `JBSWY3DPEHPK3PXP`** — add this manually to your authenticator app once, it works for ALL accounts forever across every reset.  
+> Add to authenticator: open app → Add account → Enter setup key → type `JBSWY3DPEHPK3PXP` → name it "PRANA Dev"  
+> Employee OTP: SMS-based — use `123456` in dev
 
 ---
 
@@ -52,42 +53,36 @@ Emp 005–010, stints > 24 months add: Promotion Letter
 
 ## Portal OA Credentials
 
-Login URL: `http://localhost:3000/org/login`
+Login URL: `http://localhost:3000/org/login`  
+**All passwords: `Prana@Admin0124`**
 
 **First login flow:** enter email → enter password → portal detects TOTP not configured → shows QR code → scan with authenticator app → enter 6-digit code to confirm → TOTP registered. All subsequent logins: email + password + live 6-digit TOTP code.
 
-### TechCorp (tenant 1)
+### TechCorp Solutions — 86 documents (tenant with all 5 roles)
 
 | Role | Email | Password | What they can do |
 |------|-------|----------|-----------------|
-| OA-Admin | admin@techcorp.in | DevEmp@123 | Full admin: users, exceptions, elevations |
-| OA-Operator | operator@techcorp.in | DevEmp@123 | Upload docs, view exception queue |
-| CHRO | chro@techcorp.in | DevEmp@123 | Vault completeness, workforce digest |
-| CFO | cfo@techcorp.in | DevEmp@123 | Financial analytics, anomaly acknowledgement |
-| CISO | ciso@techcorp.in | DevEmp@123 | Security dashboard, access logs, force-logout |
+| OA-Admin | admin@techcorp.in | Prana@Admin0124 | Full admin: users, exceptions, elevations |
+| OA-Operator | operator@techcorp.in | Prana@Admin0124 | Upload docs, view exception queue |
+| CHRO | chro@techcorp.in | Prana@Admin0124 | Vault completeness, workforce digest |
+| CFO | cfo@techcorp.in | Prana@Admin0124 | Financial analytics, anomaly acknowledgement |
+| CISO | ciso@techcorp.in | Prana@Admin0124 | Security dashboard, access logs, force-logout |
 
-### ABCD Bank (tenant 2)
-| Role | Email | Password |
-|------|-------|----------|
-| OA-Admin | admin@abcdbank.in | DevEmp@123 (force_reset=TRUE — set on first login) |
-| OA-Operator | operator@abcdbank.in | DevEmp@123 (force_reset=TRUE) |
+### Other Orgs with Documents
 
-### PQRS Fintech (tenant 3)
-| Role | Email | Password |
-|------|-------|----------|
-| OA-Admin | admin@pqrsfintech.in | DevEmp@123 (force_reset=TRUE) |
-| OA-Operator | operator@pqrsfintech.in | DevEmp@123 (force_reset=TRUE) |
+| Org | Email | Password | Documents |
+|-----|-------|----------|-----------|
+| Nexus Software | admin@nexussoftware.in | Prana@Admin0124 | 96 |
+| Meridian Capital | admin@meridiancapital.in | Prana@Admin0124 | 86 |
+| Zephyr Analytics | admin@zephyranalytics.in | Prana@Admin0124 | 76 |
+| Pinnacle Manufacturing | admin@pinnacleindia.in | Prana@Admin0124 | 66 |
+| Horizon Consulting | admin@horizonconsulting.in | Prana@Admin0124 | 55 |
+| Aurora Pharma | admin@aurorapharma.in | Prana@Admin0124 | 44 |
+| Cascade Retail | admin@cascaderetail.in | Prana@Admin0124 | 33 |
+| ABCD Bank | admin@abcdbank.in | Prana@Admin0124 | 22 |
+| PQRS Fintech | admin@pqrsfintech.in | Prana@Admin0124 | 11 |
 
-### Alumni Org Admins (tenants 4–10, for uploading historical docs)
-| Org | Email | Password |
-|-----|-------|----------|
-| Nexus Software | admin@nexussoftware.in | DevEmp@123 |
-| Meridian Capital | admin@meridiancapital.in | DevEmp@123 |
-| Zephyr Analytics | admin@zephyranalytics.in | DevEmp@123 |
-| Pinnacle Manufacturing | admin@pinnacleindia.in | DevEmp@123 |
-| Horizon Consulting | admin@horizonconsulting.in | DevEmp@123 |
-| Aurora Pharma | admin@aurorapharma.in | DevEmp@123 |
-| Cascade Retail | admin@cascaderetail.in | DevEmp@123 |
+> Note: `admin@technova.in` and other `@*.in` test org admins have 0 documents — use the orgs above.
 
 ---
 

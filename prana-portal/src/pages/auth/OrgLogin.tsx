@@ -70,7 +70,7 @@ export function OrgLogin() {
       if (res.data.requires_password_reset) {
         navigate('/org/reset')
       } else {
-        navigate('/org/totp')
+        navigate(`/org/totp?setup=${res.data.requires_totp_setup ? '1' : '0'}`)
       }
     } catch (e: any) {
       setError(e.response?.data?.detail ?? 'Login failed. Check your credentials.')

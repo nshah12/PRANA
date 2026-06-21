@@ -4,7 +4,7 @@ import { api } from '@/lib/api'
 export function Benchmarking() {
   const { data, isLoading, isError, refetch } = useQuery({
     queryKey: ['cfo-benchmarking'],
-    queryFn: () => api.get('/cfo/benchmarking').then(r => r.data),
+    queryFn: () => api.get('/v1/cfo/benchmarking').then(r => r.data),
   })
 
   if (isLoading) return (

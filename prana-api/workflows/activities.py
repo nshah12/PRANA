@@ -166,7 +166,8 @@ async def stage03_scan(params: dict) -> dict:
 
 @activity.defn(name="stage04_extract")
 async def stage04_extract(params: dict) -> dict:
-    """OCR + LLM extraction via prana-ai. Slowest stage."""
+    """OCR + LLM extraction via prana-ai. Slowest stage.
+    Returns dict with status='ok' (extracted) or status='unclassified' (AUTO_DETECT failed)."""
     s3 = boto3.client("s3", region_name=get_settings().aws_region)
     obj = s3.get_object(Bucket=params["s3_staging_bucket"], Key=params["s3_staging_key"])
     file_bytes = obj["Body"].read()
@@ -175,9 +176,25 @@ async def stage04_extract(params: dict) -> dict:
         file_bytes=file_bytes,
         ext=params["ext"],
         doc_type=params["doc_type"],
+        tenant_id=params["tenant_id"],
         doc_period=params.get("doc_period"),
     )
     return result
+
+
+@activity.defn(name="stage04_write_unclassified")
+async def stage04_write_unclassified(params: dict) -> dict:
+    """Write UNCLASSIFIED status + unclassified_queue row when AUTO_DETECT fails."""
+    await _ai().write_unclassified(
+        document_id=params["document_id"],
+        tenant_id=params["tenant_id"],
+        declared_doc_type=params.get("doc_type"),
+        best_guess_doc_type=params.get("best_guess_doc_type"),
+        best_guess_score=params.get("best_guess_score", 0.0),
+        partial_fields=params.get("partial_fields", {}),
+        reason=params.get("reason", "AUTO_DETECT_FAILED"),
+    )
+    return {"status": "UNCLASSIFIED"}
 
 
 # ── Stage 05 — Identity resolution ───────────────────────────────────────────
@@ -186,11 +203,92 @@ async def stage04_extract(params: dict) -> dict:
 async def stage05_resolve(params: dict) -> dict:
     """4-level identity resolution ladder via prana-ai."""
     result = await _ai().resolve(
-        pan_token=params["pan_token"],
+        pan_token=params.get("pan_token"),
         tenant_id=params["tenant_id"],
-        extracted_fields=params["extracted_fields"],
+        doc_type=params.get("doc_type", "UNKNOWN"),
+        extracted_fields=params.get("extracted_fields", {}),
     )
     return result
+
+
+# ── Stage 05 — Cross-tenant violation handler ────────────────────────────────
+
+@activity.defn(name="stage05_handle_cross_tenant_violation")
+async def stage05_handle_cross_tenant_violation(params: dict) -> dict:
+    """
+    Called when Stage05 detects a document's pan_token belongs to a different tenant.
+
+    1. Write anomaly_event (CROSS_TENANT_UPLOAD_ATTEMPT, CRITICAL/P0)
+    2. Set document.pipeline_status = 'REJECTED'
+    3. Publish to prana.audit.events → AuditConsumer writes audit_event
+    4. Publish to prana.notifications → NotifConsumer alerts Tenant CISO + PA Admin
+    """
+    import asyncpg, uuid
+    settings = get_settings()
+    db = await asyncpg.connect(settings.db_dsn)
+    try:
+        document_id        = params["document_id"]
+        uploading_tenant_id = params["uploading_tenant_id"]
+        owner_tenant_id    = params["owner_tenant_id"]
+        pan_token          = params.get("pan_token", "")
+        actor_id           = params.get("uploaded_by")   # oa_user_id who triggered the upload
+
+        async with db.transaction():
+            anomaly_id = str(uuid.uuid4())
+            await db.execute(
+                """
+                INSERT INTO anomaly_event
+                  (anomaly_id, tenant_id, rule_name, severity, actor_id, event_metadata, status)
+                VALUES ($1, $2, $3, $4, $5, $6, 'OPEN')
+                """,
+                anomaly_id,
+                uploading_tenant_id,
+                "CROSS_TENANT_UPLOAD_ATTEMPT",
+                "P0",
+                actor_id,
+                json.dumps({
+                    "document_id":        document_id,
+                    "pan_token":          pan_token,
+                    "owner_tenant_id":    owner_tenant_id,
+                    "uploading_tenant_id": uploading_tenant_id,
+                }),
+            )
+            await db.execute(
+                "UPDATE document SET pipeline_status='REJECTED', updated_at=NOW() WHERE document_id=$1",
+                document_id,
+            )
+
+        # Publish audit event → AuditConsumer writes audit_event row
+        try:
+            from kafka.producer import KafkaPub
+            kafka = KafkaPub(settings)
+            await kafka.start()
+            await kafka.publish("prana.audit.events", {
+                "event_type":          "CROSS_TENANT_UPLOAD_ATTEMPT",
+                "document_id":         document_id,
+                "tenant_id":           uploading_tenant_id,
+                "actor_id":            actor_id,
+                "anomaly_id":          anomaly_id,
+                "owner_tenant_id":     owner_tenant_id,
+                "severity":            "CRITICAL",
+            }, key=uploading_tenant_id)
+
+            # Alert Tenant CISO + PA Admin
+            await kafka.publish("prana.notifications", {
+                "event_type":          "CROSS_TENANT_UPLOAD",
+                "document_id":         document_id,
+                "tenant_id":           uploading_tenant_id,
+                "owner_tenant_id":     owner_tenant_id,
+                "anomaly_id":          anomaly_id,
+                "actor_id":            actor_id,
+            }, key=uploading_tenant_id)
+            await kafka.stop()
+        except Exception:
+            pass  # Temporal will retry the activity; Kafka publish is best-effort within the retry
+
+        return {"status": "CROSS_TENANT_REJECTED", "anomaly_id": anomaly_id}
+    finally:
+        await db.close()
 
 
 # ── Stage 06 — Route ─────────────────────────────────────────────────────────

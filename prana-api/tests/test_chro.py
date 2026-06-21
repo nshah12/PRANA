@@ -335,46 +335,141 @@ async def test_alert_config_ignores_unknown_keys(client, mock_db):
 @pytest.mark.asyncio
 async def test_weekly_digest_shape(client, mock_db):
     _set_auth(client)
-    mock_db.fetchval.side_effect = [5, 2]
-    mock_db.fetchrow.side_effect = [
-        {"score": 78},
-        {
-            "obligation_name": "Form 16 issuance",
-            "statutory_ref":   "IT Act 1961, S.203",
-            "deadline":        "2025-06-15",
-            "status":          "PENDING",
-        },
+    # fetchval calls in order: docs_processed, vault_score, exceptions_open,
+    #                          alumni_self_served, active_employees
+    mock_db.fetchval.side_effect = [214, 87.2, 4, 7, 1997]
+    mock_db.fetch.side_effect = [
+        [{"doc_type": "SALARY_SLIP", "cnt": 158}],
+        [{"department": "Engineering", "score": 93.0}],
     ]
 
     resp = await client.get("/v1/chro/digest/weekly", headers=AUTH_HEADER)
 
     assert resp.status_code == 200
     data = resp.json()
-    assert "overall_score" in data
-    assert "docs_pushed_this_week" in data
-    assert "open_exceptions" in data
-    # next_deadline must be an object (not a string) — changed in audit-grade version
-    if data["next_deadline"] is not None:
-        assert "statutory_ref" in data["next_deadline"]
-        assert "deadline" in data["next_deadline"]
+    assert "digest" in data
+    d = data["digest"]
+    assert d["docs_processed"] == 214
+    assert d["vault_completeness_pct"] == 87.2
+    assert d["exceptions_open"] == 4
+    assert d["alumni_self_served"] == 7
+    assert d["active_employees"] == 1997
+    assert isinstance(d["docs_by_type"], list)
+    assert isinstance(d["vault_by_department"], list)
+    assert "from" in d and "to" in d
+    assert "period" not in d
 
 
 @pytest.mark.asyncio
-async def test_monthly_summary_shape(client, mock_db):
+async def test_monthly_digest_shape(client, mock_db):
     _set_auth(client)
-    mock_db.fetchval.side_effect = [120, 40, 35, 3, 2]
-    mock_db.fetchrow.return_value = {"score": 80}
+    mock_db.fetchval.side_effect = [912, 87.0, 3, 43, 1848]
+    mock_db.fetch.side_effect = [
+        [{"doc_type": "FORM_16", "cnt": 200}],
+        [{"department": "Sales", "score": 81.0}],
+    ]
 
     resp = await client.get("/v1/chro/digest/monthly", headers=AUTH_HEADER)
 
     assert resp.status_code == 200
     data = resp.json()
-    assert "vault_health_current" in data
-    assert "docs_pushed" in data
-    assert "docs_pushed_prev" in data
-    assert "active_employees" in data
-    assert "open_exceptions" in data
-    assert "overdue_obligations" in data
+    assert "digest" in data
+    d = data["digest"]
+    assert "from" in d and "to" in d
+    assert d["docs_processed"] == 912
+    assert d["vault_completeness_pct"] == 87.0
+
+
+@pytest.mark.asyncio
+async def test_quarterly_digest_shape(client, mock_db):
+    _set_auth(client)
+    mock_db.fetchval.side_effect = [19200, 87.0, 0, 112, 1997]
+    mock_db.fetch.side_effect = [[], []]
+
+    resp = await client.get("/v1/chro/digest/quarterly", headers=AUTH_HEADER)
+
+    assert resp.status_code == 200
+    assert "from" in resp.json()["digest"]
+
+
+@pytest.mark.asyncio
+async def test_digest_custom_date_range(client, mock_db):
+    """from/to query params override the period preset."""
+    _set_auth(client)
+    mock_db.fetchval.side_effect = [50, 82.0, 1, 3, 900]
+    mock_db.fetch.side_effect = [[], []]
+
+    resp = await client.get(
+        "/v1/chro/digest/weekly?from=2026-01-01&to=2026-01-31",
+        headers=AUTH_HEADER,
+    )
+    assert resp.status_code == 200
+    d = resp.json()["digest"]
+    assert d["from"] == "2026-01-01"
+    assert d["to"] == "2026-01-31"
+
+
+@pytest.mark.asyncio
+async def test_digest_rejects_range_over_184_days(client, mock_db):
+    """Backend must return 400 when date range exceeds 184 days."""
+    _set_auth(client)
+    resp = await client.get(
+        "/v1/chro/digest/weekly?from=2025-01-01&to=2025-08-05",
+        headers=AUTH_HEADER,
+    )
+    assert resp.status_code == 400
+    assert resp.json()["detail"]["error"] == "DATE_RANGE_TOO_LARGE"
+
+
+@pytest.mark.asyncio
+async def test_digest_rejects_future_to_date(client, mock_db):
+    """to_date in the future must be rejected."""
+    _set_auth(client)
+    resp = await client.get(
+        "/v1/chro/digest/weekly?from=2026-06-01&to=2030-01-01",
+        headers=AUTH_HEADER,
+    )
+    assert resp.status_code == 400
+    assert resp.json()["detail"]["error"] == "DATE_RANGE_FUTURE"
+
+
+@pytest.mark.asyncio
+async def test_digest_settings_get(client, mock_db):
+    _set_auth(client)
+    import json as _json
+    mock_db.fetchrow.return_value = {
+        "config_value": _json.dumps({"recipients": ["chro@corp.in"], "active": True,
+                                      "schedules": {}, "sections": [], "format": "email"})
+    }
+    resp = await client.get("/v1/chro/digest/settings", headers=AUTH_HEADER)
+    assert resp.status_code == 200
+    assert "digest_settings" in resp.json()
+    assert resp.json()["digest_settings"]["recipients"] == ["chro@corp.in"]
+
+
+@pytest.mark.asyncio
+async def test_digest_settings_put(client, mock_db):
+    _set_auth(client)
+    mock_db.execute.return_value = None
+    body = {
+        "recipients": ["chro@corp.in"],
+        "schedules": {"weekly": {"enabled": True, "day": "MON", "time": "08:00"}},
+        "sections": ["vault_health"],
+        "format": "email",
+        "active": True,
+    }
+    resp = await client.put("/v1/chro/digest/settings", headers=AUTH_HEADER, json=body)
+    assert resp.status_code == 200
+    mock_db.execute.assert_called_once()
+
+
+@pytest.mark.asyncio
+async def test_digest_requires_auth(client):
+    _revoke_all(client)
+    for path in ["/v1/chro/digest/weekly", "/v1/chro/digest/monthly",
+                 "/v1/chro/digest/quarterly", "/v1/chro/digest/settings"]:
+        resp = await client.get(path, headers=AUTH_HEADER)
+        assert resp.status_code in (401, 403), f"{path} should require auth"
 
 
 # ── 5. Privacy contract — no raw ₹ salary figures ────────────────────────────

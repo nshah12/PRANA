@@ -26,7 +26,7 @@ function ToggleRow({ label, sub, on, onChange }: { label: string; sub: string; o
 export function EmpSettings() {
   const { data, isLoading, isError, refetch } = useQuery({
     queryKey: ['emp-vault-profile'],
-    queryFn: () => api.get('/vault/profile').then(r => r.data),
+    queryFn: () => api.get('/v1/vault/profile').then(r => r.data),
   })
 
   if (isLoading) return (

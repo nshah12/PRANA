@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useNavigate, useSearchParams } from 'react-router-dom'
 import QRCode from 'qrcode'
 import { api } from '@/lib/api'
 import { useAuthStore, AuthUser } from '@/store/auth'
@@ -107,7 +107,10 @@ const TOTP_APPS = [
 
 export function OrgTotp() {
   const navigate = useNavigate()
-  const { stepToken, requiresTotpSetup, setStepToken, setRequiresTotpSetup, setUser, setAccessToken } = useAuthStore()
+  const [searchParams] = useSearchParams()
+  const { stepToken, setStepToken, setRequiresTotpSetup, setUser, setAccessToken } = useAuthStore()
+  // Read from URL param — avoids stale Zustand state from a previous login session
+  const requiresTotpSetup = searchParams.get('setup') === '1'
 
   const [setupPhase, setSetupPhase]   = useState<'loading' | 'install' | 'qr' | 'verify'>('loading')
   const [qrDataUrl, setQrDataUrl]     = useState('')

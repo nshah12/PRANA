@@ -20,6 +20,7 @@ from fastapi.responses import JSONResponse
 
 from config import get_settings
 from llm_client import LLMClient, EmbeddingClient, QdrantClient
+from manifest.manifest_client import ManifestClient
 from pipeline.stage03_scan import Stage03Scan
 from pipeline.stage04_extract import Stage04Extract
 from pipeline.stage05_resolve import Stage05Resolve
@@ -50,9 +51,16 @@ async def lifespan(app: FastAPI):
         api_key=s.qdrant_api_key or None,
     )
 
+    # ManifestClient — shared across stage04 (extraction) and stage05 (resolution)
+    app.state.manifest_client = ManifestClient(
+        prana_api_base_url=s.prana_api_base_url,
+        internal_token=s.internal_service_token,
+    )
+
     app.state.stage03 = Stage03Scan(clamd_socket=s.clamd_socket)
     app.state.stage04 = Stage04Extract(
         llm_client=app.state.llm_client,
+        manifest_client=app.state.manifest_client,
         aws_region=s.aws_region,
     )
 
