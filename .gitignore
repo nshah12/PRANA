@@ -29,3 +29,11 @@ dist/
 # OS
 .DS_Store
 Thumbs.db
+
+prana-mobile/
+
+prana-api/uvicorn.err
+prana-portal/vite.err
+
+prana-api/uvicorn.err
+prana-portal/vite.err
