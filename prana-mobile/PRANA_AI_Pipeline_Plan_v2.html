@@ -1,0 +1,1743 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>PRANA · AI Document Intelligence Pipeline</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+/* ── TOKENS ─────────────────────────────────────────────────────── */
+:root {
+  --bg:        #0B1629;
+  --bg2:       #111f38;
+  --bg3:       #162640;
+  --card:      #1a2e4a;
+  --card2:     #1e3550;
+  --border:    #243d5e;
+  --border2:   #2e5080;
+  --teal:      #00C896;
+  --teal-dim:  #00956e;
+  --teal-glow: rgba(0,200,150,0.12);
+  --blue:      #3B9EFF;
+  --blue-dim:  #1a7ee0;
+  --amber:     #FFB547;
+  --amber-dim: #cc8f30;
+  --red:       #FF6B6B;
+  --violet:    #9B7FFF;
+  --text:      #F0EDE6;
+  --text2:     #a8bdd4;
+  --text3:     #6a8aaa;
+  --mono:      'JetBrains Mono', monospace;
+  --sans:      'Inter', sans-serif;
+}
+
+/* ── RESET ──────────────────────────────────────────────────────── */
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+html { scroll-behavior: smooth; }
+body {
+  font-family: var(--sans);
+  background: var(--bg);
+  color: var(--text);
+  font-size: 14px;
+  line-height: 1.7;
+}
+
+/* ── LAYOUT ─────────────────────────────────────────────────────── */
+.page { max-width: 1080px; margin: 0 auto; padding: 0 2rem 6rem; }
+
+/* ── HERO ───────────────────────────────────────────────────────── */
+.hero {
+  padding: 4rem 0 3rem;
+  border-bottom: 1px solid var(--border);
+}
+.hero-eyebrow {
+  font-family: var(--mono);
+  font-size: 11px;
+  letter-spacing: 0.18em;
+  color: var(--teal);
+  text-transform: uppercase;
+  margin-bottom: 1.2rem;
+}
+.hero h1 {
+  font-family: var(--mono);
+  font-size: clamp(1.6rem, 4vw, 2.6rem);
+  font-weight: 700;
+  color: var(--text);
+  line-height: 1.2;
+  margin-bottom: 0.8rem;
+}
+.hero h1 span { color: var(--teal); }
+.hero-sub {
+  font-size: 15px;
+  color: var(--text2);
+  max-width: 640px;
+  margin-bottom: 2rem;
+}
+.hero-tags { display: flex; gap: 0.6rem; flex-wrap: wrap; }
+.tag {
+  font-family: var(--mono);
+  font-size: 10px;
+  padding: 3px 10px;
+  border-radius: 3px;
+  border: 1px solid;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+.tag-teal  { border-color: var(--teal);   color: var(--teal);   background: rgba(0,200,150,0.06); }
+.tag-blue  { border-color: var(--blue);   color: var(--blue);   background: rgba(59,158,255,0.06); }
+.tag-amber { border-color: var(--amber);  color: var(--amber);  background: rgba(255,181,71,0.06); }
+.tag-violet{ border-color: var(--violet); color: var(--violet); background: rgba(155,127,255,0.06);}
+.tag-red   { border-color: var(--red);    color: var(--red);    background: rgba(255,107,107,0.06);}
+
+/* ── SECTION ────────────────────────────────────────────────────── */
+.section { margin-top: 4rem; }
+.section-label {
+  font-family: var(--mono);
+  font-size: 10px;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  color: var(--text3);
+  margin-bottom: 0.5rem;
+}
+.section h2 {
+  font-family: var(--mono);
+  font-size: 1.25rem;
+  font-weight: 600;
+  color: var(--text);
+  margin-bottom: 0.6rem;
+}
+.section h2 .accent { color: var(--teal); }
+.section-intro {
+  color: var(--text2);
+  font-size: 14px;
+  max-width: 760px;
+  margin-bottom: 2rem;
+  border-left: 2px solid var(--teal);
+  padding-left: 1rem;
+}
+
+/* ── PIPELINE DIAGRAM ───────────────────────────────────────────── */
+.pipeline-wrap {
+  margin: 3rem 0;
+  overflow-x: auto;
+  padding-bottom: 1rem;
+}
+.pipeline {
+  display: flex;
+  align-items: stretch;
+  gap: 0;
+  min-width: 800px;
+}
+.pipe-stage {
+  flex: 1;
+  background: var(--card);
+  border: 1px solid var(--border);
+  padding: 1.4rem 1.2rem;
+  position: relative;
+  transition: border-color 0.2s;
+}
+.pipe-stage:hover { border-color: var(--teal); }
+.pipe-stage + .pipe-stage { border-left: none; }
+.pipe-stage::after {
+  content: '→';
+  position: absolute;
+  right: -14px;
+  top: 50%;
+  transform: translateY(-50%);
+  font-family: var(--mono);
+  font-size: 18px;
+  color: var(--teal);
+  z-index: 2;
+  background: var(--bg);
+  padding: 2px 2px;
+}
+.pipe-stage:last-child::after { display: none; }
+.pipe-num {
+  font-family: var(--mono);
+  font-size: 10px;
+  color: var(--teal);
+  letter-spacing: 0.1em;
+  margin-bottom: 0.5rem;
+}
+.pipe-title {
+  font-family: var(--mono);
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text);
+  margin-bottom: 0.4rem;
+  line-height: 1.3;
+}
+.pipe-tech {
+  font-family: var(--mono);
+  font-size: 10px;
+  color: var(--blue);
+  margin-bottom: 0.6rem;
+}
+.pipe-desc {
+  font-size: 11px;
+  color: var(--text3);
+  line-height: 1.5;
+}
+
+/* ── TWO COL GRID ───────────────────────────────────────────────── */
+.grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 1.2rem; }
+.grid3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 1rem; }
+@media(max-width:720px) { .grid2, .grid3 { grid-template-columns: 1fr; } }
+
+/* ── CARD ───────────────────────────────────────────────────────── */
+.card {
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  padding: 1.4rem;
+}
+.card-title {
+  font-family: var(--mono);
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--teal);
+  margin-bottom: 0.8rem;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+.card-title .dot {
+  width: 6px; height: 6px;
+  border-radius: 50%;
+  background: var(--teal);
+  display: inline-block;
+  flex-shrink: 0;
+}
+.card p { font-size: 13px; color: var(--text2); line-height: 1.6; margin-bottom: 0.6rem; }
+.card p:last-child { margin-bottom: 0; }
+
+/* ── CODE BLOCK ─────────────────────────────────────────────────── */
+.code-block {
+  background: #090f1c;
+  border: 1px solid var(--border);
+  border-left: 3px solid var(--teal);
+  border-radius: 4px;
+  padding: 1.2rem 1.4rem;
+  font-family: var(--mono);
+  font-size: 12px;
+  color: var(--text2);
+  line-height: 1.8;
+  overflow-x: auto;
+  margin: 1rem 0;
+}
+.code-block .k { color: var(--violet); }
+.code-block .s { color: var(--teal); }
+.code-block .c { color: var(--text3); font-style: italic; }
+.code-block .n { color: var(--blue); }
+.code-block .v { color: var(--amber); }
+
+/* ── EXTRACTION SCHEMA TABLE ────────────────────────────────────── */
+.schema-wrap { overflow-x: auto; margin: 1.5rem 0; }
+.schema-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 12px;
+  min-width: 900px;
+}
+.schema-table th {
+  background: var(--bg2);
+  color: var(--text3);
+  font-family: var(--mono);
+  font-size: 10px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  padding: 8px 10px;
+  border: 1px solid var(--border);
+  text-align: left;
+  white-space: nowrap;
+}
+.schema-table td {
+  padding: 8px 10px;
+  border: 1px solid var(--border);
+  vertical-align: middle;
+}
+.schema-table tr:nth-child(even) td { background: rgba(26,46,74,0.4); }
+.schema-table tr:hover td { background: var(--teal-glow); }
+.doc-type-cell {
+  font-family: var(--mono);
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text);
+  white-space: nowrap;
+}
+.field-pills { display: flex; flex-wrap: wrap; gap: 4px; }
+.pill {
+  font-family: var(--mono);
+  font-size: 10px;
+  padding: 2px 7px;
+  border-radius: 2px;
+  border: 1px solid;
+  white-space: nowrap;
+}
+.pill-primary { border-color: var(--teal);   color: var(--teal);   background: rgba(0,200,150,0.08); }
+.pill-secondary{ border-color: var(--blue);  color: var(--blue);   background: rgba(59,158,255,0.08); }
+.pill-fallback { border-color: var(--amber); color: var(--amber);  background: rgba(255,181,71,0.08); }
+.pill-derived  { border-color: var(--violet);color: var(--violet); background: rgba(155,127,255,0.08);}
+
+.conf-badge {
+  font-family: var(--mono);
+  font-size: 10px;
+  padding: 2px 7px;
+  border-radius: 2px;
+  font-weight: 600;
+}
+.conf-high   { background: rgba(0,200,150,0.15); color: var(--teal); }
+.conf-medium { background: rgba(255,181,71,0.15); color: var(--amber); }
+.conf-low    { background: rgba(255,107,107,0.15); color: var(--red); }
+
+/* ── FLOW DIAGRAM ───────────────────────────────────────────────── */
+.flow-wrap {
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  padding: 2rem;
+  margin: 1.5rem 0;
+}
+.flow-row {
+  display: flex;
+  align-items: center;
+  gap: 0;
+  margin-bottom: 0;
+}
+.flow-node {
+  flex: 1;
+  padding: 0.8rem 1rem;
+  border: 1px solid var(--border2);
+  border-radius: 4px;
+  text-align: center;
+  position: relative;
+}
+.flow-node.teal   { border-color: var(--teal);  background: rgba(0,200,150,0.06); }
+.flow-node.blue   { border-color: var(--blue);  background: rgba(59,158,255,0.06); }
+.flow-node.amber  { border-color: var(--amber); background: rgba(255,181,71,0.06); }
+.flow-node.violet { border-color: var(--violet);background: rgba(155,127,255,0.06);}
+.flow-node.red    { border-color: var(--red);   background: rgba(255,107,107,0.06);}
+.flow-node-label {
+  font-family: var(--mono);
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+}
+.flow-node.teal   .flow-node-label { color: var(--teal); }
+.flow-node.blue   .flow-node-label { color: var(--blue); }
+.flow-node.amber  .flow-node-label { color: var(--amber); }
+.flow-node.violet .flow-node-label { color: var(--violet); }
+.flow-node.red    .flow-node-label { color: var(--red); }
+.flow-node-sub {
+  font-size: 11px;
+  color: var(--text3);
+  margin-top: 3px;
+  line-height: 1.4;
+}
+.flow-arrow {
+  font-family: var(--mono);
+  font-size: 20px;
+  color: var(--text3);
+  padding: 0 6px;
+  flex-shrink: 0;
+}
+.flow-branch {
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+  margin-top: 1.2rem;
+  padding-top: 1.2rem;
+  border-top: 1px dashed var(--border);
+}
+.flow-branch-label {
+  font-family: var(--mono);
+  font-size: 10px;
+  color: var(--text3);
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  margin-bottom: 0.4rem;
+}
+
+/* ── IDENTITY KEY TABLE ─────────────────────────────────────────── */
+.key-table { width: 100%; border-collapse: collapse; font-size: 12px; }
+.key-table th {
+  background: var(--bg2);
+  color: var(--text3);
+  font-family: var(--mono);
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  padding: 8px 12px;
+  border: 1px solid var(--border);
+  text-align: left;
+}
+.key-table td {
+  padding: 9px 12px;
+  border: 1px solid var(--border);
+  vertical-align: top;
+}
+.key-table tr:nth-child(even) td { background: rgba(26,46,74,0.3); }
+.key-table tr:hover td { background: var(--teal-glow); }
+.country-cell { font-family: var(--mono); font-size: 12px; color: var(--text); font-weight: 500; }
+.nik-cell     { font-family: var(--mono); font-size: 12px; color: var(--teal); font-weight: 600; }
+
+/* ── CALLOUT ────────────────────────────────────────────────────── */
+.callout {
+  border-left: 3px solid;
+  padding: 1rem 1.2rem;
+  margin: 1.5rem 0;
+  border-radius: 0 4px 4px 0;
+  font-size: 13px;
+}
+.callout-teal  { border-color: var(--teal);  background: rgba(0,200,150,0.05);  color: var(--text2); }
+.callout-amber { border-color: var(--amber); background: rgba(255,181,71,0.05); color: var(--text2); }
+.callout-red   { border-color: var(--red);   background: rgba(255,107,107,0.05);color: var(--text2); }
+.callout-blue  { border-color: var(--blue);  background: rgba(59,158,255,0.05); color: var(--text2); }
+.callout strong { color: var(--text); }
+
+/* ── RESOLUTION MATRIX ──────────────────────────────────────────── */
+.res-table { width: 100%; border-collapse: collapse; font-size: 12px; }
+.res-table th {
+  background: var(--bg2);
+  color: var(--text3);
+  font-family: var(--mono);
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  padding: 8px 12px;
+  border: 1px solid var(--border);
+  text-align: left;
+}
+.res-table td {
+  padding: 9px 12px;
+  border: 1px solid var(--border);
+  vertical-align: top;
+  font-size: 12px;
+}
+.res-table tr:nth-child(even) td { background: rgba(26,46,74,0.3); }
+.scenario-cell { font-family: var(--mono); font-size: 11px; font-weight: 600; color: var(--text); }
+.outcome-match  { color: var(--teal); font-family: var(--mono); font-size: 11px; font-weight: 600; }
+.outcome-fuzzy  { color: var(--amber); font-family: var(--mono); font-size: 11px; font-weight: 600; }
+.outcome-queue  { color: var(--red);   font-family: var(--mono); font-size: 11px; font-weight: 600; }
+.confidence-cell { font-family: var(--mono); font-size: 11px; color: var(--text2); }
+
+/* ── PRIORITY LADDER ────────────────────────────────────────────── */
+.priority-ladder {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+  margin: 1.5rem 0;
+}
+.ladder-rung {
+  display: flex;
+  align-items: stretch;
+  border: 1px solid var(--border);
+  border-top: none;
+}
+.ladder-rung:first-child { border-top: 1px solid var(--border); border-radius: 4px 4px 0 0; }
+.ladder-rung:last-child  { border-radius: 0 0 4px 4px; }
+.ladder-num {
+  font-family: var(--mono);
+  font-size: 22px;
+  font-weight: 700;
+  width: 56px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  border-right: 1px solid var(--border);
+}
+.ladder-rung:nth-child(1) .ladder-num { color: var(--teal);   background: rgba(0,200,150,0.08); }
+.ladder-rung:nth-child(2) .ladder-num { color: var(--blue);   background: rgba(59,158,255,0.08); }
+.ladder-rung:nth-child(3) .ladder-num { color: var(--amber);  background: rgba(255,181,71,0.08); }
+.ladder-rung:nth-child(4) .ladder-num { color: var(--violet); background: rgba(155,127,255,0.08);}
+.ladder-rung:nth-child(5) .ladder-num { color: var(--red);    background: rgba(255,107,107,0.08);}
+.ladder-body { padding: 1rem 1.2rem; flex: 1; }
+.ladder-key  {
+  font-family: var(--mono);
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text);
+  margin-bottom: 3px;
+}
+.ladder-rung:nth-child(1) .ladder-key { color: var(--teal); }
+.ladder-rung:nth-child(2) .ladder-key { color: var(--blue); }
+.ladder-rung:nth-child(3) .ladder-key { color: var(--amber); }
+.ladder-rung:nth-child(4) .ladder-key { color: var(--violet); }
+.ladder-rung:nth-child(5) .ladder-key { color: var(--red); }
+.ladder-desc { font-size: 12px; color: var(--text3); line-height: 1.5; }
+.ladder-note { font-size: 11px; color: var(--text3); margin-top: 4px; font-family: var(--mono); }
+
+/* ── EXCEPTION QUEUE ────────────────────────────────────────────── */
+.exc-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 1rem; margin: 1.5rem 0; }
+@media(max-width: 680px) { .exc-grid { grid-template-columns: 1fr; } }
+.exc-card {
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-top: 3px solid;
+  border-radius: 0 0 4px 4px;
+  padding: 1.1rem;
+}
+.exc-card.c-red    { border-top-color: var(--red); }
+.exc-card.c-amber  { border-top-color: var(--amber); }
+.exc-card.c-violet { border-top-color: var(--violet); }
+.exc-card-title {
+  font-family: var(--mono);
+  font-size: 11px;
+  font-weight: 600;
+  margin-bottom: 0.5rem;
+}
+.exc-card.c-red    .exc-card-title { color: var(--red); }
+.exc-card.c-amber  .exc-card-title { color: var(--amber); }
+.exc-card.c-violet .exc-card-title { color: var(--violet); }
+.exc-card p { font-size: 12px; color: var(--text3); line-height: 1.5; }
+
+/* ── VAULT ROUTING ──────────────────────────────────────────────── */
+.vault-grid { display: grid; grid-template-columns: 1fr 2fr; gap: 1.2rem; margin: 1.5rem 0; }
+@media(max-width: 680px) { .vault-grid { grid-template-columns: 1fr; } }
+.vault-employee {
+  background: var(--card);
+  border: 1px solid var(--teal);
+  border-radius: 4px;
+  padding: 1.2rem;
+}
+.vault-employee-label {
+  font-family: var(--mono);
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+  color: var(--teal);
+  margin-bottom: 0.8rem;
+}
+.vault-employee-name {
+  font-family: var(--mono);
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--text);
+  margin-bottom: 3px;
+}
+.vault-url {
+  font-family: var(--mono);
+  font-size: 10px;
+  color: var(--text3);
+  margin-bottom: 1rem;
+}
+.vault-meta { font-size: 12px; color: var(--text2); line-height: 1.8; }
+.vault-meta span { color: var(--teal); font-family: var(--mono); }
+.vault-docs { display: flex; flex-direction: column; gap: 0.5rem; }
+.vault-doc-row {
+  background: var(--bg2);
+  border: 1px solid var(--border);
+  border-radius: 3px;
+  padding: 0.7rem 0.9rem;
+  display: flex;
+  align-items: center;
+  gap: 0.8rem;
+}
+.vdr-org {
+  font-family: var(--mono);
+  font-size: 10px;
+  padding: 2px 7px;
+  border-radius: 2px;
+  flex-shrink: 0;
+}
+.vdr-org.npci  { background: rgba(0,200,150,0.1); color: var(--teal); border: 1px solid rgba(0,200,150,0.3); }
+.vdr-org.abcd  { background: rgba(59,158,255,0.1); color: var(--blue); border: 1px solid rgba(59,158,255,0.3); }
+.vdr-org.pqrs  { background: rgba(255,181,71,0.1); color: var(--amber); border: 1px solid rgba(255,181,71,0.3); }
+.vdr-type { font-family: var(--mono); font-size: 11px; color: var(--text2); flex: 1; }
+.vdr-key  { font-family: var(--mono); font-size: 10px; color: var(--text3); }
+.vdr-routed { font-family: var(--mono); font-size: 10px; color: var(--teal); }
+
+/* ── TECH STACK ─────────────────────────────────────────────────── */
+.stack-grid { display: grid; grid-template-columns: repeat(4,1fr); gap: 0.8rem; margin: 1.5rem 0; }
+@media(max-width: 680px) { .stack-grid { grid-template-columns: 1fr 1fr; } }
+.stack-card {
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  padding: 1rem;
+  text-align: center;
+}
+.stack-layer {
+  font-family: var(--mono);
+  font-size: 9px;
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+  color: var(--text3);
+  margin-bottom: 0.4rem;
+}
+.stack-name {
+  font-family: var(--mono);
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--teal);
+  margin-bottom: 0.3rem;
+}
+.stack-desc { font-size: 11px; color: var(--text3); line-height: 1.4; }
+
+/* ── NAV ────────────────────────────────────────────────────────── */
+.toc {
+  display: flex;
+  gap: 0.4rem;
+  flex-wrap: wrap;
+  margin: 2rem 0 0;
+  padding-top: 1.5rem;
+  border-top: 1px solid var(--border);
+}
+.toc a {
+  font-family: var(--mono);
+  font-size: 11px;
+  color: var(--text3);
+  text-decoration: none;
+  padding: 4px 10px;
+  border: 1px solid var(--border);
+  border-radius: 3px;
+  transition: all 0.15s;
+}
+.toc a:hover { color: var(--teal); border-color: var(--teal); background: var(--teal-glow); }
+
+/* ── DIVIDER ────────────────────────────────────────────────────── */
+.divider { border: none; border-top: 1px solid var(--border); margin: 3rem 0; }
+
+/* ── PROMPT SAMPLE ──────────────────────────────────────────────── */
+.prompt-box {
+  background: #070d18;
+  border: 1px solid var(--border);
+  border-left: 3px solid var(--violet);
+  border-radius: 4px;
+  padding: 1.4rem;
+  margin: 1.2rem 0;
+}
+.prompt-label {
+  font-family: var(--mono);
+  font-size: 10px;
+  color: var(--violet);
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  margin-bottom: 0.8rem;
+}
+.prompt-text {
+  font-family: var(--mono);
+  font-size: 12px;
+  color: var(--text2);
+  line-height: 1.8;
+  white-space: pre-wrap;
+}
+.prompt-text .ph { color: var(--amber); }
+.prompt-text .field { color: var(--teal); }
+.prompt-text .inst { color: var(--violet); }
+
+/* ── LEGEND ─────────────────────────────────────────────────────── */
+.legend {
+  display: flex; gap: 1.2rem; flex-wrap: wrap;
+  margin: 0.8rem 0 1.5rem;
+  font-size: 11px; color: var(--text3);
+  font-family: var(--mono);
+}
+.leg { display: flex; align-items: center; gap: 5px; }
+
+/* ── PULSE ANIMATION ────────────────────────────────────────────── */
+@keyframes pulse-teal {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.4; }
+}
+.pulse { animation: pulse-teal 2s ease-in-out infinite; }
+
+/* ── FOOTER ─────────────────────────────────────────────────────── */
+.footer {
+  margin-top: 5rem;
+  padding-top: 2rem;
+  border-top: 1px solid var(--border);
+  font-family: var(--mono);
+  font-size: 11px;
+  color: var(--text3);
+  display: flex;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+.footer span { color: var(--teal); }
+</style>
+</head>
+<body>
+<div class="page">
+
+  <!-- ── HERO ── -->
+  <div class="hero">
+    <div class="hero-eyebrow">PRANA · AI Document Intelligence</div>
+    <h1>Document Extraction<br><span>&amp; Identity Resolution</span><br>Pipeline</h1>
+    <p class="hero-sub">
+      How PRANA uses LLMs and embedding-based matching to automatically extract structured fields
+      from bulk-uploaded documents, resolve each document to its rightful employee, and route it
+      into the correct vault — without any manual tagging by HR.
+    </p>
+    <div class="hero-tags">
+      <span class="tag tag-teal">Layer 2 · Field Extraction</span>
+      <span class="tag tag-blue">Layer 3 · Identity Resolution</span>
+      <span class="tag tag-amber">Vault Routing</span>
+      <span class="tag tag-violet">Exception Handling</span>
+      <span class="tag tag-red">DPDP · Encryption Architecture</span>
+    </div>
+
+    <nav class="toc">
+      <a href="#overview">Overview</a>
+      <a href="#identity-model">Identity Model</a>
+      <a href="#encryption">Encryption Architecture</a>
+      <a href="#layer2">Layer 2 · Extraction</a>
+      <a href="#schema">Extraction Schema</a>
+      <a href="#layer3">Layer 3 · Resolution</a>
+      <a href="#priority">Priority Ladder</a>
+      <a href="#resolution-matrix">Resolution Matrix</a>
+      <a href="#exception">Exception Queue</a>
+      <a href="#vault-routing">Vault Routing</a>
+      <a href="#tech">Tech Stack</a>
+    </nav>
+  </div>
+
+  <!-- ── PIPELINE OVERVIEW ── -->
+  <div class="section" id="overview">
+    <div class="section-label">End-to-End Flow</div>
+    <h2>The <span class="accent">6-Stage</span> Pipeline</h2>
+    <p class="section-intro">
+      OA selects a document type and uploads a batch. From that point, the pipeline takes over —
+      no further human input required until (and unless) an exception is raised. Every NIK (PAN)
+      value is encrypted at the ingestion boundary and never travels in plaintext beyond that point.
+    </p>
+
+    <div class="pipeline-wrap">
+      <div class="pipeline">
+        <div class="pipe-stage">
+          <div class="pipe-num">01</div>
+          <div class="pipe-title">Batch Ingestion</div>
+          <div class="pipe-tech">File Handler · OCR</div>
+          <div class="pipe-desc">OA uploads ZIP or multi-file batch, declares doc type. System queues files for processing. OCR applied to scanned PDFs.</div>
+        </div>
+        <div class="pipe-stage" style="border-color:var(--red);">
+          <div class="pipe-num" style="color:var(--red);">02</div>
+          <div class="pipe-title">Encryption Boundary</div>
+          <div class="pipe-tech" style="color:var(--red);">FF3-1 FPE · HMAC · KMS</div>
+          <div class="pipe-desc">NIK extracted from document text, immediately encrypted. Plaintext NIK discarded. Only pan_token + enc_pan enter the system. LLM receives redacted doc.</div>
+        </div>
+        <div class="pipe-stage">
+          <div class="pipe-num">03</div>
+          <div class="pipe-title">Schema-Aware Extraction</div>
+          <div class="pipe-tech">LLM · Structured Output</div>
+          <div class="pipe-desc">LLM receives NIK-redacted doc + extraction schema. Returns JSON with non-NIK field values + confidence scores. NIK never sent to LLM in plaintext.</div>
+        </div>
+        <div class="pipe-stage">
+          <div class="pipe-num">04</div>
+          <div class="pipe-title">Identity Resolution</div>
+          <div class="pipe-tech">Token Match · Embeddings</div>
+          <div class="pipe-desc">pan_token matched against Employee Master token. Emp ID + fuzzy + embedding fallbacks for docs without NIK. All comparisons on encrypted/token values.</div>
+        </div>
+        <div class="pipe-stage">
+          <div class="pipe-num">05</div>
+          <div class="pipe-title">Tag &amp; Key Assignment</div>
+          <div class="pipe-tech">Metadata Engine</div>
+          <div class="pipe-desc">Resolved identity, tenant, doc type, period written as immutable metadata. pan_token used as vault anchor. enc_pan + enc_dek stored. No plaintext NIK anywhere.</div>
+        </div>
+        <div class="pipe-stage">
+          <div class="pipe-num">06</div>
+          <div class="pipe-title">Vault Routing</div>
+          <div class="pipe-tech">Router · Notifier</div>
+          <div class="pipe-desc">Document delivered to employee's vault under correct org + doc-type bucket. Employee notified. Unresolved docs → Exception Queue.</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="callout callout-teal">
+      <strong>Layer 1 is intentionally absent.</strong> The OA declares the document type at upload time — one doc type per batch. The pipeline does not need to classify; it starts with classification already known. This simplifies extraction and dramatically improves accuracy.
+    </div>
+  </div>
+
+  <hr class="divider">
+
+  <!-- ── IDENTITY MODEL ── -->
+  <div class="section" id="identity-model">
+    <div class="section-label">Identity Architecture</div>
+    <h2>The <span class="accent">NIK</span> Model — National Identity Key</h2>
+    <p class="section-intro">
+      Rather than hardcoding PAN, PRANA abstracts the primary identity key as NIK — a country-configured
+      field whose type varies by jurisdiction. The extraction engine and vault router always resolve to NIK.
+      The country config tells the system what NIK maps to.
+    </p>
+
+    <div class="grid2">
+      <div>
+        <table class="key-table">
+          <thead>
+            <tr>
+              <th>Country / Region</th>
+              <th>NIK Field</th>
+              <th>Characteristics</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td class="country-cell">🇮🇳 India</td>
+              <td class="nik-cell">PAN</td>
+              <td style="color:var(--text2);font-size:12px;">10-char alphanumeric. Lifetime. Appears on salary docs, Form-16.</td>
+            </tr>
+            <tr>
+              <td class="country-cell">🇺🇸 USA</td>
+              <td class="nik-cell">SSN</td>
+              <td style="color:var(--text2);font-size:12px;">Store last-4 only (privacy). Full SSN for matching internally.</td>
+            </tr>
+            <tr>
+              <td class="country-cell">🇦🇪 UAE</td>
+              <td class="nik-cell">Emirates ID</td>
+              <td style="color:var(--text2);font-size:12px;">15-digit numeric. Biometric-linked.</td>
+            </tr>
+            <tr>
+              <td class="country-cell">🇬🇧 UK</td>
+              <td class="nik-cell">NI Number</td>
+              <td style="color:var(--text2);font-size:12px;">9-char alphanumeric. Format: AA999999A.</td>
+            </tr>
+            <tr>
+              <td class="country-cell">🇸🇬 Singapore</td>
+              <td class="nik-cell">NRIC</td>
+              <td style="color:var(--text2);font-size:12px;">9-char. S/T prefix for citizens/PRs.</td>
+            </tr>
+            <tr>
+              <td class="country-cell">🌐 Others</td>
+              <td class="nik-cell">Passport No.</td>
+              <td style="color:var(--text2);font-size:12px;">Fallback for countries without universal ID. Configurable per tenant.</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div style="display:flex;flex-direction:column;gap:1rem;">
+        <div class="card">
+          <div class="card-title"><span class="dot"></span>Three Identity Layers</div>
+          <p><strong style="color:var(--teal);">Vault Identity (NIK)</strong> — Permanent. Cross-org. Government-issued. PAN in India. Used for document routing across all tenants.</p>
+          <p><strong style="color:var(--blue);">Login Credential (Mobile)</strong> — Authentication handle. Can change. Linked to vault via NIK. MFA (OTP + TOTP) layered on top.</p>
+          <p><strong style="color:var(--amber);">Intra-Org Key (Emp ID)</strong> — Org-specific. Changes every employer. Used for intra-tenant routing only; never cross-org.</p>
+        </div>
+        <div class="callout callout-amber">
+          <strong>Mobile ≠ Identity Key.</strong> Mobile numbers change — people port SIMs, move countries. NIK (PAN) never changes. Mobile is the <em>login handle</em>; NIK is the <em>vault anchor</em>. If mobile changes, the employee updates it in profile — documents already routed via NIK are unaffected.
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <hr class="divider">
+
+  <!-- ── ENCRYPTION ARCHITECTURE ── -->
+  <div class="section" id="encryption">
+    <div class="section-label">DPDP Compliance · Security Architecture</div>
+    <h2><span class="accent">Three-Layer</span> Encryption Architecture</h2>
+    <p class="section-intro">
+      Under India's Digital Personal Data Protection (DPDP) Act, PAN and equivalent NIK values cannot be
+      stored in cleartext. PRANA implements a three-layer envelope encryption model — ensuring plaintext NIK
+      never persists anywhere in the system, while enabling deterministic comparison for identity resolution
+      and seamless cross-org vault continuity.
+    </p>
+
+    <div class="callout callout-red" style="margin-bottom:2rem;">
+      <strong>Core constraint:</strong> Standard AES encryption is non-deterministic — same plaintext produces different ciphertext each time (random IV). This breaks comparison. PRANA solves this with two separate mechanisms: <strong style="color:var(--text);">HMAC for matching</strong> (deterministic) and <strong style="color:var(--text);">AES-SIV / FF3-1 for storage</strong> (format-preserving, deterministic). Plaintext NIK is discarded the moment either is computed.
+    </div>
+
+    <!-- Three layer visual -->
+    <div style="margin:2rem 0;">
+      <div style="font-family:var(--mono);font-size:10px;color:var(--text3);text-transform:uppercase;letter-spacing:0.15em;margin-bottom:1rem;">The Three Layers — What Each Does</div>
+      <div style="display:flex;flex-direction:column;gap:0;">
+
+        <!-- Layer A -->
+        <div style="display:flex;border:1px solid var(--teal);border-radius:4px 4px 0 0;overflow:hidden;">
+          <div style="background:rgba(0,200,150,0.1);border-right:1px solid var(--teal);padding:1.2rem 1.4rem;width:220px;flex-shrink:0;">
+            <div style="font-family:var(--mono);font-size:10px;color:var(--teal);letter-spacing:0.1em;text-transform:uppercase;margin-bottom:4px;">Layer A</div>
+            <div style="font-family:var(--mono);font-size:13px;font-weight:700;color:var(--teal);">pan_token</div>
+            <div style="font-size:11px;color:var(--text3);margin-top:4px;">HMAC-SHA256</div>
+          </div>
+          <div style="padding:1.2rem 1.4rem;flex:1;">
+            <div style="font-family:var(--mono);font-size:12px;font-weight:600;color:var(--text);margin-bottom:0.5rem;">Matching &amp; Cross-Org Identity Anchor</div>
+            <div style="font-size:12px;color:var(--text2);line-height:1.7;">
+              <code style="font-family:var(--mono);color:var(--teal);">HMAC-SHA256(PAN, platform_secret)</code> — deterministic, always same output for same PAN.
+              Used for all identity matching and vault routing. Platform-level secret (not tenant-level) ensures
+              the same PAN from NPCI and ABCD Bank produces the same token — enabling cross-org vault linking.
+              <strong style="color:var(--text);">This is the vault anchor. Plaintext PAN never used after this point.</strong>
+            </div>
+          </div>
+        </div>
+
+        <!-- Layer B -->
+        <div style="display:flex;border:1px solid var(--blue);border-top:none;overflow:hidden;">
+          <div style="background:rgba(59,158,255,0.08);border-right:1px solid var(--blue);padding:1.2rem 1.4rem;width:220px;flex-shrink:0;">
+            <div style="font-family:var(--mono);font-size:10px;color:var(--blue);letter-spacing:0.1em;text-transform:uppercase;margin-bottom:4px;">Layer B</div>
+            <div style="font-family:var(--mono);font-size:13px;font-weight:700;color:var(--blue);">enc_pan</div>
+            <div style="font-size:11px;color:var(--text3);margin-top:4px;">AES-SIV / FF3-1 FPE</div>
+          </div>
+          <div style="padding:1.2rem 1.4rem;flex:1;">
+            <div style="font-family:var(--mono);font-size:12px;font-weight:600;color:var(--text);margin-bottom:0.5rem;">Secure Storage of Actual NIK Value</div>
+            <div style="font-size:12px;color:var(--text2);line-height:1.7;">
+              <code style="font-family:var(--mono);color:var(--blue);">FF3-1_FPE(PAN, employee_DEK)</code> — Format-Preserving Encryption, NIST standard.
+              Encrypts PAN into a ciphertext of identical format and length (e.g. ABCDE1234F → XKQRT7823P).
+              Encrypted with a <strong style="color:var(--text);">per-employee Data Encryption Key (DEK)</strong>.
+              Used only when the actual PAN value must be retrieved (e.g. regulatory reporting). Never used for matching.
+            </div>
+          </div>
+        </div>
+
+        <!-- Layer C -->
+        <div style="display:flex;border:1px solid var(--amber);border-top:none;border-radius:0 0 4px 4px;overflow:hidden;">
+          <div style="background:rgba(255,181,71,0.08);border-right:1px solid var(--amber);padding:1.2rem 1.4rem;width:220px;flex-shrink:0;">
+            <div style="font-family:var(--mono);font-size:10px;color:var(--amber);letter-spacing:0.1em;text-transform:uppercase;margin-bottom:4px;">Layer C</div>
+            <div style="font-family:var(--mono);font-size:13px;font-weight:700;color:var(--amber);">enc_dek</div>
+            <div style="font-size:11px;color:var(--text3);margin-top:4px;">Envelope Encryption · KMS</div>
+          </div>
+          <div style="padding:1.2rem 1.4rem;flex:1;">
+            <div style="font-family:var(--mono);font-size:12px;font-weight:600;color:var(--text);margin-bottom:0.5rem;">DEK Protection — Limits Blast Radius</div>
+            <div style="font-size:12px;color:var(--text2);line-height:1.7;">
+              <code style="font-family:var(--mono);color:var(--amber);">KMS_Encrypt(DEK, tenant_KEK)</code> — the per-employee DEK is itself encrypted by a
+              tenant-level Key Encryption Key (KEK) that lives only in the KMS (AWS KMS / Azure Key Vault).
+              KEK never touches the database. If a KEK is rotated, only <code style="font-family:var(--mono);color:var(--amber);">enc_dek</code> values
+              need re-wrapping — the actual <code style="font-family:var(--mono);color:var(--blue);">enc_pan</code> values are untouched.
+              <strong style="color:var(--text);">One DEK compromise = one employee exposed, never the entire tenant.</strong>
+            </div>
+          </div>
+        </div>
+
+      </div>
+    </div>
+
+    <!-- DB row -->
+    <h3 style="font-family:var(--mono);font-size:13px;color:var(--text);margin:2rem 0 0.8rem;">What the Employee Master row looks like in the DB</h3>
+    <div class="code-block">
+<span class="c">-- employee_master table (per tenant)</span>
+{
+  <span class="k">"employee_uuid"</span>:   <span class="s">"emp_9a2f7c..."</span>,          <span class="c">// internal UUID — no PII</span>
+  <span class="k">"tenant_id"</span>:        <span class="s">"npci_tenant_001"</span>,
+  <span class="k">"pan_token"</span>:        <span class="s">"hmac:a3f8c2...9d1e"</span>,     <span class="c">// HMAC(PAN, platform_secret) — for matching</span>
+  <span class="k">"enc_pan"</span>:          <span class="s">"fpe:XKQRT7823P"</span>,          <span class="c">// FF3-1(PAN, emp_DEK) — for retrieval only</span>
+  <span class="k">"enc_dek"</span>:          <span class="s">"kms:AQICAHg3..."</span>,          <span class="c">// KMS_Encrypt(DEK, tenant_KEK)</span>
+  <span class="k">"employee_name"</span>:    <span class="s">"Rahul Sharma"</span>,             <span class="c">// name stored in clear (not PII under DPDP)</span>
+  <span class="k">"emp_id_org"</span>:       <span class="s">"NPCI0042"</span>,
+  <span class="k">"doj"</span>:              <span class="s">"2019-03-01"</span>,
+  <span class="k">"department"</span>:       <span class="s">"Payments Infrastructure"</span>,
+  <span class="k">"designation"</span>:      <span class="s">"Sr. Systems Analyst"</span>
+  <span class="c">// NO plaintext PAN anywhere in this row</span>
+}
+    </div>
+
+    <!-- Encryption boundary flow -->
+    <h3 style="font-family:var(--mono);font-size:13px;color:var(--text);margin:2rem 0 0.8rem;">Stage 02 — Encryption Boundary: What Happens in Memory</h3>
+    <div class="flow-wrap">
+      <div style="font-family:var(--mono);font-size:10px;color:var(--text3);text-transform:uppercase;letter-spacing:0.12em;margin-bottom:1.2rem;">At the ingestion boundary — before any DB write, before LLM call</div>
+
+      <div style="display:flex;flex-direction:column;gap:1rem;">
+
+        <div style="display:flex;align-items:flex-start;gap:1rem;">
+          <div style="font-family:var(--mono);font-size:11px;color:var(--red);background:rgba(255,107,107,0.1);border:1px solid var(--red);border-radius:3px;padding:4px 10px;flex-shrink:0;margin-top:2px;">IN</div>
+          <div style="font-size:12px;color:var(--text2);">Document text (post-OCR) containing visible PAN: <code style="font-family:var(--mono);color:var(--red);">"... PAN: ABCDE1234F ..."</code></div>
+        </div>
+
+        <div style="display:flex;align-items:flex-start;gap:1rem;">
+          <div style="font-family:var(--mono);font-size:11px;color:var(--amber);background:rgba(255,181,71,0.1);border:1px solid var(--amber);border-radius:3px;padding:4px 10px;flex-shrink:0;margin-top:2px;">STEP 1</div>
+          <div style="font-size:12px;color:var(--text2);">Regex / pattern match extracts NIK from document text in memory. Plaintext NIK held in memory variable for &lt;1ms.</div>
+        </div>
+
+        <div style="display:flex;align-items:flex-start;gap:1rem;">
+          <div style="font-family:var(--mono);font-size:11px;color:var(--amber);background:rgba(255,181,71,0.1);border:1px solid var(--amber);border-radius:3px;padding:4px 10px;flex-shrink:0;margin-top:2px;">STEP 2</div>
+          <div style="font-size:12px;color:var(--text2);">
+            Immediately compute both forms in memory:<br>
+            <code style="font-family:var(--mono);color:var(--teal);">pan_token = HMAC-SHA256("ABCDE1234F", platform_secret)</code><br>
+            <code style="font-family:var(--mono);color:var(--blue);">enc_pan   = FF3-1_FPE("ABCDE1234F", employee_DEK)</code>
+          </div>
+        </div>
+
+        <div style="display:flex;align-items:flex-start;gap:1rem;">
+          <div style="font-family:var(--mono);font-size:11px;color:var(--amber);background:rgba(255,181,71,0.1);border:1px solid var(--amber);border-radius:3px;padding:4px 10px;flex-shrink:0;margin-top:2px;">STEP 3</div>
+          <div style="font-size:12px;color:var(--text2);">Plaintext NIK variable zeroed and dereferenced from memory. GC eligible immediately.</div>
+        </div>
+
+        <div style="display:flex;align-items:flex-start;gap:1rem;">
+          <div style="font-family:var(--mono);font-size:11px;color:var(--amber);background:rgba(255,181,71,0.1);border:1px solid var(--amber);border-radius:3px;padding:4px 10px;flex-shrink:0;margin-top:2px;">STEP 4</div>
+          <div style="font-size:12px;color:var(--text2);">Document text sent to LLM with NIK replaced by placeholder token: <code style="font-family:var(--mono);color:var(--text3);">"... PAN: [NIK_REDACTED] ..."</code>. LLM never sees plaintext PAN.</div>
+        </div>
+
+        <div style="display:flex;align-items:flex-start;gap:1rem;">
+          <div style="font-family:var(--mono);font-size:11px;color:var(--teal);background:rgba(0,200,150,0.1);border:1px solid var(--teal);border-radius:3px;padding:4px 10px;flex-shrink:0;margin-top:2px;">OUT</div>
+          <div style="font-size:12px;color:var(--text2);">
+            Only <code style="font-family:var(--mono);color:var(--teal);">pan_token</code> and <code style="font-family:var(--mono);color:var(--blue);">enc_pan</code> flow downstream. All matching, resolution, tagging, and routing uses <code style="font-family:var(--mono);color:var(--teal);">pan_token</code> exclusively.
+          </div>
+        </div>
+
+      </div>
+    </div>
+
+    <!-- Cross-org continuity -->
+    <h3 style="font-family:var(--mono);font-size:13px;color:var(--text);margin:2rem 0 0.8rem;">Cross-Org Vault Continuity — How It Works Without Decryption</h3>
+    <div class="code-block">
+<span class="c">// Rahul joins NPCI in 2019. NPCI uploads his Employee Master.</span>
+NPCI → pan_token = HMAC("ABCDE1234F", <span class="s">platform_secret</span>) = <span class="v">"tok_a3f8c2...9d1e"</span>
+NPCI → enc_pan   = FF3-1("ABCDE1234F", <span class="s">NPCI_DEK_rahul</span>)   = <span class="v">"XKQRT7823P"</span>
+NPCI → enc_dek   = KMS_Encrypt(<span class="s">NPCI_DEK_rahul</span>, <span class="s">NPCI_KEK</span>)
+
+<span class="c">// Rahul joins ABCD Bank in 2024. ABCD uploads his Employee Master.</span>
+ABCD → pan_token = HMAC("ABCDE1234F", <span class="s">platform_secret</span>) = <span class="v">"tok_a3f8c2...9d1e"</span>  <span class="c">← SAME TOKEN</span>
+ABCD → enc_pan   = FF3-1("ABCDE1234F", <span class="s">ABCD_DEK_rahul</span>)   = <span class="v">"MNPVZ4917K"</span>  <span class="c">← different DEK, different ciphertext</span>
+ABCD → enc_dek   = KMS_Encrypt(<span class="s">ABCD_DEK_rahul</span>, <span class="s">ABCD_KEK</span>)
+
+<span class="c">// Platform sees pan_token "tok_a3f8c2...9d1e" in both NPCI and ABCD tenants</span>
+<span class="c">// → same person → documents from both orgs route to the same vault</span>
+<span class="c">// → ABCD's KEK compromise does NOT affect NPCI's enc_pan (different DEK)</span>
+<span class="c">// → platform_secret rotation re-computes all pan_tokens in one batch — no PAN decryption needed</span>
+    </div>
+
+    <!-- Key rotation -->
+    <h3 style="font-family:var(--mono);font-size:13px;color:var(--text);margin:2rem 0 0.8rem;">Key Rotation — Zero Disruption</h3>
+    <div class="grid3" style="margin-top:0;">
+      <div class="card" style="border-top:3px solid var(--teal);">
+        <div class="card-title"><span class="dot"></span>Rotate tenant KEK</div>
+        <p>Re-wrap all <code style="font-family:var(--mono);color:var(--amber);">enc_dek</code> values in that tenant with the new KEK.</p>
+        <p><code style="font-family:var(--mono);color:var(--blue);">enc_pan</code> values untouched. <code style="font-family:var(--mono);color:var(--teal);">pan_token</code> untouched. Zero disruption to matching or routing.</p>
+      </div>
+      <div class="card" style="border-top:3px solid var(--blue);">
+        <div class="card-title"><span class="dot" style="background:var(--blue)"></span>Rotate employee DEK</div>
+        <p>Re-encrypt one employee's <code style="font-family:var(--mono);color:var(--blue);">enc_pan</code> with new DEK. Re-wrap new DEK with KEK.</p>
+        <p>Only that employee affected. All other employees unaffected. <code style="font-family:var(--mono);color:var(--teal);">pan_token</code> unchanged.</p>
+      </div>
+      <div class="card" style="border-top:3px solid var(--violet);">
+        <div class="card-title"><span class="dot" style="background:var(--violet)"></span>Rotate platform_secret</div>
+        <p>Re-compute all <code style="font-family:var(--mono);color:var(--teal);">pan_token</code> values across all tenants in a single batch job.</p>
+        <p>Requires temporary access to <code style="font-family:var(--mono);color:var(--blue);">enc_pan</code> + DEK for re-derivation. Scheduled maintenance window. All cross-org links preserved.</p>
+      </div>
+    </div>
+
+    <!-- Blast radius table -->
+    <h3 style="font-family:var(--mono);font-size:13px;color:var(--text);margin:2rem 0 0.8rem;">Compromise Blast Radius — What Each Breach Actually Exposes</h3>
+    <div class="schema-wrap">
+      <table class="res-table">
+        <thead>
+          <tr>
+            <th>What is compromised</th>
+            <th>What attacker gets</th>
+            <th>What they can do</th>
+            <th>Blast radius</th>
+            <th>Mitigation</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td class="scenario-cell">One employee's DEK</td>
+            <td style="font-size:12px;color:var(--text2);">Can decrypt that employee's enc_pan → plaintext PAN</td>
+            <td style="font-size:12px;color:var(--text2);">Access one person's PAN only</td>
+            <td><span class="conf-badge conf-high" style="background:rgba(0,200,150,0.15);color:var(--teal);">1 EMPLOYEE</span></td>
+            <td style="font-size:12px;color:var(--text2);">Rotate that employee's DEK immediately. Re-encrypt enc_pan.</td>
+          </tr>
+          <tr>
+            <td class="scenario-cell">Tenant KEK</td>
+            <td style="font-size:12px;color:var(--text2);">Can decrypt all enc_dek values → all DEKs → all enc_pan in that tenant</td>
+            <td style="font-size:12px;color:var(--text2);">Access all PAN values for one org</td>
+            <td><span class="conf-badge conf-medium">1 TENANT</span></td>
+            <td style="font-size:12px;color:var(--text2);">Rotate KEK. Re-wrap all DEKs. Other tenants unaffected. pan_token unaffected.</td>
+          </tr>
+          <tr>
+            <td class="scenario-cell">Platform HMAC secret</td>
+            <td style="font-size:12px;color:var(--text2);">Can compute pan_tokens for known PANs (if attacker already has PAN list)</td>
+            <td style="font-size:12px;color:var(--text2);">Verify if specific PAN is in system. Cannot reverse pan_token → PAN.</td>
+            <td><span class="conf-badge conf-medium">LIMITED</span></td>
+            <td style="font-size:12px;color:var(--text2);">Rotate platform_secret. Re-compute all pan_tokens. HMAC is one-way — PAN cannot be derived from token.</td>
+          </tr>
+          <tr>
+            <td class="scenario-cell">DB full dump (no keys)</td>
+            <td style="font-size:12px;color:var(--text2);">enc_pan ciphertexts, enc_dek blobs, pan_tokens</td>
+            <td style="font-size:12px;color:var(--text2);">Nothing useful. Cannot decrypt without DEKs. Cannot reverse HMAC tokens.</td>
+            <td><span class="conf-badge conf-high" style="background:rgba(0,200,150,0.15);color:var(--teal);">ZERO</span></td>
+            <td style="font-size:12px;color:var(--text2);">Encryption at rest protects the full DB. This is the target architecture state.</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+
+  </div>
+
+  <hr class="divider">
+
+  <!-- ── LAYER 2 ── -->
+  <div class="section" id="layer2">
+    <div class="section-label">Layer 2</div>
+    <h2><span class="accent">Schema-Aware</span> Field Extraction</h2>
+    <p class="section-intro">
+      The doc type is already known from the OA's declaration at upload. The LLM receives the document content
+      plus a precise extraction schema — only the fields relevant to that doc type. It returns a structured JSON
+      with field values and per-field confidence scores.
+    </p>
+
+    <div class="grid2">
+      <div class="card">
+        <div class="card-title"><span class="dot"></span>What the LLM receives</div>
+        <p>1. The full text of the document (post-OCR if scanned)</p>
+        <p>2. The extraction schema for the declared doc type — field names, expected formats, and examples</p>
+        <p>3. Instruction to return structured JSON only — no prose, no explanation</p>
+        <p>4. Instruction to assign a confidence score (0.0–1.0) to each extracted field</p>
+      </div>
+      <div class="card">
+        <div class="card-title"><span class="dot"></span>What the LLM returns</div>
+        <p>A structured JSON object with every field from the schema — populated where found, null where absent — plus a confidence score per field and an overall document confidence.</p>
+        <p style="margin-top:0.6rem;">Fields with confidence below threshold (e.g., &lt;0.75) are flagged for human review in the Exception Queue.</p>
+      </div>
+    </div>
+
+    <div class="prompt-box">
+      <div class="prompt-label">Sample LLM Extraction Prompt — Salary Slip</div>
+      <div class="prompt-text"><span class="inst">You are a document extraction engine. Extract ONLY the fields listed below from the provided salary slip document. Return a valid JSON object. Do not add any fields not listed. For each field, also return a confidence score between 0.0 and 1.0.</span>
+
+<span class="inst">DOCUMENT TYPE:</span> <span class="ph">Salary Slip</span>
+<span class="inst">DOCUMENT TEXT:</span>
+<span class="ph">{{ full_text_of_document }}</span>
+
+<span class="inst">EXTRACT THE FOLLOWING FIELDS:</span>
+<span class="field">employee_id</span>       — Employee code / staff ID (e.g. NPCI001, EMP-1234)
+<span class="field">pan_number</span>        — PAN card number (format: AAAAA9999A)
+<span class="field">employee_name</span>     — Full name as printed on the document
+<span class="field">location</span>          — Office location / city
+<span class="field">gross_ctc</span>         — Gross CTC or total salary amount (numeric, INR)
+<span class="field">pf_number</span>         — PF account number
+<span class="field">uan_number</span>        — Universal Account Number (12-digit)
+<span class="field">tds_amount</span>        — TDS / income tax deducted (numeric, INR)
+<span class="field">pay_period_month</span>  — Month of the salary slip (e.g. March)
+<span class="field">pay_period_year</span>   — Year of the salary slip (e.g. 2024)
+
+<span class="inst">RETURN FORMAT (JSON only, no prose):</span>
+{
+  "employee_id":       { "value": <span class="field">"..."</span>, "confidence": <span class="ph">0.0</span> },
+  "pan_number":        { "value": <span class="field">"..."</span>, "confidence": <span class="ph">0.0</span> },
+  "employee_name":     { "value": <span class="field">"..."</span>, "confidence": <span class="ph">0.0</span> },
+  ...
+  "overall_confidence": <span class="ph">0.0</span>
+}</div>
+    </div>
+
+    <div class="callout callout-blue">
+      <strong>Why per-field confidence matters:</strong> A salary slip might have a perfectly readable PAN but a smudged PF number (scanned doc). Per-field confidence lets the system route PAN-matched documents to the vault while flagging the PF field for OA review — rather than rejecting the whole document.
+    </div>
+  </div>
+
+  <hr class="divider">
+
+  <!-- ── EXTRACTION SCHEMA TABLE ── -->
+  <div class="section" id="schema">
+    <div class="section-label">Extraction Schema</div>
+    <h2>Document-wise <span class="accent">Unique Key</span> Combination</h2>
+    <p class="section-intro">
+      Each document type has a defined set of extractable fields. Fields are categorised by their role in identity
+      resolution. The combination of Primary + Secondary fields forms the unique key fingerprint for that document.
+    </p>
+
+    <div class="legend">
+      <span class="leg"><span class="pill pill-primary">NIK / PAN</span> Primary identity key</span>
+      <span class="leg"><span class="pill pill-secondary">Emp ID</span> Secondary org key</span>
+      <span class="leg"><span class="pill pill-fallback">Name+DOJ</span> Fallback resolution</span>
+      <span class="leg"><span class="pill pill-derived">Derived</span> Period / context field</span>
+    </div>
+
+    <div class="schema-wrap">
+      <table class="schema-table">
+        <thead>
+          <tr>
+            <th style="width:160px;">Document Type</th>
+            <th style="width:70px;">Org</th>
+            <th style="width:60px;">Count</th>
+            <th>Primary Key Fields</th>
+            <th>Secondary Key Fields</th>
+            <th>Fallback Fields</th>
+            <th>Period / Context</th>
+            <th style="width:80px;">Match Confidence</th>
+          </tr>
+        </thead>
+        <tbody>
+          <!-- NPCI ALL -->
+          <tr style="background:rgba(26,46,74,0.6);">
+            <td colspan="8" style="font-family:var(--mono);font-size:10px;color:var(--text3);letter-spacing:0.1em;text-transform:uppercase;padding:6px 10px;">
+              NPCI — All 500 Employees
+            </td>
+          </tr>
+          <tr>
+            <td class="doc-type-cell">Offer Letter</td>
+            <td><span class="vdr-org npci">NPCI</span></td>
+            <td style="color:var(--text3);font-family:var(--mono);font-size:11px;">500</td>
+            <td><div class="field-pills"><span class="pill pill-primary">PAN</span></div></td>
+            <td><div class="field-pills"><span class="pill pill-secondary">Designation</span><span class="pill pill-secondary">Department</span></div></td>
+            <td><div class="field-pills"><span class="pill pill-fallback">Name</span><span class="pill pill-fallback">DOJ</span><span class="pill pill-fallback">Location</span></div></td>
+            <td><div class="field-pills"><span class="pill pill-derived">CTC</span></div></td>
+            <td><span class="conf-badge conf-high">HIGH</span></td>
+          </tr>
+          <tr>
+            <td class="doc-type-cell">Appointment Letter</td>
+            <td><span class="vdr-org npci">NPCI</span></td>
+            <td style="color:var(--text3);font-family:var(--mono);font-size:11px;">500</td>
+            <td><div class="field-pills"><span class="pill pill-primary">PAN</span><span class="pill pill-secondary">Emp ID</span></div></td>
+            <td><div class="field-pills"><span class="pill pill-secondary">Designation</span><span class="pill pill-secondary">Department</span></div></td>
+            <td><div class="field-pills"><span class="pill pill-fallback">Name</span><span class="pill pill-fallback">DOJ</span><span class="pill pill-fallback">Location</span></div></td>
+            <td><div class="field-pills"></div></td>
+            <td><span class="conf-badge conf-high">HIGH</span></td>
+          </tr>
+          <tr>
+            <td class="doc-type-cell">Salary Slip</td>
+            <td><span class="vdr-org npci">NPCI</span></td>
+            <td style="color:var(--text3);font-family:var(--mono);font-size:11px;">500×3mo</td>
+            <td><div class="field-pills"><span class="pill pill-primary">PAN</span><span class="pill pill-secondary">Emp ID</span></div></td>
+            <td><div class="field-pills"><span class="pill pill-secondary">PF No.</span><span class="pill pill-secondary">UAN</span></div></td>
+            <td><div class="field-pills"><span class="pill pill-fallback">Name</span><span class="pill pill-fallback">Location</span></div></td>
+            <td><div class="field-pills"><span class="pill pill-derived">Month</span><span class="pill pill-derived">Year</span><span class="pill pill-derived">CTC</span><span class="pill pill-derived">TDS</span></div></td>
+            <td><span class="conf-badge conf-high">HIGH</span></td>
+          </tr>
+          <tr>
+            <td class="doc-type-cell">Form 16</td>
+            <td><span class="vdr-org npci">NPCI</span></td>
+            <td style="color:var(--text3);font-family:var(--mono);font-size:11px;">500</td>
+            <td><div class="field-pills"><span class="pill pill-primary">PAN</span><span class="pill pill-secondary">Emp ID</span></div></td>
+            <td><div class="field-pills"><span class="pill pill-derived">CTC</span><span class="pill pill-derived">TDS</span></div></td>
+            <td><div class="field-pills"><span class="pill pill-fallback">Name</span><span class="pill pill-fallback">DOJ</span></div></td>
+            <td><div class="field-pills"><span class="pill pill-derived">FY</span></div></td>
+            <td><span class="conf-badge conf-high">HIGH</span></td>
+          </tr>
+
+          <!-- NPCI SUBSETS -->
+          <tr style="background:rgba(26,46,74,0.6);">
+            <td colspan="8" style="font-family:var(--mono);font-size:10px;color:var(--text3);letter-spacing:0.1em;text-transform:uppercase;padding:6px 10px;">
+              NPCI — Subsets
+            </td>
+          </tr>
+          <tr>
+            <td class="doc-type-cell">Increment Letter</td>
+            <td><span class="vdr-org npci">NPCI</span></td>
+            <td style="color:var(--text3);font-family:var(--mono);font-size:11px;">150</td>
+            <td><div class="field-pills"><span class="pill pill-secondary">Emp ID*</span></div></td>
+            <td><div class="field-pills"><span class="pill pill-secondary">Designation</span><span class="pill pill-secondary">Department</span></div></td>
+            <td><div class="field-pills"><span class="pill pill-fallback">Name</span><span class="pill pill-derived">CTC</span></div></td>
+            <td><div class="field-pills"><span class="pill pill-derived">Hike %</span></div></td>
+            <td><span class="conf-badge conf-medium">MEDIUM</span></td>
+          </tr>
+          <tr>
+            <td class="doc-type-cell">Promotion Letter</td>
+            <td><span class="vdr-org npci">NPCI</span></td>
+            <td style="color:var(--text3);font-family:var(--mono);font-size:11px;">75</td>
+            <td><div class="field-pills"><span class="pill pill-secondary">Emp ID*</span></div></td>
+            <td><div class="field-pills"><span class="pill pill-secondary">Designation</span><span class="pill pill-secondary">Department</span><span class="pill pill-secondary">Location</span></div></td>
+            <td><div class="field-pills"><span class="pill pill-fallback">Name</span><span class="pill pill-derived">New Desig.</span></div></td>
+            <td><div class="field-pills"></div></td>
+            <td><span class="conf-badge conf-medium">MEDIUM</span></td>
+          </tr>
+
+          <!-- NPCI EXITS -->
+          <tr style="background:rgba(26,46,74,0.6);">
+            <td colspan="8" style="font-family:var(--mono);font-size:10px;color:var(--text3);letter-spacing:0.1em;text-transform:uppercase;padding:6px 10px;">
+              NPCI → Exited 50 Employees
+            </td>
+          </tr>
+          <tr>
+            <td class="doc-type-cell">Experience Letter</td>
+            <td><span class="vdr-org npci">NPCI</span></td>
+            <td style="color:var(--text3);font-family:var(--mono);font-size:11px;">50</td>
+            <td><div class="field-pills"><span class="pill pill-secondary">Emp ID*</span></div></td>
+            <td><div class="field-pills"><span class="pill pill-secondary">Designation</span><span class="pill pill-secondary">Department</span></div></td>
+            <td><div class="field-pills"><span class="pill pill-fallback">Name</span><span class="pill pill-fallback">DOJ</span><span class="pill pill-fallback">End Date</span></div></td>
+            <td><div class="field-pills"></div></td>
+            <td><span class="conf-badge conf-medium">MEDIUM</span></td>
+          </tr>
+          <tr>
+            <td class="doc-type-cell">Relieving Letter</td>
+            <td><span class="vdr-org npci">NPCI</span></td>
+            <td style="color:var(--text3);font-family:var(--mono);font-size:11px;">50</td>
+            <td><div class="field-pills"><span class="pill pill-secondary">Emp ID</span></div></td>
+            <td><div class="field-pills"><span class="pill pill-secondary">Designation</span><span class="pill pill-secondary">Department</span></div></td>
+            <td><div class="field-pills"><span class="pill pill-fallback">Name</span><span class="pill pill-fallback">DOJ</span><span class="pill pill-fallback">End Date</span></div></td>
+            <td><div class="field-pills"></div></td>
+            <td><span class="conf-badge conf-medium">MEDIUM</span></td>
+          </tr>
+
+          <!-- ABCD -->
+          <tr style="background:rgba(26,46,74,0.6);">
+            <td colspan="8" style="font-family:var(--mono);font-size:10px;color:var(--text3);letter-spacing:0.1em;text-transform:uppercase;padding:6px 10px;">
+              ABCD Bank — 25 Ex-NPCI Employees
+            </td>
+          </tr>
+          <tr>
+            <td class="doc-type-cell">Appointment Letter</td>
+            <td><span class="vdr-org abcd">ABCD</span></td>
+            <td style="color:var(--text3);font-family:var(--mono);font-size:11px;">25</td>
+            <td><div class="field-pills"><span class="pill pill-primary">PAN</span><span class="pill pill-secondary">Emp ID</span></div></td>
+            <td><div class="field-pills"><span class="pill pill-secondary">Designation</span><span class="pill pill-secondary">Department</span></div></td>
+            <td><div class="field-pills"><span class="pill pill-fallback">Name</span><span class="pill pill-fallback">DOJ</span><span class="pill pill-fallback">Location</span></div></td>
+            <td><div class="field-pills"></div></td>
+            <td><span class="conf-badge conf-high">HIGH</span></td>
+          </tr>
+          <tr>
+            <td class="doc-type-cell">Joining Letter</td>
+            <td><span class="vdr-org abcd">ABCD</span></td>
+            <td style="color:var(--text3);font-family:var(--mono);font-size:11px;">25</td>
+            <td><div class="field-pills"><span class="pill pill-secondary">Emp ID</span></div></td>
+            <td><div class="field-pills"><span class="pill pill-secondary">Designation</span><span class="pill pill-secondary">Department</span><span class="pill pill-secondary">Location</span></div></td>
+            <td><div class="field-pills"><span class="pill pill-fallback">Name</span><span class="pill pill-fallback">DOJ</span></div></td>
+            <td><div class="field-pills"></div></td>
+            <td><span class="conf-badge conf-medium">MEDIUM</span></td>
+          </tr>
+          <tr>
+            <td class="doc-type-cell">Salary Slip</td>
+            <td><span class="vdr-org abcd">ABCD</span></td>
+            <td style="color:var(--text3);font-family:var(--mono);font-size:11px;">25×3mo</td>
+            <td><div class="field-pills"><span class="pill pill-primary">PAN</span><span class="pill pill-secondary">Emp ID</span></div></td>
+            <td><div class="field-pills"><span class="pill pill-secondary">PF No.</span><span class="pill pill-secondary">UAN</span></div></td>
+            <td><div class="field-pills"><span class="pill pill-fallback">Name</span><span class="pill pill-fallback">Location</span></div></td>
+            <td><div class="field-pills"><span class="pill pill-derived">Month</span><span class="pill pill-derived">Year</span><span class="pill pill-derived">CTC</span><span class="pill pill-derived">TDS</span></div></td>
+            <td><span class="conf-badge conf-high">HIGH</span></td>
+          </tr>
+
+          <!-- PQRS -->
+          <tr style="background:rgba(26,46,74,0.6);">
+            <td colspan="8" style="font-family:var(--mono);font-size:10px;color:var(--text3);letter-spacing:0.1em;text-transform:uppercase;padding:6px 10px;">
+              PQRS Fintech — 25 Ex-NPCI Employees
+            </td>
+          </tr>
+          <tr>
+            <td class="doc-type-cell">Appointment Letter</td>
+            <td><span class="vdr-org pqrs">PQRS</span></td>
+            <td style="color:var(--text3);font-family:var(--mono);font-size:11px;">25</td>
+            <td><div class="field-pills"><span class="pill pill-primary">PAN</span><span class="pill pill-secondary">Emp ID</span></div></td>
+            <td><div class="field-pills"><span class="pill pill-secondary">Designation</span><span class="pill pill-secondary">Department</span></div></td>
+            <td><div class="field-pills"><span class="pill pill-fallback">Name</span><span class="pill pill-fallback">DOJ</span><span class="pill pill-fallback">Location</span></div></td>
+            <td><div class="field-pills"></div></td>
+            <td><span class="conf-badge conf-high">HIGH</span></td>
+          </tr>
+          <tr>
+            <td class="doc-type-cell">Joining Letter</td>
+            <td><span class="vdr-org pqrs">PQRS</span></td>
+            <td style="color:var(--text3);font-family:var(--mono);font-size:11px;">25</td>
+            <td><div class="field-pills"><span class="pill pill-secondary">Emp ID</span></div></td>
+            <td><div class="field-pills"><span class="pill pill-secondary">Designation</span><span class="pill pill-secondary">Department</span><span class="pill pill-secondary">Location</span></div></td>
+            <td><div class="field-pills"><span class="pill pill-fallback">Name</span><span class="pill pill-fallback">DOJ</span></div></td>
+            <td><div class="field-pills"></div></td>
+            <td><span class="conf-badge conf-medium">MEDIUM</span></td>
+          </tr>
+          <tr>
+            <td class="doc-type-cell">Salary Slip</td>
+            <td><span class="vdr-org pqrs">PQRS</span></td>
+            <td style="color:var(--text3);font-family:var(--mono);font-size:11px;">25×3mo</td>
+            <td><div class="field-pills"><span class="pill pill-primary">PAN</span><span class="pill pill-secondary">Emp ID</span></div></td>
+            <td><div class="field-pills"><span class="pill pill-secondary">PF No.</span><span class="pill pill-secondary">UAN</span></div></td>
+            <td><div class="field-pills"><span class="pill pill-fallback">Name</span><span class="pill pill-fallback">Location</span></div></td>
+            <td><div class="field-pills"><span class="pill pill-derived">Month</span><span class="pill pill-derived">Year</span><span class="pill pill-derived">CTC</span><span class="pill pill-derived">TDS</span></div></td>
+            <td><span class="conf-badge conf-high">HIGH</span></td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+    <p style="font-size:11px;color:var(--text3);font-family:var(--mono);">* Emp ID only — PAN not present in this document type. Confidence is MEDIUM; embedding fallback applied.</p>
+  </div>
+
+  <hr class="divider">
+
+  <!-- ── LAYER 3 ── -->
+  <div class="section" id="layer3">
+    <div class="section-label">Layer 3</div>
+    <h2><span class="accent">Identity Resolution</span> — Matching Extracted Fields to Employee Master</h2>
+    <p class="section-intro">
+      The extracted JSON is now matched against the Employee Master — a tenant-level registry of all employees
+      with their NIK, Emp ID, name, DOJ, and other fields. Resolution proceeds down a priority ladder.
+      Ambiguous cases use embedding similarity. Unresolvable cases go to the Exception Queue.
+    </p>
+
+    <div class="flow-wrap">
+      <div style="font-family:var(--mono);font-size:10px;color:var(--text3);text-transform:uppercase;letter-spacing:0.12em;margin-bottom:1rem;">Resolution Flow</div>
+      <div class="flow-row">
+        <div class="flow-node teal">
+          <div class="flow-node-label">Extract Complete?</div>
+          <div class="flow-node-sub">LLM returned JSON. Check overall confidence ≥ 0.75</div>
+        </div>
+        <div class="flow-arrow">→</div>
+        <div class="flow-node blue">
+          <div class="flow-node-label">NIK (PAN) Present?</div>
+          <div class="flow-node-sub">Check if PAN field extracted with confidence ≥ 0.85</div>
+        </div>
+        <div class="flow-arrow">→</div>
+        <div class="flow-node teal">
+          <div class="flow-node-label">Exact PAN Match</div>
+          <div class="flow-node-sub">Lookup PAN in Employee Master. Single match expected.</div>
+        </div>
+        <div class="flow-arrow">→</div>
+        <div class="flow-node teal">
+          <div class="flow-node-label">✓ RESOLVED</div>
+          <div class="flow-node-sub">Tag + Route to vault</div>
+        </div>
+      </div>
+      <div class="flow-branch">
+        <div class="flow-branch-label">If PAN absent or low confidence → fallback chain</div>
+        <div class="flow-row">
+          <div class="flow-node blue">
+            <div class="flow-node-label">Emp ID Match</div>
+            <div class="flow-node-sub">Exact lookup within tenant Employee Master</div>
+          </div>
+          <div class="flow-arrow">→</div>
+          <div class="flow-node amber">
+            <div class="flow-node-label">Name + DOJ Fuzzy</div>
+            <div class="flow-node-sub">Levenshtein distance + date proximity. Score ≥ 0.88</div>
+          </div>
+          <div class="flow-arrow">→</div>
+          <div class="flow-node violet">
+            <div class="flow-node-label">Embedding Similarity</div>
+            <div class="flow-node-sub">Embed Name+Dept+Desig vector. Cosine ≥ 0.92</div>
+          </div>
+          <div class="flow-arrow">→</div>
+          <div class="flow-node red">
+            <div class="flow-node-label">Exception Queue</div>
+            <div class="flow-node-sub">Manual OA-Advance resolution required</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <hr class="divider">
+
+  <!-- ── PRIORITY LADDER ── -->
+  <div class="section" id="priority">
+    <div class="section-label">Resolution Priority</div>
+    <h2>The <span class="accent">Identity Resolution</span> Priority Ladder</h2>
+    <p class="section-intro">
+      Resolution always attempts the highest-confidence key first and descends only if the key is absent
+      or below confidence threshold. The ladder is universal — doc type determines which levels are reachable.
+    </p>
+
+    <div class="priority-ladder">
+      <div class="ladder-rung">
+        <div class="ladder-num">1</div>
+        <div class="ladder-body">
+          <div class="ladder-key">NIK — National Identity Key (PAN in India)</div>
+          <div class="ladder-desc">Strongest possible key. Government-issued, permanent, cross-org. Direct exact lookup in Employee Master NIK field. One match expected — if two employees share a PAN, that's a data quality error flagged immediately.</div>
+          <div class="ladder-note">Confidence threshold: ≥ 0.85 · Doc types: Salary Slip, Form-16, Offer/Appointment Letter</div>
+        </div>
+      </div>
+      <div class="ladder-rung">
+        <div class="ladder-num">2</div>
+        <div class="ladder-body">
+          <div class="ladder-key">Emp ID (within tenant)</div>
+          <div class="ladder-desc">Strong within a single org. Exact lookup scoped to the uploading tenant only — Emp ID NPCI0042 at NPCI is not the same as ABCD0042 at ABCD Bank. Used when PAN is absent (Increment, Promotion, Experience, Relieving letters).</div>
+          <div class="ladder-note">Confidence threshold: exact match · Scope: current tenant only · Doc types: all letter types</div>
+        </div>
+      </div>
+      <div class="ladder-rung">
+        <div class="ladder-num">3</div>
+        <div class="ladder-body">
+          <div class="ladder-key">Name + Date of Joining (Fuzzy)</div>
+          <div class="ladder-desc">Fuzzy string match on full name (Levenshtein distance ≤ 2 for names, exact or ±1 day for DOJ). Used when both NIK and Emp ID are absent. Handles minor OCR errors in name transcription. Requires both fields together — name alone is insufficient.</div>
+          <div class="ladder-note">Confidence threshold: combined score ≥ 0.88 · Risk: common names (Singh, Kumar, Sharma) may match multiple employees</div>
+        </div>
+      </div>
+      <div class="ladder-rung">
+        <div class="ladder-num">4</div>
+        <div class="ladder-body">
+          <div class="ladder-key">Embedding Similarity — Name + Dept + Designation</div>
+          <div class="ladder-desc">Generate a text embedding of the concatenated Name + Department + Designation string from the document. Compare cosine similarity against pre-computed embeddings of all Employee Master records. Match at cosine ≥ 0.92. Handles transliteration differences (Priya vs Priyaa), abbreviations (Mgr vs Manager), and dept naming variations.</div>
+          <div class="ladder-note">Model: text-embedding-3-small or equivalent · Threshold: cosine ≥ 0.92 · Top-3 candidates returned for audit log</div>
+        </div>
+      </div>
+      <div class="ladder-rung">
+        <div class="ladder-num">5</div>
+        <div class="ladder-body">
+          <div class="ladder-key">Exception Queue — Manual Resolution</div>
+          <div class="ladder-desc">Document could not be resolved to a unique employee with sufficient confidence. Routed to OA-Advance exception queue with all extracted fields, top candidate matches, and confidence scores displayed. OA-Advance manually assigns to correct employee. Assignment is logged and feeds back as a training signal.</div>
+          <div class="ladder-note">Resolution time target: &lt;24 hours · OA-Advance notified via dashboard alert + email</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <hr class="divider">
+
+  <!-- ── RESOLUTION MATRIX ── -->
+  <div class="section" id="resolution-matrix">
+    <div class="section-label">Scenario Analysis</div>
+    <h2><span class="accent">Resolution</span> Scenario Matrix</h2>
+    <p class="section-intro">
+      How the system resolves (or escalates) across different real-world scenarios — including cross-org employees
+      who appear in multiple tenants with different Emp IDs but the same PAN.
+    </p>
+
+    <div class="schema-wrap">
+      <table class="res-table">
+        <thead>
+          <tr>
+            <th>Scenario</th>
+            <th>Available Fields</th>
+            <th>Resolution Path</th>
+            <th>Outcome</th>
+            <th>Notes</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td class="scenario-cell">Clean salary slip, PAN readable</td>
+            <td style="color:var(--text2);font-size:12px;">PAN + Emp ID + Name</td>
+            <td style="font-family:var(--mono);font-size:11px;color:var(--blue);">Ladder 1 — NIK exact match</td>
+            <td class="outcome-match">✓ DIRECT MATCH</td>
+            <td style="color:var(--text3);font-size:11px;">Highest confidence. Instant route to vault.</td>
+          </tr>
+          <tr>
+            <td class="scenario-cell">Form-16, PAN present</td>
+            <td style="color:var(--text2);font-size:12px;">PAN + Emp ID + FY</td>
+            <td style="font-family:var(--mono);font-size:11px;color:var(--blue);">Ladder 1 — NIK exact match</td>
+            <td class="outcome-match">✓ DIRECT MATCH</td>
+            <td style="color:var(--text3);font-size:11px;">FY tag added as period metadata.</td>
+          </tr>
+          <tr>
+            <td class="scenario-cell">Ex-NPCI employee at ABCD Bank. Same person, new Emp ID.</td>
+            <td style="color:var(--text2);font-size:12px;">PAN + ABCD Emp ID + Name</td>
+            <td style="font-family:var(--mono);font-size:11px;color:var(--blue);">Ladder 1 — NIK cross-tenant match</td>
+            <td class="outcome-match">✓ LINKED TO SAME VAULT</td>
+            <td style="color:var(--text3);font-size:11px;">PAN is the cross-org anchor. ABCD doc routes to same employee vault as NPCI docs. Different tenant tag, same vault.</td>
+          </tr>
+          <tr>
+            <td class="scenario-cell">Increment Letter — no PAN, Emp ID present</td>
+            <td style="color:var(--text2);font-size:12px;">Emp ID + Name + Dept</td>
+            <td style="font-family:var(--mono);font-size:11px;color:var(--blue);">Ladder 2 — Emp ID within tenant</td>
+            <td class="outcome-match">✓ DIRECT MATCH</td>
+            <td style="color:var(--text3);font-size:11px;">Scope locked to uploading tenant. Emp ID is unambiguous within org.</td>
+          </tr>
+          <tr>
+            <td class="scenario-cell">Experience Letter — no PAN, no Emp ID</td>
+            <td style="color:var(--text2);font-size:12px;">Name + DOJ + End Date + Desig</td>
+            <td style="font-family:var(--mono);font-size:11px;color:var(--amber);">Ladder 3 — Name + DOJ fuzzy</td>
+            <td class="outcome-fuzzy">~ FUZZY MATCH</td>
+            <td style="color:var(--text3);font-size:11px;">Name fuzzy + DOJ exact. If unique match at ≥0.88, auto-resolve. Logged for audit.</td>
+          </tr>
+          <tr>
+            <td class="scenario-cell">Scanned letter — OCR distorted name ("Priyaa" instead of "Priya")</td>
+            <td style="color:var(--text2);font-size:12px;">Name (garbled) + Dept + Desig</td>
+            <td style="font-family:var(--mono);font-size:11px;color:var(--violet);">Ladder 4 — Embedding similarity</td>
+            <td class="outcome-fuzzy">~ EMBEDDING MATCH</td>
+            <td style="color:var(--text3);font-size:11px;">Embedding handles OCR errors, transliteration, abbreviation differences. Cosine ≥ 0.92 required.</td>
+          </tr>
+          <tr>
+            <td class="scenario-cell">Common name, no unique identifiers (e.g. Rajesh Kumar, Mgr, HR)</td>
+            <td style="color:var(--text2);font-size:12px;">Name + Dept only</td>
+            <td style="font-family:var(--mono);font-size:11px;color:var(--red);">Ladder 3 → Ladder 4 → Exception</td>
+            <td class="outcome-queue">→ EXCEPTION QUEUE</td>
+            <td style="color:var(--text3);font-size:11px;">Multiple candidates match. Cannot auto-resolve. OA-Advance presented with top-3 matches and confidence scores.</td>
+          </tr>
+          <tr>
+            <td class="scenario-cell">Document uploaded for employee not in Employee Master</td>
+            <td style="color:var(--text2);font-size:12px;">Any combination</td>
+            <td style="font-family:var(--mono);font-size:11px;color:var(--red);">All ladders fail → Exception</td>
+            <td class="outcome-queue">→ EXCEPTION QUEUE</td>
+            <td style="color:var(--text3);font-size:11px;">Employee Master may need updating first. OA-Simple creates employee record, then OA-Advance re-triggers resolution.</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <hr class="divider">
+
+  <!-- ── EXCEPTION QUEUE ── -->
+  <div class="section" id="exception">
+    <div class="section-label">Exception Handling</div>
+    <h2>The <span class="accent">Exception Queue</span></h2>
+    <p class="section-intro">
+      Documents that cannot be auto-resolved land in the Exception Queue — visible only to OA-Advance users
+      of the uploading tenant. The queue surfaces all extracted fields, top candidate matches with confidence
+      scores, and a simple assignment interface.
+    </p>
+
+    <div class="exc-grid">
+      <div class="exc-card c-red">
+        <div class="exc-card-title">No Match Found</div>
+        <p>No employee in the Master matches any extracted field at any threshold. OA-Advance must either assign manually or create a new Employee Master record and re-trigger resolution.</p>
+      </div>
+      <div class="exc-card c-amber">
+        <div class="exc-card-title">Multiple Candidates</div>
+        <p>Two or more employees match at similar confidence. System presents top-3 candidates with field-level match breakdown. OA-Advance selects correct employee. Selection is logged immutably.</p>
+      </div>
+      <div class="exc-card c-violet">
+        <div class="exc-card-title">Low Extraction Confidence</div>
+        <p>LLM extracted fields but overall confidence is below threshold (e.g. scanned doc with poor image quality). Document flagged for manual field review before resolution is attempted.</p>
+      </div>
+    </div>
+
+    <div class="callout callout-amber">
+      <strong>Feedback loop:</strong> Every manual resolution by OA-Advance is logged as a labelled training example. Over time, these examples can fine-tune the extraction model and improve embedding match thresholds — reducing the Exception Queue volume with each upload cycle.
+    </div>
+  </div>
+
+  <hr class="divider">
+
+  <!-- ── VAULT ROUTING ── -->
+  <div class="section" id="vault-routing">
+    <div class="section-label">Post-Resolution</div>
+    <h2><span class="accent">Tag Assignment</span> &amp; Vault Routing</h2>
+    <p class="section-intro">
+      Once resolved, the document is tagged with an immutable metadata fingerprint and routed to the employee's
+      vault. The vault organises documents by tenant, doc type, and period — giving the employee a clean,
+      multi-employer view from a single URL.
+    </p>
+
+    <div class="vault-grid">
+      <div class="vault-employee">
+        <div class="vault-employee-label">Employee Vault</div>
+        <div class="vault-employee-name">Rahul Sharma</div>
+        <div class="vault-url">prana.in/vault/rahul-sharma-xk72</div>
+        <div class="vault-meta">
+          NIK (PAN): <span>ABCDE1234F</span><br>
+          Mobile: <span>+91 98765 43210</span><br>
+          Tenants: <span>NPCI · ABCD Bank</span><br>
+          Docs: <span>14 employer + 2 self-uploaded</span>
+        </div>
+      </div>
+      <div class="vault-docs">
+        <div class="vault-doc-row">
+          <span class="vdr-org npci">NPCI</span>
+          <span class="vdr-type">Appointment Letter</span>
+          <span class="vdr-key">tok: a3f8c2…9d1e · EmpID: NPCI0042 · DOJ: 2019-03-01</span>
+          <span class="vdr-routed">✓ routed</span>
+        </div>
+        <div class="vault-doc-row">
+          <span class="vdr-org npci">NPCI</span>
+          <span class="vdr-type">Salary Slip · Mar 2024</span>
+          <span class="vdr-key">tok: a3f8c2…9d1e · UAN: 101234567890 · Period: 2024-03</span>
+          <span class="vdr-routed">✓ routed</span>
+        </div>
+        <div class="vault-doc-row">
+          <span class="vdr-org npci">NPCI</span>
+          <span class="vdr-type">Form 16 · FY 2023-24</span>
+          <span class="vdr-key">tok: a3f8c2…9d1e · EmpID: NPCI0042 · FY: 2023-24</span>
+          <span class="vdr-routed">✓ routed</span>
+        </div>
+        <div class="vault-doc-row">
+          <span class="vdr-org npci">NPCI</span>
+          <span class="vdr-type">Relieving Letter</span>
+          <span class="vdr-key">EmpID: NPCI0042 · End Date: 2024-06-30 · Desig: Sr. Analyst</span>
+          <span class="vdr-routed">✓ routed</span>
+        </div>
+        <div class="vault-doc-row">
+          <span class="vdr-org abcd">ABCD</span>
+          <span class="vdr-type">Appointment Letter</span>
+          <span class="vdr-key">tok: a3f8c2…9d1e · EmpID: ABCD0181 · DOJ: 2024-07-15</span>
+          <span class="vdr-routed">✓ cross-tenant via pan_token</span>
+        </div>
+        <div class="vault-doc-row">
+          <span class="vdr-org abcd">ABCD</span>
+          <span class="vdr-type">Salary Slip · Oct 2024</span>
+          <span class="vdr-key">tok: a3f8c2…9d1e · EmpID: ABCD0181 · Period: 2024-10</span>
+          <span class="vdr-routed">✓ routed</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="callout callout-teal">
+      <strong>Virtual bucket model:</strong> There is no physical folder per employee. Storage is flat. The "bucket" is a metadata query — when Rahul logs in, the system returns all documents where <code style="font-family:var(--mono);color:var(--teal);">pan_token = tok_a3f8c2...9d1e</code>, scoped to tenants he has approved. Plaintext PAN is never used in this query. Org-level isolation is enforced at query time, not at storage time.
+    </div>
+
+    <div style="margin-top:2rem;">
+      <h3 style="font-family:var(--mono);font-size:13px;color:var(--text);margin-bottom:1rem;">Immutable Document Metadata Tag (applied to every routed document)</h3>
+      <div class="code-block">
+{
+  <span class="k">"document_id"</span>:          <span class="s">"doc_7f3a9c1e..."</span>,         <span class="c">// UUID, system-generated</span>
+  <span class="k">"tenant_id"</span>:             <span class="s">"npci_tenant_001"</span>,
+  <span class="k">"pan_token"</span>:             <span class="s">"hmac:a3f8c2...9d1e"</span>,      <span class="c">// vault anchor — used for all queries</span>
+  <span class="k">"enc_pan"</span>:               <span class="s">"fpe:XKQRT7823P"</span>,          <span class="c">// FF3-1(PAN, emp_DEK) — retrieval only</span>
+  <span class="k">"enc_dek_ref"</span>:           <span class="s">"emp_9a2f7c..."</span>,            <span class="c">// pointer to enc_dek in employee_master</span>
+  <span class="k">"employee_uuid"</span>:         <span class="s">"emp_9a2f7c..."</span>,            <span class="c">// no PII — internal reference only</span>
+  <span class="k">"employee_name"</span>:         <span class="s">"Rahul Sharma"</span>,
+  <span class="k">"emp_id_org"</span>:            <span class="s">"NPCI0042"</span>,                 <span class="c">// Emp ID within org</span>
+  <span class="k">"doc_type"</span>:              <span class="s">"SALARY_SLIP"</span>,
+  <span class="k">"doc_period"</span>:            <span class="s">"2024-03"</span>,                  <span class="c">// month / FY / date</span>
+  <span class="k">"resolution_method"</span>:    <span class="s">"PAN_TOKEN_EXACT"</span>,          <span class="c">// matched via HMAC token</span>
+  <span class="k">"resolution_confidence"</span>: <span class="v">0.97</span>,
+  <span class="k">"extracted_fields"</span>: {
+    <span class="k">"pan_token"</span>: { <span class="k">"value"</span>: <span class="s">"hmac:a3f8c2...9d1e"</span>, <span class="k">"confidence"</span>: <span class="v">0.99</span> },  <span class="c">// never plaintext PAN</span>
+    <span class="k">"uan"</span>:       { <span class="k">"value"</span>: <span class="s">"101234567890"</span>,          <span class="k">"confidence"</span>: <span class="v">0.98</span> },
+    <span class="k">"ctc"</span>:       { <span class="k">"value"</span>: <span class="v">85000</span>,                  <span class="k">"confidence"</span>: <span class="v">0.96</span> },
+    <span class="k">"tds"</span>:       { <span class="k">"value"</span>: <span class="v">7200</span>,                   <span class="k">"confidence"</span>: <span class="v">0.94</span> }
+  },
+  <span class="k">"uploaded_by"</span>:           <span class="s">"oa_user_hr_npci_007"</span>,
+  <span class="k">"uploaded_at"</span>:           <span class="s">"2025-04-15T09:32:11Z"</span>,
+  <span class="k">"routed_at"</span>:             <span class="s">"2025-04-15T09:32:14Z"</span>     <span class="c">// 3 seconds end-to-end</span>
+  <span class="c">// NO plaintext PAN in this tag, in the DB, in logs, or in any audit trail</span>
+}
+      </div>
+    </div>
+  </div>
+
+  <hr class="divider">
+
+  <!-- ── TECH STACK ── -->
+  <div class="section" id="tech">
+    <div class="section-label">Implementation</div>
+    <h2>Recommended <span class="accent">Tech Stack</span></h2>
+
+    <div class="stack-grid">
+      <div class="stack-card">
+        <div class="stack-layer">OCR</div>
+        <div class="stack-name">Tesseract / AWS Textract</div>
+        <div class="stack-desc">Scanned PDF → text. Textract preferred for structured forms (salary slips, Form-16).</div>
+      </div>
+      <div class="stack-card">
+        <div class="stack-layer">Extraction LLM</div>
+        <div class="stack-name">GPT-4o / Claude Sonnet</div>
+        <div class="stack-desc">Schema-aware field extraction with structured JSON output and per-field confidence scores.</div>
+      </div>
+      <div class="stack-card">
+        <div class="stack-layer">Embeddings</div>
+        <div class="stack-name">text-embedding-3-small</div>
+        <div class="stack-desc">Employee Master embeddings pre-computed and cached. Doc field embedding at resolution time.</div>
+      </div>
+      <div class="stack-card">
+        <div class="stack-layer">Vector Store</div>
+        <div class="stack-name">pgvector / Pinecone</div>
+        <div class="stack-desc">Store Employee Master embeddings per tenant. Scoped cosine similarity search at resolution.</div>
+      </div>
+      <div class="stack-card">
+        <div class="stack-layer">Fuzzy Match</div>
+        <div class="stack-name">rapidfuzz</div>
+        <div class="stack-desc">Python library. Levenshtein + Jaro-Winkler for name matching. Fast on 500–50k records.</div>
+      </div>
+      <div class="stack-card">
+        <div class="stack-layer">Queue / Async</div>
+        <div class="stack-name">Celery + Redis</div>
+        <div class="stack-desc">Async processing of bulk batches. Each document processed as an independent task. Retry on failure.</div>
+      </div>
+      <div class="stack-card">
+        <div class="stack-layer">Storage</div>
+        <div class="stack-name">S3 + PostgreSQL</div>
+        <div class="stack-desc">Files in S3 with tenant-prefixed keys. Metadata + routing tags in Postgres. pan_token indexed (never plaintext NIK).</div>
+      </div>
+      <div class="stack-card">
+        <div class="stack-layer">Audit Log</div>
+        <div class="stack-name">Immutable Event Store</div>
+        <div class="stack-desc">Every extraction, resolution, routing, exception, and manual override written to append-only log. No plaintext PAN in any log entry.</div>
+      </div>
+      <div class="stack-card">
+        <div class="stack-layer">FPE / Encryption</div>
+        <div class="stack-name">FF3-1 · AES-SIV</div>
+        <div class="stack-desc">Format-Preserving Encryption for NIK storage. Python: <code style="font-family:var(--mono);">ff3</code> library. Java: Bouncy Castle. NIST SP 800-38G standard.</div>
+      </div>
+      <div class="stack-card">
+        <div class="stack-layer">HMAC / Matching</div>
+        <div class="stack-name">HMAC-SHA256</div>
+        <div class="stack-desc">Deterministic pan_token derivation. Platform-level secret in KMS. Python: <code style="font-family:var(--mono);">hmac</code> stdlib. One-way — PAN not derivable from token.</div>
+      </div>
+      <div class="stack-card">
+        <div class="stack-layer">Key Management</div>
+        <div class="stack-name">AWS KMS / Azure Key Vault</div>
+        <div class="stack-desc">Tenant KEKs and platform HMAC secret. Keys never leave HSM. Envelope encryption for per-employee DEKs. Rotation on schedule.</div>
+      </div>
+    </div>
+
+    <div class="callout callout-blue" style="margin-top:1.5rem;">
+      <strong>Processing speed estimate:</strong> For a batch of 500 salary slips (machine-generated PDFs, no OCR needed) — LLM extraction ~1–2s per doc, NIK exact match ~10ms per doc, tagging + routing ~50ms per doc. Full batch: approximately <strong style="color:var(--text);">15–20 minutes</strong> end-to-end at standard API rate limits, parallelised across a Celery worker pool.
+    </div>
+  </div>
+
+  <!-- ── FOOTER ── -->
+  <div class="footer">
+    <div>PRANA · AI Document Intelligence Pipeline · <span>Layer 2 + Layer 3 + Encryption</span></div>
+    <div>DPDP-compliant · NIK-first · Vault-owner model · <span>prana.in</span></div>
+  </div>
+
+</div>
+</body>
+</html>
