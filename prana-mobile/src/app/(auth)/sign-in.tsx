@@ -74,22 +74,18 @@ const vault = StyleSheet.create({
 
 export default function SignInScreen() {
   const [mobile,   setMobile]   = useState('');
+  const [password, setPassword] = useState('');
+  const [showPwd,  setShowPwd]  = useState(false);
   const [loading,  setLoading]  = useState(false);
   const [error,    setError]    = useState('');
-  const [cooldown, setCooldown] = useState(0);
-  const inputRef  = useRef<TextInput>(null);
-  const shakeAnim = useRef(new Animated.Value(0)).current;
-  const fadeIn    = useRef(new Animated.Value(0)).current;
+  const mobileRef  = useRef<TextInput>(null);
+  const pwdRef     = useRef<TextInput>(null);
+  const shakeAnim  = useRef(new Animated.Value(0)).current;
+  const fadeIn     = useRef(new Animated.Value(0)).current;
 
   useEffect(() => {
     Animated.timing(fadeIn, { toValue: 1, duration: 700, useNativeDriver: true }).start();
   }, []);
-
-  useEffect(() => {
-    if (cooldown <= 0) return;
-    const t = setInterval(() => setCooldown(v => v <= 1 ? 0 : v - 1), 1000);
-    return () => clearInterval(t);
-  }, [cooldown]);
 
   function shake() {
     shakeAnim.setValue(0);
@@ -108,20 +104,34 @@ export default function SignInScreen() {
       shake();
       return;
     }
-    if (cooldown > 0) return;
+    if (!password) {
+      setError('Enter your password.');
+      shake();
+      return;
+    }
     setError('');
     setLoading(true);
     try {
-      await api.post('/auth/employee/request-otp', { mobile: cleaned });
-      authStore.setPendingMobile(cleaned);
-      router.push('/(auth)/otp-verify');
+      const res = await api.post<{ next: string; step_token: string }>(
+        '/auth/employee/login',
+        { identifier: `+91${cleaned}`, password },
+      );
+      authStore.setStepToken(res.step_token);
+      authStore.setPendingMobile(`+91${cleaned}`);
+      password && setPassword(''); // clear sensitive field
+      if (res.next === 'totp_setup') {
+        router.push('/(auth)/totp-setup');
+      } else {
+        router.push('/(auth)/totp-verify');
+      }
     } catch (e: any) {
       const code = e?.body?.error ?? e?.response?.data?.error;
-      if (code === 'RATE_LIMITED') {
-        setCooldown(60);
-        setError('Too many attempts. Your vault will be accessible again in 60 seconds.');
+      if (code === 'INVALID_CREDENTIALS') {
+        setError('Mobile number or password is incorrect.');
       } else if (code === 'MOBILE_NOT_REGISTERED') {
         setError('This number isn\'t linked to a PRANA vault yet. Your employer needs to add you first.');
+      } else if (code === 'LOCKED') {
+        setError('Account locked after too many attempts. Try again later or contact support.');
       } else {
         setError('Something went wrong. Check your connection and try again.');
       }
@@ -134,7 +144,7 @@ export default function SignInScreen() {
   // Format as  98765 43210  while typing
   const digits    = mobile.replace(/\D/g, '').slice(0, 10);
   const formatted = digits.length > 5 ? `${digits.slice(0, 5)} ${digits.slice(5)}` : digits;
-  const isReady   = digits.length === 10;
+  const isReady   = digits.length === 10 && password.length > 0;
 
   return (
     <LinearGradient
@@ -182,40 +192,61 @@ export default function SignInScreen() {
                 <View style={[s.stepDot, s.stepDotActive]} />
                 <View style={s.stepLine} />
                 <View style={s.stepDot} />
-                <View style={s.stepLine} />
-                <View style={s.stepDot} />
               </View>
-              <Text style={s.stepHint}>Step 1 of 3 — Mobile verification</Text>
+              <Text style={s.stepHint}>Step 1 of 2 — Sign in</Text>
 
-              {/* Field */}
-              <View style={s.fieldGroup}>
+              {/* Mobile field */}
+              <View style={[s.fieldGroup, { marginBottom: 14 }]}>
                 <Text style={s.fieldLabel}>REGISTERED MOBILE</Text>
-                <Pressable onPress={() => inputRef.current?.focus()}>
-                  <View style={[s.fieldRow, error ? s.fieldRowError : isReady ? s.fieldRowReady : {}]}>
+                <Pressable onPress={() => mobileRef.current?.focus()}>
+                  <View style={[s.fieldRow, error && !password ? s.fieldRowError : digits.length === 10 ? s.fieldRowReady : {}]}>
                     <Text style={s.countryFlag}>🇮🇳</Text>
                     <Text style={s.countryCode}>+91</Text>
                     <View style={s.divider} />
                     <TextInput
-                      ref={inputRef}
+                      ref={mobileRef}
                       style={s.input}
                       placeholder="98765 43210"
                       placeholderTextColor="#3D4A6B"
                       keyboardType="phone-pad"
                       value={formatted}
-                      onChangeText={v => {
-                        setMobile(v.replace(/\D/g, ''));
-                        setError('');
-                      }}
+                      onChangeText={v => { setMobile(v.replace(/\D/g, '')); setError(''); }}
                       editable={!loading}
                       maxLength={11}
+                      returnKeyType="next"
+                      onSubmitEditing={() => pwdRef.current?.focus()}
+                    />
+                    {digits.length === 10 && (
+                      <View style={s.readyTick}><Text style={s.readyTickText}>✓</Text></View>
+                    )}
+                  </View>
+                </Pressable>
+              </View>
+
+              {/* Password field */}
+              <View style={s.fieldGroup}>
+                <Text style={s.fieldLabel}>PASSWORD</Text>
+                <Pressable onPress={() => pwdRef.current?.focus()}>
+                  <View style={[s.fieldRow, error && !digits ? s.fieldRowError : password.length > 0 ? s.fieldRowReady : {}]}>
+                    <Text style={s.countryFlag}>🔑</Text>
+                    <View style={s.divider} />
+                    <TextInput
+                      ref={pwdRef}
+                      style={s.input}
+                      placeholder="Your password"
+                      placeholderTextColor="#3D4A6B"
+                      secureTextEntry={!showPwd}
+                      value={password}
+                      onChangeText={v => { setPassword(v); setError(''); }}
+                      editable={!loading}
                       returnKeyType="done"
                       onSubmitEditing={handleContinue}
+                      autoCapitalize="none"
+                      autoCorrect={false}
                     />
-                    {isReady && !error && (
-                      <View style={s.readyTick}>
-                        <Text style={s.readyTickText}>✓</Text>
-                      </View>
-                    )}
+                    <Pressable onPress={() => setShowPwd(v => !v)} hitSlop={8}>
+                      <Text style={{ fontSize: 16, color: '#4B5A78' }}>{showPwd ? '🙈' : '👁️'}</Text>
+                    </Pressable>
                   </View>
                 </Pressable>
                 {error ? (
@@ -231,15 +262,12 @@ export default function SignInScreen() {
             {loading ? (
               <View style={s.loadingRow}>
                 <ActivityIndicator color={colors.emerald} />
-                <Text style={s.loadingText}>Sending a code to your phone…</Text>
-              </View>
-            ) : cooldown > 0 ? (
-              <View style={s.cooldownPill}>
-                <Text style={s.cooldownText}>⏳  Try again in {cooldown}s</Text>
+                <Text style={s.loadingText}>Verifying…</Text>
               </View>
             ) : (
               <Pressable
                 onPress={handleContinue}
+                disabled={loading}
                 style={({ pressed }) => [s.ctaWrap, pressed && { opacity: 0.85 }]}
               >
                 <LinearGradient
@@ -366,14 +394,6 @@ const s = StyleSheet.create({
     gap: 10, height: 56, marginBottom: 10,
   },
   loadingText: { fontFamily: fonts.bodyMedium, fontSize: 13, color: colors.emerald },
-
-  cooldownPill: {
-    backgroundColor: 'rgba(255,255,255,0.04)',
-    borderWidth: 1, borderColor: 'rgba(255,255,255,0.07)',
-    borderRadius: 16, height: 56,
-    alignItems: 'center', justifyContent: 'center', marginBottom: 10,
-  },
-  cooldownText: { fontFamily: fonts.mono, fontSize: 13, color: '#4B5A78' },
 
   ctaWrap: { marginBottom: 10 },
   cta: { borderRadius: 16, height: 56, alignItems: 'center', justifyContent: 'center' },

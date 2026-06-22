@@ -5,9 +5,20 @@
  */
 
 import * as SecureStore from 'expo-secure-store';
+import { Platform } from 'react-native';
 
 const TOKEN_KEY = 'prana_access_token';
 const STEP_TOKEN_KEY = 'prana_step_token';
+
+// SecureStore is native-only — no-op shim for web previews
+const store = {
+  getItemAsync: (key: string) =>
+    Platform.OS === 'web' ? Promise.resolve(null) : SecureStore.getItemAsync(key),
+  setItemAsync: (key: string, value: string) =>
+    Platform.OS === 'web' ? Promise.resolve() : SecureStore.setItemAsync(key, value),
+  deleteItemAsync: (key: string) =>
+    Platform.OS === 'web' ? Promise.resolve() : SecureStore.deleteItemAsync(key),
+};
 
 let _token: string | null = null;
 let _stepToken: string | null = null;
@@ -22,16 +33,16 @@ export const authStore = {
 
   setToken(token: string) {
     _token = token;
-    SecureStore.setItemAsync(TOKEN_KEY, token).catch(() => {});
+    store.setItemAsync(TOKEN_KEY, token).catch(() => {});
   },
 
   clearToken() {
     _token = null;
-    SecureStore.deleteItemAsync(TOKEN_KEY).catch(() => {});
+    store.deleteItemAsync(TOKEN_KEY).catch(() => {});
   },
 
   async loadFromStorage(): Promise<string | null> {
-    const stored = await SecureStore.getItemAsync(TOKEN_KEY);
+    const stored = await store.getItemAsync(TOKEN_KEY);
     if (stored) _token = stored;
     return stored;
   },
@@ -47,9 +58,9 @@ export const authStore = {
 
   // Device ID: stable per-install identifier stored in SecureStore
   async getDeviceId(): Promise<string | null> {
-    return SecureStore.getItemAsync('prana_device_id');
+    return store.getItemAsync('prana_device_id');
   },
   async setDeviceId(id: string): Promise<void> {
-    await SecureStore.setItemAsync('prana_device_id', id);
+    await store.setItemAsync('prana_device_id', id);
   },
 };

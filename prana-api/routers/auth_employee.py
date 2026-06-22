@@ -397,7 +397,7 @@ async def setup_totp_init(body: TOTPInitIn, request: Request, db: DbConn):
         )
 
     uri = totp_svc.provisioning_uri(secret_b32, account_label, issuer="PRANA")
-    return {"provisioning_uri": uri}
+    return {"provisioning_uri": uri, "secret_key": secret_b32}
 
 
 # ── Setup: TOTP confirm ───────────────────────────────────────────────────────

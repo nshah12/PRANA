@@ -17,45 +17,45 @@ import { colors, fonts, radius } from '@/prana-theme/tokens';
 
 const CODE_LEN = 6;
 
-function QrDisplay({ uri, secretKey }: { uri: string; secretKey: string }) {
+function QrDisplay({ secretKey }: { uri: string; secretKey: string }) {
   const [copied, setCopied] = useState(false);
+  const formatted = secretKey ? (secretKey.match(/.{1,4}/g)?.join(' ') ?? secretKey) : '';
 
-  // Dynamically import QR — safe fallback if library absent
-  let QRCode: React.ComponentType<{ value: string; size: number; color: string; backgroundColor: string }> | null = null;
-  try {
-    QRCode = require('react-native-qrcode-svg').default;
-  } catch {}
-
-  async function copyKey() {
-    const Clipboard = (await import('@react-native-clipboard/clipboard')).default;
-    Clipboard.setString(secretKey);
+  function copyKey() {
+    if (!secretKey) return;
+    // Use Clipboard API available in Expo without extra package
+    const { Clipboard } = require('react-native');
+    if (Clipboard?.setString) {
+      Clipboard.setString(secretKey);
+    }
     setCopied(true);
     setTimeout(() => setCopied(false), 2500);
   }
 
   return (
     <View style={qr.wrap}>
-      <View style={qr.qrFrame}>
-        {QRCode ? (
-          <QRCode value={uri} size={160} color="#0B0F1E" backgroundColor="#FFFFFF" />
-        ) : (
-          <View style={qr.qrFallback}>
-            <Text style={qr.qrFallbackText}>QR not available{'\n'}Use the key below</Text>
-          </View>
-        )}
+      {/* Authenticator icon */}
+      <View style={qr.iconBox}>
+        <Text style={qr.iconEmoji}>🔐</Text>
       </View>
 
-      <Text style={qr.scanHint}>Open Google Authenticator, Authy, or any TOTP app and scan this code</Text>
+      <Text style={qr.title}>Add to Authenticator</Text>
+      <Text style={qr.hint}>
+        Open <Text style={qr.bold}>Google Authenticator</Text> or <Text style={qr.bold}>Authy</Text>{'\n'}
+        Tap  <Text style={qr.bold}>+  →  Enter a setup key</Text>{'\n'}
+        Account: <Text style={qr.bold}>PRANA</Text>  ·  Type: <Text style={qr.bold}>Time-based</Text>
+      </Text>
 
-      <View style={qr.keyRow}>
-        <View style={{ flex: 1 }}>
-          <Text style={qr.keyLabel}>MANUAL ENTRY KEY</Text>
-          <Text style={qr.keyValue} selectable>{secretKey.match(/.{1,4}/g)?.join(' ') ?? secretKey}</Text>
-        </View>
+      {/* Key display */}
+      <View style={qr.keyBox}>
+        <Text style={qr.keyLabel}>YOUR SETUP KEY</Text>
+        <Text style={qr.keyValue} selectable>{formatted || '—'}</Text>
         <Pressable onPress={copyKey} style={qr.copyBtn}>
-          <Text style={qr.copyText}>{copied ? '✓ Copied' : 'Copy'}</Text>
+          <Text style={qr.copyText}>{copied ? '✓  Copied!' : 'Copy key'}</Text>
         </Pressable>
       </View>
+
+      <Text style={qr.footer}>After adding, enter the 6-digit code below to confirm.</Text>
     </View>
   );
 }
@@ -66,28 +66,31 @@ const qr = StyleSheet.create({
     borderWidth: 1, borderColor: 'rgba(255,255,255,0.10)',
     borderRadius: 22, padding: 20, marginBottom: 16, alignItems: 'center',
   },
-  qrFrame: {
-    width: 180, height: 180, borderRadius: 16,
-    backgroundColor: '#FFFFFF', alignItems: 'center', justifyContent: 'center',
-    padding: 10, marginBottom: 14,
-  },
-  qrFallback: { alignItems: 'center', justifyContent: 'center', flex: 1 },
-  qrFallbackText: { fontFamily: fonts.mono, fontSize: 11, color: colors.ink2, textAlign: 'center' },
-  scanHint: { fontFamily: fonts.bodyRegular, fontSize: 12, color: '#8B97B8', textAlign: 'center', lineHeight: 18, marginBottom: 14 },
-  keyRow: {
-    flexDirection: 'row', alignItems: 'center',
-    backgroundColor: 'rgba(255,255,255,0.04)',
-    borderWidth: 1, borderColor: 'rgba(255,255,255,0.08)',
-    borderRadius: 14, padding: 12, gap: 10, alignSelf: 'stretch',
-  },
-  keyLabel: { fontFamily: fonts.mono, fontSize: 9, color: '#6B7394', letterSpacing: 1, marginBottom: 4 },
-  keyValue: { fontFamily: fonts.mono, fontSize: 13, color: '#FFFFFF', letterSpacing: 2 },
-  copyBtn: {
+  iconBox: {
+    width: 64, height: 64, borderRadius: 20,
     backgroundColor: 'rgba(99,102,241,0.15)',
     borderWidth: 1, borderColor: 'rgba(99,102,241,0.25)',
-    borderRadius: 10, paddingHorizontal: 12, paddingVertical: 6,
+    alignItems: 'center', justifyContent: 'center', marginBottom: 12,
   },
-  copyText: { fontFamily: fonts.bodySemiBold, fontSize: 12, color: colors.indigo },
+  iconEmoji: { fontSize: 28 },
+  title: { fontFamily: fonts.displayBold, fontSize: 17, color: '#FFFFFF', marginBottom: 10 },
+  hint: { fontFamily: fonts.bodyRegular, fontSize: 13, color: '#8B97B8', textAlign: 'center', lineHeight: 22, marginBottom: 16 },
+  bold: { fontFamily: fonts.bodySemiBold, color: '#CBD5E1' },
+  keyBox: {
+    alignSelf: 'stretch',
+    backgroundColor: 'rgba(0,0,0,0.3)',
+    borderWidth: 1, borderColor: 'rgba(99,102,241,0.30)',
+    borderRadius: 16, padding: 16, alignItems: 'center',
+  },
+  keyLabel: { fontFamily: fonts.mono, fontSize: 9, color: '#6B7394', letterSpacing: 1.5, marginBottom: 8 },
+  keyValue: { fontFamily: fonts.mono, fontSize: 18, color: '#FFFFFF', letterSpacing: 3, textAlign: 'center', marginBottom: 12 },
+  copyBtn: {
+    backgroundColor: 'rgba(99,102,241,0.20)',
+    borderWidth: 1, borderColor: 'rgba(99,102,241,0.35)',
+    borderRadius: 10, paddingHorizontal: 20, paddingVertical: 8,
+  },
+  copyText: { fontFamily: fonts.bodySemiBold, fontSize: 13, color: '#A5B4FC' },
+  footer: { fontFamily: fonts.bodyRegular, fontSize: 11, color: '#4B5268', textAlign: 'center', marginTop: 12, lineHeight: 17 },
 });
 
 // ── Screen ────────────────────────────────────────────────────────────────────
@@ -114,11 +117,11 @@ export default function TotpSetupScreen() {
   async function loadTotpSetup() {
     try {
       const stepToken = authStore.getStepToken();
-      const res = await api.post<{ totp_uri: string; secret_key: string }>(
-        '/auth/employee/totp-setup/init',
+      const res = await api.post<{ provisioning_uri: string; secret_key: string }>(
+        '/auth/employee/setup/totp/init',
         { step_token: stepToken },
       );
-      setTotpUri(res.totp_uri);
+      setTotpUri(res.provisioning_uri);
       setSecretKey(res.secret_key);
       setPhase('scan');
     } catch {
@@ -143,7 +146,7 @@ export default function TotpSetupScreen() {
     try {
       const stepToken = authStore.getStepToken();
       const res = await api.post<{ access_token: string }>(
-        '/auth/employee/totp-setup/confirm',
+        '/auth/employee/setup/totp/confirm',
         { step_token: stepToken, code },
       );
       authStore.setToken(res.access_token);
