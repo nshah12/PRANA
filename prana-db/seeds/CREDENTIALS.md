@@ -86,6 +86,89 @@ Login URL: `http://localhost:3000/org/login`
 
 ---
 
+---
+
+## 3-Tenant Cross-Tenant Test Employees (emp011–020)
+
+**Seed file:** `prana-db/seeds/dev_seed_3tenant10.sql`  
+All 10 employees span exactly **3 tenants** — designed for cross-tenant testing.  
+Login flow: enter mobile → OTP (`123456`) → vault opens  
+Password: `DevEmp@123`
+
+| # | Name | Mobile | Email | Current Tenant | Career (oldest → current) |
+|---|------|--------|-------|----------------|--------------------------|
+| 011 | Arjun Kapoor | `+919000000011` | emp011@test.prana | Bluestar Pharma | Vertex(2016-19) → Indigo(2020-22) → **Bluestar** |
+| 012 | Meera Krishnan | `+919000000012` | emp012@test.prana | Bluestar Pharma | Vertex(2016-19) → Indigo(2020-22) → **Bluestar** |
+| 013 | Siddharth Rao | `+919000000013` | emp013@test.prana | Bluestar Pharma | Vertex(2016-19) → Indigo(2020-22) → **Bluestar** |
+| 014 | Natasha Verma | `+919000000014` | emp014@test.prana | Bluestar Pharma | Vertex(2016-19) → Indigo(2020-22) → **Bluestar** |
+| 015 | Rajesh Pillai | `+919000000015` | emp015@test.prana | Vertex Technologies | Indigo(2016-19) → Bluestar(2020-22) → **Vertex** |
+| 016 | Divya Menon | `+919000000016` | emp016@test.prana | Vertex Technologies | Indigo(2016-19) → Bluestar(2020-22) → **Vertex** |
+| 017 | Aditya Gupta | `+919000000017` | emp017@test.prana | Vertex Technologies | Indigo(2016-19) → Bluestar(2020-22) → **Vertex** |
+| 018 | Preethi Nambiar | `+919000000018` | emp018@test.prana | Indigo Capital | Bluestar(2016-19) → Vertex(2020-22) → **Indigo** |
+| 019 | Suresh Babu | `+919000000019` | emp019@test.prana | Indigo Capital | Bluestar(2016-19) → Vertex(2020-22) → **Indigo** |
+| 020 | Kavya Reddy | `+919000000020` | emp020@test.prana | Indigo Capital | Bluestar(2016-19) → Vertex(2020-22) → **Indigo** |
+
+Each employee: 31 documents total (11 alumni-stint 1 + 11 alumni-stint 2 + 9 current-stint)
+
+---
+
+## 3-Tenant OA Portal Credentials
+
+**All passwords: `Prana@Admin0124`**  
+First login: scan TOTP QR → register in authenticator → subsequent logins need live 6-digit code.
+
+### Vertex Technologies Pvt Ltd (T11)
+
+| Role | Email | Password |
+|------|-------|----------|
+| OA-Admin | admin@vertex.in | Prana@Admin0124 |
+| OA-Operator | ops@vertex.in | Prana@Admin0124 |
+| CHRO | chro@vertex.in | Prana@Admin0124 |
+| CFO | cfo@vertex.in | Prana@Admin0124 |
+| CISO | ciso@vertex.in | Prana@Admin0124 |
+
+Current employees at Vertex: emp015, emp016, emp017 (Group B current)  
+Past employees who have docs at Vertex: emp011-014 (old stint), emp018-020 (mid stint)
+
+### Indigo Capital Ltd (T12)
+
+| Role | Email | Password |
+|------|-------|----------|
+| OA-Admin | admin@indigocapital.in | Prana@Admin0124 |
+| OA-Operator | ops@indigocapital.in | Prana@Admin0124 |
+| CHRO | chro@indigocapital.in | Prana@Admin0124 |
+| CFO | cfo@indigocapital.in | Prana@Admin0124 |
+| CISO | ciso@indigocapital.in | Prana@Admin0124 |
+
+Current employees at Indigo: emp018, emp019, emp020 (Group C current)  
+Past employees who have docs at Indigo: emp011-014 (mid stint), emp015-017 (old stint)
+
+### Bluestar Pharma Pvt Ltd (T13)
+
+| Role | Email | Password |
+|------|-------|----------|
+| OA-Admin | admin@bluestarpharma.in | Prana@Admin0124 |
+| OA-Operator | ops@bluestarpharma.in | Prana@Admin0124 |
+| CHRO | chro@bluestarpharma.in | Prana@Admin0124 |
+| CFO | cfo@bluestarpharma.in | Prana@Admin0124 |
+| CISO | ciso@bluestarpharma.in | Prana@Admin0124 |
+
+Current employees at Bluestar: emp011, emp012, emp013, emp014 (Group A current)  
+Past employees who have docs at Bluestar: emp015-017 (mid stint), emp018-020 (old stint)
+
+---
+
+## Cross-Tenant Test Scenarios (emp011-020)
+
+| Scenario | What to do |
+|----------|-----------|
+| Same employee, different portals | Login to `admin@vertex.in` + `admin@indigocapital.in` — both see docs for emp015 (was at Indigo old, now at Vertex) |
+| Cross-tenant upload detection | Login as `ops@vertex.in`, try uploading doc with emp011's PAN → anomaly_event written, CISO alerted |
+| CISO cross-tenant alert | After upload attempt, login as `ciso@vertex.in` → portal bell shows CROSS_TENANT_UPLOAD alert |
+| Employee with 3-org vault | Login emp011 on mobile (+919000000011) → vault shows docs from Vertex + Indigo + Bluestar |
+
+---
+
 ## Portal Admin Credential
 
 Login URL: `http://localhost:3000/admin/login`
