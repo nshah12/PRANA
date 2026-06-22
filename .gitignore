@@ -4,6 +4,8 @@ keys/
 .env
 .env.*
 !.env.example
+!prana-portal/.env.production
+!prana-mobile/.env
 
 # Python
 __pycache__/

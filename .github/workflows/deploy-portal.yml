@@ -46,8 +46,8 @@ jobs:
         env:
           # Sets asset base to /<repo-name>/ — GitHub Pages project URL format.
           VITE_BASE_PATH: /${{ github.event.repository.name }}/
-          # Optional: point the portal at a running backend. Leave empty for demo-only deploy.
-          VITE_API_URL: ${{ github.event.inputs.api_url || secrets.PORTAL_API_URL || '' }}
+          # If secret PORTAL_API_URL is set it overrides .env.production; otherwise .env.production wins.
+          VITE_API_URL: ${{ github.event.inputs.api_url || secrets.PORTAL_API_URL }}
         run: npx vite build
 
       - name: Upload Pages artifact
