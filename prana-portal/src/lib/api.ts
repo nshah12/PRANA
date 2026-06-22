@@ -2,11 +2,15 @@ import axios from 'axios'
 import { useAuthStore } from '@/store/auth'
 import { useEmpAuthStore } from '@/store/empAuth'
 
-// Local dev: VITE_API_URL not set → '/api' → Vite proxy → localhost:8000
-// GitHub Pages build: VITE_API_URL baked in from PORTAL_API_URL secret → direct API calls
+// Priority: localStorage (user override) → VITE_API_URL (build-time) → /api (Vite proxy, local dev)
+export function getApiBase(): string {
+  try { const u = localStorage.getItem('PRANA_API_URL'); if (u) return u } catch {}
+  return import.meta.env.VITE_API_URL ?? '/api'
+}
+
 export const api = axios.create({
-  baseURL: import.meta.env.VITE_API_URL ?? '/api',
-  withCredentials: true,   // httpOnly refresh cookie
+  baseURL: getApiBase(),
+  withCredentials: true,
 })
 
 // Attach access token — employee token takes priority on /emp/* routes; org token elsewhere

@@ -12,7 +12,8 @@
  */
 import { useState, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { Loader2, ShieldCheck, Eye, EyeOff, QrCode } from 'lucide-react'
+import { Loader2, ShieldCheck, Eye, EyeOff, QrCode, Settings } from 'lucide-react'
+import { getApiBase } from '@/lib/api'
 import QRCode from 'qrcode'
 import { api } from '@/lib/api'
 import { useEmpAuthStore } from '@/store/empAuth'
@@ -206,6 +207,18 @@ export function EmpLogin() {
 
   // ── Progress indicator (main flow only) ──────────────────────────────────
 
+  // ── Dev API URL config ────────────────────────────────────────────────────
+  const [showApiCfg, setShowApiCfg] = useState(false)
+  const [apiUrl, setApiUrl] = useState(() => { try { return localStorage.getItem('PRANA_API_URL') ?? '' } catch { return '' } })
+
+  function saveApiUrl() {
+    try {
+      if (apiUrl.trim()) localStorage.setItem('PRANA_API_URL', apiUrl.trim())
+      else localStorage.removeItem('PRANA_API_URL')
+    } catch {}
+    window.location.reload()
+  }
+
   const isSetupStep = ['force_password', 'totp_setup', 'consent'].includes(step)
   const progressIdx = FLOW_STEPS.indexOf(step as Step)
 
@@ -385,6 +398,36 @@ export function EmpLogin() {
           <p className="text-slate-500 text-[10px] text-center leading-4">
             Biometric stays on device · No salary figures shown · PRANA will never ask for your password via email
           </p>
+        </div>
+
+        {/* API URL config — dev/demo use */}
+        <div className="mt-4">
+          <button onClick={() => setShowApiCfg(v => !v)}
+            className="flex items-center gap-1.5 text-slate-600 hover:text-slate-400 text-[10px] mx-auto transition-colors">
+            <Settings size={10} /> API: {getApiBase()}
+          </button>
+          {showApiCfg && (
+            <div className="mt-2 bg-white/5 border border-white/10 rounded-xl p-3 space-y-2">
+              <p className="text-slate-400 text-[10px]">
+                Run <code className="text-emerald-400">cloudflared tunnel --url http://localhost:8001</code> and paste the HTTPS URL below.
+              </p>
+              <input
+                type="url" value={apiUrl} onChange={e => setApiUrl(e.target.value)}
+                placeholder="https://abc-xyz.trycloudflare.com"
+                className="w-full bg-white/5 border border-white/10 rounded-lg px-3 py-2 text-white text-xs placeholder-slate-600 outline-none focus:border-emerald-400/50"
+              />
+              <div className="flex gap-2">
+                <button onClick={saveApiUrl}
+                  className="flex-1 bg-emerald-600 text-white text-xs rounded-lg py-1.5 font-medium">
+                  Save &amp; reload
+                </button>
+                <button onClick={() => { setApiUrl(''); localStorage.removeItem('PRANA_API_URL'); window.location.reload() }}
+                  className="text-slate-500 text-xs px-3 hover:text-slate-300">
+                  Reset
+                </button>
+              </div>
+            </div>
+          )}
         </div>
       </div>
     </div>
