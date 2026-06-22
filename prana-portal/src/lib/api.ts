@@ -2,8 +2,10 @@ import axios from 'axios'
 import { useAuthStore } from '@/store/auth'
 import { useEmpAuthStore } from '@/store/empAuth'
 
+// Local dev: VITE_API_URL not set → '/api' → Vite proxy → localhost:8000
+// GitHub Pages build: VITE_API_URL baked in from PORTAL_API_URL secret → direct API calls
 export const api = axios.create({
-  baseURL: '/api',
+  baseURL: import.meta.env.VITE_API_URL ?? '/api',
   withCredentials: true,   // httpOnly refresh cookie
 })
 
@@ -35,7 +37,7 @@ api.interceptors.response.use(
       const role = useAuthStore.getState().user?.role
       if (isEmpRoute) {
         try {
-          const { data } = await axios.post('/api/auth/employee/refresh', {}, { withCredentials: true })
+          const { data } = await api.post('/auth/employee/refresh', {}, { withCredentials: true })
           useEmpAuthStore.getState().setAccessToken(data.access_token)
           original.headers.Authorization = `Bearer ${data.access_token}`
           return api(original)
@@ -44,7 +46,7 @@ api.interceptors.response.use(
           window.location.href = '/emp/login'
         }
       } else {
-        const refreshPath = role === 'portal_admin' ? '/api/auth/admin/refresh' : '/api/auth/org/refresh'
+        const refreshPath = role === 'portal_admin' ? '/auth/admin/refresh' : '/auth/org/refresh'
         try {
           const { data } = await axios.post(refreshPath, {}, { withCredentials: true })
           useAuthStore.getState().setAccessToken(data.access_token)

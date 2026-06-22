@@ -78,11 +78,12 @@ class Settings(BaseSettings):
     msg91_auth_key:     str = ""
     msg91_template_id:  str = ""
 
-    # CORS (dev allows localhost on common Vite ports; prod locks to prana.in)
+    # CORS — localhost for dev, GitHub Pages for demo, prana.in for prod
     cors_origins: list[str] = [
         "http://localhost:3000",
         "http://localhost:3001",
         "http://localhost:5173",
+        "https://nshah12.github.io",
     ]
 
 
