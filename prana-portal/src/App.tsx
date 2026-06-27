@@ -114,6 +114,8 @@ import { AuditTrail }        from '@/pages/pa/AuditTrail'
 import { RateLimits }        from '@/pages/pa/RateLimits'
 import { Announcements }     from '@/pages/pa/Announcements'
 import { ContactInquiries }  from '@/pages/pa/ContactInquiries'
+import { HRMSCatalogue }    from '@/pages/pa/HRMSCatalogue'
+import { HRMSSettings }     from '@/pages/oa/HRMSSettings'
 
 function RequireEmpAuth({ children }: { children: React.ReactNode }) {
   const user        = useEmpAuthStore(s => s.user)
@@ -206,6 +208,7 @@ export default function App() {
       <Route path="/org/elevations" element={<RequireAuth><PortalLayout><ElevationPage /></PortalLayout></RequireAuth>} />
       <Route path="/org/elevation"  element={<RequireAuth><PortalLayout><ElevationPage /></PortalLayout></RequireAuth>} />
       <Route path="/org/settings"   element={<RequireAuth><PortalLayout><OrgSettings /></PortalLayout></RequireAuth>} />
+      <Route path="/org/hrms"       element={<RequireAuth><PortalLayout><HRMSSettings /></PortalLayout></RequireAuth>} />
       <Route path="/org/profile"    element={<RequireAuth><PortalLayout><OrgProfile /></PortalLayout></RequireAuth>} />
 
       {/* CHRO routes */}
@@ -267,6 +270,7 @@ export default function App() {
       <Route path="/admin/rate-limits"      element={<RequireAuth><PortalLayout><RateLimits /></PortalLayout></RequireAuth>} />
       <Route path="/admin/announcements"   element={<RequireAuth><PortalLayout><Announcements /></PortalLayout></RequireAuth>} />
       <Route path="/admin/inquiries"      element={<RequireAuth><PortalLayout><ContactInquiries /></PortalLayout></RequireAuth>} />
+      <Route path="/admin/hrms"          element={<RequireAuth><PortalLayout><HRMSCatalogue /></PortalLayout></RequireAuth>} />
 
       {/* Employee self-service portal */}
       <Route path="/emp/login" element={<EmpLogin />} />

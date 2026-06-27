@@ -10,18 +10,23 @@ Events handled:
   EMPLOYEE_REJOINED      → start IdentityResolutionWorkflow (re-check dedup)
   ACCOUNT_DORMANT        → start AccountDormancyWorkflow
   EMPLOYEE_PROFILE_UPDATED → publish EMPLOYEE_PROFILE_INVALIDATE to cache.invalidation
+  HRMS_EMPLOYEE_SYNCED   → upsert employee_master; publish EMPLOYEE_ONBOARDED for new entries
 """
 import json
 import logging
 from typing import Optional
+from uuid import UUID
 
 import asyncpg
 from aiokafka import AIOKafkaConsumer
 
 from config import Settings
+from connectors.base import strip_salary_fields
 
 log = logging.getLogger(__name__)
 GROUP_ID = "prana-employee-consumer"
+
+_INACTIVE_STATUSES = {"inactive", "offboarded", "terminated", "resigned", "left"}
 
 
 class EmployeeConsumer:
@@ -80,8 +85,133 @@ class EmployeeConsumer:
                 except Exception:
                     log.exception("EmployeeConsumer: failed to publish cache invalidation")
 
+        elif etype == "HRMS_EMPLOYEE_SYNCED":
+            if self._pool:
+                async with self._pool.acquire() as conn:
+                    await self._handle_hrms_employee_synced(event, conn)
+            else:
+                log.warning("EmployeeConsumer: no db_pool — cannot handle HRMS_EMPLOYEE_SYNCED")
+
         else:
             log.debug("EmployeeConsumer: no workflow for event_type=%s", etype)
+
+    async def _handle_hrms_employee_synced(self, event: dict, conn) -> None:
+        """
+        Upsert employee_master from an HRMS pull record.
+
+        New employee  → INSERT + publish EMPLOYEE_ONBOARDED (triggers IdentityResolutionWorkflow)
+        Known employee → UPDATE mutable fields (designation, department, location)
+        Inactive status → set dol (date of leaving)
+        Privacy: salary fields stripped before any DB write.
+        """
+        tenant_id_str = event.get("tenant_id")
+        employee_data = event.get("employee_data") or {}
+
+        if not tenant_id_str or not employee_data.get("employee_id"):
+            log.warning("HRMS_EMPLOYEE_SYNCED: missing tenant_id or employee_id — skipping")
+            return
+
+        # Privacy: strip salary fields before touching any DB column
+        clean = strip_salary_fields(employee_data)
+
+        tenant_id  = UUID(tenant_id_str)
+        emp_id_org = clean["employee_id"]
+        status_raw = (clean.get("status") or "active").lower()
+        is_inactive = status_raw in _INACTIVE_STATUSES
+
+        existing = await conn.fetchrow(
+            """
+            SELECT employee_uuid, employee_user_id, designation, department, status, dol
+            FROM   employee_master
+            WHERE  tenant_id  = $1
+              AND  emp_id_org = $2
+            """,
+            tenant_id,
+            emp_id_org,
+        )
+
+        if existing is None:
+            await self._insert_new_employee(clean, tenant_id, conn)
+        else:
+            await self._update_existing_employee(
+                existing=existing,
+                clean=clean,
+                tenant_id=tenant_id,
+                is_inactive=is_inactive,
+                conn=conn,
+            )
+
+    async def _insert_new_employee(self, clean: dict, tenant_id: UUID, conn) -> None:
+        full_name = f"{clean.get('first_name', '')} {clean.get('last_name', '')}".strip()
+        doj       = clean.get("date_of_join") or clean.get("date_of_joining")
+
+        employee_uuid = await conn.fetchval(
+            """
+            INSERT INTO employee_master (
+                tenant_id, emp_id_org, full_name,
+                designation, department, location,
+                employment_type, status, doj,
+                pan_token, enc_pan, enc_dek
+            )
+            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9::date,
+                    'PENDING_RESOLUTION', 'PENDING_RESOLUTION', 'PENDING_RESOLUTION')
+            RETURNING employee_uuid
+            """,
+            tenant_id,
+            clean.get("employee_id"),
+            full_name or "UNKNOWN",
+            clean.get("designation"),
+            clean.get("department"),
+            clean.get("location"),
+            (clean.get("employment_type") or "PERMANENT").upper(),
+            "ACTIVE",
+            doj,
+        )
+
+        log.info("HRMS_EMPLOYEE_SYNCED: inserted employee_uuid=%s emp_id=%s", employee_uuid, clean.get("employee_id"))
+
+        if self._kafka:
+            await self._kafka.employee_event({
+                "event_type":    "EMPLOYEE_ONBOARDED",
+                "tenant_id":     str(tenant_id),
+                "employee_uuid": str(employee_uuid),
+                "emp_id_org":    clean.get("employee_id"),
+                "source":        "HRMS_SYNC",
+            })
+
+    async def _update_existing_employee(
+        self, existing, clean: dict, tenant_id: UUID, is_inactive: bool, conn
+    ) -> None:
+        if is_inactive:
+            await conn.execute(
+                """
+                UPDATE employee_master
+                SET    dol        = CURRENT_DATE,
+                       status     = 'ALUMNI',
+                       updated_at = NOW()
+                WHERE  tenant_id  = $1
+                  AND  emp_id_org = $2
+                """,
+                tenant_id,
+                clean.get("employee_id"),
+            )
+        else:
+            await conn.execute(
+                """
+                UPDATE employee_master
+                SET    designation = COALESCE($3, designation),
+                       department  = COALESCE($4, department),
+                       location    = COALESCE($5, location),
+                       updated_at  = NOW()
+                WHERE  tenant_id   = $1
+                  AND  emp_id_org  = $2
+                """,
+                tenant_id,
+                clean.get("employee_id"),
+                clean.get("designation"),
+                clean.get("department"),
+                clean.get("location"),
+            )
 
     async def _start_workflow(self, workflow: str, wf_id: str, event: dict, task_queue: str) -> None:
         if not self._temporal:

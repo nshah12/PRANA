@@ -5,7 +5,7 @@ import {
   LayoutDashboard, Users, Upload, FileText, AlertTriangle,
   Settings, ShieldCheck, ShieldAlert, TrendingUp, BarChart3, Calendar,
   Lock, Key, Activity, Globe, ChevronDown, ChevronRight,
-  Building2, Zap, FileSearch, Bell, ClipboardList, MessageSquare, Handshake,
+  Building2, Zap, FileSearch, Bell, ClipboardList, MessageSquare, Handshake, Plug,
 } from 'lucide-react'
 import { useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
@@ -60,6 +60,7 @@ function navForRole(role: UserRole, base: string, counts: BadgeCounts = {}): Nav
           { label: 'User Management',    to: `${base}/users`,           icon: <Users size={16}/> },
           { label: 'Elevation Approvals',to: `${base}/elevations`,      icon: <ShieldCheck size={16}/>, ...(counts.elevations ? { badge: { count: counts.elevations, color: 'amber' as const } } : {}) },
           { label: 'Org Settings',       to: `${base}/settings`,        icon: <Settings size={16}/> },
+            { label: 'HRMS Integration',   to: `${base}/hrms`,            icon: <Plug size={16}/> },
         ],
       }]
 
@@ -137,6 +138,7 @@ function navForRole(role: UserRole, base: string, counts: BadgeCounts = {}): Nav
             { label: 'Pipeline Health',  to: `${base}/pipeline`,        icon: <Activity size={16}/>, ...(counts.pipeline ? { badge: { count: counts.pipeline, color: 'red' as const } } : {}) },
             { label: 'Exception Overview',to:`${base}/exceptions`,      icon: <AlertTriangle size={16}/>, ...(counts.exceptions ? { badge: { count: counts.exceptions, color: 'red' as const } } : {}) },
             { label: 'API Keys',         to: `${base}/api-keys`,        icon: <Key size={16}/> },
+            { label: 'HRMS Connectors',  to: `${base}/hrms`,            icon: <Plug size={16}/> },
             { label: 'Rate Limits',      to: `${base}/rate-limits`,     icon: <BarChart3 size={16}/> },
           ],
         },
