@@ -66,7 +66,10 @@ export default function VaultTabsLayout() {
       <Tabs.Screen name="vault-health" options={{ href: null }} />
       <Tabs.Screen name="doc-request"  options={{ href: null }} />
       <Tabs.Screen name="privacy"      options={{ href: null }} />
-      <Tabs.Screen name="nomination"   options={{ href: null }} />
+      <Tabs.Screen name="nomination"    options={{ href: null }} />
+      <Tabs.Screen name="gamification"  options={{ href: null }} />
+      <Tabs.Screen name="alumni"        options={{ href: null }} />
+      <Tabs.Screen name="benchmarking"  options={{ href: null }} />
     </Tabs>
   );
 }

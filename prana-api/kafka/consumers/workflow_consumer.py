@@ -22,6 +22,9 @@ from workflows.compliance import (
     GrievanceWorkflow,
     DataCorrectionWorkflow,
 )
+from workflows.gamification import GamificationRefreshWorkflow
+
+GAMIFICATION_TASK_QUEUE = "prana-analytics"
 
 log = logging.getLogger(__name__)
 
@@ -36,6 +39,7 @@ class WorkflowConsumer:
         self._db_pool = db_pool
         self._consumer = AIOKafkaConsumer(
             "prana.ingest.events",
+            "prana.pipeline.events",
             bootstrap_servers=settings.kafka_bootstrap_servers,
             group_id=GROUP_ID,
             auto_offset_reset="earliest",
@@ -65,6 +69,8 @@ class WorkflowConsumer:
                         await self._handle_grievance_filed(event)
                     elif etype == "DATA_CORRECTION_REQUESTED":
                         await self._handle_data_correction_requested(event)
+                    elif etype == "DOC_ROUTED":
+                        await self._handle_doc_routed(event)
                     else:
                         log.debug("WorkflowConsumer: no handler for event_type=%s", etype)
                 except Exception:
@@ -212,6 +218,25 @@ class WorkflowConsumer:
             )
         except Exception:
             log.exception("WorkflowConsumer: DataCorrectionWorkflow start failed wf_id=%s", wf_id)
+
+    async def _handle_doc_routed(self, event: dict) -> None:
+        """DOC_ROUTED → refresh gamification score + award new badges for this employee."""
+        employee_user_id = event.get("employee_user_id")
+        document_id      = event.get("document_id")
+        if not employee_user_id:
+            log.warning("DOC_ROUTED: missing employee_user_id — skipping gamification refresh")
+            return
+        wf_id = f"gamification-refresh-{employee_user_id}"
+        try:
+            await self._temporal.start_workflow(
+                GamificationRefreshWorkflow.run,
+                employee_user_id,
+                id=wf_id,
+                task_queue=GAMIFICATION_TASK_QUEUE,
+            )
+        except Exception as exc:
+            if "already" not in str(exc).lower():
+                log.exception("GamificationRefreshWorkflow start failed emp=%s doc=%s", employee_user_id, document_id)
 
     async def _handle_batch_uploaded(self, event: dict) -> None:
         batch_id = event.get("batch_id")

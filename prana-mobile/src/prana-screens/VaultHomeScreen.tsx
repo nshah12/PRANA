@@ -15,10 +15,10 @@
  *  - Notification bell with inline popup
  *  - Upload button → self-upload flow
  */
-import React, { useState, useMemo, useCallback, useEffect } from 'react';
+import React, { useState, useMemo, useCallback, useEffect, useRef } from 'react';
 import {
   View, Text, ScrollView, Pressable, StyleSheet, Modal,
-  ActivityIndicator, Linking,
+  ActivityIndicator, Linking, Animated,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -56,6 +56,73 @@ const DOC_TYPE_LABELS: Record<string, string> = {
   RELIEVING_LETTER:  'Relieving Letters',
   EXPERIENCE_LETTER: 'Experience Letters',
 };
+
+// ── Career Score Widget ───────────────────────────────────────────────────────
+
+function CareerScoreWidget() {
+  const anim = useRef(new Animated.Value(0)).current;
+  const { data, isLoading } = useQuery<{ score: number; badges: any[]; streak: { current_streak_days: number } }>({
+    queryKey: ['gamification', 'profile'],
+    queryFn: () => api.get('/v1/gamification/profile').then(r => r.data),
+    staleTime: 60_000,
+  });
+
+  useEffect(() => {
+    if (data?.score !== undefined) {
+      Animated.spring(anim, {
+        toValue: data.score,
+        useNativeDriver: false,
+        tension: 50,
+        friction: 10,
+      }).start();
+    }
+  }, [data?.score]);
+
+  if (isLoading || !data) return null;
+
+  const { score, badges = [], streak } = data;
+  const flame = (streak?.current_streak_days ?? 0) >= 7 ? '⚡' :
+                (streak?.current_streak_days ?? 0) >= 3 ? '🔥' : '🌱';
+  const label = score >= 80 ? 'Excellent' : score >= 60 ? 'Strong' : score >= 40 ? 'Growing' : 'Getting Started';
+
+  return (
+    <Pressable
+      style={ws.card}
+      onPress={() => router.push('/(vault)/gamification' as any)}
+    >
+      {/* Score circle */}
+      <View style={ws.circle}>
+        <Text style={ws.circleScore}>{score}</Text>
+        <Text style={ws.circleLabel}>{label}</Text>
+      </View>
+
+      {/* Details */}
+      <View style={ws.info}>
+        <Text style={ws.title}>Career Score</Text>
+        <Text style={ws.sub}>{badges.length} badge{badges.length !== 1 ? 's' : ''} earned</Text>
+        <Text style={ws.streak}>{flame} {streak?.current_streak_days ?? 0}-day streak</Text>
+      </View>
+
+      <Text style={ws.arrow}>›</Text>
+    </Pressable>
+  );
+}
+
+const ws = StyleSheet.create({
+  card:        { flexDirection: 'row', alignItems: 'center', backgroundColor: '#f0f1ff',
+                 borderRadius: 16, padding: 14, marginBottom: 16, gap: 14 },
+  circle:      { width: 64, height: 64, borderRadius: 32, backgroundColor: '#6366f1',
+                 alignItems: 'center', justifyContent: 'center' },
+  circleScore: { fontSize: 22, fontWeight: '800', color: '#fff', lineHeight: 26 },
+  circleLabel: { fontSize: 9, color: 'rgba(255,255,255,0.8)', textAlign: 'center' },
+  info:        { flex: 1 },
+  title:       { fontSize: 14, fontWeight: '700', color: '#1e1e2e', marginBottom: 2 },
+  sub:         { fontSize: 12, color: '#6b7280', marginBottom: 2 },
+  streak:      { fontSize: 12, color: '#4b5563' },
+  arrow:       { fontSize: 22, color: '#6366f1', fontWeight: '700' },
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
 
 const NOTIFICATION = {
   title: 'New document added',
@@ -661,6 +728,9 @@ export function VaultHomeScreen() {
             <StatCard value={filteredDocs.length} label="Documents"    accent="indigo" />
             <StatCard value={activeSharesCount}   label="Active shares" accent="emerald" />
           </View>
+
+          {/* Career Score widget */}
+          <CareerScoreWidget />
 
           {/* Benchmarking nudge — shown once when salary slip is ready but not yet opted in */}
           {showBenchNudge && (
