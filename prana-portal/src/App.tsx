@@ -45,6 +45,8 @@ import { MonthlySummary }       from '@/pages/chro/MonthlySummary'
 import { QuarterlyReport }      from '@/pages/chro/QuarterlyReport'
 import { AlertConfig }          from '@/pages/chro/AlertConfig'
 import { StatutoryCompliance }  from '@/pages/chro/StatutoryCompliance'
+import { AlumniNetwork }        from '@/pages/chro/AlumniNetwork'
+import { CompBenchmarking }     from '@/pages/chro/CompBenchmarking'
 
 // CFO pages
 import { PayrollIntelligence } from '@/pages/cfo/PayrollIntelligence'
@@ -114,9 +116,11 @@ import { Announcements }     from '@/pages/pa/Announcements'
 import { ContactInquiries }  from '@/pages/pa/ContactInquiries'
 
 function RequireEmpAuth({ children }: { children: React.ReactNode }) {
-  const user = useEmpAuthStore(s => s.user)
-  const location = useLocation()
-  if (!user) return <Navigate to="/emp/login" state={{ from: location }} replace />
+  const user        = useEmpAuthStore(s => s.user)
+  const accessToken = useEmpAuthStore(s => s.accessToken)
+  const location    = useLocation()
+  // Allow through if either user or accessToken is set — accessToken is set first in finishLogin
+  if (!user && !accessToken) return <Navigate to="/emp/login" state={{ from: location }} replace />
   return <>{children}</>
 }
 
@@ -214,6 +218,8 @@ export default function App() {
       <Route path="/org/alerts"           element={<RequireAuth><PortalLayout><AlertConfig /></PortalLayout></RequireAuth>} />
       <Route path="/org/statutory"         element={<RequireAuth><PortalLayout><StatutoryCompliance /></PortalLayout></RequireAuth>} />
       <Route path="/org/compliance-posture" element={<RequireAuth><PortalLayout><CompliancePosture /></PortalLayout></RequireAuth>} />
+      <Route path="/org/alumni"            element={<RequireAuth><PortalLayout><AlumniNetwork /></PortalLayout></RequireAuth>} />
+      <Route path="/org/comp-benchmarking" element={<RequireAuth><PortalLayout><CompBenchmarking /></PortalLayout></RequireAuth>} />
 
       {/* CFO routes */}
       <Route path="/org/payroll"      element={<RequireAuth><PortalLayout><PayrollIntelligence /></PortalLayout></RequireAuth>} />

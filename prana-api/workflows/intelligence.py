@@ -183,23 +183,17 @@ class DigestWorkflow:
 
     @workflow.run
     async def run(self, params: dict) -> None:
-        digest_type = params.get("digest_type", "weekly")
-        if digest_type == "monthly":
-            result = await workflow.execute_activity(
-                build_monthly_digest, params,
-                start_to_close_timeout=timedelta(hours=1),
-                retry_policy=_RETRY,
-            )
-        else:
-            result = await workflow.execute_activity(
-                build_weekly_digest, params,
-                start_to_close_timeout=timedelta(minutes=30),
-                retry_policy=_RETRY,
-            )
+        await self._execute(params)
+
+    async def _execute(self, params: dict) -> None:
+        build_act = build_monthly_digest if params.get("digest_type") == "monthly" else build_weekly_digest
+        timeout   = timedelta(hours=1) if params.get("digest_type") == "monthly" else timedelta(minutes=30)
+        result = await workflow.execute_activity(
+            build_act, params, start_to_close_timeout=timeout, retry_policy=_RETRY,
+        )
         await workflow.execute_activity(
             send_digest_email, {**params, **result},
-            start_to_close_timeout=timedelta(minutes=10),
-            retry_policy=_RETRY,
+            start_to_close_timeout=timedelta(minutes=10), retry_policy=_RETRY,
         )
 
 

@@ -46,6 +46,12 @@ async def stage05_handle_cross_tenant_violation(params: dict) -> dict: ...
 @activity.defn(name="update_pipeline_status")
 async def update_pipeline_status(params: dict) -> None: ...
 
+@activity.defn(name="compute_document_embedding")
+async def compute_document_embedding(params: dict) -> dict: ...
+
+@activity.defn(name="write_document_embedding")
+async def write_document_embedding(params: dict) -> None: ...
+
 
 # ── Workflow ──────────────────────────────────────────────────────────────────
 
@@ -61,132 +67,57 @@ class DocumentPipelineWorkflow:
 
     @workflow.run
     async def run(self, params: dict) -> dict:
-        document_id = params["document_id"]
-        tenant_id   = params["tenant_id"]
-
-        await workflow.execute_activity(
-            update_pipeline_status,
-            {"document_id": document_id, "status": "ENCRYPTING"},
-            start_to_close_timeout=timedelta(minutes=5),
-            retry_policy=_RETRY,
-        )
-
-        # Stage 02
-        enc_result = await workflow.execute_activity(
-            stage02_encrypt, params,
-            start_to_close_timeout=timedelta(minutes=10),
-            retry_policy=_RETRY,
-        )
-
-        # Stage 03
-        await workflow.execute_activity(
-            update_pipeline_status,
-            {"document_id": document_id, "status": "SCANNING"},
-            start_to_close_timeout=timedelta(minutes=2),
-        )
-        scan_result = await workflow.execute_activity(
-            stage03_scan, {**params, **enc_result},
-            start_to_close_timeout=timedelta(minutes=15),
-            retry_policy=_RETRY,
-        )
-        if scan_result.get("csam_detected"):
-            return {"status": "CSAM_HOLD", "document_id": document_id}
-        if scan_result.get("virus_status") == "QUARANTINED":
-            return {"status": "QUARANTINED", "document_id": document_id}
-
-        # Stage 04
-        await workflow.execute_activity(
-            update_pipeline_status,
-            {"document_id": document_id, "status": "EXTRACTING"},
-            start_to_close_timeout=timedelta(minutes=2),
-        )
-        extract_result = await workflow.execute_activity(
-            stage04_extract, {**params, **enc_result},
-            start_to_close_timeout=timedelta(minutes=10),
-            retry_policy=_RETRY,
-        )
-
-        # AUTO_DETECT failed — doc type unknown, OA-Admin must classify manually
-        if extract_result.get("status") == "unclassified":
-            await workflow.execute_activity(
-                update_pipeline_status,
-                {"document_id": document_id, "status": "UNCLASSIFIED"},
-                start_to_close_timeout=timedelta(minutes=2),
-            )
-            await workflow.execute_activity(
-                stage04_write_unclassified,
-                {
-                    "document_id":        document_id,
-                    "tenant_id":          tenant_id,
-                    "doc_type":           params.get("doc_type"),
-                    "best_guess_doc_type": extract_result.get("best_guess_doc_type"),
-                    "best_guess_score":    extract_result.get("best_guess_score", 0.0),
-                    "partial_fields":      extract_result.get("partial_fields", {}),
-                    "reason":              "AUTO_DETECT_FAILED",
-                },
-                start_to_close_timeout=timedelta(minutes=5),
-            )
-            return {"status": "UNCLASSIFIED", "document_id": document_id}
-
-        # Stage 05
-        await workflow.execute_activity(
-            update_pipeline_status,
-            {"document_id": document_id, "status": "RESOLVING"},
-            start_to_close_timeout=timedelta(minutes=2),
-        )
-        resolve_result = await workflow.execute_activity(
-            stage05_resolve, {**params, **extract_result},
-            start_to_close_timeout=timedelta(minutes=5),
-            retry_policy=_RETRY,
-        )
-
-        # Cross-tenant contamination — reject, write anomaly, alert CISO + PA Admin
-        if resolve_result.get("violation_type") == "CROSS_TENANT":
-            await workflow.execute_activity(
-                stage05_handle_cross_tenant_violation,
-                {**params, **resolve_result},
-                start_to_close_timeout=timedelta(minutes=5),
-            )
-            return {"status": "CROSS_TENANT_REJECTED", "document_id": document_id}
-
-        # Exception path: wait up to 7 days for OA-Admin signal
-        if resolve_result.get("needs_exception"):
-            await workflow.execute_activity(
-                stage06_raise_exception, {**params, **extract_result, **resolve_result},
-                start_to_close_timeout=timedelta(minutes=5),
-            )
-            # Wait for exception_resolved signal (OA-Admin picks employee_uuid)
-            await workflow.wait_condition(
-                lambda: self._exception_resolution is not None,
-                timeout=timedelta(days=7),
-            )
+        doc_id = params["document_id"]
+        enc  = await workflow.execute_activity(stage02_encrypt, params, start_to_close_timeout=timedelta(minutes=10), retry_policy=_RETRY)
+        scan = await workflow.execute_activity(stage03_scan, {**params, **enc}, start_to_close_timeout=timedelta(minutes=15), retry_policy=_RETRY)
+        if scan.get("csam_detected"):
+            return await self._handle_csam(params, doc_id)
+        if scan.get("virus_status") == "QUARANTINED":
+            return {"status": "QUARANTINED", "document_id": doc_id}
+        ext = await workflow.execute_activity(stage04_extract, {**params, **enc}, start_to_close_timeout=timedelta(minutes=10), retry_policy=_RETRY)
+        if ext.get("status") == "unclassified":
+            return await self._handle_unclassified(params, ext, doc_id)
+        res = await workflow.execute_activity(stage05_resolve, {**params, **ext}, start_to_close_timeout=timedelta(minutes=5), retry_policy=_RETRY)
+        if res.get("violation_type") == "CROSS_TENANT":
+            return await self._handle_cross_tenant(params, res, doc_id)
+        if res.get("needs_exception"):
+            await workflow.execute_activity(stage06_raise_exception, {**params, **ext, **res}, start_to_close_timeout=timedelta(minutes=5))
+            await workflow.wait_condition(lambda: self._exception_resolution is not None, timeout=timedelta(days=7))
             if self._exception_resolution is None:
-                return {"status": "EXCEPTION_TIMEOUT", "document_id": document_id}
-            resolve_result = self._exception_resolution
+                return {"status": "EXCEPTION_TIMEOUT", "document_id": doc_id}
+            res = self._exception_resolution
+        await workflow.execute_activity(stage06_route, {**params, **enc, **ext, **res}, start_to_close_timeout=timedelta(minutes=10), retry_policy=_RETRY)
+        return {"status": "ROUTED", "document_id": doc_id}
 
-        # Stage 06
-        route_result = await workflow.execute_activity(
-            stage06_route, {**params, **enc_result, **extract_result, **resolve_result},
-            start_to_close_timeout=timedelta(minutes=10),
-            retry_policy=_RETRY,
-        )
-
-        # Fire-and-forget: generate LLM insight + embed into Qdrant
-        # Runs on insight-queue independently — pipeline doesn't wait for it
+    async def _handle_csam(self, params: dict, doc_id: str) -> dict:
         await workflow.execute_child_workflow(
-            "InsightRefreshWorkflow",
-            {
-                "document_id": document_id,
-                "employee_uuid": resolve_result.get("employee_uuid"),
-                "doc_type": params.get("doc_type"),
-                "doc_period": params.get("doc_period"),
-                "benchmarks": route_result.get("benchmarks", {}),
-            },
-            task_queue="insight-queue",
-            execution_timeout=timedelta(minutes=15),
+            "CSAMReportingWorkflow",
+            {"document_id": doc_id, "tenant_id": params["tenant_id"],
+             "s3_key": params.get("s3_key"), "s3_bucket": params.get("s3_bucket")},
+            task_queue="safety-queue",
+            execution_timeout=timedelta(minutes=30),
         )
+        return {"status": "CSAM_HOLD", "document_id": doc_id}
 
-        return {"status": "ROUTED", "document_id": document_id}
+    async def _handle_unclassified(self, params: dict, ext: dict, doc_id: str) -> dict:
+        await workflow.execute_activity(
+            stage04_write_unclassified,
+            {"document_id": doc_id, "tenant_id": params["tenant_id"],
+             "doc_type": params.get("doc_type"),
+             "best_guess_doc_type": ext.get("best_guess_doc_type"),
+             "best_guess_score": ext.get("best_guess_score", 0.0),
+             "partial_fields": ext.get("partial_fields", {}),
+             "reason": "AUTO_DETECT_FAILED"},
+            start_to_close_timeout=timedelta(minutes=5),
+        )
+        return {"status": "UNCLASSIFIED", "document_id": doc_id}
+
+    async def _handle_cross_tenant(self, params: dict, res: dict, doc_id: str) -> dict:
+        await workflow.execute_activity(
+            stage05_handle_cross_tenant_violation, {**params, **res},
+            start_to_close_timeout=timedelta(minutes=5),
+        )
+        return {"status": "CROSS_TENANT_REJECTED", "document_id": doc_id}
 
     @workflow.signal(name="exception_resolved")
     def exception_resolved(self, payload: dict) -> None:
@@ -207,17 +138,16 @@ class EmbeddingUpdateWorkflow:
 
     @workflow.run
     async def run(self, params: dict) -> dict:
-        from temporalio.common import RetryPolicy
         result = await workflow.execute_activity(
-            "compute_document_embedding",
+            compute_document_embedding,
             params,
             start_to_close_timeout=timedelta(minutes=15),
-            retry_policy=RetryPolicy(maximum_attempts=3),
+            retry_policy=_RETRY,
         )
         await workflow.execute_activity(
-            "write_document_embedding",
+            write_document_embedding,
             {**params, **result},
             start_to_close_timeout=timedelta(minutes=5),
-            retry_policy=RetryPolicy(maximum_attempts=3),
+            retry_policy=_RETRY,
         )
         return result

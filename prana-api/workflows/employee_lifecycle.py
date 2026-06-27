@@ -64,6 +64,11 @@ async def flag_dormant_account(params: dict) -> None: ...
 @activity.defn(name="get_lifecycle_config")
 async def get_lifecycle_config(params: dict) -> str: ...
 
+@activity.defn(name="send_alumni_consent_prompt")
+async def send_alumni_consent_prompt(params: dict) -> None:
+    """Notify ex-employee via push + email: stay connected with your former employer?"""
+    ...
+
 
 # ── EmployeeExitWorkflow (Pattern 1 — Durable Timer) ─────────────────────────
 
@@ -79,18 +84,19 @@ class EmployeeExitWorkflow:
     async def run(self, params: dict) -> None:
         await workflow.execute_activity(
             freeze_employee_vault, params,
-            start_to_close_timeout=timedelta(minutes=10),
-            retry_policy=_RETRY,
+            start_to_close_timeout=timedelta(minutes=10), retry_policy=_RETRY,
         )
         await workflow.execute_activity(
             notify_exit_employee, params,
-            start_to_close_timeout=timedelta(minutes=5),
-            retry_policy=_RETRY,
+            start_to_close_timeout=timedelta(minutes=5), retry_policy=_RETRY,
         )
         await workflow.execute_activity(
             start_retention_workflow, params,
-            start_to_close_timeout=timedelta(minutes=5),
-            retry_policy=_RETRY,
+            start_to_close_timeout=timedelta(minutes=5), retry_policy=_RETRY,
+        )
+        await workflow.execute_activity(
+            send_alumni_consent_prompt, params,
+            start_to_close_timeout=timedelta(minutes=5), retry_policy=_RETRY,
         )
 
 

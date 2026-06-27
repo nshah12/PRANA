@@ -29,6 +29,7 @@ class AuditConsumer:
         self._pool = db_pool
         self._consumer = AIOKafkaConsumer(
             "prana.audit.events",
+            "prana.vault.events",
             bootstrap_servers=settings.kafka_bootstrap_servers,
             group_id=GROUP_ID,
             auto_offset_reset="earliest",
@@ -43,7 +44,10 @@ class AuditConsumer:
             async for msg in self._consumer:
                 event = msg.value
                 try:
-                    await self._write_audit(event)
+                    if event.get("event_type") == "DOC_ACCESSED":
+                        await self._write_access_log(event)
+                    else:
+                        await self._write_audit(event)
                     await self._consumer.commit()
                 except asyncpg.UniqueViolationError:
                     # Already written (duplicate delivery) — commit and move on
@@ -54,11 +58,32 @@ class AuditConsumer:
         finally:
             await self._consumer.stop()
 
+    async def _write_access_log(self, event: dict) -> None:
+        async with self._pool.acquire() as conn:
+            await conn.execute(
+                """
+                INSERT INTO document_access_log
+                  (document_id, employee_user_id, employee_uuid, tenant_id,
+                   actor_type, actor_id, access_type, access_channel,
+                   ip_address, session_id, watermark_applied, accessed_at)
+                VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11,
+                        COALESCE($12::timestamptz, NOW()))
+                ON CONFLICT DO NOTHING
+                """,
+                event.get("document_id"), event.get("employee_user_id"),
+                event.get("employee_uuid"), event.get("tenant_id"),
+                event.get("actor_type", "EMPLOYEE"), event.get("actor_id"),
+                event.get("access_type"), event.get("access_channel"),
+                event.get("ip_address"), event.get("session_id"),
+                bool(event.get("watermark_applied", True)),
+                event.get("occurred_at"),
+            )
+
     async def _write_audit(self, event: dict) -> None:
         etype     = event["event_type"]
         tenant_id = event.get("tenant_id")
         doc_id    = event.get("document_id")
-        actor_id  = event.get("actor_id")
+        actor_id  = event.get("actor_id") or "00000000-0000-0000-0000-000000000000"
         actor_type = event.get("actor_type", "SYSTEM")
         ip        = event.get("ip_address")
         occurred  = event.get("occurred_at")

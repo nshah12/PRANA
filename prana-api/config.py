@@ -47,8 +47,17 @@ class Settings(BaseSettings):
     # Kafka (MSK in prod; local Kafka for dev)
     kafka_bootstrap_servers: str = "localhost:9092"
 
+    # Kong Admin API — VPC-internal only, never public
+    kong_admin_url: str = "http://localhost:8001"  # dev: Kong not running → provisioning step is skipped gracefully
+
+    # Portal URL — used in welcome emails and provisioning notifications
+    portal_url: str = "https://prana.in"
+
+    # Alumni network — CHRO outreach rate limit
+    alumni_outreach_max_per_month: int = 3
+
     # Internal service URLs
-    ai_service_url:    str = "http://localhost:8001"
+    ai_service_url:    str = "http://localhost:8002"
     ai_service_secret: str = "dev-secret"   # must match prana-ai PRANA_AI_SECRET env var
     ask_service_url:   str = "http://localhost:8002"
     ask_service_secret: str = "dev-secret"  # must match prana-ask PRANA_ASK_SECRET env var

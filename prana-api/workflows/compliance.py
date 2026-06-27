@@ -100,37 +100,27 @@ class ErasureConfirmationWorkflow:
 
     @workflow.run
     async def run(self, params: dict) -> None:
-        # Read cooling-off duration from config (never hardcoded)
+        await self._execute(params)
+
+    async def _execute(self, params: dict) -> None:
         days_str = await workflow.execute_activity(
             get_config_value,
-            {"key": "dpdp_erasure_confirmation_days", "tenant_id": params.get("tenant_id"), "default": "30"},
+            {"key": "dpdp_erasure_confirmation_days",
+             "tenant_id": params.get("tenant_id"), "default": "30"},
             start_to_close_timeout=timedelta(minutes=2),
         )
-        cooling_off = timedelta(days=int(days_str))
-
         await workflow.execute_activity(
-            send_erasure_notice,
-            params,
-            start_to_close_timeout=timedelta(minutes=5),
-            retry_policy=_RETRY,
+            send_erasure_notice, params,
+            start_to_close_timeout=timedelta(minutes=5), retry_policy=_RETRY,
         )
-
-        # Wait for cooling-off period or early cancellation signal
         cancelled = await workflow.wait_condition(
-            lambda: self._cancelled,
-            timeout=cooling_off,
+            lambda: self._cancelled, timeout=timedelta(days=int(days_str)),
         )
-
         if cancelled or self._cancelled:
-            # Employee cancelled — do nothing, erasure aborted
             return
-
-        # Cooling-off elapsed with no cancellation → execute erasure
         await workflow.execute_activity(
-            execute_erasure,
-            params,
-            start_to_close_timeout=timedelta(minutes=30),
-            retry_policy=_RETRY,
+            execute_erasure, params,
+            start_to_close_timeout=timedelta(minutes=30), retry_policy=_RETRY,
         )
 
 
@@ -146,29 +136,25 @@ class ConsentRebumpWorkflow:
 
     @workflow.run
     async def run(self, params: dict) -> None:
+        await self._execute(params)
+
+    async def _execute(self, params: dict) -> None:
         days_str = await workflow.execute_activity(
             get_config_value,
-            {"key": "consent_rebump_window_days", "tenant_id": params.get("tenant_id"), "default": "30"},
+            {"key": "consent_rebump_window_days",
+             "tenant_id": params.get("tenant_id"), "default": "30"},
             start_to_close_timeout=timedelta(minutes=2),
         )
         await workflow.sleep(timedelta(days=int(days_str)))
-
         status = await workflow.execute_activity(
-            check_consent_status,
-            {"employee_user_id": params["employee_user_id"]},
-            start_to_close_timeout=timedelta(minutes=5),
-            retry_policy=_RETRY,
+            check_consent_status, {"employee_user_id": params["employee_user_id"]},
+            start_to_close_timeout=timedelta(minutes=5), retry_policy=_RETRY,
         )
-
-        if status.get("consent_granted"):
-            return  # already granted — nothing to do
-
-        await workflow.execute_activity(
-            send_consent_rebump,
-            params,
-            start_to_close_timeout=timedelta(minutes=5),
-            retry_policy=_RETRY,
-        )
+        if not status.get("consent_granted"):
+            await workflow.execute_activity(
+                send_consent_rebump, params,
+                start_to_close_timeout=timedelta(minutes=5), retry_policy=_RETRY,
+            )
 
 
 # ── DataExportWorkflow (Pattern 1 — Durable Timer, fast) ──────────────────────
@@ -221,39 +207,30 @@ class GrievanceWorkflow:
 
     @workflow.run
     async def run(self, params: dict) -> None:
-        sla_days_str = await workflow.execute_activity(
+        await self._execute(params)
+
+    async def _execute(self, params: dict) -> None:
+        sla_str = await workflow.execute_activity(
             get_config_value,
             {"key": "grievance_sla_days", "tenant_id": params.get("tenant_id"), "default": "30"},
             start_to_close_timeout=timedelta(minutes=2),
         )
-
         await workflow.execute_activity(
-            open_grievance,
-            params,
-            start_to_close_timeout=timedelta(minutes=5),
-            retry_policy=_RETRY,
+            open_grievance, params,
+            start_to_close_timeout=timedelta(minutes=5), retry_policy=_RETRY,
         )
-
-        resolved_in_time = await workflow.wait_condition(
-            lambda: self._resolved,
-            timeout=timedelta(days=int(sla_days_str)),
+        resolved = await workflow.wait_condition(
+            lambda: self._resolved, timeout=timedelta(days=int(sla_str)),
         )
-
-        if not resolved_in_time:
-            # SLA breached — escalate to Platform Admin
+        if not resolved:
             await workflow.execute_activity(
-                escalate_grievance,
-                {**params, "reason": "SLA_BREACH"},
-                start_to_close_timeout=timedelta(minutes=10),
-                retry_policy=_RETRY,
+                escalate_grievance, {**params, "reason": "SLA_BREACH"},
+                start_to_close_timeout=timedelta(minutes=10), retry_policy=_RETRY,
             )
             return
-
         await workflow.execute_activity(
-            close_grievance,
-            {**params, "note": self._resolution_note},
-            start_to_close_timeout=timedelta(minutes=5),
-            retry_policy=_RETRY,
+            close_grievance, {**params, "note": self._resolution_note},
+            start_to_close_timeout=timedelta(minutes=5), retry_policy=_RETRY,
         )
 
 
@@ -279,21 +256,21 @@ class DataCorrectionWorkflow:
 
     @workflow.run
     async def run(self, params: dict) -> None:
-        reviewed_in_time = await workflow.wait_condition(
-            lambda: self._reviewed,
-            timeout=timedelta(days=7),
+        await self._execute(params)
+
+    async def _execute(self, params: dict) -> None:
+        reviewed = await workflow.wait_condition(
+            lambda: self._reviewed, timeout=timedelta(days=7),
         )
-        if reviewed_in_time and self._approved:
+        if reviewed and self._approved:
             await workflow.execute_activity(
                 apply_data_correction, params,
-                start_to_close_timeout=timedelta(minutes=15),
-                retry_policy=_RETRY,
+                start_to_close_timeout=timedelta(minutes=15), retry_policy=_RETRY,
             )
         await workflow.execute_activity(
             notify_correction_complete,
-            {**params, "approved": self._approved, "reviewed_in_time": reviewed_in_time},
-            start_to_close_timeout=timedelta(minutes=5),
-            retry_policy=_RETRY,
+            {**params, "approved": self._approved, "reviewed_in_time": reviewed},
+            start_to_close_timeout=timedelta(minutes=5), retry_policy=_RETRY,
         )
 
 
@@ -310,26 +287,25 @@ class RetentionWorkflow:
 
     @workflow.run
     async def run(self, params: dict) -> None:
+        await self._execute(params)
+
+    async def _execute(self, params: dict) -> None:
         years_str = await workflow.execute_activity(
             get_config_value,
-            {"key": "retention_years_default", "tenant_id": params.get("tenant_id"), "default": "7"},
+            {"key": "retention_years_default",
+             "tenant_id": params.get("tenant_id"), "default": "7"},
             start_to_close_timeout=timedelta(minutes=2),
         )
-        total_years = int(years_str)
-        elapsed_years = params.get("elapsed_years", 0)
-        remaining_years = total_years - elapsed_years
-
-        # Continue-As-New at 5-year checkpoint to keep history bounded
+        elapsed_years   = params.get("elapsed_years", 0)
+        remaining_years = int(years_str) - elapsed_years
         if remaining_years > 5:
             await workflow.sleep(timedelta(days=5 * 365))
             workflow.continue_as_new({**params, "elapsed_years": elapsed_years + 5})
             return
-
         await workflow.sleep(timedelta(days=remaining_years * 365))
         await workflow.execute_activity(
             schedule_document_deletion, params,
-            start_to_close_timeout=timedelta(minutes=10),
-            retry_policy=_RETRY,
+            start_to_close_timeout=timedelta(minutes=10), retry_policy=_RETRY,
         )
 
 
@@ -386,3 +362,68 @@ class LegalHoldWorkflow:
             start_to_close_timeout=timedelta(minutes=10),
             retry_policy=_RETRY,
         )
+
+
+# ── StatutoryComplianceWorkflow (Pattern 3 — Temporal Schedule) ──────────────
+
+@activity.defn(name="mark_overdue_obligations")
+async def mark_overdue_obligations(params: dict) -> dict:
+    from db import get_db_connection
+    from services.compliance_service import ComplianceService
+    async with get_db_connection() as db:
+        svc = ComplianceService(db=db)
+        return await svc.mark_overdue_obligations(tenant_id=params["tenant_id"])
+
+
+@activity.defn(name="notify_overdue_obligations")
+async def notify_overdue_obligations(params: dict) -> None:
+    from db import get_db_connection
+    from kafka.producer import get_kafka_producer
+    from services.compliance_service import ComplianceService
+    tenant_id = params["tenant_id"]
+    count = params.get("count", 0)
+    async with get_db_connection() as db:
+        svc = ComplianceService(db=db)
+        await svc.notify_overdue_obligations(tenant_id=tenant_id, count=count)
+    # Publish to prana.notifications so NotifConsumer dispatches CHRO alert
+    kafka = await get_kafka_producer()
+    await kafka.publish(
+        "prana.notifications",
+        {
+            "event_type": "COMPLIANCE_OVERDUE_ALERT",
+            "tenant_id": tenant_id,
+            "overdue_count": count,
+            "recipient_role": "CHRO",
+        },
+        key=tenant_id,
+    )
+
+
+@workflow.defn(name="StatutoryComplianceWorkflow")
+class StatutoryComplianceWorkflow:
+    """
+    Runs nightly (via Temporal Schedule) per tenant.
+    Marks compliance_obligation rows OVERDUE when deadline < today and status != COMPLETE.
+    Notifies CHRO of newly-overdue items.
+
+    Pattern 3 — Temporal Schedule (created at startup by worker.py ensure_schedules()).
+    Schedule ID: "statutory-compliance-{tenant_id}"
+    Cadence: nightly at 00:30 IST (from platform_config.statutory_compliance_check_hour)
+    """
+
+    @workflow.run
+    async def run(self, params: dict) -> dict:
+        result = await workflow.execute_activity(
+            mark_overdue_obligations,
+            {"tenant_id": params["tenant_id"]},
+            start_to_close_timeout=timedelta(minutes=10),
+            retry_policy=_RETRY,
+        )
+        if result.get("marked_count", 0) > 0:
+            await workflow.execute_activity(
+                notify_overdue_obligations,
+                {"tenant_id": params["tenant_id"], "count": result["marked_count"]},
+                start_to_close_timeout=timedelta(minutes=5),
+                retry_policy=_RETRY,
+            )
+        return result

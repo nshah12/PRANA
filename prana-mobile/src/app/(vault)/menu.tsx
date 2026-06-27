@@ -12,6 +12,8 @@ const MENU_ITEMS = [
   { icon: '❤️', label: 'Vault Health',   sub: 'Completeness & gaps',       onPress: () => router.push('/(vault)/vault-health' as any) },
   { icon: '📩', label: 'Doc Requests',   sub: 'Request missing documents',  onPress: () => router.push('/(vault)/doc-request' as any) },
   { icon: '↗', label: 'Shares',         sub: 'Active share links',         onPress: () => router.push('/(vault)/shares') },
+  { icon: '🤝', label: 'Alumni Connect',  sub: 'Stay in touch with employers', onPress: () => router.push('/(vault)/alumni' as any) },
+  { icon: '📈', label: 'Comp Benchmark',  sub: 'See your market position',     onPress: () => router.push('/(vault)/benchmarking' as any) },
   { icon: '🔍', label: 'Privacy',        sub: 'Access log & grievances',    onPress: () => router.push('/(vault)/privacy' as any) },
   { icon: '⚙', label: 'Settings',       sub: 'Account & devices',          onPress: () => router.push('/(vault)/settings') },
 ];

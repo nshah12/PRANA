@@ -24,10 +24,10 @@ async def test_erasure_request_publishes_to_kafka_not_starts_workflow_directly(c
     _set_employee_auth(client)
     resp = await client.post("/v1/vault/compliance/erasure", headers=AUTH_HEADER)
     assert resp.status_code == 202
-    mock_kafka.publish.assert_called()
-    topics = [call[0][0] for call in mock_kafka.publish.call_args_list]
-    assert any("ingest" in t or "audit" in t for t in topics), \
-        "Erasure must publish to Kafka, not start Temporal workflow directly"
+    mock_kafka.compliance_event.assert_called_once()
+    payload = mock_kafka.compliance_event.call_args[0][0]
+    assert payload["event_type"] == "ERASURE_REQUESTED", \
+        "Erasure must publish ERASURE_REQUESTED via compliance_event domain helper"
 
 
 def test_erasure_does_not_delete_audit_event_rows():

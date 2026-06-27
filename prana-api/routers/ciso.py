@@ -1,5 +1,5 @@
-"""
-CISO (Tenant) endpoints — read-only security observer + limited action authority.
+﻿"""
+CISO (Tenant) endpoints â€” read-only security observer + limited action authority.
 All queries scoped by tenant_id from JWT. Never sees document contents, salary, or PAN.
 """
 import json
@@ -18,7 +18,7 @@ CISO = Depends(require_oa("ciso", "oa_admin"))
 _digest_svc = DigestService()
 
 
-# ── Security overview ──────────────────────────────────────────────────────────
+# â”€â”€ Security overview â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 @router.get("/overview")
 async def security_overview(db: DbConn, current=CISO):
@@ -79,7 +79,7 @@ async def security_overview(db: DbConn, current=CISO):
     }
 
 
-# ── OA Activity Audit ─────────────────────────────────────────────────────────
+# â”€â”€ OA Activity Audit â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 @router.get("/oa-audit")
 async def oa_activity_audit(
@@ -103,7 +103,7 @@ async def oa_activity_audit(
         f"""
         SELECT ae.event_id, ae.event_type AS action_type, ae.actor_id,
                ae.document_id AS resource_id, ae.ip_address, ae.occurred_at AS created_at,
-               ou.display_name AS actor_name, ou.role AS actor_role
+               ou.email AS actor_name, ou.role AS actor_role
         FROM audit_event ae
         LEFT JOIN oa_user ou ON ou.oa_user_id = ae.actor_id
         WHERE {where}
@@ -134,7 +134,7 @@ async def export_oa_audit(db: DbConn, current=CISO):
     from fastapi.responses import Response
     rows = await db.fetch(
         """
-        SELECT ae.event_type, ae.actor_id, ou.display_name AS actor_name, ou.role AS actor_role,
+        SELECT ae.event_type, ae.actor_id, ou.email AS actor_name, ou.role AS actor_role,
                ae.document_id, ae.ip_address, ae.occurred_at
         FROM audit_event ae
         LEFT JOIN oa_user ou ON ou.oa_user_id = ae.actor_id
@@ -162,7 +162,7 @@ async def export_oa_audit(db: DbConn, current=CISO):
     )
 
 
-# ── Share analytics ───────────────────────────────────────────────────────────
+# â”€â”€ Share analytics â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 @router.get("/shares")
 async def share_analytics(db: DbConn, current=CISO):
@@ -209,8 +209,8 @@ async def share_analytics(db: DbConn, current=CISO):
         "links": [
             {
                 "share_id":       str(r["token_id"]),
-                "employee_name":  r["emp_mobile"] or "—",
-                "doc_type":       r["doc_type"] or "—",
+                "employee_name":  r["emp_mobile"] or "â€”",
+                "doc_type":       r["doc_type"] or "â€”",
                 "recipient_label": (r["recipient_identifier"] or "")[:30],
                 "access_count":   r["usage_count"],
                 "expires_at":     r["expires_at"].isoformat() if r["expires_at"] else None,
@@ -236,19 +236,17 @@ async def ciso_revoke_share(token_id: str, request: Request, db: DbConn, current
     )
     kafka = getattr(request.app.state, "kafka_producer", None)
     if kafka:
-        await kafka.publish("prana.audit.events", {
+        await kafka.share_event({
             "event_type": "SHARE_REVOKED_CISO",
-            "event_id": str(uuid.uuid4()),
-            "occurred_at": datetime.datetime.utcnow().isoformat(),
             "tenant_id": str(current.tenant_id),
             "actor_id": str(current.user_id),
             "actor_type": "CISO",
             "share_token_id": token_id,
-        }, key=str(current.tenant_id))
+        })
     return {"message": "Share revoked"}
 
 
-# ── Key health ─────────────────────────────────────────────────────────────────
+# â”€â”€ Key health â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 @router.get("/keys")
 async def key_health(db: DbConn, current=CISO):
@@ -322,13 +320,13 @@ async def key_health(db: DbConn, current=CISO):
     }
 
 
-# ── Auth anomaly feed ──────────────────────────────────────────────────────────
+# â”€â”€ Auth anomaly feed â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 @router.get("/auth-anomalies")
 async def auth_anomaly_feed(db: DbConn, current=CISO):
     rows = await db.fetch(
         """
-        SELECT lal.log_id AS event_id,
+        SELECT lal.attempt_id AS event_id,
                lal.outcome AS anomaly_type,
                lal.ip_address,
                lal.attempted_at AS detected_at,
@@ -366,7 +364,7 @@ async def auth_anomaly_feed(db: DbConn, current=CISO):
     }
 
 
-# ── Data residency ─────────────────────────────────────────────────────────────
+# â”€â”€ Data residency â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 @router.get("/data-residency")
 async def data_residency(db: DbConn, current=CISO):
@@ -381,7 +379,7 @@ async def data_residency(db: DbConn, current=CISO):
     return {
         "home_region":         row["home_region"] if row else None,
         "verified":            True,
-        "last_checked":        datetime.datetime.utcnow().isoformat(),
+        "last_checked":        datetime.datetime.now(datetime.timezone.utc).isoformat(),
         "regions_used":        ["ap-south-1", "ap-south-2"],
         "dpdp_compliant":      True,
         "primary_doc_count":   int(doc_count or 0),
@@ -389,7 +387,7 @@ async def data_residency(db: DbConn, current=CISO):
     }
 
 
-# ── Document access flags ──────────────────────────────────────────────────────
+# â”€â”€ Document access flags â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 @router.get("/access-flags")
 async def list_access_flags(
@@ -458,24 +456,24 @@ async def update_access_flag(access_id: str, body: FlagBody, db: DbConn, current
     return {"message": "Updated"}
 
 
-# ── Account lock management ────────────────────────────────────────────────────
+# â”€â”€ Account lock management â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 @router.get("/account-locks")
 async def list_account_locks(db: DbConn, current=CISO):
     rows = await db.fetch(
         """
-        SELECT ase.event_id, ase.account_type, ase.account_id,
+        SELECT ase.event_id, ase.user_type, ase.user_id,
                ase.event_type AS lock_reason, ase.occurred_at AS locked_at,
                ase.scheduled_unlock_at, ase.failed_attempt_count, ase.last_failed_ip,
-               CASE ase.account_type
+               CASE ase.user_type
                  WHEN 'employee' THEN eu.mobile
                  WHEN 'oa_user'  THEN ou.email
                END AS identifier
         FROM account_status_event ase
-        LEFT JOIN employee_user eu ON eu.employee_user_id = ase.account_id
-                                   AND ase.account_type = 'employee'
-        LEFT JOIN oa_user ou ON ou.oa_user_id = ase.account_id
-                             AND ase.account_type = 'oa_user'
+        LEFT JOIN employee_user eu ON eu.employee_user_id = ase.user_id
+                                   AND ase.user_type = 'employee'
+        LEFT JOIN oa_user ou ON ou.oa_user_id = ase.user_id
+                             AND ase.user_type = 'oa_user'
         WHERE ase.tenant_id = $1
           AND ase.event_type = 'POLICY_LOCK'
           AND ase.reversed_by_event_id IS NULL
@@ -488,9 +486,9 @@ async def list_account_locks(db: DbConn, current=CISO):
         "items": [
             {
                 "event_id":          str(r["event_id"]),
-                "account_type":      r["account_type"],
-                "account_id":        str(r["account_id"]) if r["account_id"] else None,
-                "identifier":        r["identifier"] or "—",
+                "account_type":      r["user_type"],
+                "account_id":        str(r["user_id"]) if r["user_id"] else None,
+                "identifier":        r["identifier"] or "â€”",
                 "lock_reason":       r["lock_reason"],
                 "locked_at":         r["locked_at"].isoformat() if r["locked_at"] else None,
                 "scheduled_unlock_at": r["scheduled_unlock_at"].isoformat() if r["scheduled_unlock_at"] else None,
@@ -506,7 +504,7 @@ async def list_account_locks(db: DbConn, current=CISO):
 async def manual_unlock(event_id: str, request: Request, db: DbConn, current=CISO):
     lock_row = await db.fetchrow(
         """
-        SELECT event_id, account_type, account_id, reversed_by_event_id
+        SELECT event_id, user_type, user_id, reversed_by_event_id
         FROM account_status_event
         WHERE event_id=$1 AND tenant_id=$2 AND event_type='POLICY_LOCK'
         """,
@@ -522,11 +520,11 @@ async def manual_unlock(event_id: str, request: Request, db: DbConn, current=CIS
         await db.execute(
             """
             INSERT INTO account_status_event
-              (event_id, event_type, account_type, account_id, tenant_id, actor_type, actor_id, occurred_at)
+              (event_id, event_type, user_type, user_id, tenant_id, actor_type, actor_id, occurred_at)
             VALUES ($1, 'MANUAL_UNLOCK', $2, $3, $4, 'CISO', $5, NOW())
             """,
             new_event_id,
-            lock_row["account_type"], lock_row["account_id"],
+            lock_row["user_type"], lock_row["user_id"],
             current.tenant_id, current.user_id,
         )
         await db.execute(
@@ -547,20 +545,18 @@ async def manual_unlock(event_id: str, request: Request, db: DbConn, current=CIS
 
     kafka = getattr(request.app.state, "kafka_producer", None)
     if kafka:
-        await kafka.publish("prana.audit.events", {
+        await kafka.security_event({
             "event_type": "ACCOUNT_UNLOCKED",
-            "event_id": str(uuid.uuid4()),
-            "occurred_at": datetime.datetime.utcnow().isoformat(),
             "tenant_id": str(current.tenant_id),
             "actor_id": str(current.user_id),
             "actor_type": "CISO",
             "target_account_id": str(lock_row["account_id"]),
             "reversed_lock_event_id": event_id,
-        }, key=str(current.tenant_id))
+        })
     return {"message": "Account unlocked"}
 
 
-# ── Anomaly triage queue ───────────────────────────────────────────────────────
+# â”€â”€ Anomaly triage queue â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 @router.get("/anomaly-queue")
 async def anomaly_queue(
@@ -642,20 +638,18 @@ async def triage_anomaly(anomaly_id: str, body: TriageBody, request: Request, db
     )
     kafka = getattr(request.app.state, "kafka_producer", None)
     if kafka:
-        await kafka.publish("prana.audit.events", {
+        await kafka.security_event({
             "event_type": "ANOMALY_TRIAGED",
-            "event_id": str(uuid.uuid4()),
-            "occurred_at": datetime.datetime.utcnow().isoformat(),
             "tenant_id": str(current.tenant_id),
             "actor_id": str(current.user_id),
             "actor_type": "CISO",
             "anomaly_id": anomaly_id,
             "new_status": body.status,
-        }, key=str(current.tenant_id))
+        })
     return {"message": "Anomaly updated"}
 
 
-# ── Elevation history ──────────────────────────────────────────────────────────
+# â”€â”€ Elevation history â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 @router.get("/elevations")
 async def elevation_history(
@@ -668,8 +662,8 @@ async def elevation_history(
         """
         SELECT er.elevation_id, er.requestor_id, er.approver_id, er.status,
                er.duration_hours, er.reason, er.requested_at, er.approved_at, er.expires_at,
-               req.display_name AS requestor_name, req.email AS requestor_email,
-               apr.display_name AS approver_name
+               req.email AS requestor_name, req.email AS requestor_email,
+               apr.email AS approver_name
         FROM elevation_request er
         LEFT JOIN oa_user req ON req.oa_user_id = er.requestor_id
         LEFT JOIN oa_user apr ON apr.oa_user_id = er.approver_id
@@ -703,7 +697,7 @@ async def elevation_history(
     }
 
 
-# ── Digest: settings ─────────────────────────────────────────────────────────
+# â”€â”€ Digest: settings â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 
 class DigestConfigBody(BaseModel):
@@ -728,7 +722,7 @@ async def save_digest_settings(body: DigestConfigBody, db: DbConn, current=CISO)
     return {"message": "CISO digest settings saved"}
 
 
-# ── Digest: data endpoints ────────────────────────────────────────────────────
+# â”€â”€ Digest: data endpoints â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 def _resolve_window(period: str, from_date: datetime.date | None, to_date: datetime.date | None):
     if from_date is not None or to_date is not None:
@@ -738,7 +732,10 @@ def _resolve_window(period: str, from_date: datetime.date | None, to_date: datet
                 "message": "Provide both from_date and to_date, or neither (uses period preset).",
             })
         from_dt = datetime.datetime.combine(from_date, datetime.datetime.min.time()).replace(tzinfo=datetime.timezone.utc)
-        to_dt   = datetime.datetime.combine(to_date,   datetime.datetime.min.time()).replace(tzinfo=datetime.timezone.utc) + datetime.timedelta(days=1)
+        to_dt   = min(
+            datetime.datetime.combine(to_date, datetime.datetime.min.time()).replace(tzinfo=datetime.timezone.utc) + datetime.timedelta(days=1),
+            datetime.datetime.now(datetime.timezone.utc),
+        )
     else:
         from_dt, to_dt = period_window(period)  # type: ignore[arg-type]
     try:
@@ -778,7 +775,7 @@ async def quarterly_digest(
     return {"digest": await _digest_svc.build_ciso_digest(db, current.tenant_id, from_dt, to_dt)}
 
 
-# ── Security incidents ─────────────────────────────────────────────────────────
+# â”€â”€ Security incidents â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 @router.get("/incidents")
 async def list_incidents(
@@ -841,7 +838,7 @@ async def escalate_incident(incident_id: str, db: DbConn, current=CISO):
     return {"status": "escalated"}
 
 
-# ── Notification log ───────────────────────────────────────────────────────────
+# â”€â”€ Notification log â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 @router.get("/notification-log")
 async def notification_log(
@@ -890,3 +887,5 @@ async def notification_log(
         for r in rows
     ]
     return {"items": items, "total": len(items)}
+
+

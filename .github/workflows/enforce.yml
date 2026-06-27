@@ -1,0 +1,60 @@
+name: PRANA Enforce Rules
+
+on:
+  push:
+    paths:
+      - 'prana-api/**'
+      - 'prana-ai/**'
+      - 'prana-ask/**'
+      - 'scripts/enforce_rules.py'
+      - '.github/workflows/enforce.yml'
+  pull_request:
+    paths:
+      - 'prana-api/**'
+      - 'prana-ai/**'
+      - 'prana-ask/**'
+      - 'scripts/enforce_rules.py'
+
+jobs:
+  enforce:
+    name: enforce_rules.py gate
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Run enforce_rules.py
+        run: python scripts/enforce_rules.py
+        # Exit code 1 on any ERROR — blocks merge.
+        # Warnings are printed but do not fail the build.
+
+  pytest-all:
+    name: All service tests
+    runs-on: ubuntu-latest
+    needs: enforce
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install system deps (Tesseract for prana-ai)
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y tesseract-ocr tesseract-ocr-hin
+
+      - name: Install prana-api deps
+        run: pip install -r prana-api/requirements.txt pytest pytest-asyncio httpx
+
+      - name: Install prana-ai deps
+        run: pip install -r prana-ai/requirements.txt
+
+      - name: Install prana-ask deps
+        run: pip install -r prana-ask/requirements.txt
+
+      - name: Run all tests
+        run: pytest prana-api/tests/ prana-ai/tests/ prana-ask/tests/ -v --tb=short

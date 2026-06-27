@@ -1,4 +1,4 @@
-"""
+﻿"""
 Document ingest — OA-Operator / OA-Admin.
 
 POST /ingest/upload              — single / multi-file upload → publishes DOC_INGESTED per file
@@ -54,7 +54,7 @@ async def upload_documents(
     current=Depends(require_oa("oa_operator", "oa_admin")),
 ):
     """Accept 1-N PDF files. Each gets its own document_id and DOC_INGESTED Kafka event."""
-    started_at  = datetime.datetime.utcnow()
+    started_at  = datetime.datetime.now(datetime.timezone.utc)
     ip          = _client_ip(request)
     ua          = request.headers.get("user-agent", "")
     actor_type  = _actor_type(current.role)
@@ -71,6 +71,17 @@ async def upload_documents(
         except HTTPException as e:
             errors.append({"filename": f.filename, "error": e.detail})
             results.append({"filename": f.filename, "error": e.detail})
+            if kafka:
+                try:
+                    await kafka.integration_event({
+                        "event_type": "HRMS_WEBHOOK_FAILED",
+                        "tenant_id":  current.tenant_id,
+                        "reason":     e.detail,
+                        "filename":   f.filename,
+                        "actor_id":   current.user_id,
+                    })
+                except Exception:
+                    pass
             continue
 
         total_bytes += len(file_bytes)
@@ -88,7 +99,7 @@ async def upload_documents(
     # BATCH_UPLOADED event — consumed by AuditConsumer + WorkflowConsumer(BatchProgressWorkflow)
     accepted = [r for r in results if "document_id" in r]
     if batch_id:
-        ended_at = datetime.datetime.utcnow()
+        ended_at = datetime.datetime.now(datetime.timezone.utc)
         batch_event = {
             "event_type":  "BATCH_UPLOADED",
             "event_id":    str(uuid.uuid4()),
@@ -131,7 +142,7 @@ async def batch_upload(
     comment: Optional[str] = Form(None),
     current=Depends(require_oa("oa_operator", "oa_admin")),
 ):
-    started_at    = datetime.datetime.utcnow()
+    started_at    = datetime.datetime.now(datetime.timezone.utc)
     ip            = _client_ip(request)
     ua            = request.headers.get("user-agent", "")
     actor_type    = _actor_type(current.role)
@@ -176,7 +187,7 @@ async def batch_upload(
         results.append({"filename": entry.filename, "document_id": doc_id, "pipeline_status": "QUEUED"})
 
     accepted  = [r for r in results if "document_id" in r]
-    ended_at  = datetime.datetime.utcnow()
+    ended_at  = datetime.datetime.now(datetime.timezone.utc)
     batch_event = {
         "event_type":  "BATCH_UPLOADED",
         "event_id":    str(uuid.uuid4()),
@@ -284,14 +295,20 @@ async def list_documents(
         conditions.append(f"doc_type=${i}"); params.append(doc_type); i += 1
 
     where = " AND ".join(conditions)
+    total = await db.fetchval(
+        f"SELECT COUNT(*) FROM document WHERE {where}",
+        *params,
+    )
+    lim_i = i
+    off_i = i + 1
     rows = await db.fetch(
         f"""
         SELECT document_id, doc_type, doc_period, pipeline_status,
                resolution_method, resolution_confidence, pushed_at, routed_at
         FROM document WHERE {where}
-        ORDER BY pushed_at DESC LIMIT {limit} OFFSET {offset}
+        ORDER BY pushed_at DESC LIMIT ${lim_i} OFFSET ${off_i}
         """,
-        *params,
+        *params, min(limit, 200), offset,
     )
     docs = [
         {
@@ -306,7 +323,7 @@ async def list_documents(
         }
         for r in rows
     ]
-    return {"documents": docs, "total": len(docs)}
+    return {"documents": docs, "total": int(total or 0)}
 
 
 # ── Dashboard stats ───────────────────────────────────────────────────────────
@@ -419,7 +436,7 @@ async def resolve_exception(
     await kafka.exception_resolved({
         "event_type":    "EXCEPTION_RESOLVED",
         "event_id":      str(uuid.uuid4()),
-        "occurred_at":   datetime.datetime.utcnow().isoformat(),
+        "occurred_at":   datetime.datetime.now(datetime.timezone.utc).isoformat(),
         "tenant_id":     current.tenant_id,
         "document_id":   row["document_id"],
         "exception_id":  exception_id,
@@ -470,7 +487,7 @@ async def dismiss_exception(
     await kafka.exception_resolved({
         "event_type":   "EXCEPTION_DISMISSED",
         "event_id":     str(uuid.uuid4()),
-        "occurred_at":  datetime.datetime.utcnow().isoformat(),
+        "occurred_at":  datetime.datetime.now(datetime.timezone.utc).isoformat(),
         "tenant_id":    current.tenant_id,
         "document_id":  row["document_id"],
         "exception_id": exception_id,
@@ -579,7 +596,7 @@ def _build_doc_ingested_event(
     return {
         "event_type":        "DOC_INGESTED",
         "event_id":          str(uuid.uuid4()),
-        "occurred_at":       datetime.datetime.utcnow().isoformat(),
+        "occurred_at":       datetime.datetime.now(datetime.timezone.utc).isoformat(),
         "tenant_id":         tenant_id,
         "document_id":       document_id,
         "batch_id":          batch_id,
@@ -615,3 +632,4 @@ def _actor_type(role: str, is_elevated: bool = False) -> str:
     if is_elevated:
         return "OA_OPERATOR_ELEVATED"
     return "OA_OPERATOR"
+

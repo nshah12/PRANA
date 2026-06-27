@@ -108,9 +108,8 @@ async def test_oa_user_welcome_email_dispatched_via_kafka(client, mock_db, mock_
     assert resp.status_code == 201
 
     # Kafka publish must have been called with OA_USER_CREATED
-    mock_kafka.publish.assert_called_once()
-    topic, payload = mock_kafka.publish.call_args[0][:2]
-    assert topic == "prana.notifications"
+    mock_kafka.oa_user_event.assert_called_once()
+    payload = mock_kafka.oa_user_event.call_args[0][0]
     assert payload["event_type"] == "OA_USER_CREATED"
     assert payload["email"] == "newop@acme.com"
     assert payload["tenant_id"] == "tenant-001"

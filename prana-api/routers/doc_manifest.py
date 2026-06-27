@@ -30,6 +30,9 @@ KNOWN_DOC_TYPES = {
     "INCREMENT_LETTER", "PROMOTION_LETTER", "EXPERIENCE_LETTER",
     "RELIEVING_LETTER", "JOINING_LETTER", "PF_ACKNOWLEDGEMENT",
     "BANK_STATEMENT", "IT_RETURN", "INVESTMENT_PROOF", "APPRAISAL_LETTER",
+    # Labour-law employee-centric types (migration 020)
+    "BONUS_LETTER", "GRATUITY_LETTER", "FORM_12B", "FORM_26AS",
+    "SELF_UPLOAD",
 }
 
 KNOWN_FORMATS = {"pdf", "docx", "jpeg", "jpg", "png", "tiff", "xlsx", "auto"}
@@ -145,7 +148,7 @@ async def upsert_manifest(doc_type: str, body: ManifestUpsertRequest, request: R
     """
     tenant_id, oa_user_id = _require_oa_admin(request)
 
-    claims = request.state.jwt_claims
+    claims = getattr(request.state, "jwt_claims", {})
     if claims.get("role") != "oa_admin":
         raise HTTPException(status_code=403, detail="OA_ADMIN_ROLE_REQUIRED")
 
@@ -171,7 +174,7 @@ async def delete_manifest_override(doc_type: str, request: Request):
     """
     tenant_id, oa_user_id = _require_oa_admin(request)
 
-    claims = request.state.jwt_claims
+    claims = getattr(request.state, "jwt_claims", {})
     if claims.get("role") != "oa_admin":
         raise HTTPException(status_code=403, detail="OA_ADMIN_ROLE_REQUIRED")
 
@@ -202,7 +205,7 @@ async def list_unclassified(
 
     rows = await db.fetch(
         """
-        SELECT uq.unclassified_id, uq.document_id, uq.reason,
+        SELECT uq.document_id, uq.reason,
                uq.declared_doc_type, uq.best_guess_doc_type, uq.best_guess_score,
                uq.partial_fields, uq.status, uq.created_at,
                d.original_filename, d.file_size_bytes
@@ -218,17 +221,16 @@ async def list_unclassified(
     import json
     items = [
         {
-            "unclassified_id":   str(r["unclassified_id"]),
-            "document_id":       str(r["document_id"]),
-            "reason":            r["reason"],
-            "declared_doc_type": r["declared_doc_type"],
+            "document_id":         str(r["document_id"]),
+            "reason":              r["reason"],
+            "declared_doc_type":   r["declared_doc_type"],
             "best_guess_doc_type": r["best_guess_doc_type"],
-            "best_guess_score":  r["best_guess_score"],
-            "partial_fields":    json.loads(r["partial_fields"]) if isinstance(r["partial_fields"], str) else (r["partial_fields"] or {}),
-            "status":            r["status"],
-            "created_at":        r["created_at"].isoformat(),
-            "original_filename": r["original_filename"],
-            "file_size_bytes":   r["file_size_bytes"],
+            "best_guess_score":    float(r["best_guess_score"]) if r["best_guess_score"] is not None else None,
+            "partial_fields":      json.loads(r["partial_fields"]) if isinstance(r["partial_fields"], str) else (r["partial_fields"] or {}),
+            "status":              r["status"],
+            "created_at":          r["created_at"].isoformat(),
+            "original_filename":   r["original_filename"],
+            "file_size_bytes":     r["file_size_bytes"],
         }
         for r in rows
     ]
@@ -240,24 +242,24 @@ class ResolveUnclassifiedRequest(BaseModel):
     resolution_note:   Optional[str] = None
 
 
-@router.post("/v1/unclassified/{unclassified_id}/resolve")
+@router.post("/v1/unclassified/{document_id}/resolve")
 async def resolve_unclassified(
-    unclassified_id: str,
+    document_id: str,
     body: ResolveUnclassifiedRequest,
     request: Request,
 ):
     """
     OA-Admin manually classifies a document and re-queues it for pipeline processing.
-    Sets unclassified_queue.status = RESOLVED and triggers re-extraction with the
-    declared doc_type.
+    Sets unclassified_queue.status = RESOLVED and publishes DOC_RECLASSIFIED to Kafka.
+    WorkflowConsumer restarts DocumentPipelineWorkflow with the resolved doc_type.
     """
     tenant_id, oa_user_id = _require_oa_admin(request)
     dt = _validate_doc_type(body.resolved_doc_type)
     db = request.app.state.db
 
     row = await db.fetchrow(
-        "SELECT document_id FROM unclassified_queue WHERE unclassified_id=$1 AND tenant_id=$2",
-        unclassified_id, tenant_id,
+        "SELECT document_id FROM unclassified_queue WHERE document_id=$1 AND tenant_id=$2",
+        document_id, tenant_id,
     )
     if not row:
         raise HTTPException(status_code=404, detail="NOT_FOUND")
@@ -266,33 +268,23 @@ async def resolve_unclassified(
         """
         UPDATE unclassified_queue SET
           status = 'RESOLVED', resolved_doc_type = $2,
-          resolved_by = $3, resolved_at = NOW(), resolution_note = $4,
-          updated_at = NOW()
-        WHERE unclassified_id = $1
+          resolved_by = $3, resolved_at = NOW(), updated_at = NOW()
+        WHERE document_id = $1
         """,
-        unclassified_id, dt, oa_user_id, body.resolution_note,
+        document_id, dt, oa_user_id,
     )
 
-    # Re-trigger pipeline with the resolved doc_type via Kafka
-    # WorkflowConsumer will start a new DocumentPipelineWorkflow with declared doc_type
     kafka = request.app.state.kafka_producer
-    await kafka.publish(
-        "prana.ingest.events",
-        {
-            "event_type":  "DOC_RECLASSIFIED",
-            "document_id": str(row["document_id"]),
-            "tenant_id":   str(tenant_id),
-            "doc_type":    dt,
-            "resolved_by": str(oa_user_id),
-        },
-        key=str(tenant_id),
-    )
+    await kafka.stage_changed({
+        "event_type":  "DOC_RECLASSIFIED",
+        "document_id": document_id,
+        "tenant_id":   str(tenant_id),
+        "doc_type":    dt,
+        "resolved_by": str(oa_user_id),
+    })
 
-    log.info(
-        "unclassified resolved: id=%s doc_type=%s by=%s",
-        unclassified_id, dt, oa_user_id,
-    )
-    return {"resolved": True, "document_id": str(row["document_id"]), "doc_type": dt}
+    log.info("unclassified resolved: doc=%s doc_type=%s by=%s", document_id, dt, oa_user_id)
+    return {"resolved": True, "document_id": document_id, "doc_type": dt}
 
 
 # ── Internal routes — called by prana-ai worker pods ──────────────────────────

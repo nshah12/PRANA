@@ -105,9 +105,8 @@ async def test_domain_verification_publishes_to_kafka_not_direct_workflow(
     assert resp.status_code == 201
 
     # Kafka must have been called with DOMAIN_VERIFICATION_REQUESTED
-    mock_kafka.publish.assert_called_once()
-    topic, payload = mock_kafka.publish.call_args[0][:2]
-    assert topic == "prana.ingest.events"
+    mock_kafka.tenant_event.assert_called_once()
+    payload = mock_kafka.tenant_event.call_args[0][0]
     assert payload["event_type"] == "DOMAIN_VERIFICATION_REQUESTED"
     assert "tenant_id" in payload
 

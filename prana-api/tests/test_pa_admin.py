@@ -101,9 +101,8 @@ async def test_emergency_override_publishes_audit_event_to_kafka(client, mock_db
 
     assert resp.status_code == 200
 
-    mock_kafka.publish.assert_called_once()
-    topic, payload = mock_kafka.publish.call_args[0][:2]
-    assert topic == "prana.audit.events"
+    mock_kafka.tenant_event.assert_called_once()
+    payload = mock_kafka.tenant_event.call_args[0][0]
     assert payload["event_type"] == "PA_EMERGENCY_OVERRIDE"
     assert payload["actor_type"] == "PORTAL_ADMIN"
 

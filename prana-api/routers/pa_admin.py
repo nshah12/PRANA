@@ -1,4 +1,4 @@
-"""
+﻿"""
 Portal Admin (PA) endpoints — platform-wide management.
 PA has zero SELECT on document rows or employee PII — only aggregates and tenant metadata.
 All routes require @prana.in JWT (enforced in auth_pa.py at login time).
@@ -28,6 +28,7 @@ async def meta_dashboard(request: Request, db: DbConn, current=PA):
         SELECT pipeline_status, COUNT(*) AS cnt
         FROM document
         WHERE pipeline_status NOT IN ('ROUTED','EXCEPTION','QUARANTINED')
+          AND is_deleted = FALSE
         GROUP BY pipeline_status
         """
     )
@@ -122,7 +123,21 @@ async def list_tenants(
         """,
         *params,
     )
-    return {"tenants": [dict(r) for r in rows]}
+    return {"tenants": [
+        {
+            "tenant_id": str(r["tenant_id"]),
+            "tenant_name": r["tenant_name"],
+            "domain": r["domain"],
+            "status": r["status"],
+            "home_region": r["home_region"],
+            "primary_state": r["primary_state"],
+            "created_at": r["created_at"].isoformat() if r["created_at"] else None,
+            "cin": r["cin"],
+            "gstin": r["gstin"],
+            "storage_quota_gb": r["storage_quota_gb"],
+        }
+        for r in rows
+    ]}
 
 
 class ActivateTenantIn(BaseModel):
@@ -155,16 +170,16 @@ async def activate_tenant(
     )
     kafka = getattr(request.app.state, "kafka_producer", None)
     if kafka:
-        await kafka.publish("prana.audit.events", {
+        await kafka.tenant_event({
             "event_type": "TENANT_ACTIVATED",
             "event_id": str(uuid.uuid4()),
-            "occurred_at": datetime.datetime.utcnow().isoformat(),
+            "occurred_at": datetime.datetime.now(datetime.timezone.utc).isoformat(),
             "tenant_id": tenant_id,
             "actor_id": str(current.user_id),
             "actor_type": "PORTAL_ADMIN",
             "override_region": body.home_region_override,
             "reason": body.override_reason,
-        }, key=tenant_id)
+        })
     return {"message": "Tenant activated", "tenant_id": tenant_id}
 
 
@@ -203,24 +218,24 @@ async def oa_emergency_create(body: OaEmergencyIn, request: Request, db: DbConn,
     from services.encryption_service import hash_password
     await db.execute(
         """
-        INSERT INTO oa_user (tenant_id, email, display_name, role, temp_password_hash, force_reset)
-        VALUES ($1,$2,'Emergency Account','oa_admin',$3,TRUE)
+        INSERT INTO oa_user (tenant_id, email, role, temp_password_hash, force_reset)
+        VALUES ($1,$2,'oa_admin',$3,TRUE)
         """,
         tenant["tenant_id"], body.email or f"emergency@{body.tenant_domain}",
         hash_password(temp_pw),
     )
     kafka = getattr(request.app.state, "kafka_producer", None)
     if kafka:
-        await kafka.publish("prana.audit.events", {
+        await kafka.tenant_event({
             "event_type": "PA_EMERGENCY_OVERRIDE",
             "event_id": str(uuid.uuid4()),
-            "occurred_at": datetime.datetime.utcnow().isoformat(),
+            "occurred_at": datetime.datetime.now(datetime.timezone.utc).isoformat(),
             "tenant_id": str(tenant["tenant_id"]),
             "actor_id": str(current.user_id),
             "actor_type": "PORTAL_ADMIN",
             "action": "create",
             "reason": body.reason,
-        }, key=str(tenant["tenant_id"]))
+        })
     return {"message": "Emergency account created", "temp_password": temp_pw}
 
 
@@ -236,16 +251,16 @@ async def oa_emergency_suspend(body: OaEmergencyIn, db: DbConn, current=PA):
     )
     kafka = getattr(request.app.state, "kafka_producer", None)
     if kafka:
-        await kafka.publish("prana.audit.events", {
+        await kafka.tenant_event({
             "event_type": "PA_EMERGENCY_OVERRIDE",
             "event_id": str(uuid.uuid4()),
-            "occurred_at": datetime.datetime.utcnow().isoformat(),
+            "occurred_at": datetime.datetime.now(datetime.timezone.utc).isoformat(),
             "tenant_id": str(tenant["tenant_id"]),
             "actor_id": str(current.user_id),
             "actor_type": "PORTAL_ADMIN",
             "action": "suspend",
             "reason": body.reason,
-        }, key=str(tenant["tenant_id"]))
+        })
     return {"message": "Account suspended"}
 
 
@@ -265,16 +280,16 @@ async def oa_emergency_reset(body: OaEmergencyIn, db: DbConn, current=PA):
     )
     kafka = getattr(request.app.state, "kafka_producer", None)
     if kafka:
-        await kafka.publish("prana.audit.events", {
+        await kafka.tenant_event({
             "event_type": "PA_EMERGENCY_OVERRIDE",
             "event_id": str(uuid.uuid4()),
-            "occurred_at": datetime.datetime.utcnow().isoformat(),
+            "occurred_at": datetime.datetime.now(datetime.timezone.utc).isoformat(),
             "tenant_id": str(tenant["tenant_id"]),
             "actor_id": str(current.user_id),
             "actor_type": "PORTAL_ADMIN",
             "action": "reset",
             "reason": body.reason,
-        }, key=str(tenant["tenant_id"]))
+        })
     return {"message": "Password reset", "temp_password": temp_pw}
 
 
@@ -342,6 +357,7 @@ async def pipeline_health(db: DbConn, current=PA):
         """
         SELECT pipeline_status, COUNT(*) AS cnt
         FROM document
+        WHERE is_deleted = FALSE
         GROUP BY pipeline_status
         """
     )
@@ -372,8 +388,8 @@ async def list_anomalies(db: DbConn, current=PA):
         rows = await db.fetch(
             """
             SELECT ae.event_id, ae.tenant_id, t.tenant_name,
-                   ae.anomaly_type, ae.severity, ae.detected_at,
-                   ae.status, ae.details
+                   ae.rule_name, ae.severity, ae.detected_at,
+                   ae.status, ae.event_metadata
             FROM anomaly_event ae
             JOIN tenant t ON t.tenant_id = ae.tenant_id
             ORDER BY ae.detected_at DESC
@@ -388,11 +404,11 @@ async def list_anomalies(db: DbConn, current=PA):
                 "event_id":     str(r["event_id"]),
                 "tenant_id":    str(r["tenant_id"]),
                 "tenant_name":  r["tenant_name"],
-                "anomaly_type": r["anomaly_type"],
+                "anomaly_type": r["rule_name"],
                 "severity":     r["severity"],
                 "detected_at":  r["detected_at"].isoformat() if r["detected_at"] else None,
                 "status":       r["status"],
-                "details":      r["details"],
+                "details":      r["event_metadata"],
             }
             for r in rows
         ],
@@ -532,13 +548,25 @@ async def audit_trail(
         """,
         *params,
     )
-    return {"events": [dict(r) for r in rows]}
+    return {"events": [
+        {
+            "event_id": str(r["event_id"]),
+            "event_type": r["event_type"],
+            "actor_id": str(r["actor_id"]) if r["actor_id"] else None,
+            "actor_type": r["actor_type"],
+            "resource_id": str(r["resource_id"]) if r["resource_id"] else None,
+            "ip_address": str(r["ip_address"]) if r["ip_address"] else None,
+            "created_at": r["created_at"].isoformat() if r["created_at"] else None,
+            "tenant_name": r["tenant_name"],
+        }
+        for r in rows
+    ]}
 
 
 @router.get("/audit/export")
 async def export_audit(db: DbConn, current=PA):
     rows = await db.fetch(
-        "SELECT event_type, actor_id, tenant_id, ip_address, occurred_at AS created_at FROM audit_event ORDER BY occurred_at DESC LIMIT 10000"
+        "SELECT event_type, actor_id::text, tenant_id::text, ip_address::text, occurred_at AS created_at FROM audit_event ORDER BY occurred_at DESC LIMIT 10000"
     )
     import csv, io
     buf = io.StringIO()
@@ -574,8 +602,24 @@ async def list_api_keys(db: DbConn, current=PA):
         "SELECT tenant_id, tenant_name FROM tenant WHERE status='ACTIVE' ORDER BY tenant_name"
     )
     return {
-        "keys": [dict(r) for r in rows],
-        "tenants": [dict(t) for t in tenants],
+        "keys": [
+            {
+                "api_key_id": str(r["api_key_id"]),
+                "tenant_id": str(r["tenant_id"]),
+                "tenant_name": r["tenant_name"],
+                "key_id_prefix": r["key_id_prefix"],
+                "label": r["label"],
+                "rate_limit_per_minute": r["rate_limit_per_minute"],
+                "status": r["status"],
+                "created_at": r["created_at"].isoformat() if r["created_at"] else None,
+                "last_used_at": r["last_used_at"].isoformat() if r["last_used_at"] else None,
+            }
+            for r in rows
+        ],
+        "tenants": [
+            {"tenant_id": str(t["tenant_id"]), "tenant_name": t["tenant_name"]}
+            for t in tenants
+        ],
     }
 
 
@@ -665,7 +709,17 @@ async def rate_limits(db: DbConn, current=PA):
         "throttled_1h":     0,   # live from Redis token-bucket scan in production
         "avg_rpm":          avg_rpm,
         "platform_default_rpm": default_rpm,
-        "keys":             [dict(r) for r in key_rows],
+        "keys": [
+            {
+                "api_key_id":     str(r["api_key_id"]),
+                "tenant_name":    r["tenant_name"],
+                "tenant_id":      str(r["tenant_id"]),
+                "label":          r["label"],
+                "rate_limit_rpm": int(r["rate_limit_rpm"]) if r["rate_limit_rpm"] is not None else 0,
+                "status":         r["status"],
+            }
+            for r in key_rows
+        ],
         "tenant_defaults":  tenant_defaults,
     }
 
@@ -674,10 +728,10 @@ async def rate_limits(db: DbConn, current=PA):
 async def list_contact_inquiries(current, db: DbConn, event_type: str = "CONTACT_INQUIRY"):
     rows = await db.fetch(
         """
-        SELECT event_id, event_type, created_at, event_metadata
+        SELECT event_id, event_type, occurred_at, event_metadata
         FROM audit_event
         WHERE event_type = $1
-        ORDER BY created_at DESC
+        ORDER BY occurred_at DESC
         LIMIT 200
         """,
         event_type,
@@ -687,7 +741,7 @@ async def list_contact_inquiries(current, db: DbConn, event_type: str = "CONTACT
             {
                 "event_id": str(r["event_id"]),
                 "event_type": r["event_type"],
-                "created_at": r["created_at"].isoformat(),
+                "created_at": r["occurred_at"].isoformat() if r["occurred_at"] else None,
                 "data": r["event_metadata"] if isinstance(r["event_metadata"], dict) else {},
             }
             for r in rows
@@ -874,3 +928,4 @@ async def list_notifications(
         for r in rows
     ]
     return {"items": items, "total": len(items)}
+

@@ -27,6 +27,8 @@ Rules enforced:
   [ASK-01]    Qdrant search must filter by employee_user_id (no cross-tenant leakage)
   [MOB-01]    AsyncStorage never used for auth tokens (must use SecureStore)
   [SHARE-01]  document_access_log INSERT must include ip_address
+  [KAFKA-03]  No direct kafka.publish() in routers/services — use domain helpers
+  [DB-05]     No datetime.utcnow() — deprecated, use datetime.now(datetime.timezone.utc)
   [TDD-01]    Every source file must have a corresponding test file (ERROR — blocks merge)
   [TDD-02]    Test files must contain at least one def test_*() function
 """
@@ -75,11 +77,13 @@ def scan_py(directory: Path, rule: str, pattern: str, message: str,
     regex = re.compile(pattern)
     exclude = re.compile(exclude_pattern) if exclude_pattern else None
     for f in directory.rglob("*.py"):
-        if "test_" in f.name or "__pycache__" in str(f):
+        if "test_" in f.name or "__pycache__" in str(f) or "scripts" in f.parts:
             continue
         for i, line in enumerate(f.read_text(encoding="utf-8", errors="ignore").splitlines(), 1):
             if regex.search(line):
                 if exclude and exclude.search(line):
+                    continue
+                if f"noqa: {rule}" in line:
                     continue
                 fail(rule, f, i, line, message, severity)
 
@@ -140,10 +144,17 @@ scan_ts(PORTAL_ROOT, "SEC-04", r'apiKey\s*[:=]\s*["\'][A-Za-z0-9]{20,}',
         "Possible hardcoded API key in frontend. Use environment variables.")
 
 # ── [DB-01] No f-string SQL ───────────────────────────────────────────────────
+# Catches both single-quoted and triple-quoted f-strings passed to db methods
 scan_py(
     API_ROOT, "DB-01",
     r'(db|conn|pool)\.(fetch|execute|fetchrow|fetchval)\s*\(\s*f["\']',
     "f-string SQL detected. Use parameterized queries with $1, $2 placeholders.",
+)
+# Also catch f""" triple-quote variant (separate pass — regex above misses triple-quote)
+scan_py(
+    API_ROOT, "DB-01",
+    r'(db|conn|pool)\.(fetch|execute|fetchrow|fetchval)\s*\(\s*f"""',
+    "f-string SQL (triple-quote) detected. Use parameterized queries with $1, $2 placeholders.",
 )
 
 # ── [DB-02] No SELECT * ───────────────────────────────────────────────────────
@@ -172,10 +183,13 @@ scan_py(
 # ── [API-02] No raw dict(row) return ─────────────────────────────────────────
 # Scoped to routers only — routers own the API serialization boundary.
 # Service methods returning dict(row) internally are OK if the calling router serializes.
+# Catches: return [dict(r)], return dict(row), [dict(r) for r in rows] assigned in response,
+#          **dict(r) spread into response dicts.
 scan_py(
     API_ROOT / "routers", "API-02",
-    r'return\s+\[dict\(r\)\s+for\s+r|return\s+dict\(row\)',
-    "Raw dict(row) returned from router. UUID/date/datetime/JSONB fields need explicit serialization.",
+    r'(return\s+\[dict\(r\)|return\s+dict\(row\)|\[dict\(r\)\s+for\s+r\s+in|\*\*dict\(r\))',
+    "Raw dict(row/r) in router. UUID/date/datetime/JSONB fields need explicit serialization.",
+    exclude_pattern=r"(_serialize|_format|ManifestRecord)",
 )
 
 # ── [KAFKA-01] No audit_event INSERT in HTTP handlers ─────────────────────────
@@ -362,12 +376,13 @@ check_qdrant_filter()
 
 # ── [MOB-01] AsyncStorage never used for auth tokens ────────────────────────
 # Auth tokens must use SecureStore (encrypted). AsyncStorage is plaintext.
+# Non-sensitive UI flags (dismissed nudges, preferences, theme, locale) are OK in AsyncStorage.
 scan_ts(
     MOBILE_ROOT, "MOB-01",
     r'AsyncStorage\.(set|get|remove)Item',
     "AsyncStorage used for data storage. Auth tokens (JWT, refresh) must use expo-secure-store. "
     "AsyncStorage is unencrypted — never store tokens, session IDs, or sensitive data here.",
-    exclude_pattern=r"(#\s*mob01-non-sensitive-ok|preference|theme|language|locale)",
+    exclude_pattern=r"(#\s*mob01-non-sensitive-ok|preference|theme|language|locale|dismissed|nudge|onboarding|setting)",
     severity="WARN",
 )
 
@@ -398,6 +413,44 @@ scan_py(
     ASK_ROOT, "DEPLOY-01",
     r'from prana_ai\.|import prana_ai',
     "Cross-service import: prana-ask importing from prana-ai. These are separate GPU deployables.",
+)
+
+# ── [KAFKA-03] No direct kafka.publish() — use domain helpers ────────────────
+# Every Kafka publish in prana-api must go through a domain helper (doc_ingested,
+# compliance_event, auth_event, etc.) which fans out to the right topics atomically.
+# Direct publish() bypasses the fan-out and misses secondary topics (audit, analytics).
+# Exception: kafka/producer.py itself defines the helpers (it IS the publish layer).
+# Exception: prana-ai calls publish() directly — it has no domain helpers (separate service).
+scan_py(
+    API_ROOT / "routers", "KAFKA-03",
+    r'\bkafka\b.*\.publish\s*\(',
+    "Direct kafka.publish() in router. Use domain helpers: kafka.doc_ingested(), "
+    "kafka.compliance_event(), kafka.auth_event(), etc. — they fan-out to the correct topics.",
+    exclude_pattern=r"(#\s*kafka03-direct-ok|producer\.py|kafka/)",
+)
+scan_py(
+    API_ROOT / "services", "KAFKA-03",
+    r'\bkafka\b.*\.publish\s*\(|\b_kafka\b.*\.publish\s*\(',
+    "Direct kafka.publish() in service. Use domain helpers which fan-out to the correct topics.",
+    exclude_pattern=r"(#\s*kafka03-direct-ok|producer\.py)",
+)
+
+# ── [DB-05] No datetime.utcnow() — timezone-naive, deprecated in Python 3.12 ──
+scan_py(
+    API_ROOT, "DB-05",
+    r'datetime\.utcnow\(\)',
+    "datetime.utcnow() is deprecated in Python 3.12+ and returns timezone-naive datetimes. "
+    "Use datetime.now(datetime.timezone.utc) instead.",
+)
+scan_py(
+    AI_ROOT, "DB-05",
+    r'datetime\.utcnow\(\)',
+    "datetime.utcnow() is deprecated. Use datetime.now(datetime.timezone.utc).",
+)
+scan_py(
+    ASK_ROOT, "DB-05",
+    r'datetime\.utcnow\(\)',
+    "datetime.utcnow() is deprecated. Use datetime.now(datetime.timezone.utc).",
 )
 
 # ── [TDD-01] Every source file must have a test file ─────────────────────────

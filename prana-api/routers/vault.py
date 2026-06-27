@@ -37,6 +37,7 @@ def _vault(request: Request, db: DbConn, current) -> VaultService:
         kms=request.app.state.kms_service,
         s3_client=request.app.state.s3,
         documents_bucket=settings.s3_bucket_documents,
+        kafka_producer=getattr(request.app.state, "kafka_producer", None),
     )
 
 
@@ -251,12 +252,13 @@ async def get_career(request: Request, db: DbConn, current: Employee):
         SELECT d.doc_period, d.doc_type,
                t.tenant_name AS employer_name,
                em.employee_uuid AS employer_id,
-               d.insight_text,
+               ce.insight_text,
                (d.extracted_fields->>'growth_index')::int AS growth_index,
                d.routed_at
         FROM document d
         JOIN employee_master em ON em.employee_uuid = d.employee_uuid
         JOIN tenant t ON t.tenant_id = em.tenant_id
+        LEFT JOIN career_event ce ON ce.doc_uuid = d.document_id
         WHERE d.employee_uuid IN (
             SELECT employee_uuid FROM employee_master WHERE employee_user_id=$1
           )

@@ -49,8 +49,9 @@ from workflows.compliance import (
     RetentionWorkflow,
     AuditArchivalWorkflow,
     LegalHoldWorkflow,
+    StatutoryComplianceWorkflow,
 )
-from workflows.insight_refresh import InsightRefreshWorkflow
+from workflows.insight_refresh import InsightRefreshWorkflow, refresh_document_insight
 from workflows.intelligence import (
     CareerInsightWorkflow,
     VaultCompletenessWorkflow,
@@ -129,6 +130,7 @@ from workflows.compliance import (
     schedule_document_deletion, archive_audit_events_batch,
     apply_legal_hold, release_legal_hold,
     get_config_value,
+    mark_overdue_obligations, notify_overdue_obligations,
 )
 from workflows.intelligence import (
     build_career_insight, write_career_insight,
@@ -266,6 +268,7 @@ WORKERS: dict[str, dict] = {
             DataExportWorkflow, GrievanceWorkflow,
             DataCorrectionWorkflow, RetentionWorkflow,
             AuditArchivalWorkflow, LegalHoldWorkflow,
+            StatutoryComplianceWorkflow,
         ],
         "activities": [
             send_erasure_notice, execute_erasure, send_consent_rebump,
@@ -274,6 +277,7 @@ WORKERS: dict[str, dict] = {
             apply_data_correction, notify_correction_complete,
             schedule_document_deletion, archive_audit_events_batch,
             apply_legal_hold, release_legal_hold, get_config_value,
+            mark_overdue_obligations, notify_overdue_obligations,
         ],
     },
     "analytics-queue": {
@@ -292,6 +296,7 @@ WORKERS: dict[str, dict] = {
             DigestWorkflow, PeerBenchmarkWorkflow, SkillGapWorkflow, MarketCompWorkflow,
         ],
         "activities": [
+            refresh_document_insight,
             build_career_insight, write_career_insight,
             record_anomaly_ack, build_weekly_digest, build_monthly_digest,
             send_digest_email, build_peer_benchmark, write_peer_benchmark,

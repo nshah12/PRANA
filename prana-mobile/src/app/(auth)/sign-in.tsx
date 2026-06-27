@@ -226,29 +226,27 @@ export default function SignInScreen() {
               {/* Password field */}
               <View style={s.fieldGroup}>
                 <Text style={s.fieldLabel}>PASSWORD</Text>
-                <Pressable onPress={() => pwdRef.current?.focus()}>
-                  <View style={[s.fieldRow, error && !digits ? s.fieldRowError : password.length > 0 ? s.fieldRowReady : {}]}>
-                    <Text style={s.countryFlag}>🔑</Text>
-                    <View style={s.divider} />
-                    <TextInput
-                      ref={pwdRef}
-                      style={s.input}
-                      placeholder="Your password"
-                      placeholderTextColor="#3D4A6B"
-                      secureTextEntry={!showPwd}
-                      value={password}
-                      onChangeText={v => { setPassword(v); setError(''); }}
-                      editable={!loading}
-                      returnKeyType="done"
-                      onSubmitEditing={handleContinue}
-                      autoCapitalize="none"
-                      autoCorrect={false}
-                    />
-                    <Pressable onPress={() => setShowPwd(v => !v)} hitSlop={8}>
-                      <Text style={{ fontSize: 16, color: '#4B5A78' }}>{showPwd ? '🙈' : '👁️'}</Text>
-                    </Pressable>
-                  </View>
-                </Pressable>
+                <View style={[s.fieldRow, error && !digits ? s.fieldRowError : password.length > 0 ? s.fieldRowReady : {}]}>
+                  <Text style={s.countryFlag}>🔑</Text>
+                  <View style={s.divider} />
+                  <TextInput
+                    ref={pwdRef}
+                    style={s.input}
+                    placeholder="Your password"
+                    placeholderTextColor="#3D4A6B"
+                    secureTextEntry={!showPwd}
+                    value={password}
+                    onChangeText={v => { setPassword(v); setError(''); }}
+                    editable={!loading}
+                    returnKeyType="done"
+                    onSubmitEditing={handleContinue}
+                    autoCapitalize="none"
+                    autoCorrect={false}
+                  />
+                  <Pressable onPress={() => setShowPwd(v => !v)} hitSlop={8}>
+                    <Text style={{ fontSize: 16, color: '#4B5A78' }}>{showPwd ? '🙈' : '👁️'}</Text>
+                  </Pressable>
+                </View>
                 {error ? (
                   <View style={s.errorRow}>
                     <Text style={s.errorIcon}>⚠</Text>

@@ -11,7 +11,7 @@ Write-Host "========================================" -ForegroundColor Cyan
 Write-Host "  PRANA PRE-DEPLOY GATE" -ForegroundColor Cyan
 Write-Host "========================================" -ForegroundColor Cyan
 
-# ── Check 1: Rule enforcement (security, DB, API, Kafka, TDD coverage) ────────
+# [1/3] Rule enforcement
 Write-Host ""
 Write-Host "[1/3] Rule Enforcement Scanner..." -ForegroundColor Yellow
 python "$ROOT\scripts\enforce_rules.py"
@@ -22,7 +22,7 @@ if ($LASTEXITCODE -ne 0) {
     Write-Host "PASSED" -ForegroundColor Green
 }
 
-# ── Check 2: API compatibility (versioning, deprecation, sunset) ──────────────
+# [2/3] API compatibility
 Write-Host ""
 Write-Host "[2/3] API Compatibility Check..." -ForegroundColor Yellow
 python "$ROOT\scripts\check_api_compat.py"
@@ -33,9 +33,9 @@ if ($LASTEXITCODE -ne 0) {
     Write-Host "PASSED" -ForegroundColor Green
 }
 
-# ── Check 3: Test suite (TDD — tests must pass, not just exist) ───────────────
+# [3/3] Test suite
 Write-Host ""
-Write-Host "[3/3] Running test suites (prana-api, prana-ai, prana-ask)..." -ForegroundColor Yellow
+Write-Host "[3/3] Running test suites..." -ForegroundColor Yellow
 $MONOREPO = Split-Path -Parent $ROOT
 $testPaths = @(
     "$ROOT\tests",
@@ -44,26 +44,26 @@ $testPaths = @(
 )
 $existingPaths = $testPaths | Where-Object { Test-Path $_ }
 if ($existingPaths.Count -eq 0) {
-    Write-Host "WARNING: No test directories found — skipping pytest." -ForegroundColor Yellow
+    Write-Host "WARNING: No test directories found." -ForegroundColor Yellow
 } else {
-    python -m pytest @existingPaths -v --tb=short -q 2>&1
+    python -m pytest $existingPaths -v --tb=short -q 2>&1
     if ($LASTEXITCODE -ne 0) {
-        Write-Host "FAILED: Test suite has failures. All tests must pass before deployment." -ForegroundColor Red
+        Write-Host "FAILED: Test suite has failures." -ForegroundColor Red
         $failed = $true
     } else {
         Write-Host "PASSED" -ForegroundColor Green
     }
 }
 
-# ── Result ────────────────────────────────────────────────────────────────────
+# Result
 Write-Host ""
 Write-Host "========================================" -ForegroundColor Cyan
 if ($failed) {
-    Write-Host "  DEPLOYMENT BLOCKED — fix errors above" -ForegroundColor Red
+    Write-Host "  DEPLOYMENT BLOCKED -- fix errors above" -ForegroundColor Red
     Write-Host "========================================" -ForegroundColor Cyan
     exit 1
 } else {
-    Write-Host "  ALL CHECKS PASSED — safe to deploy" -ForegroundColor Green
+    Write-Host "  ALL CHECKS PASSED -- safe to deploy" -ForegroundColor Green
     Write-Host "========================================" -ForegroundColor Cyan
     exit 0
 }

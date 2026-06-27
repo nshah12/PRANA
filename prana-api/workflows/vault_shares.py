@@ -9,7 +9,7 @@ Workflows:
   ShareRevocationWorkflow — immediately revoke a share token (user-initiated)
   DocumentShareWorkflow   — create a share token with OTP verification flow
 """
-from datetime import timedelta
+from datetime import datetime, timedelta, timezone
 
 from temporalio import workflow, activity
 from temporalio.common import RetryPolicy
@@ -55,10 +55,8 @@ class ShareExpiryWorkflow:
 
     @workflow.run
     async def run(self, params: dict) -> None:
-        from datetime import datetime, timezone
-        expires_at = datetime.fromisoformat(params["expires_at"]).replace(tzinfo=timezone.utc)
-        now = workflow.now()
-        wait_seconds = max(0, (expires_at - now).total_seconds())
+        expires_at   = datetime.fromisoformat(params["expires_at"]).replace(tzinfo=timezone.utc)
+        wait_seconds = max(0, (expires_at - workflow.now()).total_seconds())
         if wait_seconds > 0:
             await workflow.sleep(timedelta(seconds=wait_seconds))
         await workflow.execute_activity(
@@ -114,35 +112,30 @@ class DocumentShareWorkflow:
             {"key": "share_otp_ttl_minutes", "tenant_id": params.get("tenant_id"), "default": "10"},
             start_to_close_timeout=timedelta(minutes=2),
         )
+        return await self._execute(params, ttl_str)
+
+    async def _execute(self, params: dict, ttl_str: str) -> dict:
         token_data = await workflow.execute_activity(
             create_share_token, params,
-            start_to_close_timeout=timedelta(minutes=5),
-            retry_policy=_RETRY,
+            start_to_close_timeout=timedelta(minutes=5), retry_policy=_RETRY,
         )
         await workflow.execute_activity(
             send_share_otp, {**params, **token_data},
-            start_to_close_timeout=timedelta(minutes=5),
-            retry_policy=_RETRY,
+            start_to_close_timeout=timedelta(minutes=5), retry_policy=_RETRY,
         )
-
         verified = await workflow.wait_condition(
             lambda: self._otp_verified,
             timeout=timedelta(minutes=int(ttl_str)),
         )
-
         if verified and self._otp_verified:
             await workflow.execute_activity(
                 notify_share_accessed,
                 {**params, **token_data, "accessor_id": self._accessor_id},
-                start_to_close_timeout=timedelta(minutes=5),
-                retry_policy=_RETRY,
+                start_to_close_timeout=timedelta(minutes=5), retry_policy=_RETRY,
             )
         else:
-            # OTP not verified in time — expire the token
             await workflow.execute_activity(
                 expire_share_token, token_data,
-                start_to_close_timeout=timedelta(minutes=5),
-                retry_policy=_RETRY,
+                start_to_close_timeout=timedelta(minutes=5), retry_policy=_RETRY,
             )
-
         return token_data

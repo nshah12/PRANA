@@ -334,3 +334,37 @@ async def test_resolve_unclassified_validates_doc_type(client):
             json={"resolved_doc_type": "TOTALLY_MADE_UP"},
         )
     assert response.status_code in (401, 403, 422)
+
+
+def test_unclassified_list_query_uses_document_id_pk():
+    """Query must use document_id as PK — no unclassified_id column in schema."""
+    import pathlib
+    src = pathlib.Path(__file__).parent.parent.joinpath("routers/doc_manifest.py").read_text()
+    # Find the list_unclassified function body
+    start = src.index("async def list_unclassified")
+    body = src[start:start + 1000]
+    assert "unclassified_id" not in body, \
+        "unclassified_queue has document_id as PK — unclassified_id column does not exist"
+
+
+def test_resolve_unclassified_publishes_doc_reclassified_to_kafka():
+    """resolve_unclassified must publish DOC_RECLASSIFIED to prana.ingest.events."""
+    import pathlib
+    src = pathlib.Path(__file__).parent.parent.joinpath("routers/doc_manifest.py").read_text()
+    start = src.index("async def resolve_unclassified")
+    body = src[start:start + 1500]
+    assert "DOC_RECLASSIFIED" in body, \
+        "resolve_unclassified must publish DOC_RECLASSIFIED event to Kafka"
+    assert "stage_changed" in body, \
+        "DOC_RECLASSIFIED must use stage_changed domain helper (not direct publish)"
+
+
+def test_unclassified_queue_migration_exists():
+    """Migration 021 must exist to create the unclassified_queue table."""
+    import pathlib
+    migrations = list(pathlib.Path(__file__).parent.parent.parent.joinpath("prana-db/migrations").glob("021_*.sql"))
+    assert migrations, "Migration 021_unclassified_queue.sql must exist"
+    content = migrations[0].read_text()
+    assert "unclassified_queue" in content
+    assert "document_id" in content
+    assert "ROLLBACK" in content

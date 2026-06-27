@@ -13,13 +13,26 @@ export const api = axios.create({
   withCredentials: true,
 })
 
-// Attach access token — employee token takes priority on /emp/* routes; org token elsewhere
+// Read employee token from Zustand store with localStorage fallback (handles hydration timing)
+// Zustand persist wraps stored data as { state: { accessToken, user }, version: 0 }
+function getEmpToken(): string | null {
+  const t = useEmpAuthStore.getState().accessToken
+  if (t) return t
+  try {
+    const raw = localStorage.getItem('prana-emp-auth')
+    if (raw) return JSON.parse(raw).state?.accessToken ?? null
+  } catch {}
+  return null
+}
+
+// Attach access token — use employee token on /emp/* pages; org token on /org|/admin pages
 api.interceptors.request.use((config) => {
-  const empToken = useEmpAuthStore.getState().accessToken
+  const empToken = getEmpToken()
   const orgToken = useAuthStore.getState().accessToken
-  const isEmpUrl = config.url?.includes('/emp/') || config.url?.includes('/auth/employee/')
-  const token = (isEmpUrl && empToken) ? empToken : (orgToken ?? empToken)
+  const onEmpPage = typeof window !== 'undefined' && window.location.pathname.startsWith('/emp/')
+  const token = onEmpPage ? (empToken ?? orgToken) : (orgToken ?? empToken)
   if (token) config.headers.Authorization = `Bearer ${token}`
+  console.warn('[API REQ]', config.method?.toUpperCase(), config.url, token ? 'TOKEN:' + token.slice(-8) : 'NO TOKEN')
   return config
 })
 
@@ -35,17 +48,21 @@ api.interceptors.response.use(
   async (err) => {
     const original = err.config
     const isAuthEndpoint = AUTH_PATHS.some(p => original.url?.includes(p))
+    console.warn('[API ERR]', err.response?.status, original?.url, 'retry:', original?._retry, 'isAuth:', isAuthEndpoint)
     if (err.response?.status === 401 && !original._retry && !isAuthEndpoint) {
       original._retry = true
       const isEmpRoute = window.location.pathname.startsWith('/emp/')
       const role = useAuthStore.getState().user?.role
       if (isEmpRoute) {
         try {
+          console.warn('[API REFRESH] attempting employee refresh...')
           const { data } = await api.post('/auth/employee/refresh', {}, { withCredentials: true })
+          console.warn('[API REFRESH] success, new token:', data.access_token?.slice(-8))
           useEmpAuthStore.getState().setAccessToken(data.access_token)
           original.headers.Authorization = `Bearer ${data.access_token}`
           return api(original)
-        } catch {
+        } catch (refreshErr: any) {
+          console.error('[API REFRESH FAILED]', refreshErr?.response?.status, refreshErr?.response?.data)
           useEmpAuthStore.getState().logout()
           window.location.href = '/emp/login'
         }

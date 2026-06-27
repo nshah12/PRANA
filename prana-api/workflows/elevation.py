@@ -47,6 +47,9 @@ class ElevationWorkflow:
 
     @workflow.run
     async def run(self, params: dict) -> dict:
+        return await self._execute(params)
+
+    async def _execute(self, params: dict) -> dict:
         elevation_id = params["elevation_id"]
         tenant_id    = params["tenant_id"]
         requestor_id = params["requestor_id"]
@@ -58,59 +61,40 @@ class ElevationWorkflow:
         )
 
         if self._decision is None or not self._decision.get("approved"):
-            # Timed out or denied — mark DENIED/EXPIRED and exit
+            status = "DENIED" if (self._decision and not self._decision["approved"]) else "EXPIRED"
             await workflow.execute_activity(
                 "finalize_elevation",
-                {
-                    "elevation_id": elevation_id,
-                    "status":       "DENIED" if (self._decision and not self._decision["approved"]) else "EXPIRED",
-                    "approver_id":  (self._decision or {}).get("approver_id"),
-                },
+                {"elevation_id": elevation_id, "status": status,
+                 "approver_id": (self._decision or {}).get("approver_id")},
                 start_to_close_timeout=timedelta(seconds=30),
                 retry_policy=_RETRY,
             )
             return {"elevation_id": elevation_id, "outcome": "denied_or_timeout"}
 
-        # Approved — activate in DB, get expires_at back
         duration_hours = self._decision["duration_hours"]
         approver_id    = self._decision["approver_id"]
 
-        result = await workflow.execute_activity(
+        await workflow.execute_activity(
             "activate_elevation",
-            {
-                "elevation_id":  elevation_id,
-                "approver_id":   approver_id,
-                "duration_hours": duration_hours,
-                "tenant_id":     tenant_id,
-                "requestor_id":  requestor_id,
-            },
+            {"elevation_id": elevation_id, "approver_id": approver_id,
+             "duration_hours": duration_hours, "tenant_id": tenant_id,
+             "requestor_id": requestor_id},
             start_to_close_timeout=timedelta(seconds=30),
             retry_policy=_RETRY,
         )
 
-        # Durable sleep until window expires (survives worker crash/restart)
-        sleep_seconds = duration_hours * 3600
-        try:
-            await asyncio.wait_for(
-                workflow.wait_condition(lambda: self._end_early),
-                timeout=sleep_seconds,
-            )
-            ended_early = True
-        except asyncio.TimeoutError:
-            ended_early = False
+        # Durable sleep until window expires or early-end signal fires
+        ended_early = await workflow.wait_condition(
+            lambda: self._end_early,
+            timeout=timedelta(hours=duration_hours),
+        )
 
-        # Expire: mark DB + add JWT to Redis revocation list
         await workflow.execute_activity(
             "expire_elevation",
-            {
-                "elevation_id": elevation_id,
-                "tenant_id":    tenant_id,
-                "requestor_id": requestor_id,
-                "ended_early":  ended_early,
-                "jwt_jti":      params.get("jwt_jti"),   # passed at approve time
-            },
+            {"elevation_id": elevation_id, "tenant_id": tenant_id,
+             "requestor_id": requestor_id, "ended_early": ended_early,
+             "jwt_jti": params.get("jwt_jti")},
             start_to_close_timeout=timedelta(seconds=30),
             retry_policy=_RETRY,
         )
-
         return {"elevation_id": elevation_id, "outcome": "ended_early" if ended_early else "expired"}

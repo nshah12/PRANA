@@ -435,7 +435,10 @@ CREATE TABLE document (
   doc_type             VARCHAR(30)  NOT NULL,
                         -- SALARY_SLIP | FORM_16 | OFFER_LETTER | APPOINTMENT_LETTER |
                         -- INCREMENT_LETTER | PROMOTION_LETTER | RELIEVING_LETTER |
-                        -- EXPERIENCE_LETTER | JOINING_LETTER | PF_ACKNOWLEDGEMENT | SELF_UPLOAD
+                        -- EXPERIENCE_LETTER | JOINING_LETTER | PF_ACKNOWLEDGEMENT |
+                        -- BANK_STATEMENT | IT_RETURN | INVESTMENT_PROOF | APPRAISAL_LETTER |
+                        -- BONUS_LETTER | GRATUITY_LETTER | FORM_12B | FORM_26AS |
+                        -- SELF_UPLOAD
   doc_period           VARCHAR(20),
                         -- '2024-03' monthly | 'FY:2023-24' annual | ISO date for event letters
   s3_key               TEXT         UNIQUE,
@@ -561,6 +564,27 @@ CREATE TABLE exception_queue (
 CREATE INDEX idx_exc_open   ON exception_queue(tenant_id, raised_at) WHERE status = 'OPEN';
 CREATE INDEX idx_exc_doc    ON exception_queue(document_id);
 
+CREATE TABLE unclassified_queue (
+  document_id          UUID         PRIMARY KEY REFERENCES document(document_id),
+  tenant_id            UUID         NOT NULL REFERENCES tenant(tenant_id),
+  reason               TEXT         NOT NULL,
+    -- AUTO_DETECT_FAILED | LOW_CONFIDENCE | CONFLICTING_SIGNALS | OCR_POOR_QUALITY
+  declared_doc_type    VARCHAR(50),
+  best_guess_doc_type  VARCHAR(50),
+  best_guess_score     NUMERIC(5,4),
+  partial_fields       JSONB        NOT NULL DEFAULT '{}',
+  status               VARCHAR(20)  NOT NULL DEFAULT 'PENDING',
+    -- PENDING | RESOLVED | EXPIRED
+  resolved_by          UUID         REFERENCES oa_user(oa_user_id),
+  resolved_doc_type    VARCHAR(50),
+  resolved_at          TIMESTAMPTZ,
+  created_at           TIMESTAMPTZ  NOT NULL DEFAULT NOW(),
+  updated_at           TIMESTAMPTZ  NOT NULL DEFAULT NOW()
+);
+CREATE INDEX idx_unclassified_tenant  ON unclassified_queue(tenant_id, status, created_at DESC);
+CREATE INDEX idx_unclassified_pending ON unclassified_queue(tenant_id, created_at DESC)
+  WHERE status = 'PENDING';
+
 CREATE TABLE document_request (
   doc_request_id   UUID         PRIMARY KEY DEFAULT gen_random_uuid(),
   pan_token        VARCHAR(64)  NOT NULL,               -- Employee who made the request
@@ -582,24 +606,90 @@ CREATE INDEX idx_docreq_tenant ON document_request(tenant_id, status);
 -- LAYER 8: COMPLIANCE & DPDP ACT 2023
 -- ============================================================
 
-CREATE TABLE dpdp_grievance (
-  grievance_id     UUID         PRIMARY KEY DEFAULT gen_random_uuid(),
-  pan_token        VARCHAR(64)  NOT NULL,
-  grievance_type   VARCHAR(30)  NOT NULL,
-                    -- ACCESS_DENIED | CORRECTION_REFUSED | ERASURE_REFUSED | DATA_BREACH | OTHER
-  description      TEXT         NOT NULL,
-  status           VARCHAR(30)  NOT NULL DEFAULT 'RAISED',
-                    -- RAISED | ACKNOWLEDGED | IN_REVIEW | RESOLVED | ESCALATED_TO_DPB
-  raised_at        TIMESTAMPTZ  NOT NULL DEFAULT NOW(),
-  acknowledged_at  TIMESTAMPTZ,  -- STATUTORY: must be set within 7 working days (DPDP Act S.13)
-  resolved_at      TIMESTAMPTZ,
-  resolution_note  TEXT,
-  dpb_escalated    BOOLEAN      NOT NULL DEFAULT FALSE,
-  -- dpb_escalated = TRUE is IMMUTABLE once set. DPDPGrievanceWorkflow auto-escalates on day 8.
-  dpb_escalated_at TIMESTAMPTZ
+CREATE TABLE employee_consent (
+  consent_id        UUID         PRIMARY KEY DEFAULT gen_random_uuid(),
+  employee_user_id  UUID         NOT NULL REFERENCES employee_user(employee_user_id),
+  purpose           VARCHAR(50)  NOT NULL,
+                    -- document_processing | insight_generation | peer_benchmark | notifications
+  consent_version   VARCHAR(20)  NOT NULL DEFAULT '1.0',
+  is_active         BOOLEAN      NOT NULL DEFAULT TRUE,
+  consented_at      TIMESTAMPTZ  NOT NULL DEFAULT NOW(),
+  updated_at        TIMESTAMPTZ  NOT NULL DEFAULT NOW(),
+  CONSTRAINT uq_consent_employee_purpose UNIQUE (employee_user_id, purpose)
 );
-CREATE INDEX idx_grievance_pan  ON dpdp_grievance(pan_token, raised_at DESC);
-CREATE INDEX idx_grievance_open ON dpdp_grievance(raised_at)
+CREATE INDEX idx_consent_employee ON employee_consent(employee_user_id, purpose);
+CREATE INDEX idx_consent_inactive ON employee_consent(employee_user_id) WHERE is_active = FALSE;
+
+CREATE TABLE erasure_request (
+  erasure_id        UUID         PRIMARY KEY DEFAULT gen_random_uuid(),
+  employee_user_id  UUID         NOT NULL REFERENCES employee_user(employee_user_id),
+  tenant_id         UUID         REFERENCES tenant(tenant_id),
+  reason            TEXT,
+  status            VARCHAR(20)  NOT NULL DEFAULT 'PENDING',
+                    -- PENDING | CANCELLED | EXECUTING | COMPLETE
+  requested_at      TIMESTAMPTZ  NOT NULL DEFAULT NOW(),
+  confirmed_at      TIMESTAMPTZ,
+  completed_at      TIMESTAMPTZ,
+  updated_at        TIMESTAMPTZ  NOT NULL DEFAULT NOW()
+);
+CREATE INDEX idx_erasure_employee ON erasure_request(employee_user_id, status);
+
+CREATE TABLE data_export_request (
+  export_id         UUID         PRIMARY KEY DEFAULT gen_random_uuid(),
+  employee_user_id  UUID         NOT NULL REFERENCES employee_user(employee_user_id),
+  tenant_id         UUID         REFERENCES tenant(tenant_id),
+  status            VARCHAR(20)  NOT NULL DEFAULT 'PENDING',
+                    -- PENDING | IN_PROGRESS | READY | EXPIRED
+  s3_key            TEXT,
+  expires_at        TIMESTAMPTZ,
+  requested_at      TIMESTAMPTZ  NOT NULL DEFAULT NOW(),
+  completed_at      TIMESTAMPTZ
+);
+CREATE INDEX idx_export_employee ON data_export_request(employee_user_id, requested_at DESC);
+
+CREATE TABLE data_correction_request (
+  correction_id     UUID         PRIMARY KEY DEFAULT gen_random_uuid(),
+  employee_user_id  UUID         NOT NULL REFERENCES employee_user(employee_user_id),
+  tenant_id         UUID         REFERENCES tenant(tenant_id),
+  field_name        VARCHAR(100) NOT NULL,
+  current_value     TEXT,
+  correct_value     TEXT         NOT NULL,
+  evidence_note     TEXT,
+  status            VARCHAR(20)  NOT NULL DEFAULT 'PENDING',
+                    -- PENDING | UNDER_REVIEW | APPLIED | REJECTED
+  reviewer_id       UUID         REFERENCES oa_user(oa_user_id),
+  rejection_reason  TEXT,
+  requested_at      TIMESTAMPTZ  NOT NULL DEFAULT NOW(),
+  resolved_at       TIMESTAMPTZ
+);
+CREATE INDEX idx_correction_employee ON data_correction_request(employee_user_id, status);
+CREATE INDEX idx_correction_tenant   ON data_correction_request(tenant_id, status) WHERE status = 'PENDING';
+
+CREATE TABLE dpdp_grievance (
+  grievance_id      UUID         PRIMARY KEY DEFAULT gen_random_uuid(),
+  employee_user_id  UUID         REFERENCES employee_user(employee_user_id),
+  tenant_id         UUID         REFERENCES tenant(tenant_id),
+  pan_token         VARCHAR(64),              -- HMAC of PAN — for audit analytics, may be NULL if pan not yet resolved
+  grievance_type    VARCHAR(30)  NOT NULL,
+                    -- ACCESS_DENIED | CORRECTION_REFUSED | ERASURE_REFUSED | DATA_BREACH | OTHER
+  category          VARCHAR(50),
+                    -- DATA_ACCURACY | ACCESS_DENIED | CORRECTION_REFUSED |
+                    -- ERASURE_REFUSED | DATA_BREACH | NOTIFICATION | OTHER
+  description       TEXT         NOT NULL,
+  status            VARCHAR(30)  NOT NULL DEFAULT 'RAISED',
+                    -- RAISED | ACKNOWLEDGED | IN_REVIEW | RESOLVED | ESCALATED_TO_DPB
+  raised_at         TIMESTAMPTZ  NOT NULL DEFAULT NOW(),
+  acknowledged_at   TIMESTAMPTZ,  -- STATUTORY: must be set within 7 working days (DPDP Act S.13)
+  resolved_at       TIMESTAMPTZ,
+  resolution_note   TEXT,
+  dpb_escalated     BOOLEAN      NOT NULL DEFAULT FALSE,
+  -- dpb_escalated = TRUE is IMMUTABLE once set. DPDPGrievanceWorkflow auto-escalates on day 8.
+  dpb_escalated_at  TIMESTAMPTZ
+);
+CREATE INDEX idx_grievance_pan      ON dpdp_grievance(pan_token, raised_at DESC);
+CREATE INDEX idx_grievance_employee ON dpdp_grievance(employee_user_id, raised_at DESC);
+CREATE INDEX idx_grievance_tenant   ON dpdp_grievance(tenant_id, status);
+CREATE INDEX idx_grievance_open     ON dpdp_grievance(raised_at)
   WHERE status NOT IN ('RESOLVED', 'ESCALATED_TO_DPB');
 
 CREATE TABLE nominee (
@@ -830,14 +920,28 @@ CREATE TABLE compliance_obligation (
   obligation_id   UUID         PRIMARY KEY DEFAULT gen_random_uuid(),
   tenant_id       UUID         NOT NULL REFERENCES tenant(tenant_id),
   obligation_name TEXT         NOT NULL,
+  statutory_act   VARCHAR(80),
+                  -- EPF_ACT | ESIC_ACT | INCOME_TAX | GRATUITY_ACT | BONUS_ACT |
+                  -- MATERNITY_ACT | POSH_ACT | MIN_WAGES_ACT | FACTORIES_ACT |
+                  -- SHOPS_EST_ACT | LABOUR_WELFARE_FUND | OTHER
+  category        VARCHAR(50),
+  period_start    DATE,
+  period_end      DATE,
   deadline        DATE         NOT NULL,
   status          VARCHAR(20)  NOT NULL DEFAULT 'PENDING',
                   -- PENDING | IN_PROGRESS | COMPLETE | OVERDUE
-  category        VARCHAR(50),
+  filing_reference VARCHAR(100),  -- challan number, acknowledgement ID
+  submitted_by    UUID         REFERENCES oa_user(oa_user_id),
+  document_id     UUID         REFERENCES document(document_id),  -- proof of filing
+  headcount       INTEGER,                                         -- employees covered
+  overdue_since   DATE,         -- set by StatutoryComplianceWorkflow when deadline passes
   created_at      TIMESTAMPTZ  NOT NULL DEFAULT NOW(),
   updated_at      TIMESTAMPTZ  NOT NULL DEFAULT NOW()
 );
-CREATE INDEX idx_compliance_tenant ON compliance_obligation(tenant_id, deadline);
+CREATE INDEX idx_compliance_tenant  ON compliance_obligation(tenant_id, deadline);
+CREATE INDEX idx_compliance_act     ON compliance_obligation(tenant_id, statutory_act, deadline);
+CREATE INDEX idx_compliance_overdue ON compliance_obligation(tenant_id, deadline)
+  WHERE status IN ('PENDING', 'OVERDUE');
 
 -- Populated nightly by InsightService — stores percentiles/aggregates, never individual ₹ figures.
 CREATE TABLE insight_cache (

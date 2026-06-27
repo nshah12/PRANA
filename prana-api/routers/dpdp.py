@@ -128,12 +128,12 @@ async def withdraw_consent_purpose(
     # Publish audit event via Kafka (AuditConsumer writes to audit_event table)
     kafka = getattr(request.app.state, "kafka_producer", None)
     if kafka:
-        await kafka.publish("prana.audit.events", {
+        await kafka.compliance_event({
             "event_type": "CONSENT_WITHDRAWN",
-            "actor_user_id": str(current.user_id),
-            "actor_type": "employee",
-            "metadata": {"purpose": purpose},
-        }, key=str(current.tenant_id or current.user_id))
+            "employee_user_id": str(current.user_id),
+            "tenant_id": str(current.tenant_id) if current.tenant_id else None,
+            "purpose": purpose,
+        })
 
     return {"message": "Consent withdrawn for this purpose.", "purpose": purpose}
 
@@ -163,12 +163,13 @@ async def request_export(request: Request, db: DbConn, current=Employee):
 
     kafka = getattr(request.app.state, "kafka_producer", None)
     if kafka:
-        await kafka.publish("prana.ingest.events", {
+        await kafka.compliance_event({
             "event_type": "DATA_EXPORT_REQUESTED",
             "export_id": job_id,
             "employee_user_id": str(current.user_id),
             "tenant_id": str(current.tenant_id) if current.tenant_id else None,
-        }, key=str(current.tenant_id or current.user_id))
+            "workflow_id": f"export-{current.user_id}-{job_id}",
+        })
 
     return {
         "job_id": job_id,
@@ -215,17 +216,16 @@ async def request_correction(
         body.evidence_note,
     )
 
-    # WorkflowConsumer will start DataCorrectionWorkflow on consuming this event
     kafka = getattr(request.app.state, "kafka_producer", None)
     if kafka:
-        await kafka.publish("prana.ingest.events", {
+        await kafka.compliance_event({
             "event_type": "DATA_CORRECTION_REQUESTED",
             "correction_id": correction_id,
             "employee_user_id": str(current.user_id),
             "tenant_id": str(current.tenant_id) if current.tenant_id else None,
             "field": body.field,
             "correct_value": body.correct_value,
-        }, key=str(current.tenant_id or current.user_id))
+        })
 
     return {
         "correction_id": correction_id,
@@ -255,7 +255,7 @@ async def request_erasure(
     # Check if erasure already pending
     existing = await db.fetchrow(
         """
-        SELECT workflow_id FROM erasure_request
+        SELECT erasure_id FROM erasure_request
         WHERE employee_user_id=$1 AND status='PENDING'
         """,
         current.user_id,
@@ -281,18 +281,53 @@ async def request_erasure(
 
     kafka = getattr(request.app.state, "kafka_producer", None)
     if kafka:
-        await kafka.publish("prana.ingest.events", {
+        await kafka.compliance_event({
             "event_type": "ERASURE_REQUESTED",
             "erasure_id": erasure_id,
             "employee_user_id": str(current.user_id),
             "tenant_id": str(current.tenant_id) if current.tenant_id else None,
             "reason": body.reason,
-        }, key=str(current.tenant_id or current.user_id))
+            "workflow_id": f"erasure-{current.user_id}",
+        })
 
     return {
         "erasure_id": erasure_id,
         "message": "Erasure request received. Your account will be deleted in 30 days unless you cancel.",
         "cancel_before_days": 30,
+    }
+
+
+@router.get("/erasure", status_code=status.HTTP_200_OK)
+async def get_erasure_status(db: DbConn, current=Employee):
+    """Check if an erasure request is pending and how many days remain."""
+    row = await db.fetchrow(
+        """
+        SELECT erasure_id, status, requested_at, confirmed_at, completed_at
+        FROM erasure_request
+        WHERE employee_user_id=$1
+        ORDER BY requested_at DESC
+        LIMIT 1
+        """,
+        current.user_id,
+    )
+    if not row:
+        return {"pending": False}
+    import datetime
+    days_remaining = None
+    if row["status"] == "PENDING":
+        elapsed = (datetime.datetime.now(datetime.timezone.utc) - row["requested_at"]).days
+        sla_days_raw = await db.fetchval(
+            "SELECT config_value FROM platform_config WHERE config_key='dpdp_erasure_confirmation_days'"
+        )
+        sla_days = int(sla_days_raw) if sla_days_raw else 30
+        days_remaining = max(0, sla_days - elapsed)
+    return {
+        "pending": row["status"] == "PENDING",
+        "erasure_id": str(row["erasure_id"]),
+        "status": row["status"],
+        "requested_at": row["requested_at"].isoformat() if row["requested_at"] else None,
+        "days_remaining": days_remaining,
+        "completed_at": row["completed_at"].isoformat() if row["completed_at"] else None,
     }
 
 
@@ -344,8 +379,8 @@ async def file_grievance(
     await db.execute(
         """
         INSERT INTO dpdp_grievance
-          (grievance_id, employee_user_id, tenant_id, category, description, status, filed_at)
-        VALUES ($1, $2, $3, 'GENERAL', $4, 'OPEN', NOW())
+          (grievance_id, employee_user_id, tenant_id, grievance_type, category, description, status, raised_at)
+        VALUES ($1, $2, $3, 'OTHER', 'GENERAL', $4, 'RAISED', NOW())
         """,
         uuid.UUID(grievance_id),
         current.user_id,
@@ -355,17 +390,17 @@ async def file_grievance(
 
     kafka = getattr(request.app.state, "kafka_producer", None)
     if kafka:
-        await kafka.publish("prana.ingest.events", {
+        await kafka.compliance_event({
             "event_type": "GRIEVANCE_FILED",
             "grievance_id": grievance_id,
             "employee_user_id": str(current.user_id),
             "tenant_id": str(current.tenant_id) if current.tenant_id else None,
             "subject": body.subject,
-        }, key=str(current.tenant_id or current.user_id))
+        })
 
     return {
         "grievance_id": grievance_id,
-        "status": "OPEN",
+        "status": "RAISED",
         "message": "Grievance filed. Our Grievance Officer will respond within 30 days as required by DPDP Act 2023.",
         "sla_days": 30,
     }
@@ -375,11 +410,12 @@ async def file_grievance(
 async def list_grievances(db: DbConn, current=Employee):
     rows = await db.fetch(
         """
-        SELECT grievance_id, category, description, status,
-               filed_at, resolved_at, resolution_note
+        SELECT grievance_id, grievance_type, category, description, status,
+               raised_at, acknowledged_at, resolved_at, resolution_note, dpb_escalated
         FROM dpdp_grievance
         WHERE employee_user_id=$1
-        ORDER BY filed_at DESC
+        ORDER BY raised_at DESC
+        LIMIT 100
         """,
         current.user_id,
     )
@@ -387,12 +423,15 @@ async def list_grievances(db: DbConn, current=Employee):
         "grievances": [
             {
                 "grievance_id": str(r["grievance_id"]),
+                "grievance_type": r["grievance_type"],
                 "category": r["category"],
                 "description": r["description"],
                 "status": r["status"],
-                "filed_at": r["filed_at"].isoformat() if r["filed_at"] else None,
+                "raised_at": r["raised_at"].isoformat() if r["raised_at"] else None,
+                "acknowledged_at": r["acknowledged_at"].isoformat() if r["acknowledged_at"] else None,
                 "resolved_at": r["resolved_at"].isoformat() if r["resolved_at"] else None,
                 "resolution_note": r["resolution_note"],
+                "dpb_escalated": r["dpb_escalated"],
             }
             for r in rows
         ]

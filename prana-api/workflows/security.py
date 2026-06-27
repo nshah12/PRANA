@@ -14,7 +14,7 @@ Workflows:
   HMACSecretRotationWorkflow — perpetual: rotate platform HMAC secret
   CSAMReportingWorkflow      — report CSAM detection to NCMEC + legal_hold
 """
-from datetime import timedelta
+from datetime import datetime, timedelta, timezone
 
 from temporalio import workflow, activity
 from temporalio.common import RetryPolicy
@@ -98,32 +98,28 @@ class PolicyLockWorkflow:
 
     @workflow.run
     async def run(self, params: dict) -> None:
+        await self._execute(params)
+
+    async def _execute(self, params: dict) -> None:
         hours_str = await workflow.execute_activity(
             get_security_config,
-            {"key": "policy_lock_default_hours", "tenant_id": params.get("tenant_id"), "default": "24"},
+            {"key": "policy_lock_default_hours",
+             "tenant_id": params.get("tenant_id"), "default": "24"},
             start_to_close_timeout=timedelta(minutes=2),
         )
-        await workflow.execute_activity(
-            apply_policy_lock, params,
-            start_to_close_timeout=timedelta(minutes=5),
-            retry_policy=_RETRY,
-        )
-        await workflow.execute_activity(
-            notify_policy_lock, params,
-            start_to_close_timeout=timedelta(minutes=5),
-            retry_policy=_RETRY,
-        )
-
+        for act, timeout in [(apply_policy_lock, 5), (notify_policy_lock, 5)]:
+            await workflow.execute_activity(
+                act, params,
+                start_to_close_timeout=timedelta(minutes=timeout), retry_policy=_RETRY,
+            )
         unlocked = await workflow.wait_condition(
-            lambda: self._unlocked_early,
-            timeout=timedelta(hours=int(hours_str)),
+            lambda: self._unlocked_early, timeout=timedelta(hours=int(hours_str)),
         )
-
         await workflow.execute_activity(
             release_policy_lock,
-            {**params, "unlocked_by": self._unlocked_by, "early": unlocked and self._unlocked_early},
-            start_to_close_timeout=timedelta(minutes=5),
-            retry_policy=_RETRY,
+            {**params, "unlocked_by": self._unlocked_by,
+             "early": unlocked and self._unlocked_early},
+            start_to_close_timeout=timedelta(minutes=5), retry_policy=_RETRY,
         )
 
 
@@ -169,10 +165,11 @@ class SessionExpiryWorkflow:
 
     @workflow.run
     async def run(self, params: dict) -> None:
-        from datetime import datetime, timezone
-        expires_at = datetime.fromisoformat(params["expires_at"]).replace(tzinfo=timezone.utc)
-        now = workflow.now()
-        wait_seconds = max(0, (expires_at - now).total_seconds())
+        await self._execute(params)
+
+    async def _execute(self, params: dict) -> None:
+        expires_at   = datetime.fromisoformat(params["expires_at"]).replace(tzinfo=timezone.utc)
+        wait_seconds = max(0, (expires_at - workflow.now()).total_seconds())
         if wait_seconds > 0:
             await workflow.sleep(timedelta(seconds=wait_seconds))
         await workflow.execute_activity(
@@ -243,17 +240,14 @@ class KMSKeyRotationWorkflow:
     @workflow.run
     async def run(self, params: dict) -> None:
         rotations_done = params.get("rotations_done", 0)
-
         while rotations_done < RENEW_THRESHOLD:
             interval_str = await workflow.execute_activity(
-                get_security_config,
-                {"key": "kek_rotation_interval_days", "default": "365"},
+                get_security_config, {"key": "kek_rotation_interval_days", "default": "365"},
                 start_to_close_timeout=timedelta(minutes=2),
             )
             tenant = await workflow.execute_activity(
                 get_next_tenant_for_rotation, params,
-                start_to_close_timeout=timedelta(minutes=5),
-                retry_policy=_RETRY,
+                start_to_close_timeout=timedelta(minutes=5), retry_policy=_RETRY,
             )
             if tenant.get("tenant_id"):
                 await workflow.execute_activity(
@@ -262,10 +256,8 @@ class KMSKeyRotationWorkflow:
                     retry_policy=RetryPolicy(maximum_attempts=5),
                 )
             else:
-                # All tenants rotated this cycle — wait before next full cycle
                 await workflow.sleep(timedelta(days=int(interval_str)))
             rotations_done += 1
-
         workflow.continue_as_new({**params, "rotations_done": 0})
 
 

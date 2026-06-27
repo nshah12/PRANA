@@ -1,15 +1,22 @@
 """
 Vault service — employee-facing document access.
 Every method is scoped to employee_user_id from JWT — never accepts it as a parameter.
-Every document access writes to document_access_log.
 Documents are AES-256-GCM encrypted in S3 — decrypted in-memory, never written to disk.
+
+Access logging: every document access publishes DOC_ACCESSED to prana.vault.events.
+AuditConsumer writes document_access_log asynchronously — zero latency on document serve.
 """
 import io
 import json
+import logging
 from typing import Optional
 
 import asyncpg
 from services.encryption_service import KMSService, aes_decrypt
+
+log = logging.getLogger(__name__)
+
+TOPIC_VAULT = "prana.vault.events"
 
 
 class VaultService:
@@ -20,11 +27,13 @@ class VaultService:
         kms: KMSService,
         s3_client,
         documents_bucket: str,
+        kafka_producer=None,
     ):
         self._db = db
         self._kms = kms
         self._s3 = s3_client
         self._bucket = documents_bucket
+        self._kafka = kafka_producer
 
     # ── Document listing ──────────────────────────────────────────────────────
 
@@ -66,7 +75,25 @@ class VaultService:
             f"{base} AND {where} ORDER BY d.pushed_at DESC LIMIT {limit} OFFSET {offset}",
             *params,
         )
-        return [dict(r) for r in rows]
+        return [
+            {
+                "document_id": str(r["document_id"]),
+                "doc_type": r["doc_type"],
+                "doc_period": r["doc_period"],
+                "pipeline_status": r["pipeline_status"],
+                "tenant_id": str(r["tenant_id"]),
+                "tenant_name": r["tenant_name"],
+                "pushed_at": r["pushed_at"].isoformat() if r["pushed_at"] else None,
+                "routed_at": r["routed_at"].isoformat() if r["routed_at"] else None,
+                "is_self_upload": r["is_self_upload"],
+                "original_filename": r["original_filename"],
+                "designation": r["designation"],
+                "department": r["department"],
+                "doj": r["doj"].isoformat() if r["doj"] else None,
+                "dol": r["dol"].isoformat() if r["dol"] else None,
+            }
+            for r in rows
+        ]
 
     # ── Document fetch (decrypt + serve) ──────────────────────────────────────
 
@@ -120,7 +147,7 @@ class VaultService:
         except (ValueError, AttributeError):
             parsed_session_id = None
 
-        # Log access
+        # Publish access event — AuditConsumer writes document_access_log async
         await self._log_access(
             document_id=document_id,
             employee_user_id=employee_user_id,
@@ -129,6 +156,7 @@ class VaultService:
             actor_type="EMPLOYEE" if parsed_session_id else "THIRD_PARTY",
             actor_id=employee_user_id,
             access_type=access_type,
+            access_channel="MOBILE",
             ip_address=actor_ip,
             session_id=parsed_session_id,
         )
@@ -155,7 +183,21 @@ class VaultService:
             """,
             employee_user_id,
         )
-        return [dict(r) for r in rows]
+        return [
+            {
+                "career_event_id": str(r["career_event_id"]),
+                "event_type": r["event_type"],
+                "event_date": r["event_date"].isoformat() if r["event_date"] else None,
+                "event_title": r["event_title"],
+                "designation": r["designation"],
+                "grade": r["grade"],
+                "verified": r["verified"],
+                "insight_text": r["insight_text"],
+                "tenant_id": str(r["tenant_id"]) if r["tenant_id"] else None,
+                "tenant_name": r["tenant_name"],
+            }
+            for r in rows
+        ]
 
     # ── Vault health ──────────────────────────────────────────────────────────
 
@@ -171,7 +213,17 @@ class VaultService:
             """,
             employee_user_id,
         )
-        return dict(row) if row else None
+        if not row:
+            return None
+        return {
+            "overall_score": int(row["overall_score"]) if row["overall_score"] is not None else None,
+            "employment_proof_score": int(row["employment_proof_score"]) if row["employment_proof_score"] is not None else None,
+            "salary_slip_score": int(row["salary_slip_score"]) if row["salary_slip_score"] is not None else None,
+            "form16_score": int(row["form16_score"]) if row["form16_score"] is not None else None,
+            "gap_count": int(row["gap_count"]) if row["gap_count"] is not None else 0,
+            "gap_detail": row["gap_detail"] if isinstance(row["gap_detail"], list) else [],
+            "computed_at": row["computed_at"].isoformat() if row["computed_at"] else None,
+        }
 
     # ── Employer list ─────────────────────────────────────────────────────────
 
@@ -244,22 +296,62 @@ class VaultService:
             """,
             employee_user_id,
         )
-        return [dict(r) for r in rows]
+        return [
+            {
+                "doc_request_id": str(r["doc_request_id"]),
+                "doc_type": r["doc_type"],
+                "period": r["period"],
+                "status": r["status"],
+                "requested_at": r["requested_at"].isoformat() if r["requested_at"] else None,
+                "fulfilled_at": r["fulfilled_at"].isoformat() if r["fulfilled_at"] else None,
+                "tenant_name": r["tenant_name"],
+            }
+            for r in rows
+        ]
 
     # ── Access log ────────────────────────────────────────────────────────────
 
     async def _log_access(
         self, *, document_id, employee_user_id, employee_uuid,
-        tenant_id, actor_type, actor_id, access_type, ip_address, session_id,
+        tenant_id, actor_type, actor_id, access_type, access_channel,
+        ip_address, session_id,
     ) -> None:
+        """
+        Publish DOC_ACCESSED to prana.vault.events.
+        AuditConsumer writes document_access_log asynchronously — no DB write here.
+        Falls back to direct DB write if Kafka is unavailable (dev / Kafka-down scenarios).
+        """
+        event = {
+            "event_type":        "DOC_ACCESSED",
+            "document_id":       document_id,
+            "employee_user_id":  employee_user_id,
+            "employee_uuid":     employee_uuid,
+            "tenant_id":         tenant_id,
+            "actor_type":        actor_type,
+            "actor_id":          actor_id,
+            "access_type":       access_type,
+            "access_channel":    access_channel,
+            "ip_address":        ip_address,
+            "session_id":        session_id,
+            "watermark_applied": True,
+        }
+
+        if self._kafka:
+            try:
+                await self._kafka.doc_accessed(event)
+                return
+            except Exception:
+                log.exception("Kafka unavailable — falling back to direct access_log write doc=%s", document_id)
+
+        # Fallback: synchronous DB write (dev mode / Kafka down)
         await self._db.execute(
             """
             INSERT INTO document_access_log
               (document_id, employee_user_id, employee_uuid, tenant_id,
                actor_type, actor_id, access_type, access_channel,
                ip_address, session_id, watermark_applied, accessed_at)
-            VALUES ($1,$2,$3,$4,$5,$6,$7,'MOBILE',$8::inet,$9,TRUE,NOW())
+            VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9::inet,$10,TRUE,NOW())
             """,
             document_id, employee_user_id, employee_uuid, tenant_id,
-            actor_type, actor_id, access_type, ip_address, session_id,
+            actor_type, actor_id, access_type, access_channel, ip_address, session_id,
         )

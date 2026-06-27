@@ -205,20 +205,15 @@ async def create_tenant(body: CreateTenantIn, current: PortalAdmin, request: Req
         contract_type=body.contract_type,
         account_manager=body.account_manager,
     )
-    # WorkflowConsumer starts DomainVerificationWorkflow on seeing DOMAIN_VERIFICATION_REQUESTED
     tenant_id = result.get("tenant_id") if isinstance(result, dict) else None
     if tenant_id:
-        import uuid, datetime
         kafka = getattr(request.app.state, "kafka_producer", None)
         if kafka:
-            await kafka.publish("prana.ingest.events", {
+            await kafka.tenant_event({
                 "event_type": "DOMAIN_VERIFICATION_REQUESTED",
-                "event_id": str(uuid.uuid4()),
-                "occurred_at": datetime.datetime.utcnow().isoformat(),
                 "tenant_id": tenant_id,
                 "domain": body.domain,
-                "workflow_id": f"domain-verify-{tenant_id}",
-            }, key=tenant_id)
+            })
     return result
 
 
@@ -278,22 +273,35 @@ async def activate_tenant(tenant_id: str, current: PortalAdmin, request: Request
     svc = TenantService(db, request.app.state.kms_service)
     result = await svc.activate(tenant_id, email)
     await invalidate_tenants()
+    kafka = getattr(request.app.state, "kafka_producer", None)
+    if kafka:
+        await kafka.tenant_event({"event_type": "TENANT_ACTIVATED", "tenant_id": tenant_id})
     return result
 
 
 @router.post("/{tenant_id}/suspend", status_code=status.HTTP_200_OK)
-async def suspend_tenant(tenant_id: str, body: SuspendIn, current: PortalAdmin, db: DbConn):
+async def suspend_tenant(tenant_id: str, body: SuspendIn, current: PortalAdmin, request: Request, db: DbConn):
     svc = TenantService(db, None)
     await svc.suspend(tenant_id, body.reason, current.user_id)
     await invalidate_tenants()
+    kafka = getattr(request.app.state, "kafka_producer", None)
+    if kafka:
+        await kafka.tenant_event({"event_type": "TENANT_SUSPENDED", "tenant_id": tenant_id, "reason": body.reason})
     return {"message": "Tenant suspended"}
 
 
 @router.put("/{tenant_id}/config/{key}", status_code=status.HTTP_200_OK)
 async def update_tenant_config(
     tenant_id: str, key: str, body: UpdateConfigIn,
-    current: PortalAdmin, db: DbConn,
+    current: PortalAdmin, request: Request, db: DbConn,
 ):
     svc = TenantService(db, None)
     await svc.update_config(tenant_id, key, body.value, current.user_id)
+    kafka = getattr(request.app.state, "kafka_producer", None)
+    if kafka:
+        await kafka.tenant_event({
+            "event_type": "TENANT_CONFIG_UPDATED",
+            "tenant_id": tenant_id,
+            "config_key": key,
+        })
     return {"message": "Config updated"}

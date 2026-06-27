@@ -797,23 +797,59 @@ async def provision_tenant(params: dict) -> dict:
             tenant_id,
         )
 
-        # 4. Publish to Kafka → NotifConsumer sends welcome email with temp password
-        # (Kafka publish is best-effort from activity — real reliability via Temporal retry)
+        # 4. Register tenant's HRMS API key as a Kong consumer so ingest calls are authorised.
+        # Without this, all HRMS pushes for this tenant get 401 at Kong.
+        # Kong Admin API is VPC-internal only (port 8001, never exposed via ALB).
+        api_key_row = await db.fetchrow(
+            "SELECT key_id, signing_secret_enc FROM api_key WHERE tenant_id=$1 AND status='ACTIVE' LIMIT 1",
+            tenant_id,
+        )
+        if api_key_row:
+            try:
+                import httpx
+                kong_admin_url = settings.kong_admin_url  # e.g. http://kong.prod.internal:8001
+                consumer_username = f"tenant-{tenant_id}"
+                async with httpx.AsyncClient(timeout=10) as client:
+                    # Create consumer
+                    await client.post(f"{kong_admin_url}/consumers", json={
+                        "username":  consumer_username,
+                        "custom_id": str(tenant_id),
+                    })
+                    # Register HMAC credential
+                    await client.post(
+                        f"{kong_admin_url}/consumers/{consumer_username}/hmac-auth",
+                        json={
+                            "username": str(api_key_row["key_id"]),
+                            "secret":   api_key_row["signing_secret_enc"],  # decrypted at call site
+                        },
+                    )
+                await db.execute(
+                    "UPDATE api_key SET kong_consumer_registered=TRUE WHERE tenant_id=$1",
+                    tenant_id,
+                )
+            except Exception:
+                # Non-fatal — PA can re-trigger via /admin/tenants/{id}/register-kong
+                import logging
+                logging.getLogger(__name__).exception(
+                    "Kong consumer registration failed tenant=%s — retry via PA console", tenant_id
+                )
+
+        # 5. Publish to Kafka → NotifConsumer sends welcome email with temp password
         try:
             from kafka.producer import KafkaPub
             kafka = KafkaPub(settings)
             await kafka.start()
-            await kafka.publish("prana.notifications", {
+            await kafka.tenant_event({
                 "event_type":     "TENANT_PROVISIONED",
                 "tenant_id":      tenant_id,
                 "oa_user_id":     admin["oa_user_id"],
                 "admin_email":    admin["email"],
                 "temp_password":  temp_password,
-                "login_url":      "https://prana.in/org/login",
-            }, key=tenant_id)
+                "login_url":      settings.portal_url + "/org/login",
+            })
             await kafka.stop()
         except Exception:
-            pass  # Non-fatal — email delivery is best-effort; admin can resend from PA console
+            pass  # Non-fatal — admin can resend from PA console
 
         return {"tenant_id": tenant_id, "oa_admin_id": admin["oa_user_id"]}
     finally:

@@ -15,7 +15,7 @@
  *  - Notification bell with inline popup
  *  - Upload button → self-upload flow
  */
-import React, { useState, useMemo, useCallback } from 'react';
+import React, { useState, useMemo, useCallback, useEffect } from 'react';
 import {
   View, Text, ScrollView, Pressable, StyleSheet, Modal,
   ActivityIndicator, Linking,
@@ -23,6 +23,9 @@ import {
 import { LinearGradient } from 'expo-linear-gradient';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { router } from 'expo-router';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import { useQuery } from '@tanstack/react-query';
+import { api } from '../lib/api';
 import { colors, fonts, radius, gradJourney, gradTopBg } from '../prana-theme/tokens';
 import { StatCard } from '../prana-components/StatCard';
 import { DocumentCard } from '../prana-components/DocumentCard';
@@ -416,6 +419,37 @@ export function VaultHomeScreen() {
   // Download feedback
   const [downloadingId, setDownloadingId] = useState<string | null>(null);
 
+  // ── Benchmarking nudge ────────────────────────────────────────────
+  const [nudgeDismissed, setNudgeDismissed] = useState(true); // start hidden, reveal after check
+
+  useEffect(() => {
+    AsyncStorage.getItem('bench_nudge_dismissed').then(v => {
+      if (!v) setNudgeDismissed(false);
+    });
+  }, []);
+
+  const { data: benchConsentData } = useQuery({
+    queryKey: ['benchmark-consent'],
+    queryFn: () => api.get('/v1/benchmarking/consent').then(r => r.data),
+    staleTime: 5 * 60 * 1000,
+  });
+
+  const hasSalarySlip = useMemo(
+    () => allDocuments.some(d => d.doc_type === 'SALARY_SLIP'),
+    [allDocuments]
+  );
+
+  const showBenchNudge =
+    !nudgeDismissed &&
+    hasSalarySlip &&
+    benchConsentData !== undefined &&
+    benchConsentData?.peer_benchmark_consent === false;
+
+  function dismissNudge() {
+    setNudgeDismissed(true);
+    AsyncStorage.setItem('bench_nudge_dismissed', '1');
+  }
+
   // ── Derived counts for picker ──────────────────────────────────────
   const emailCount = useMemo(() => allDocuments.filter(d => d.source_type === 'EMAIL_FETCH').length, [allDocuments]);
   const selfCount  = useMemo(() => allDocuments.filter(d => d.source_type === 'EMPLOYEE_SELF_UPLOAD').length, [allDocuments]);
@@ -628,6 +662,28 @@ export function VaultHomeScreen() {
             <StatCard value={activeSharesCount}   label="Active shares" accent="emerald" />
           </View>
 
+          {/* Benchmarking nudge — shown once when salary slip is ready but not yet opted in */}
+          {showBenchNudge && (
+            <View style={s.benchNudge}>
+              <Text style={s.benchNudgeIcon}>📈</Text>
+              <View style={{ flex: 1 }}>
+                <Text style={s.benchNudgeTitle}>See how your comp compares</Text>
+                <Text style={s.benchNudgeSub}>
+                  Your salary slip is ready. Opt in to see your anonymous market percentile.
+                </Text>
+                <Pressable
+                  style={s.benchNudgeBtn}
+                  onPress={() => { dismissNudge(); router.push('/(vault)/benchmarking' as any); }}
+                >
+                  <Text style={s.benchNudgeBtnText}>Comp Benchmark →</Text>
+                </Pressable>
+              </View>
+              <Pressable onPress={dismissNudge} style={s.benchNudgeClose}>
+                <Text style={s.benchNudgeCloseText}>✕</Text>
+              </Pressable>
+            </View>
+          )}
+
           {/* Source legend when showing all */}
           {companyFilter === 'ALL' && <SourceLegend />}
 
@@ -752,6 +808,20 @@ const s = StyleSheet.create({
   noResultsSub: { fontSize: 13, color: colors.ink3, textAlign: 'center' },
   clearBtn: { marginTop: 8, paddingHorizontal: 20, paddingVertical: 9, backgroundColor: colors.surface3, borderRadius: 20 },
   clearBtnText: { fontFamily: fonts.bodySemiBold, fontSize: 13, color: colors.indigo },
+
+  // Benchmarking nudge
+  benchNudge: {
+    flexDirection: 'row', alignItems: 'flex-start', gap: 10,
+    backgroundColor: '#EFF6FF', borderRadius: 14, padding: 14,
+    borderWidth: 1, borderColor: '#BFDBFE', marginBottom: 4,
+  },
+  benchNudgeIcon: { fontSize: 22, marginTop: 1 },
+  benchNudgeTitle: { fontSize: 13, fontFamily: fonts.bodySemiBold, color: '#1E40AF', marginBottom: 2 },
+  benchNudgeSub:   { fontSize: 12, color: '#3B82F6', lineHeight: 17, marginBottom: 8 },
+  benchNudgeBtn:   { alignSelf: 'flex-start', backgroundColor: '#2563EB', borderRadius: 10, paddingHorizontal: 12, paddingVertical: 6 },
+  benchNudgeBtnText: { fontSize: 12, fontFamily: fonts.bodySemiBold, color: '#FFFFFF' },
+  benchNudgeClose: { padding: 4 },
+  benchNudgeCloseText: { fontSize: 14, color: '#93C5FD' },
 
   // Multi-select bar
   selectionBar: {

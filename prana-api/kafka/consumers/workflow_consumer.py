@@ -16,22 +16,30 @@ from aiokafka import AIOKafkaConsumer
 from config import Settings
 from workflows.document_pipeline import DocumentPipelineWorkflow, TASK_QUEUE
 from workflows.batch_progress import BatchProgressWorkflow, BatchTimeoutMonitorWorkflow, BATCH_TASK_QUEUE
+from workflows.compliance import (
+    ErasureConfirmationWorkflow,
+    DataExportWorkflow,
+    GrievanceWorkflow,
+    DataCorrectionWorkflow,
+)
 
 log = logging.getLogger(__name__)
 
 GROUP_ID = "prana-workflow-consumer"
+COMPLIANCE_TASK_QUEUE = "compliance-queue"
 
 
 class WorkflowConsumer:
-    def __init__(self, settings: Settings, temporal_client) -> None:
+    def __init__(self, settings: Settings, temporal_client, db_pool=None) -> None:
         self._settings = settings
         self._temporal = temporal_client
+        self._db_pool = db_pool
         self._consumer = AIOKafkaConsumer(
             "prana.ingest.events",
             bootstrap_servers=settings.kafka_bootstrap_servers,
             group_id=GROUP_ID,
             auto_offset_reset="earliest",
-            enable_auto_commit=True,
+            enable_auto_commit=False,
             value_deserializer=lambda b: __import__("json").loads(b),
         )
 
@@ -49,9 +57,24 @@ class WorkflowConsumer:
                         await self._handle_batch_uploaded(event)
                     elif etype == "DOC_RECLASSIFIED":
                         await self._handle_doc_reclassified(event)
+                    elif etype == "ERASURE_REQUESTED":
+                        await self._handle_erasure_requested(event)
+                    elif etype == "DATA_EXPORT_REQUESTED":
+                        await self._handle_data_export_requested(event)
+                    elif etype == "GRIEVANCE_FILED":
+                        await self._handle_grievance_filed(event)
+                    elif etype == "DATA_CORRECTION_REQUESTED":
+                        await self._handle_data_correction_requested(event)
+                    else:
+                        log.debug("WorkflowConsumer: no handler for event_type=%s", etype)
                 except Exception:
                     log.exception("WorkflowConsumer error event_type=%s document_id=%s",
                                   etype, event.get("document_id"))
+                else:
+                    try:
+                        await self._consumer.commit()
+                    except Exception:
+                        log.warning("WorkflowConsumer: offset commit failed — will retry on restart")
         finally:
             await self._consumer.stop()
 
@@ -101,19 +124,14 @@ class WorkflowConsumer:
         tenant_id = event["tenant_id"]
         doc_type  = event["doc_type"]       # OA-Admin's classification
 
-        # Fetch S3 key from DB — the file is still in staging/documents bucket
-        # WorkflowConsumer has read-only DB access via the app's existing pool
-        # (injected via settings; re-use the same asyncpg DSN prana-api uses)
-        import asyncpg
-        from config import get_settings
-        settings = get_settings()
-        db = await asyncpg.connect(settings.db_dsn)
-        try:
-            row = await db.fetchrow(
+        # Fetch S3 key from DB using the injected pool
+        if not self._db_pool:
+            log.error("DOC_RECLASSIFIED: no db_pool injected — cannot fetch s3_key")
+            return
+        async with self._db_pool.acquire() as conn:
+            row = await conn.fetchrow(
                 "SELECT s3_key, s3_bucket FROM document WHERE document_id=$1", doc_id
             )
-        finally:
-            await db.close()
 
         if not row:
             log.error("DOC_RECLASSIFIED: document %s not found in DB", doc_id)
@@ -139,6 +157,61 @@ class WorkflowConsumer:
         except Exception as exc:
             if "already" not in str(exc).lower():
                 raise
+
+    async def _handle_erasure_requested(self, event: dict) -> None:
+        employee_user_id = event.get("employee_user_id", "")
+        wf_id = event.get("workflow_id") or f"erasure-{employee_user_id}"
+        payload = {k: v for k, v in event.items() if k != "event_type"}
+        try:
+            await self._temporal.start_workflow(
+                ErasureConfirmationWorkflow.run,
+                payload,
+                id=wf_id,
+                task_queue=COMPLIANCE_TASK_QUEUE,
+            )
+        except Exception:
+            log.exception("WorkflowConsumer: ErasureConfirmationWorkflow start failed wf_id=%s", wf_id)
+
+    async def _handle_data_export_requested(self, event: dict) -> None:
+        wf_id = event.get("workflow_id") or f"export-{event.get('employee_user_id')}-{event.get('export_id')}"
+        payload = {k: v for k, v in event.items() if k != "event_type"}
+        try:
+            await self._temporal.start_workflow(
+                DataExportWorkflow.run,
+                payload,
+                id=wf_id,
+                task_queue=COMPLIANCE_TASK_QUEUE,
+            )
+        except Exception:
+            log.exception("WorkflowConsumer: DataExportWorkflow start failed wf_id=%s", wf_id)
+
+    async def _handle_grievance_filed(self, event: dict) -> None:
+        grievance_id = event.get("grievance_id", "")
+        wf_id = event.get("workflow_id") or f"grievance-{grievance_id}"
+        payload = {k: v for k, v in event.items() if k != "event_type"}
+        try:
+            await self._temporal.start_workflow(
+                GrievanceWorkflow.run,
+                payload,
+                id=wf_id,
+                task_queue=COMPLIANCE_TASK_QUEUE,
+            )
+        except Exception:
+            log.exception("WorkflowConsumer: GrievanceWorkflow start failed wf_id=%s", wf_id)
+
+    async def _handle_data_correction_requested(self, event: dict) -> None:
+        correction_id = event.get("correction_id", "")
+        wf_id = f"correction-{correction_id}"
+        payload = {k: v for k, v in event.items() if k != "event_type"}
+        try:
+            await self._temporal.start_workflow(
+                DataCorrectionWorkflow.run,
+                payload,
+                id=wf_id,
+                task_queue=COMPLIANCE_TASK_QUEUE,
+            )
+        except Exception:
+            log.exception("WorkflowConsumer: DataCorrectionWorkflow start failed wf_id=%s", wf_id)
 
     async def _handle_batch_uploaded(self, event: dict) -> None:
         batch_id = event.get("batch_id")

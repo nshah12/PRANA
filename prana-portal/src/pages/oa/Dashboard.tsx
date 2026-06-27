@@ -6,22 +6,47 @@ import { fmtRelative } from '@/lib/utils'
 
 export function Dashboard() {
   const { user } = useAuthStore()
-  const isAdmin = user?.role === 'oa_admin'
+  const isAdmin   = user?.role === 'oa_admin'
+  const isOARole  = user?.role === 'oa_operator' || user?.role === 'oa_admin'
 
   const { data: stats, isLoading: statsLoading, isError: statsError, refetch: refetchStats } = useQuery({
     queryKey: ['oa-dashboard-stats'],
     queryFn: () => api.get('/v1/ingest/stats').then(r => r.data),
+    enabled: isOARole,
   })
 
   const { data: recent, isLoading: recentLoading } = useQuery({
     queryKey: ['recent-batches'],
     queryFn: () => api.get('/v1/ingest/documents?limit=8').then(r => r.data),
+    enabled: isOARole,
   })
 
   const { data: exceptions, isLoading: exceptionsLoading } = useQuery({
     queryKey: ['exceptions-summary'],
     queryFn: () => api.get('/v1/org/exceptions').then(r => r.data?.exceptions ?? r.data),
+    enabled: isOARole,
   })
+
+  // Non-OA roles (CHRO, CFO, CISO) — show role-specific landing card
+  if (!isOARole) {
+    const roleInfo: Record<string, { title: string; desc: string; link: string; linkLabel: string }> = {
+      chro: { title: 'Workforce Overview', desc: 'View vault completeness, document coverage, and workforce analytics for your organisation.', link: '/org/chro', linkLabel: 'Open CHRO Dashboard →' },
+      cfo:  { title: 'Financial Analytics', desc: 'Review compensation analytics, anomaly reports, and acknowledgement queue.', link: '/org/cfo', linkLabel: 'Open CFO Dashboard →' },
+      ciso: { title: 'Security Dashboard', desc: 'Monitor login activity, document access logs, flagged events, and account locks.', link: '/org/ciso', linkLabel: 'Open CISO Dashboard →' },
+    }
+    const info = roleInfo[user?.role ?? ''] ?? { title: 'Portal', desc: 'Select a section from the sidebar.', link: '#', linkLabel: '' }
+    return (
+      <div className="flex flex-col items-center justify-center py-24 text-center">
+        <h1 className="text-2xl font-semibold text-slate-800 mb-2">{info.title}</h1>
+        <p className="text-sm text-slate-500 max-w-sm">{info.desc}</p>
+        {info.link !== '#' && (
+          <a href={info.link} className="mt-6 px-5 py-2.5 bg-violet-600 text-white text-sm font-medium rounded-lg hover:bg-violet-700 transition-colors">
+            {info.linkLabel}
+          </a>
+        )}
+      </div>
+    )
+  }
 
   const isLoading = statsLoading || recentLoading || exceptionsLoading
   if (isLoading) return (

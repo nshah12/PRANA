@@ -106,6 +106,16 @@ async def create_employee(
         created_by=current.user_id,
         kek_arn=tenant["kek_arn"],
     )
+    kafka = getattr(request.app.state, "kafka_producer", None)
+    if kafka:
+        await kafka.employee_event({
+            "event_type":      "EMPLOYEE_ONBOARDED",
+            "tenant_id":       str(current.tenant_id),
+            "employee_uuid":   result.get("employee_uuid", ""),
+            "emp_id_org":      body.emp_id_org,
+            "employment_type": body.employment_type,
+            "created_by":      current.user_id,
+        })
     return result
 
 
@@ -150,6 +160,15 @@ async def update_employee(
         )
     except ValueError as e:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(e))
+    kafka = getattr(request.app.state, "kafka_producer", None)
+    if kafka:
+        await kafka.employee_event({
+            "event_type":     "EMPLOYEE_PROFILE_UPDATED",
+            "tenant_id":      str(current.tenant_id),
+            "employee_uuid":  employee_uuid,
+            "changed_by":     current.user_id,
+            "changed_fields": list(body.model_dump(exclude_none=True).keys()),
+        })
     return {"message": "Updated"}
 
 
@@ -174,6 +193,15 @@ async def mark_alumni(
         )
     except ValueError as e:
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=str(e))
+    kafka = getattr(request.app.state, "kafka_producer", None)
+    if kafka:
+        await kafka.employee_event({
+            "event_type":    "EMPLOYEE_EXITED",
+            "tenant_id":     str(current.tenant_id),
+            "employee_uuid": employee_uuid,
+            "dol":           body.dol.isoformat(),
+            "changed_by":    current.user_id,
+        })
     return {"message": "Marked as alumni"}
 
 
@@ -190,6 +218,7 @@ async def get_history(
         FROM employee_master_history
         WHERE employee_uuid=$1 AND tenant_id=$2
         ORDER BY changed_at DESC
+        LIMIT 500
         """,
         employee_uuid, current.tenant_id,
     )

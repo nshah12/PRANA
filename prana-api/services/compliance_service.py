@@ -59,7 +59,7 @@ class ComplianceService:
         await self._db.execute(
             """
             INSERT INTO audit_event
-              (actor_user_id, actor_type, event_type, event_metadata, occurred_at)
+              (actor_id, actor_type, event_type, event_metadata, occurred_at)
             VALUES ($1, 'employee', 'ERASURE_REQUESTED', $2::jsonb, NOW())
             """,
             employee_user_id,
@@ -76,7 +76,7 @@ class ComplianceService:
         await self._db.execute(
             """
             INSERT INTO audit_event
-              (actor_user_id, actor_type, event_type, event_metadata, occurred_at)
+              (actor_id, actor_type, event_type, event_metadata, occurred_at)
             VALUES ($1, 'employee', 'ERASURE_EXECUTED', '{}'::jsonb, NOW())
             """,
             employee_user_id,
@@ -85,7 +85,7 @@ class ComplianceService:
         async with self._db.transaction():
             # Soft-delete documents (S3 objects cleaned up by RetentionWorkflow)
             await self._db.execute(
-                "UPDATE document SET is_deleted=TRUE, deleted_at=NOW() WHERE employee_uuid IN "
+                "UPDATE document SET is_deleted=TRUE WHERE employee_uuid IN "
                 "(SELECT employee_uuid FROM employee_master WHERE employee_user_id=$1)",
                 employee_user_id,
             )
@@ -99,10 +99,10 @@ class ComplianceService:
                 "DELETE FROM user_session    WHERE user_id=$1", employee_user_id,
             )
             await self._db.execute(
-                "DELETE FROM backup_code     WHERE employee_user_id=$1", employee_user_id,
+                "DELETE FROM backup_code     WHERE user_type='employee' AND user_id=$1", employee_user_id,
             )
             await self._db.execute(
-                "DELETE FROM trusted_device  WHERE employee_user_id=$1", employee_user_id,
+                "DELETE FROM trusted_device  WHERE user_type='employee' AND user_id=$1", employee_user_id,
             )
             await self._db.execute(
                 "DELETE FROM employee_master WHERE employee_user_id=$1", employee_user_id,
@@ -114,8 +114,7 @@ class ComplianceService:
                   mobile = '[ERASED]',
                   status = 'ERASED',
                   totp_secret_enc = NULL,
-                  password_hash = '[ERASED]',
-                  updated_at = NOW()
+                  password_hash = '[ERASED]'
                 WHERE employee_user_id = $1
                 """,
                 employee_user_id,
@@ -134,12 +133,12 @@ class ComplianceService:
         docs = await self._db.fetch(
             """
             SELECT document_id, doc_type, doc_period, pipeline_status,
-                   insight_text, created_at, routed_at, tenant_id
+                   pushed_at, routed_at, tenant_id
             FROM document
             WHERE employee_uuid IN (
               SELECT employee_uuid FROM employee_master WHERE employee_user_id=$1
             ) AND is_deleted=FALSE
-            ORDER BY created_at DESC
+            ORDER BY pushed_at DESC
             """,
             employee_user_id,
         )
@@ -158,8 +157,7 @@ class ComplianceService:
                     "doc_type": r["doc_type"],
                     "doc_period": r["doc_period"],
                     "pipeline_status": r["pipeline_status"],
-                    "insight_text": r["insight_text"],
-                    "created_at": r["created_at"].isoformat() if r["created_at"] else None,
+                    "pushed_at": r["pushed_at"].isoformat() if r["pushed_at"] else None,
                     "routed_at": r["routed_at"].isoformat() if r["routed_at"] else None,
                 }
                 for r in docs
@@ -197,7 +195,7 @@ class ComplianceService:
         await self._db.execute(
             """
             INSERT INTO audit_event
-              (actor_user_id, actor_type, event_type, event_metadata, occurred_at)
+              (actor_id, actor_type, event_type, event_metadata, occurred_at)
             VALUES ($1, 'system', 'DATA_EXPORT_READY', $2::jsonb, NOW())
             """,
             employee_user_id,
@@ -208,16 +206,16 @@ class ComplianceService:
 
     async def check_consent_status(self, employee_user_id: str) -> dict:
         row = await self._db.fetchrow(
-            "SELECT status FROM employee_user WHERE employee_user_id=$1", employee_user_id,
+            "SELECT consent_status FROM employee_user WHERE employee_user_id=$1", employee_user_id,
         )
-        granted = row and row["status"] == "ACTIVE"
+        granted = row and row["consent_status"] == "GRANTED"
         return {"consent_granted": granted}
 
     async def send_consent_rebump(self, employee_user_id: str, tenant_id: Optional[str]) -> None:
         await self._db.execute(
             """
             INSERT INTO audit_event
-              (actor_user_id, actor_type, event_type, event_metadata, occurred_at)
+              (actor_id, actor_type, event_type, event_metadata, occurred_at)
             VALUES ($1, 'system', 'CONSENT_REBUMP_SENT', $2::jsonb, NOW())
             """,
             employee_user_id,
@@ -238,8 +236,8 @@ class ComplianceService:
         await self._db.execute(
             """
             INSERT INTO dpdp_grievance
-              (grievance_id, employee_user_id, tenant_id, category, description, status, filed_at)
-            VALUES ($1, $2, $3, $4, $5, 'OPEN', NOW())
+              (grievance_id, employee_user_id, tenant_id, grievance_type, category, description, status, raised_at)
+            VALUES ($1, $2, $3, $4, $4, $5, 'RAISED', NOW())
             ON CONFLICT (grievance_id) DO NOTHING
             """,
             grievance_id, employee_user_id, tenant_id, category, description,
@@ -249,16 +247,16 @@ class ComplianceService:
         await self._db.execute(
             """
             UPDATE dpdp_grievance
-            SET status='ESCALATED', escalation_reason=$2, updated_at=NOW()
+            SET status='ESCALATED_TO_DPB', updated_at=NOW()
             WHERE grievance_id=$1
             """,
-            grievance_id, reason,
+            grievance_id,
         )
         await self._db.execute(
             """
             INSERT INTO audit_event
-              (actor_user_id, actor_type, event_type, event_metadata, occurred_at)
-            VALUES ('system', 'system', 'GRIEVANCE_ESCALATED', $1::jsonb, NOW())
+              (actor_id, actor_type, event_type, event_metadata, occurred_at)
+            VALUES ('00000000-0000-0000-0000-000000000000', 'system', 'GRIEVANCE_ESCALATED', $1::jsonb, NOW())
             """,
             json.dumps({"grievance_id": grievance_id, "reason": reason}),
         )
@@ -272,3 +270,67 @@ class ComplianceService:
             """,
             grievance_id, note,
         )
+
+    # ── Statutory Labour Law Compliance ──────────────────────────────────────────
+
+    async def mark_overdue_obligations(self, tenant_id: str) -> dict:
+        """
+        Called nightly by StatutoryComplianceWorkflow.
+        Marks compliance_obligation rows as OVERDUE when deadline < today and not yet COMPLETE/OVERDUE.
+        Returns {"marked_count": N, "obligation_ids": [...]}
+        """
+        rows = await self._db.fetch(
+            """
+            UPDATE compliance_obligation
+            SET status = 'OVERDUE',
+                overdue_since = COALESCE(overdue_since, deadline),
+                updated_at = NOW()
+            WHERE tenant_id = $1
+              AND deadline < CURRENT_DATE
+              AND status NOT IN ('COMPLETE', 'OVERDUE')
+            RETURNING obligation_id, obligation_name, statutory_act, deadline
+            """,
+            tenant_id,
+        )
+
+        marked_count = len(rows)
+        if marked_count > 0:
+            for row in rows:
+                await self._db.execute(
+                    """
+                    INSERT INTO audit_event
+                      (actor_id, actor_type, event_type, event_metadata, occurred_at)
+                    VALUES ('00000000-0000-0000-0000-000000000000', 'system', 'COMPLIANCE_OBLIGATION_OVERDUE', $1::jsonb, NOW())
+                    """,
+                    json.dumps({
+                        "tenant_id": tenant_id,
+                        "obligation_id": str(row["obligation_id"]),
+                        "obligation_name": row["obligation_name"],
+                        "statutory_act": row["statutory_act"],
+                        "deadline": row["deadline"].isoformat() if row["deadline"] else None,
+                    }),
+                )
+            log.info("mark_overdue_obligations tenant=%s marked=%d", tenant_id, marked_count)
+
+        return {
+            "marked_count": marked_count,
+            "obligation_ids": [str(r["obligation_id"]) for r in rows],
+        }
+
+    async def notify_overdue_obligations(self, tenant_id: str, count: int) -> None:
+        """
+        Publishes COMPLIANCE_OVERDUE_ALERT to prana.notifications so NotifConsumer
+        sends an alert to the CHRO via email and portal bell.
+        Caller (Temporal activity) provides the kafka producer via params.
+        This method inserts the notification record in audit_event as a fallback
+        if the workflow activity handles Kafka publish directly.
+        """
+        await self._db.execute(
+            """
+            INSERT INTO audit_event
+              (actor_id, actor_type, event_type, event_metadata, occurred_at)
+            VALUES ('00000000-0000-0000-0000-000000000000', 'system', 'COMPLIANCE_OVERDUE_ALERT_SENT', $1::jsonb, NOW())
+            """,
+            json.dumps({"tenant_id": tenant_id, "overdue_count": count}),
+        )
+        log.info("notify_overdue_obligations tenant=%s count=%d", tenant_id, count)

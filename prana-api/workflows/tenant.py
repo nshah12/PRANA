@@ -43,62 +43,49 @@ class DomainVerificationWorkflow:
 
     @workflow.run
     async def run(self, params: dict) -> dict:
-        tenant_id  = params["tenant_id"]
-        domain     = params["domain"]
-
-        # Read poll interval + max wait from config (never hardcoded)
+        tenant_id = params["tenant_id"]
         cfg = await workflow.execute_activity(
-            "get_tenant_onboarding_config",
-            {"tenant_id": tenant_id},
-            start_to_close_timeout=timedelta(seconds=30),
-            retry_policy=_RETRY,
+            "get_tenant_onboarding_config", {"tenant_id": tenant_id},
+            start_to_close_timeout=timedelta(seconds=30), retry_policy=_RETRY,
         )
-        poll_minutes = cfg["domain_verification_poll_minutes"]   # default 15
-        max_hours    = cfg["domain_verification_max_hours"]      # default 48
-        max_seconds  = max_hours * 3600
+        verified = await self._poll_until_verified(
+            tenant_id, params["domain"],
+            poll_activity="check_dns_txt_record",
+            poll_minutes=cfg["domain_verification_poll_minutes"],
+            max_seconds=cfg["domain_verification_max_hours"] * 3600,
+        )
+        if not verified:
+            await workflow.execute_activity(
+                "mark_tenant_verification_failed", {"tenant_id": tenant_id},
+                start_to_close_timeout=timedelta(seconds=30), retry_policy=_RETRY,
+            )
+            return {"tenant_id": tenant_id, "outcome": "VERIFICATION_FAILED"}
+        await workflow.execute_activity(
+            "provision_tenant", {"tenant_id": tenant_id},
+            start_to_close_timeout=timedelta(minutes=5), retry_policy=_RETRY,
+        )
+        return {"tenant_id": tenant_id, "outcome": "PROVISIONED"}
 
+    async def _poll_until_verified(self, tenant_id: str, domain: str,
+                                   poll_activity: str, poll_minutes: int,
+                                   max_seconds: int) -> bool:
         elapsed = 0
-        verified = False
-
         while elapsed < max_seconds:
             result = await workflow.execute_activity(
-                "check_dns_txt_record",
-                {"tenant_id": tenant_id, "domain": domain},
-                start_to_close_timeout=timedelta(seconds=30),
-                retry_policy=_RETRY,
+                poll_activity, {"tenant_id": tenant_id, "domain": domain},
+                start_to_close_timeout=timedelta(seconds=30), retry_policy=_RETRY,
             )
             if result["verified"] or self._verified:
-                verified = True
-                break
-
+                return True
             sleep_secs = poll_minutes * 60
             try:
                 await asyncio.wait_for(
-                    workflow.wait_condition(lambda: self._verified),
-                    timeout=sleep_secs,
+                    workflow.wait_condition(lambda: self._verified), timeout=sleep_secs,
                 )
-                verified = True
-                break
+                return True
             except asyncio.TimeoutError:
                 elapsed += sleep_secs
-
-        if not verified:
-            await workflow.execute_activity(
-                "mark_tenant_verification_failed",
-                {"tenant_id": tenant_id},
-                start_to_close_timeout=timedelta(seconds=30),
-                retry_policy=_RETRY,
-            )
-            return {"tenant_id": tenant_id, "outcome": "VERIFICATION_FAILED"}
-
-        # Kick off provisioning
-        await workflow.execute_activity(
-            "provision_tenant",
-            {"tenant_id": tenant_id},
-            start_to_close_timeout=timedelta(minutes=5),
-            retry_policy=_RETRY,
-        )
-        return {"tenant_id": tenant_id, "outcome": "PROVISIONED"}
+        return False
 
 
 @workflow.defn(name="TenantProvisioningWorkflow")
@@ -129,22 +116,20 @@ class TenantOffboardingWorkflow:
 
     @workflow.run
     async def run(self, params: dict) -> None:
-        from temporalio.common import RetryPolicy as RP
-        retry = RP(maximum_attempts=5)
+        await self._execute(params)
+
+    async def _execute(self, params: dict) -> None:
         await workflow.execute_activity(
             "freeze_tenant_pushes", params,
-            start_to_close_timeout=timedelta(minutes=10),
-            retry_policy=retry,
+            start_to_close_timeout=timedelta(minutes=10), retry_policy=_RETRY,
         )
         await workflow.execute_activity(
             "notify_tenant_offboarding", params,
-            start_to_close_timeout=timedelta(minutes=10),
-            retry_policy=retry,
+            start_to_close_timeout=timedelta(minutes=10), retry_policy=_RETRY,
         )
         await workflow.execute_activity(
             "start_employee_retention_for_tenant", params,
-            start_to_close_timeout=timedelta(hours=1),
-            retry_policy=retry,
+            start_to_close_timeout=timedelta(hours=1), retry_policy=_RETRY,
         )
 
 
@@ -172,17 +157,16 @@ class TenantMigrationWorkflow:
 
     @workflow.run
     async def run(self, params: dict) -> None:
-        from temporalio.common import RetryPolicy as RP
-        retry = RP(maximum_attempts=3)
+        await self._execute(params)
+
+    async def _execute(self, params: dict) -> None:
         await workflow.execute_activity(
             "prepare_migration", params,
-            start_to_close_timeout=timedelta(hours=2),
-            retry_policy=retry,
+            start_to_close_timeout=timedelta(hours=2), retry_policy=_RETRY,
         )
         await workflow.execute_activity(
             "notify_migration_ready", params,
-            start_to_close_timeout=timedelta(minutes=10),
-            retry_policy=retry,
+            start_to_close_timeout=timedelta(minutes=10), retry_policy=_RETRY,
         )
         confirmed = await workflow.wait_condition(
             lambda: self._confirmed or self._rolled_back,
@@ -191,12 +175,11 @@ class TenantMigrationWorkflow:
         if self._rolled_back or not confirmed:
             await workflow.execute_activity(
                 "rollback_migration_prep", params,
-                start_to_close_timeout=timedelta(hours=1),
-                retry_policy=retry,
+                start_to_close_timeout=timedelta(hours=1), retry_policy=_RETRY,
             )
             return
         await workflow.execute_activity(
             "execute_migration_cutover", params,
             start_to_close_timeout=timedelta(hours=4),
-            retry_policy=RP(maximum_attempts=2),
+            retry_policy=RetryPolicy(maximum_attempts=2),
         )

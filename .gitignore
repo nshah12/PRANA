@@ -7,6 +7,16 @@ keys/
 !prana-portal/.env.production
 !prana-mobile/.env
 
+# Terraform — never commit state or real tfvars
+terraform/**/*.tfstate
+terraform/**/*.tfstate.backup
+terraform/**/.terraform/
+terraform/**/.terraform.lock.hcl
+terraform/**/prod.tfvars
+terraform/**/staging.tfvars
+terraform/**/*.auto.tfvars
+!terraform/**/*.tfvars.example
+
 # Python
 __pycache__/
 *.pyc

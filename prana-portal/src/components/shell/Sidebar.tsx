@@ -5,7 +5,7 @@ import {
   LayoutDashboard, Users, Upload, FileText, AlertTriangle,
   Settings, ShieldCheck, ShieldAlert, TrendingUp, BarChart3, Calendar,
   Lock, Key, Activity, Globe, ChevronDown, ChevronRight,
-  Building2, Zap, FileSearch, Bell, ClipboardList, MessageSquare,
+  Building2, Zap, FileSearch, Bell, ClipboardList, MessageSquare, Handshake,
 } from 'lucide-react'
 import { useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
@@ -72,6 +72,8 @@ function navForRole(role: UserRole, base: string, counts: BadgeCounts = {}): Nav
           { label: 'Weekly Digest',      to: `${base}/weekly`,          icon: <Bell size={16}/> },
           { label: 'Monthly Summary',    to: `${base}/monthly`,         icon: <ClipboardList size={16}/> },
           { label: 'Quarterly Report',   to: `${base}/quarterly`,       icon: <TrendingUp size={16}/> },
+          { label: 'Alumni Network',     to: '/org/alumni',             icon: <Handshake size={16}/> },
+          { label: 'Comp Benchmarking', to: '/org/comp-benchmarking',  icon: <TrendingUp size={16}/> },
           { label: 'Alert Config',       to: `${base}/alerts`,          icon: <Settings size={16}/> },
           { label: 'Digest Settings',    to: `${base}/digest-settings`, icon: <Bell size={16}/> },
         ],

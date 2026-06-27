@@ -1,5 +1,7 @@
 """Tests for pipeline/stage06_route.py — routing, status update, and event emission."""
 import inspect
+import pytest
+from unittest.mock import AsyncMock, MagicMock
 
 from pipeline.stage06_route import Stage06Route, _SENSITIVE_FIELDS
 
@@ -27,10 +29,81 @@ def test_stage06_sets_pipeline_status_to_routed():
 
 
 def test_stage06_publishes_doc_routed_to_kafka():
-    # Stage06 is a DB-only stage. The DOC_ROUTED Kafka event is published by the
-    # HTTP ingest handler (validate → S3 → DB write → kafka.publish → 202).
-    # Stage06 creates a career_event row — the pipeline Kafka publish is upstream.
-    # Verify Stage06 writes career_event (the DB side of the completion signal).
+    # Stage06 publishes DOC_ROUTED to prana.pipeline.events AFTER the DB transaction commits.
+    # Consumers: SSEFanoutConsumer → browser SSE, AnalyticsConsumer → vault health,
+    # WorkflowConsumer → VaultCompletenessWorkflow.
     src = inspect.getsource(Stage06Route.route)
+    assert "DOC_ROUTED" in src, \
+        "Stage06.route must publish DOC_ROUTED event to Kafka after the DB transaction commits"
+    assert "prana.pipeline.events" in src, \
+        "Stage06 must publish to prana.pipeline.events (not prana.ingest.events)"
     assert "career_event" in src, \
-        "Stage06 must insert a career_event row — this is the completion record for analytics"
+        "Stage06 must also insert a career_event row"
+
+
+@pytest.mark.asyncio
+async def test_stage06_kafka_publish_fires_after_db_commit():
+    """Kafka publish must be OUTSIDE the transaction block — fire-and-forget after commit."""
+    mock_db = AsyncMock()
+    mock_db.fetchval.return_value = "emp-user-001"
+    mock_tx = MagicMock()
+    mock_tx.__aenter__ = AsyncMock(return_value=mock_tx)
+    mock_tx.__aexit__ = AsyncMock(return_value=False)
+    mock_db.transaction = MagicMock(return_value=mock_tx)
+
+    mock_kafka = AsyncMock()
+    mock_benchmark = AsyncMock()
+    mock_benchmark.build_career_context = AsyncMock(return_value={})
+
+    _EMP_UUID = "12345678-1234-5678-1234-567812345678"
+    _TENANT_UUID = "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee"
+
+    svc = Stage06Route(db=mock_db, benchmark_svc=mock_benchmark, kafka_producer=mock_kafka)
+    await svc.route(
+        document_id="doc-001", tenant_id=_TENANT_UUID,
+        employee_uuid=_EMP_UUID, pan_token="pan-tok-001",
+        doc_type="SALARY_SLIP", doc_period="2025-05",
+        extracted_fields={"gross_salary": 100000, "designation": "Engineer"},
+        resolution_method="PAN_TOKEN_EXACT", resolution_confidence=0.99,
+        s3_key="t/e/SALARY_SLIP/2025-05_doc-001.pdf",
+    )
+
+    mock_kafka.publish.assert_called_once()
+    topic, payload = mock_kafka.publish.call_args[0]
+    assert topic == "prana.pipeline.events"
+    assert payload["event_type"] == "DOC_ROUTED"
+    assert payload["document_id"] == "doc-001"
+    assert payload["pipeline_status"] == "ROUTED"
+    # Raw salary must NOT be in the Kafka payload
+    assert "gross_salary" not in payload
+
+
+@pytest.mark.asyncio
+async def test_stage06_kafka_failure_does_not_rollback_db():
+    """If Kafka publish fails, the DB transaction must already be committed — no rollback."""
+    mock_db = AsyncMock()
+    mock_db.fetchval.return_value = "emp-user-001"
+    mock_tx = MagicMock()
+    mock_tx.__aenter__ = AsyncMock(return_value=mock_tx)
+    mock_tx.__aexit__ = AsyncMock(return_value=False)
+    mock_db.transaction = MagicMock(return_value=mock_tx)
+
+    mock_kafka = AsyncMock()
+    mock_kafka.publish = AsyncMock(side_effect=Exception("Kafka broker unreachable"))
+    mock_benchmark = AsyncMock()
+    mock_benchmark.build_career_context = AsyncMock(return_value={})
+
+    _EMP_UUID = "12345678-1234-5678-1234-567812345678"
+    _TENANT_UUID = "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee"
+
+    svc = Stage06Route(db=mock_db, benchmark_svc=mock_benchmark, kafka_producer=mock_kafka)
+    # Must not raise — Kafka failure is logged and swallowed
+    await svc.route(
+        document_id="doc-002", tenant_id=_TENANT_UUID,
+        employee_uuid=_EMP_UUID, pan_token="pan-tok-001",
+        doc_type="FORM_16", doc_period="FY:2024-25",
+        extracted_fields={}, resolution_method="PAN_TOKEN_EXACT", resolution_confidence=0.95,
+        s3_key="t/e/FORM_16/FY2024-25_doc-002.pdf",
+    )
+    # DB transaction was entered (committed before Kafka was called)
+    mock_db.transaction.assert_called_once()

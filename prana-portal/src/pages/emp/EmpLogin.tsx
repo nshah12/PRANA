@@ -187,22 +187,27 @@ export function EmpLogin() {
   // ── Finish ────────────────────────────────────────────────────────────────
 
   async function finishLogin(accessToken: string) {
-    setAccessToken(accessToken)
-    // Decode sub from JWT payload (not secret — just base64) and set minimal user
-    // so RequireEmpAuth guard passes. Full profile loaded by EmpVault.
+    let userId = ''
     try {
-      const payload = JSON.parse(atob(accessToken.split('.')[1]))
-      useEmpAuthStore.getState().setUser({
-        userId:    payload.sub ?? '',
-        name:      'Employee',
-        email:     '',
-        mobile:    '',
-        pan_token: '',
-        vault_url: '',
-      })
-    } catch { /* guard will bounce on null user */ }
+      const b64 = accessToken.split('.')[1].replace(/-/g, '+').replace(/_/g, '/')
+      const payload = JSON.parse(atob(b64))
+      userId = payload.sub ?? ''
+    } catch {}
+
+    const user = { userId, name: 'Employee', email: '', mobile: '', pan_token: '', vault_url: '' }
+
+    // Write directly to localStorage FIRST so the next page load reads the token
+    // regardless of Zustand hydration timing. Zustand persist key format: { state, version }
+    try {
+      localStorage.setItem('prana-emp-auth', JSON.stringify({ state: { user, accessToken }, version: 0 }))
+    } catch {}
+
+    // Also update Zustand store (for same-page state, not relied on after reload)
+    setAccessToken(accessToken)
+    useEmpAuthStore.getState().setUser(user)
     setStepToken(null)
-    navigate('/emp/vault')
+
+    window.location.href = '/emp/vault'
   }
 
   // ── Progress indicator (main flow only) ──────────────────────────────────

@@ -4,12 +4,15 @@ Final stage: update document row to ROUTED, create career_event, trigger Insight
 If exception needed: create exception_queue row, set pipeline_status=EXCEPTION.
 """
 import json
+import logging
 from datetime import datetime, timezone
 from typing import Optional
 
 import asyncpg
 
 from insights.benchmark_service import BenchmarkService
+
+log = logging.getLogger(__name__)
 
 # Fields stripped from extracted_fields before DB storage — never persisted
 _SENSITIVE_FIELDS = {
@@ -21,9 +24,11 @@ _SENSITIVE_FIELDS = {
 
 class Stage06Route:
 
-    def __init__(self, db: asyncpg.Connection, benchmark_svc: BenchmarkService):
+    def __init__(self, db: asyncpg.Connection, benchmark_svc: BenchmarkService,
+                 kafka_producer=None):
         self._db = db
         self._benchmark = benchmark_svc
+        self._kafka = kafka_producer  # optional: AiPipelineClient or aiokafka producer
 
     async def route(
         self,
@@ -95,6 +100,30 @@ class Stage06Route:
                 """,
                 employee_uuid,
             )
+
+        # Publish DOC_ROUTED to prana.pipeline.events AFTER the transaction commits.
+        # Consumers: SSEFanoutConsumer (browser update), AnalyticsConsumer (vault health),
+        # WorkflowConsumer (VaultCompletenessWorkflow trigger).
+        # Fire-and-forget: a publish failure must not roll back the DB transaction.
+        if self._kafka:
+            try:
+                await self._kafka.publish(
+                    "prana.pipeline.events",
+                    {
+                        "event_type":   "DOC_ROUTED",
+                        "document_id":  document_id,
+                        "tenant_id":    tenant_id,
+                        "employee_uuid": employee_uuid,
+                        "pan_token":    pan_token,
+                        "doc_type":     doc_type,
+                        "doc_period":   doc_period,
+                        "pipeline_status": "ROUTED",
+                    },
+                    key=document_id,
+                )
+            except Exception:
+                log.exception("DOC_ROUTED Kafka publish failed doc=%s — DB already committed",
+                              document_id)
 
     async def raise_exception(
         self,

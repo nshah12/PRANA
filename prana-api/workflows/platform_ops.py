@@ -306,27 +306,22 @@ class StorageExpansionWorkflow:
 
     @workflow.run
     async def run(self, params: dict) -> None:
+        await self._execute(params)
+
+    async def _execute(self, params: dict) -> None:
         await workflow.execute_activity(
             notify_storage_expansion_request, params,
-            start_to_close_timeout=timedelta(minutes=5),
-            retry_policy=_RETRY,
+            start_to_close_timeout=timedelta(minutes=5), retry_policy=_RETRY,
         )
-        decision_received = await workflow.wait_condition(
-            lambda: self._decision is not None,
-            timeout=timedelta(days=3),
+        received = await workflow.wait_condition(
+            lambda: self._decision is not None, timeout=timedelta(days=3),
         )
-        if decision_received and self._decision and self._decision[0] == "APPROVED":
-            await workflow.execute_activity(
-                apply_storage_expansion, params,
-                start_to_close_timeout=timedelta(minutes=10),
-                retry_policy=_RETRY,
-            )
-        else:
-            await workflow.execute_activity(
-                reject_storage_expansion, params,
-                start_to_close_timeout=timedelta(minutes=5),
-                retry_policy=_RETRY,
-            )
+        approved = received and self._decision and self._decision[0] == "APPROVED"
+        act     = apply_storage_expansion if approved else reject_storage_expansion
+        timeout = timedelta(minutes=10)    if approved else timedelta(minutes=5)
+        await workflow.execute_activity(
+            act, params, start_to_close_timeout=timeout, retry_policy=_RETRY,
+        )
 
 
 # ── OnboardingReviewSLAWorkflow (Pattern 5 — Human Signal) ───────────────────

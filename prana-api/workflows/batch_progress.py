@@ -71,112 +71,82 @@ class BatchProgressWorkflow:
 
     @workflow.run
     async def run(self, params: dict) -> dict:
-        batch_id     = params["batch_id"]
-        tenant_id    = params["tenant_id"]
-        document_ids = params["document_ids"]   # list[str]
-        doc_type     = params["doc_type"]
-        doc_period   = params.get("doc_period")
-
-        # Read per-file timeout from config (tenant overrides platform)
         cfg = await workflow.execute_activity(
-            get_batch_config,
-            {"tenant_id": tenant_id},
-            start_to_close_timeout=timedelta(minutes=2),
-            retry_policy=_RETRY,
+            get_batch_config, {"tenant_id": params["tenant_id"]},
+            start_to_close_timeout=timedelta(minutes=2), retry_policy=_RETRY,
         )
-        per_file_timeout_hours = int(cfg.get("pipeline_max_duration_hours", 4))
-        batch_max_hours        = int(cfg.get("batch_max_duration_hours", 24))
+        per_file_hours = int(cfg.get("pipeline_max_duration_hours", 4))
+        batch_hours    = int(cfg.get("batch_max_duration_hours", 24))
+        handles        = await self._fan_out(params, per_file_hours)
+        results        = await self._gather(handles, batch_hours)
+        for doc_id, status in results.items():
+            if status == "STRAGGLER":
+                await workflow.execute_activity(
+                    mark_batch_straggler,
+                    {"document_id": doc_id, "batch_id": params.get("batch_id"),
+                     "tenant_id": params["tenant_id"]},
+                    start_to_close_timeout=timedelta(minutes=5), retry_policy=_RETRY,
+                )
+        return await self._write_summary(params, results)
 
-        # ── Fan-out: launch one child workflow per document ──────────────────
-        # All children run in parallel — this is the key fan-out.
-        # asyncio.gather() inside a workflow runs coroutines concurrently on
-        # Temporal's event loop; each execute_child_workflow is non-blocking
-        # until awaited, so all N children are scheduled in one scheduler pass.
-
-        child_handles = []
-        for doc_id in document_ids:
-            handle = await workflow.start_child_workflow(
+    async def _fan_out(self, params: dict, per_file_hours: int) -> list:
+        handles = []
+        for doc_id in params["document_ids"]:
+            h = await workflow.start_child_workflow(
                 DocumentPipelineWorkflow.run,
-                {
-                    "document_id": doc_id,
-                    "tenant_id":   tenant_id,
-                    "doc_type":    doc_type,
-                    "doc_period":  doc_period,
-                    # s3_key, s3_bucket, enc_dek etc. fetched inside each child
-                    # from DB at execution time — no need to pass them here
-                },
+                {"document_id": doc_id, "tenant_id": params["tenant_id"],
+                 "doc_type": params["doc_type"], "doc_period": params.get("doc_period")},
                 id=f"doc-pipeline-{doc_id}",
                 task_queue=TASK_QUEUE,
-                # Children run independently. This parent doesn't cancel them.
-                execution_timeout=timedelta(hours=per_file_timeout_hours),
+                execution_timeout=timedelta(hours=per_file_hours),
             )
-            child_handles.append((doc_id, handle))
+            handles.append((doc_id, h))
+        return handles
 
-        # ── Gather results with per-batch ceiling ────────────────────────────
-        results: dict[str, str] = {}   # doc_id → terminal status
-        stragglers: list[str]   = []
-
-        deadline = workflow.now() + timedelta(hours=batch_max_hours)
-
-        for doc_id, handle in child_handles:
+    async def _gather(self, handles: list, batch_hours: int) -> dict:
+        results: dict[str, str] = {}
+        deadline = workflow.now() + timedelta(hours=batch_hours)
+        for doc_id, handle in handles:
             remaining = deadline - workflow.now()
             if remaining.total_seconds() <= 0:
-                # Batch wall-clock exceeded — remaining children are stragglers
-                stragglers.append(doc_id)
+                results[doc_id] = "STRAGGLER"
                 continue
             try:
-                result = await workflow.wait_condition(
+                await workflow.wait_condition(
                     lambda h=handle: h.result_run_id is not None,  # type: ignore[attr-defined]
                     timeout=remaining,
                 )
-                child_result = await handle
-                results[doc_id] = child_result.get("status", "UNKNOWN")
+                child = await handle
+                results[doc_id] = child.get("status", "UNKNOWN")
             except Exception:
-                stragglers.append(doc_id)
+                results[doc_id] = "STRAGGLER"
+        return results
 
-        # ── Mark stragglers ──────────────────────────────────────────────────
-        # Children are still running — we just record the batch timeout.
-        # DocumentPipelineWorkflow's own execution_timeout will eventually
-        # terminate them if they don't finish.
-        for doc_id in stragglers:
-            await workflow.execute_activity(
-                mark_batch_straggler,
-                {"document_id": doc_id, "batch_id": batch_id, "tenant_id": tenant_id},
-                start_to_close_timeout=timedelta(minutes=5),
-                retry_policy=_RETRY,
-            )
-            results[doc_id] = "STRAGGLER"
+    async def _mark_stragglers(self, results: dict, params: dict) -> None:
+        for doc_id, status in results.items():
+            if status == "STRAGGLER":
+                await workflow.execute_activity(
+                    mark_batch_straggler,
+                    {"document_id": doc_id, "batch_id": params["batch_id"],
+                     "tenant_id": params["tenant_id"]},
+                    start_to_close_timeout=timedelta(minutes=5), retry_policy=_RETRY,
+                )
 
-        # ── Write batch summary ──────────────────────────────────────────────
+    async def _write_summary(self, params: dict, results: dict) -> dict:
         routed     = sum(1 for s in results.values() if s == "ROUTED")
         exceptions = sum(1 for s in results.values() if s in ("EXCEPTION", "EXCEPTION_TIMEOUT"))
         quarantine = sum(1 for s in results.values() if s == "QUARANTINED")
         failed     = sum(1 for s in results.values() if s in ("STRAGGLER", "UNKNOWN"))
-
+        summary = {"batch_id": params["batch_id"], "tenant_id": params["tenant_id"],
+                   "total": len(params["document_ids"]), "routed": routed,
+                   "exceptions": exceptions, "quarantine": quarantine, "failed": failed,
+                   "results": results}
         await workflow.execute_activity(
-            write_batch_summary,
-            {
-                "batch_id":   batch_id,
-                "tenant_id":  tenant_id,
-                "total":      len(document_ids),
-                "routed":     routed,
-                "exceptions": exceptions,
-                "quarantine": quarantine,
-                "failed":     failed,
-                "results":    results,
-            },
-            start_to_close_timeout=timedelta(minutes=5),
-            retry_policy=_RETRY,
+            write_batch_summary, summary,
+            start_to_close_timeout=timedelta(minutes=5), retry_policy=_RETRY,
         )
-
-        return {
-            "batch_id":   batch_id,
-            "total":      len(document_ids),
-            "routed":     routed,
-            "exceptions": exceptions,
-            "quarantine": quarantine,
-            "failed":     failed,
-        }
+        del summary["results"]
+        return summary
 
 
 # ── BatchTimeoutMonitorWorkflow ───────────────────────────────────────────────
@@ -198,30 +168,20 @@ class BatchTimeoutMonitorWorkflow:
 
     @workflow.run
     async def run(self, params: dict) -> None:
+        await self._execute(params)
+
+    async def _execute(self, params: dict) -> None:
         document_id = params["document_id"]
         tenant_id   = params["tenant_id"]
-
-        # Read timeout from config
         cfg = await workflow.execute_activity(
-            get_batch_config,
-            {"tenant_id": tenant_id},
-            start_to_close_timeout=timedelta(minutes=2),
-            retry_policy=_RETRY,
+            get_batch_config, {"tenant_id": tenant_id},
+            start_to_close_timeout=timedelta(minutes=2), retry_policy=_RETRY,
         )
         timeout_hours = int(cfg.get("pipeline_max_duration_hours", 4))
-
-        # Sleep for the full allowed duration
         await workflow.sleep(timedelta(hours=timeout_hours))
-
-        # If we wake up, the document hasn't finished — mark it
         await workflow.execute_activity(
             mark_batch_straggler,
-            {
-                "document_id":  document_id,
-                "batch_id":     params.get("batch_id"),
-                "tenant_id":    tenant_id,
-                "reason":       "PIPELINE_TIMEOUT",
-            },
-            start_to_close_timeout=timedelta(minutes=5),
-            retry_policy=_RETRY,
+            {"document_id": document_id, "batch_id": params.get("batch_id"),
+             "tenant_id": tenant_id, "reason": "PIPELINE_TIMEOUT"},
+            start_to_close_timeout=timedelta(minutes=5), retry_policy=_RETRY,
         )

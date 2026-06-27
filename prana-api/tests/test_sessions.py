@@ -96,9 +96,8 @@ async def test_force_revoke_publishes_audit_event_to_kafka(client, mock_db, mock
     resp = await client.post("/auth/sessions/sess-uuid-001/revoke", headers=AUTH_HEADER)
 
     assert resp.status_code == 200
-    mock_kafka.publish.assert_called_once()
-    topic, payload = mock_kafka.publish.call_args[0][:2]
-    assert topic == "prana.audit.events"
+    mock_kafka.auth_event.assert_called_once()
+    payload = mock_kafka.auth_event.call_args[0][0]
     assert payload["event_type"] == "SESSION_FORCE_REVOKED"
     assert payload["revoked_session"] == "sess-uuid-001"
     assert payload["tenant_id"] == "tenant-001"

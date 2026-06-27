@@ -1,17 +1,17 @@
-"""
-Exception Queue API — OA-Admin views and resolves pipeline exceptions.
+﻿"""
+Exception Queue API â€” OA-Admin views and resolves pipeline exceptions.
 
-GET  /org/exceptions                     — list OPEN exceptions with SLA countdown
-GET  /org/exceptions/{exception_id}      — detail: extracted_fields + candidate_matches
-POST /org/exceptions/{exception_id}/resolve  — assign employee, signal workflow
-POST /org/exceptions/{exception_id}/dismiss  — close without match, signal workflow
+GET  /org/exceptions                     â€” list OPEN exceptions with SLA countdown
+GET  /org/exceptions/{exception_id}      â€” detail: extracted_fields + candidate_matches
+POST /org/exceptions/{exception_id}/resolve  â€” assign employee, signal workflow
+POST /org/exceptions/{exception_id}/dismiss  â€” close without match, signal workflow
 
-Auth: OA-Admin only. Tenant-scoped — admin never sees another tenant's exceptions.
+Auth: OA-Admin only. Tenant-scoped â€” admin never sees another tenant's exceptions.
 
 Resolution signals 'exception_resolved' to the running DocumentPipelineWorkflow
 (one of the two allowed Temporal calls from the HTTP path per project rules).
 
-Privacy: extracted_fields from LLM output may include raw figures — strip salary/PAN
+Privacy: extracted_fields from LLM output may include raw figures â€” strip salary/PAN
 keys before returning to OA-Admin. Context fields (name, doj, designation) are fine.
 """
 import datetime
@@ -35,7 +35,7 @@ _STRIP_FROM_EXTRACTED = {
 }
 
 
-# ── Request models ─────────────────────────────────────────────────────────────
+# â”€â”€ Request models â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 class ResolveExceptionIn(BaseModel):
     employee_uuid: str
@@ -45,7 +45,7 @@ class DismissExceptionIn(BaseModel):
     reason: str
 
 
-# ── Helpers ───────────────────────────────────────────────────────────────────
+# â”€â”€ Helpers â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 def _client_ip(request: Request) -> str:
     xff = request.headers.get("x-forwarded-for")
@@ -57,7 +57,7 @@ def _client_ip(request: Request) -> str:
 def _safe_extracted_fields(raw: Optional[str]) -> Optional[dict]:
     """
     Parse extracted_fields JSONB and strip raw financial figures before
-    returning to OA-Admin. LLM output may include salary — must never surface.
+    returning to OA-Admin. LLM output may include salary â€” must never surface.
     """
     if raw is None:
         return None
@@ -103,7 +103,7 @@ async def _get_sla_hours(db, tenant_id: str) -> int:
     return int(row["sla_hours"]) if row and row["sla_hours"] else 24
 
 
-# ── List ──────────────────────────────────────────────────────────────────────
+# â”€â”€ List â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 @router.get("/exceptions")
 async def list_exceptions(
@@ -152,7 +152,7 @@ async def list_exceptions(
     }
 
 
-# ── Detail ─────────────────────────────────────────────────────────────────────
+# â”€â”€ Detail â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 @router.get("/exceptions/{exception_id}")
 async def get_exception(
@@ -175,7 +175,7 @@ async def get_exception(
 
     exc = _serialize_exception(row)
     exc["extracted_fields"] = _safe_extracted_fields(row["extracted_fields"])
-    # candidate_matches are IDs/names/confidence — no raw financial data
+    # candidate_matches are IDs/names/confidence â€” no raw financial data
     raw_candidates = row["candidate_matches"]
     if isinstance(raw_candidates, str):
         try:
@@ -188,7 +188,7 @@ async def get_exception(
     return {"exception": exc}
 
 
-# ── Resolve ────────────────────────────────────────────────────────────────────
+# â”€â”€ Resolve â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 @router.post("/exceptions/{exception_id}/resolve", status_code=status.HTTP_200_OK)
 async def resolve_exception(
@@ -233,7 +233,7 @@ async def resolve_exception(
         current.user_id, body.employee_uuid, now, exception_id, current.tenant_id,
     )
 
-    # Signal the running DocumentPipelineWorkflow — allowed Temporal call from HTTP path
+    # Signal the running DocumentPipelineWorkflow â€” allowed Temporal call from HTTP path
     temporal = getattr(request.app.state, "temporal_client", None)
     if temporal:
         try:
@@ -244,27 +244,24 @@ async def resolve_exception(
                 "resolved_by":   current.user_id,
             })
         except Exception:
-            pass  # Pipeline workflow may have already timed out — non-fatal
+            pass  # Pipeline workflow may have already timed out â€” non-fatal
 
     kafka = getattr(request.app.state, "kafka_producer", None)
     if kafka:
-        await kafka.publish("prana.audit.events", {
-            "event_type":     "EXCEPTION_RESOLVED",
-            "event_id":       str(uuid.uuid4()),
-            "occurred_at":    now.isoformat(),
-            "tenant_id":      current.tenant_id,
-            "actor_id":       current.user_id,
-            "actor_type":     "OA_ADMIN",
-            "ip_address":     _client_ip(request),
-            "exception_id":   exception_id,
-            "document_id":    str(row["document_id"]),
-            "employee_uuid":  body.employee_uuid,
-        }, key=current.tenant_id)
+        await kafka.exception_resolved({
+            "event_type": "EXCEPTION_RESOLVED",
+            "tenant_id": str(current.tenant_id),
+            "actor_id": str(current.user_id),
+            "actor_type": "OA_ADMIN",
+            "exception_id": exception_id,
+            "document_id": str(row["document_id"]),
+            "employee_uuid": body.employee_uuid,
+        })
 
     return {"exception_id": exception_id, "status": "RESOLVED"}
 
 
-# ── Dismiss ────────────────────────────────────────────────────────────────────
+# â”€â”€ Dismiss â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 @router.post("/exceptions/{exception_id}/dismiss", status_code=status.HTTP_200_OK)
 async def dismiss_exception(
@@ -317,17 +314,13 @@ async def dismiss_exception(
 
     kafka = getattr(request.app.state, "kafka_producer", None)
     if kafka:
-        await kafka.publish("prana.audit.events", {
-            "event_type":   "EXCEPTION_DISMISSED",
-            "event_id":     str(uuid.uuid4()),
-            "occurred_at":  now.isoformat(),
-            "tenant_id":    current.tenant_id,
-            "actor_id":     current.user_id,
-            "actor_type":   "OA_ADMIN",
-            "ip_address":   _client_ip(request),
+        await kafka.oa_user_event({
+            "event_type": "EXCEPTION_DISMISSED",
+            "tenant_id": current.tenant_id,
+            "actor_id": current.user_id,
+            "actor_type": "OA_ADMIN",
             "exception_id": exception_id,
-            "document_id":  str(row["document_id"]),
-            "reason":       body.reason,
         }, key=current.tenant_id)
 
     return {"exception_id": exception_id, "status": "DISMISSED"}
+

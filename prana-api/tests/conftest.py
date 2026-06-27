@@ -18,14 +18,24 @@ fixture and set app.state.jwt_service attributes before making requests.
 """
 import asyncio
 from typing import AsyncGenerator
-from unittest.mock import AsyncMock, MagicMock
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 import pytest_asyncio
 from httpx import ASGITransport, AsyncClient
 
-from main import create_app
-from config import Settings
+# Patch AIOKafkaConsumer BEFORE importing main (which triggers consumer module imports).
+# Consumer modules do `from aiokafka import AIOKafkaConsumer` at module load time;
+# patching here ensures they all get the mock when first imported.
+import aiokafka as _aiokafka
+_mock_consumer_instance = MagicMock()
+_mock_consumer_instance.start = AsyncMock()
+_mock_consumer_instance.stop = AsyncMock()
+_mock_consumer_instance.__aiter__ = MagicMock(return_value=iter([]))
+_aiokafka.AIOKafkaConsumer = MagicMock(return_value=_mock_consumer_instance)
+
+from main import create_app  # noqa: E402 — must come after aiokafka patch
+from config import Settings  # noqa: E402
 
 
 @pytest.fixture(scope="session")

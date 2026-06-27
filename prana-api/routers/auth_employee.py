@@ -64,8 +64,8 @@ class ConsentIn(BaseModel):
     step_token: str
 
 class DeviceRegisterIn(BaseModel):
-    platform: str         # ANDROID | IOS
-    device_name: Optional[str] = None
+    platform: str              # ANDROID | IOS
+    public_key: str            # WebAuthn/FIDO2 public key — required by device_credential schema
     device_fingerprint: Optional[str] = None
     push_token: Optional[str] = None
 
@@ -81,14 +81,18 @@ def _get_client_ip(request: Request) -> str:
 
 
 def _set_refresh_cookie(response: Response, refresh_token: str, max_age: int) -> None:
+    from config import get_settings
+    is_dev = get_settings().app_env == "development"
     response.set_cookie(
         key="prana_refresh",
         value=refresh_token,
         httponly=True,
-        secure=True,
-        samesite="strict",
+        secure=not is_dev,   # False in dev (HTTP localhost), True in prod (HTTPS)
+        samesite="lax" if is_dev else "strict",
         max_age=max_age,
-        path="/auth/employee/refresh",
+        # In dev, use "/" so Vite proxy (/api/auth/employee/refresh) still sends the cookie.
+        # In prod, scope to the exact path for security.
+        path="/" if is_dev else "/auth/employee/refresh",
     )
 
 
@@ -123,18 +127,31 @@ async def _consume_step_token(redis, token: str, expected_next: str) -> dict:
 
 
 async def _peek_step_token(redis, token: str, expected_next: str) -> dict:
-    """Read without deleting — used when we reissue a new step token for the next stage."""
+    """Read without deleting — caller issues a new step token before this one is consumed."""
     raw = await redis.get(f"step:{token}")
     if not raw:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="STEP_TOKEN_EXPIRED")
     data = json.loads(raw)
     if data.get("next") != expected_next:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="INVALID_STEP")
-    await redis.delete(f"step:{token}")
     return data
 
 
 async def _issue_jwt(request: Request, response: Response, db, user_id: str, ip: str) -> dict:
+    jwt_ttl = 60
+    refresh_ttl = 7
+    try:
+        rows = await db.fetch(
+            "SELECT config_key, config_value FROM platform_config WHERE config_key IN ('jwt_ttl_minutes','refresh_token_ttl_days')"
+        )
+        for r in (rows or []):
+            if r["config_key"] == "jwt_ttl_minutes":
+                jwt_ttl = int(r["config_value"])
+            elif r["config_key"] == "refresh_token_ttl_days":
+                refresh_ttl = int(r["config_value"])
+    except Exception:
+        pass  # use defaults if config unavailable
+
     session_svc = SessionService(db, request.app.state.jwt_service)
     tokens = await session_svc.create(
         user_type="employee",
@@ -143,8 +160,8 @@ async def _issue_jwt(request: Request, response: Response, db, user_id: str, ip:
         role=None,
         ip_address=ip,
         user_agent=request.headers.get("User-Agent", ""),
-        jwt_ttl_minutes=60,
-        refresh_ttl_days=7,
+        jwt_ttl_minutes=jwt_ttl,
+        refresh_ttl_days=refresh_ttl,
         max_concurrent=5,
     )
     await db.execute(
@@ -178,12 +195,17 @@ async def login(body: LoginIn, request: Request, db: DbConn):
       biometric       — proceed to biometric (mobile, if enrolled)
     """
     col, value = _normalise_identifier(body.identifier)
-    row = await db.fetchrow(
-        f"SELECT employee_user_id, pan_token, password_hash, status, force_reset, "
-        f"totp_configured_at, consent_status, failed_totp_count "
-        f"FROM employee_user WHERE {col} = $1",
-        value,
-    )
+    _COLS = "employee_user_id, pan_token, password_hash, status, force_reset, totp_configured_at, consent_status, failed_totp_count"
+    if col == "email":
+        row = await db.fetchrow(
+            "SELECT employee_user_id, pan_token, password_hash, status, force_reset, totp_configured_at, consent_status, failed_totp_count FROM employee_user WHERE email = $1",
+            value,
+        )
+    else:
+        row = await db.fetchrow(
+            "SELECT employee_user_id, pan_token, password_hash, status, force_reset, totp_configured_at, consent_status, failed_totp_count FROM employee_user WHERE mobile = $1",
+            value,
+        )
 
     # Constant-time guard: always hash compare even if user not found
     dummy_hash = "$argon2id$v=19$m=65536,t=2,p=2$AAAAAAAAAAAAAAAA$AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA"
@@ -198,6 +220,15 @@ async def login(body: LoginIn, request: Request, db: DbConn):
                 "VALUES ('employee',$1,'PASSWORD','FAILED','WRONG_PASSWORD',$2::inet,'PORTAL')",
                 row["employee_user_id"], _get_client_ip(request),
             )
+            kafka = getattr(request.app.state, "kafka_producer", None)
+            if kafka:
+                await kafka.auth_event({
+                    "event_type": "USER_LOGIN_FAILED",
+                    "user_id":    str(row["employee_user_id"]),
+                    "user_type":  "employee",
+                    "reason":     "WRONG_PASSWORD",
+                    "ip_address": _get_client_ip(request),
+                })
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="INVALID_CREDENTIALS")
 
     if row["status"] == "LOCKED":
@@ -236,7 +267,7 @@ async def login(body: LoginIn, request: Request, db: DbConn):
     # Check biometric eligibility (mobile only — device_id supplied in request)
     if body.device_id:
         device = await db.fetchrow(
-            "SELECT device_id FROM device_registration WHERE device_id=$1 "
+            "SELECT device_credential_id FROM device_credential WHERE device_fingerprint_hash=$1 "
             "AND employee_user_id=$2 AND biometric_enrolled=TRUE AND revoked=FALSE",
             body.device_id, user_id,
         )
@@ -279,16 +310,44 @@ async def verify_totp(body: TOTPVerifyIn, request: Request, response: Response, 
                 "UPDATE employee_user SET status='LOCKED', failed_totp_count=$2 WHERE employee_user_id=$1",
                 user_id, new_count,
             )
+            kafka = getattr(request.app.state, "kafka_producer", None)
+            if kafka:
+                await kafka.auth_event({
+                    "event_type": "TOTP_FAILED",
+                    "user_id":    user_id,
+                    "user_type":  "employee",
+                    "fail_count": new_count,
+                    "locked":     True,
+                    "ip_address": _get_client_ip(request),
+                })
             raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="ACCOUNT_LOCKED")
         await db.execute(
             "UPDATE employee_user SET failed_totp_count=$2 WHERE employee_user_id=$1",
             user_id, new_count,
         )
+        kafka = getattr(request.app.state, "kafka_producer", None)
+        if kafka:
+            await kafka.auth_event({
+                "event_type": "TOTP_FAILED",
+                "user_id":    user_id,
+                "user_type":  "employee",
+                "fail_count": new_count,
+                "locked":     False,
+                "ip_address": _get_client_ip(request),
+            })
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="INVALID_TOTP")
 
     await db.execute(
         "UPDATE employee_user SET failed_totp_count=0 WHERE employee_user_id=$1", user_id,
     )
+    kafka = getattr(request.app.state, "kafka_producer", None)
+    if kafka:
+        await kafka.auth_event({
+            "event_type": "SESSION_CREATED",
+            "user_id":    user_id,
+            "user_type":  "employee",
+            "ip_address": _get_client_ip(request),
+        })
     return await _issue_jwt(request, response, db, user_id, _get_client_ip(request))
 
 
@@ -305,7 +364,7 @@ async def verify_biometric(body: BiometricIn, request: Request, response: Respon
     user_id = data["user_id"]
 
     device = await db.fetchrow(
-        "SELECT device_id FROM device_registration WHERE device_id=$1 "
+        "SELECT device_credential_id FROM device_credential WHERE device_fingerprint_hash=$1 "
         "AND employee_user_id=$2 AND biometric_enrolled=TRUE AND revoked=FALSE",
         body.device_id, user_id,
     )
@@ -313,7 +372,7 @@ async def verify_biometric(body: BiometricIn, request: Request, response: Respon
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="DEVICE_NOT_ENROLLED")
 
     await db.execute(
-        "UPDATE device_registration SET last_used_at=NOW() WHERE device_id=$1", body.device_id,
+        "UPDATE device_credential SET last_used_at=NOW() WHERE device_fingerprint_hash=$1", body.device_id,
     )
     return await _issue_jwt(request, response, db, user_id, _get_client_ip(request))
 
@@ -463,13 +522,14 @@ async def register_device(body: DeviceRegisterIn, request: Request, db: DbConn,
 
     device_id = await db.fetchval(
         """
-        INSERT INTO device_registration
-          (employee_user_id, platform, device_name, device_fingerprint, push_token)
+        INSERT INTO device_credential
+          (employee_user_id, platform, device_fingerprint_hash, push_token, public_key)
         VALUES ($1, $2, $3, $4, $5)
-        RETURNING device_id
+        ON CONFLICT (public_key) DO UPDATE SET last_used_at=NOW()
+        RETURNING device_credential_id
         """,
-        current.user_id, body.platform, body.device_name,
-        body.device_fingerprint, body.push_token,
+        current.user_id, body.platform, body.device_fingerprint,
+        body.push_token, body.public_key,
     )
     return {"device_id": str(device_id)}
 
@@ -480,9 +540,9 @@ async def enroll_biometric(device_id: UUID, request: Request, db: DbConn,
     """Mark device as biometric-enrolled. Employee must already be authenticated."""
     updated = await db.fetchval(
         """
-        UPDATE device_registration SET biometric_enrolled=TRUE, enrolled_at=NOW()
-        WHERE device_id=$1 AND employee_user_id=$2 AND revoked=FALSE
-        RETURNING device_id
+        UPDATE device_credential SET biometric_enrolled=TRUE
+        WHERE device_credential_id=$1 AND employee_user_id=$2 AND revoked=FALSE
+        RETURNING device_credential_id
         """,
         device_id, current.user_id,
     )
@@ -496,7 +556,7 @@ async def deregister_device(device_id: UUID, request: Request, db: DbConn,
                              current: Employee):
     """Revoke a device — biometric login from it will stop working immediately."""
     await db.execute(
-        "UPDATE device_registration SET revoked=TRUE WHERE device_id=$1 AND employee_user_id=$2",
+        "UPDATE device_credential SET revoked=TRUE WHERE device_credential_id=$1 AND employee_user_id=$2",
         device_id, current.user_id,
     )
     return {"revoked": True}

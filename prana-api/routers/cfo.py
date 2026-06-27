@@ -5,6 +5,7 @@ All ₹ values replaced with qualitative labels or percentile ranges.
 Cohort minimum 30 enforced before returning payroll data.
 All queries scoped to tenant_id from JWT.
 """
+import json
 from datetime import date, datetime, timedelta, timezone
 from typing import Literal
 
@@ -97,8 +98,17 @@ async def payroll_intelligence(db: DbConn, current=CFO):
     )
 
     return {
-        "trend":            [dict(r) for r in reversed(trend_rows)],
-        "band_distribution":[dict(r) for r in band_rows],
+        "trend": [
+            {
+                "month": r["month"].isoformat() if r["month"] else None,
+                "total": int(r["total"]) if r["total"] is not None else 0,
+            }
+            for r in reversed(trend_rows)
+        ],
+        "band_distribution": [
+            {"band": r["band"], "count": int(r["count"])}
+            for r in band_rows
+        ],
         "integrity_flags":  [],
     }
 
@@ -137,7 +147,10 @@ async def attrition_cost(db: DbConn, current=CFO):
 
     return {
         "exit_count_qtd":        exit_count,
-        "tenure_distribution":   [dict(r) for r in tenure_rows],
+        "tenure_distribution": [
+            {"bucket": r["bucket"], "count": int(r["count"])}
+            for r in tenure_rows
+        ],
         "replacement_multiplier": 0.8,
     }
 
@@ -155,7 +168,15 @@ async def compliance_posture(db: DbConn, current=CFO):
         """,
         current.tenant_id,
     )
-    return {"items": [dict(r) for r in rows]}
+    return {"items": [
+        {
+            "obligation_name": r["obligation_name"],
+            "coverage_pct": float(r["coverage_pct"]) if r["coverage_pct"] is not None else 0.0,
+            "gap_count": int(r["gap_count"]) if r["gap_count"] is not None else 0,
+            "status": r["status"],
+        }
+        for r in rows
+    ]}
 
 
 # ── Benchmarking ──────────────────────────────────────────────────────────────
@@ -172,7 +193,13 @@ async def benchmarking(db: DbConn, current=CFO):
         """,
         current.tenant_id,
     )
-    return {"benchmarks": [dict(r) for r in rows]}
+    return {"benchmarks": [
+        {
+            "role_category": r["role_category"],
+            "percentiles": json.loads(r["percentiles"]) if isinstance(r["percentiles"], str) else (r["percentiles"] or {}),
+        }
+        for r in rows
+    ]}
 
 
 # ── Anomaly alerts ────────────────────────────────────────────────────────────
@@ -244,7 +271,15 @@ async def consent_dashboard(db: DbConn, current=CFO):
         """,
         current.tenant_id,
     )
-    return {"by_department": [dict(r) for r in dept_rows]}
+    return {"by_department": [
+        {
+            "department": r["department"],
+            "granted": int(r["granted"]) if r["granted"] is not None else 0,
+            "total": int(r["total"]) if r["total"] is not None else 0,
+            "pct": int(r["pct"]) if r["pct"] is not None else 0,
+        }
+        for r in dept_rows
+    ]}
 
 
 # ── LLM insight narrative (aggregated metadata only) ─────────────────────────

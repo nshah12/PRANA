@@ -69,22 +69,17 @@ async def create_user(
             raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=code)
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=code)
 
-    # Publish welcome email event → NotifConsumer dispatches via SES
     kafka = getattr(request.app.state, "kafka_producer", None)
     if kafka:
-        import datetime, uuid as _uuid
-        await kafka.publish("prana.notifications", {
-            "event_type":    "OA_USER_CREATED",
-            "event_id":      str(_uuid.uuid4()),
-            "occurred_at":   datetime.datetime.utcnow().isoformat(),
-            "tenant_id":     current.tenant_id,
-            "oa_user_id":    result["oa_user_id"],
-            "email":         str(body.email),
-            "role":          body.role,
-            "temp_password": result.get("temp_password"),
-            "login_url":     "https://prana.in/org/login",
-            "created_by":    current.user_id,
-        }, key=current.tenant_id)
+        await kafka.oa_user_event({
+            "event_type": "OA_USER_CREATED",
+            "tenant_id":  str(current.tenant_id),
+            "oa_user_id": result["oa_user_id"],
+            "email":      str(body.email),
+            "role":       body.role,
+            "login_url":  "https://prana.in/org/login",
+            "created_by": str(current.user_id),
+        })
 
     return {"oa_user_id": result["oa_user_id"], "message": "User created — temp password sent via email"}
 
