@@ -2,14 +2,42 @@
 HTTP client for prana-ai pipeline stages.
 Called by Temporal activity functions in prana-api/workflows/.
 Uses the shared secret in X-Prana-AI-Secret header (internal VPC traffic only).
+
+Error contract:
+  prana-ai returns HTTP 422 for structured pipeline errors with body:
+    {"error": "S04_EXTRACT_PASSWORD_PROTECTED", "stage": "stage04",
+     "message": "...", "retryable": false}
+
+  _check_response() interprets the retryable flag:
+    retryable=false → ApplicationError(non_retryable=True)
+                      Temporal fails the workflow immediately, no more retries.
+    retryable=true  → PipelineRetryableError (a plain exception)
+                      Temporal retries the activity per its RetryPolicy.
+    other 4xx/5xx   → httpx.HTTPStatusError (Temporal retries as a generic failure)
 """
 
 import base64
+import logging
 from typing import Optional
 
 import httpx
+from temporalio.exceptions import ApplicationError
 
 from config import get_settings
+
+log = logging.getLogger(__name__)
+
+
+class PipelineRetryableError(Exception):
+    """
+    Raised when prana-ai returns 422 with retryable=true.
+    Temporal treats this as a retryable activity failure.
+    Carries the error code and stage for logging in the Temporal event history.
+    """
+    def __init__(self, code: str, stage: str, message: str) -> None:
+        self.code = code
+        self.stage = stage
+        super().__init__(f"[{stage}] {code}: {message}")
 
 
 class AiPipelineClient:
@@ -24,6 +52,47 @@ class AiPipelineClient:
     def _headers(self) -> dict:
         return {"X-Prana-AI-Secret": self._secret, "Content-Type": "application/json"}
 
+    def _check_response(self, resp: httpx.Response) -> None:
+        """
+        Inspect the response and raise the appropriate exception type.
+
+        422 from prana-ai = structured PipelineException:
+          retryable=false → ApplicationError(non_retryable=True)
+                            Temporal does NOT retry; workflow fails immediately.
+          retryable=true  → PipelineRetryableError
+                            Temporal retries the activity per RetryPolicy.
+
+        Any other non-2xx → httpx.HTTPStatusError (Temporal retries as transient failure).
+        2xx → no-op.
+        """
+        if resp.status_code == 422:
+            try:
+                body = resp.json()
+            except Exception:
+                resp.raise_for_status()
+                return
+
+            code = body.get("error", "UNKNOWN_PIPELINE_ERROR")
+            stage = body.get("stage", "unknown")
+            message = body.get("message", "")
+            retryable = body.get("retryable", True)
+
+            log.error(
+                "prana-ai pipeline error stage=%s code=%s retryable=%s: %s",
+                stage, code, retryable, message,
+            )
+
+            if not retryable:
+                raise ApplicationError(
+                    f"[{stage}] {code}: {message}",
+                    non_retryable=True,
+                )
+            else:
+                raise PipelineRetryableError(code=code, stage=stage, message=message)
+
+        if not resp.is_success:
+            resp.raise_for_status()
+
     async def scan(self, file_bytes: bytes, ext: str) -> dict:
         """Stage 03 — virus + NSFW scan."""
         async with httpx.AsyncClient(timeout=self._timeout) as client:
@@ -35,7 +104,7 @@ class AiPipelineClient:
                     "ext": ext,
                 },
             )
-            resp.raise_for_status()
+            self._check_response(resp)
             return resp.json()
 
     async def extract(
@@ -60,7 +129,7 @@ class AiPipelineClient:
                     "doc_period": doc_period,
                 },
             )
-            resp.raise_for_status()
+            self._check_response(resp)
             return resp.json()
 
     async def write_unclassified(
@@ -88,7 +157,7 @@ class AiPipelineClient:
                     "reason": reason,
                 },
             )
-            resp.raise_for_status()
+            self._check_response(resp)
 
     async def resolve(
         self,
@@ -109,7 +178,7 @@ class AiPipelineClient:
                     "extracted_fields": extracted_fields,
                 },
             )
-            resp.raise_for_status()
+            self._check_response(resp)
             return resp.json()
 
     async def route(
@@ -143,7 +212,7 @@ class AiPipelineClient:
                     "s3_key": s3_key,
                 },
             )
-            resp.raise_for_status()
+            self._check_response(resp)
 
     async def raise_exception(
         self,
@@ -166,7 +235,7 @@ class AiPipelineClient:
                     "candidates": candidates,
                 },
             )
-            resp.raise_for_status()
+            self._check_response(resp)
 
     async def refresh_insight(
         self,
@@ -189,4 +258,4 @@ class AiPipelineClient:
                     "benchmarks": benchmarks,
                 },
             )
-            resp.raise_for_status()
+            self._check_response(resp)
