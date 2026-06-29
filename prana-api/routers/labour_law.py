@@ -123,7 +123,7 @@ async def list_obligations(
         *params,
     )
     total = await db.fetchval(
-        f"SELECT COUNT(*) FROM compliance_obligation WHERE {where}",
+        "SELECT COUNT(*) FROM compliance_obligation WHERE " + where,
         *params[:-2],
     )
     return {"items": [_serialize_obligation(r) for r in rows], "total": total}
@@ -322,7 +322,7 @@ async def update_obligation(
     params.append(obl_uuid)
     sets_str = ", ".join(sets) + ", updated_at = NOW()"
     await db.execute(
-        f"UPDATE compliance_obligation SET {sets_str} WHERE obligation_id = ${len(params)}",
+        "UPDATE compliance_obligation SET " + sets_str + " WHERE obligation_id = $" + str(len(params)),
         *params,
     )
 

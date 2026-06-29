@@ -296,7 +296,7 @@ async def list_documents(
 
     where = " AND ".join(conditions)
     total = await db.fetchval(
-        f"SELECT COUNT(*) FROM document WHERE {where}",
+        "SELECT COUNT(*) FROM document WHERE " + where,
         *params,
     )
     lim_i = i

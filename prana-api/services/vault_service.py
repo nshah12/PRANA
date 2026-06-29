@@ -72,8 +72,8 @@ class VaultService:
         where = " AND ".join(conditions)
 
         rows = await self._db.fetch(
-            f"{base} AND {where} ORDER BY d.pushed_at DESC LIMIT {limit} OFFSET {offset}",
-            *params,
+            base + " AND " + where + " ORDER BY d.pushed_at DESC LIMIT $" + str(i) + " OFFSET $" + str(i + 1),
+            *params, limit, offset,
         )
         return [
             {

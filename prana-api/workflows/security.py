@@ -241,24 +241,28 @@ class KMSKeyRotationWorkflow:
     async def run(self, params: dict) -> None:
         rotations_done = params.get("rotations_done", 0)
         while rotations_done < RENEW_THRESHOLD:
-            interval_str = await workflow.execute_activity(
-                get_security_config, {"key": "kek_rotation_interval_days", "default": "365"},
-                start_to_close_timeout=timedelta(minutes=2),
-            )
-            tenant = await workflow.execute_activity(
-                get_next_tenant_for_rotation, params,
-                start_to_close_timeout=timedelta(minutes=5), retry_policy=_RETRY,
-            )
-            if tenant.get("tenant_id"):
-                await workflow.execute_activity(
-                    rotate_tenant_kek, tenant,
-                    start_to_close_timeout=timedelta(minutes=30),
-                    retry_policy=RetryPolicy(maximum_attempts=5),
-                )
-            else:
-                await workflow.sleep(timedelta(days=int(interval_str)))
+            await self._rotate_one(params)
             rotations_done += 1
         workflow.continue_as_new({**params, "rotations_done": 0})
+
+    async def _rotate_one(self, params: dict) -> None:
+        """Fetch next tenant due for KEK rotation; rotate or sleep until next cycle."""
+        interval_str = await workflow.execute_activity(
+            get_security_config, {"key": "kek_rotation_interval_days", "default": "365"},
+            start_to_close_timeout=timedelta(minutes=2),
+        )
+        tenant = await workflow.execute_activity(
+            get_next_tenant_for_rotation, params,
+            start_to_close_timeout=timedelta(minutes=5), retry_policy=_RETRY,
+        )
+        if tenant.get("tenant_id"):
+            await workflow.execute_activity(
+                rotate_tenant_kek, tenant,
+                start_to_close_timeout=timedelta(minutes=30),
+                retry_policy=RetryPolicy(maximum_attempts=5),
+            )
+        else:
+            await workflow.sleep(timedelta(days=int(interval_str)))
 
 
 # ── HMACSecretRotationWorkflow (Pattern 4 — Continue-As-New, perpetual) ──────

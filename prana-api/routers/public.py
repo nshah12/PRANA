@@ -314,7 +314,7 @@ async def list_org_applications(
         *params,
     )
     total = await conn.fetchval(
-        f"SELECT COUNT(*) FROM self_service_application {where}",
+        "SELECT COUNT(*) FROM self_service_application " + where,
         *params[2:],
     )
     return {

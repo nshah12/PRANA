@@ -87,9 +87,10 @@ def test_domain_verification_marks_failed_on_timeout():
     """DomainVerificationWorkflow must call mark_tenant_verification_failed on timeout."""
     from workflows.tenant import DomainVerificationWorkflow
 
-    source = _get_source(DomainVerificationWorkflow.run)
+    # run() delegates outcome handling to _finalize() — check the class source
+    workflow_src = inspect.getsource(DomainVerificationWorkflow)
 
-    assert "mark_tenant_verification_failed" in source, \
+    assert "mark_tenant_verification_failed" in workflow_src, \
         "Timeout path must mark tenant as VERIFICATION_FAILED via activity"
-    assert "VERIFICATION_FAILED" in source, \
+    assert "VERIFICATION_FAILED" in workflow_src, \
         "Expected outcome constant 'VERIFICATION_FAILED' in workflow"

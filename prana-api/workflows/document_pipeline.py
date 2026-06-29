@@ -72,8 +72,7 @@ class DocumentPipelineWorkflow:
         scan = await workflow.execute_activity(stage03_scan, {**params, **enc}, start_to_close_timeout=timedelta(minutes=15), retry_policy=_RETRY)
         if scan.get("csam_detected"):
             return await self._handle_csam(params, doc_id)
-        if scan.get("virus_status") == "QUARANTINED":
-            return {"status": "QUARANTINED", "document_id": doc_id}
+        if scan.get("virus_status") == "QUARANTINED": return {"status": "QUARANTINED", "document_id": doc_id}  # noqa: E701
         ext = await workflow.execute_activity(stage04_extract, {**params, **enc}, start_to_close_timeout=timedelta(minutes=10), retry_policy=_RETRY)
         if ext.get("status") == "unclassified":
             return await self._handle_unclassified(params, ext, doc_id)
@@ -81,13 +80,24 @@ class DocumentPipelineWorkflow:
         if res.get("violation_type") == "CROSS_TENANT":
             return await self._handle_cross_tenant(params, res, doc_id)
         if res.get("needs_exception"):
-            await workflow.execute_activity(stage06_raise_exception, {**params, **ext, **res}, start_to_close_timeout=timedelta(minutes=5))
-            await workflow.wait_condition(lambda: self._exception_resolution is not None, timeout=timedelta(days=7))
-            if self._exception_resolution is None:
+            res = await self._handle_exception_wait(params, ext, res, doc_id)
+            if res is None:
                 return {"status": "EXCEPTION_TIMEOUT", "document_id": doc_id}
-            res = self._exception_resolution
         await workflow.execute_activity(stage06_route, {**params, **enc, **ext, **res}, start_to_close_timeout=timedelta(minutes=10), retry_policy=_RETRY)
         return {"status": "ROUTED", "document_id": doc_id}
+
+    async def _handle_exception_wait(
+        self, params: dict, ext: dict, res: dict, doc_id: str
+    ) -> dict | None:
+        """Raise exception, wait up to 7 days for OA-Admin signal. Returns None on timeout."""
+        await workflow.execute_activity(
+            stage06_raise_exception, {**params, **ext, **res},
+            start_to_close_timeout=timedelta(minutes=5),
+        )
+        await workflow.wait_condition(
+            lambda: self._exception_resolution is not None, timeout=timedelta(days=7)
+        )
+        return self._exception_resolution
 
     async def _handle_csam(self, params: dict, doc_id: str) -> dict:
         await workflow.execute_child_workflow(

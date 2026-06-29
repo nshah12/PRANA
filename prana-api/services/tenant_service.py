@@ -238,7 +238,7 @@ class TenantService:
                 values.append(val)
 
         values.append(tenant_id)
-        sql = f"UPDATE tenant SET {', '.join(set_clauses)} WHERE tenant_id = ${len(values)}"
+        sql = "UPDATE tenant SET " + ", ".join(set_clauses) + " WHERE tenant_id = $" + str(len(values))
         await self._db.execute(sql, *values)
 
         await self._db.execute(

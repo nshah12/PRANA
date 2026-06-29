@@ -54,6 +54,10 @@ class DomainVerificationWorkflow:
             poll_minutes=cfg["domain_verification_poll_minutes"],
             max_seconds=cfg["domain_verification_max_hours"] * 3600,
         )
+        return await self._finalize(tenant_id, verified)
+
+    async def _finalize(self, tenant_id: str, verified: bool) -> dict:
+        """Mark verification outcome and provision (or record failure)."""
         if not verified:
             await workflow.execute_activity(
                 "mark_tenant_verification_failed", {"tenant_id": tenant_id},

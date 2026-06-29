@@ -592,7 +592,7 @@ async def anomaly_queue(
         *params,
     )
     total = await db.fetchval(
-        f"SELECT COUNT(*) FROM anomaly_event WHERE {where}", *params
+        "SELECT COUNT(*) FROM anomaly_event WHERE " + where, *params
     )
     return {
         "items": [

@@ -28,7 +28,11 @@ def test_pipeline_6_stages_executed_in_order():
 
 def test_pipeline_exception_confidence_below_threshold_raises_exception():
     src = inspect.getsource(DocumentPipelineWorkflow.run)
-    # When stage05 returns needs_exception=True, raise_exception activity is called
+    # When stage05 returns needs_exception=True, exception wait helper is called
     assert "needs_exception" in src, "Pipeline must check needs_exception from stage05"
-    assert "stage06_raise_exception" in src, \
-        "Pipeline must call stage06_raise_exception when confidence is below threshold"
+    assert "_handle_exception_wait" in src, \
+        "Pipeline must delegate to _handle_exception_wait when confidence is below threshold"
+    # stage06_raise_exception must be called somewhere in the workflow class
+    workflow_src = inspect.getsource(DocumentPipelineWorkflow)
+    assert "stage06_raise_exception" in workflow_src, \
+        "stage06_raise_exception must be called within DocumentPipelineWorkflow"
