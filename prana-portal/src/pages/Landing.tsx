@@ -3,25 +3,20 @@ import { useNavigate } from 'react-router-dom'
 import { useMutation } from '@tanstack/react-query'
 import { api } from '@/lib/api'
 
-// ── Gradient helpers ──────────────────────────────────────────────────────────
-const GRAD = 'linear-gradient(135deg, #6366F1 0%, #22D3EE 55%, #34D399 100%)'
+// ── Brand helpers ─────────────────────────────────────────────────────────────
+// 2-stop logo gradient — used only for the logo icon background, never on text.
+const LOGO_GRAD = 'linear-gradient(135deg, #6366F1, #8B5CF6)'
 
-function GradText({ children, className = '' }: { children: React.ReactNode; className?: string }) {
-  return (
-    <span className={className}
-      style={{ background: GRAD, WebkitBackgroundClip: 'text', backgroundClip: 'text', color: 'transparent' }}>
-      {children}
-    </span>
-  )
+function AccentText({ children, className = '' }: { children: React.ReactNode; className?: string }) {
+  return <span className={`text-indigo-600 ${className}`}>{children}</span>
 }
 
-function GradBtn({ children, onClick, type = 'button', className = '' }: {
+function PrimaryBtn({ children, onClick, type = 'button', className = '' }: {
   children: React.ReactNode; onClick?: () => void; type?: 'button' | 'submit'; className?: string
 }) {
   return (
     <button type={type} onClick={onClick}
-      style={{ background: GRAD }}
-      className={`text-white font-semibold rounded-xl px-6 py-3 text-sm hover:opacity-90 transition-opacity ${className}`}>
+      className={`bg-indigo-600 text-white font-semibold rounded-xl px-6 py-3 text-sm hover:bg-indigo-700 active:bg-indigo-800 transition-colors ${className}`}>
       {children}
     </button>
   )
@@ -30,12 +25,12 @@ function GradBtn({ children, onClick, type = 'button', className = '' }: {
 // ── Content data ──────────────────────────────────────────────────────────────
 
 const HIW_STEPS = [
-  { n: '01', icon: '🏢', title: 'Employer onboards', desc: 'HR registers on PRANA portal in 15 min. Domain-verified. KEK-provisioned. Ready.' },
-  { n: '02', icon: '📥', title: 'Documents arrive', desc: 'Salary slips, Form 16, offer letters — pushed automatically via portal or HRMS API.' },
-  { n: '03', icon: '🤖', title: 'AI extracts insights', desc: '6-stage pipeline: OCR → classification → extraction → resolution → routing. Raw ₹ never stored.' },
-  { n: '04', icon: '🗄', title: 'Vault activated', desc: 'One permanent vault. Every employer adds to the same vault — across your entire career.' },
-  { n: '05', icon: '↗', title: 'You share securely', desc: 'Pick documents, set expiry, generate a watermarked C-Share link. Banks receive in seconds.' },
-  { n: '06', icon: '✓', title: 'Recipient verifies', desc: 'QR scan confirms authenticity. Cryptographic proof. No phone calls to HR needed.' },
+  { n: '1', icon: '🏢', title: 'Employer onboards', desc: 'HR registers on PRANA portal in 15 min. Domain-verified. KEK-provisioned. Ready.' },
+  { n: '2', icon: '📥', title: 'Documents arrive', desc: 'Salary slips, Form 16, offer letters — pushed automatically via portal or HRMS API.' },
+  { n: '3', icon: '🤖', title: 'AI extracts insights', desc: '6-stage pipeline: OCR → classification → extraction → resolution → routing. Raw ₹ never stored.' },
+  { n: '4', icon: '🗄', title: 'Vault activated', desc: 'One permanent vault. Every employer adds to the same vault — across your entire career.' },
+  { n: '5', icon: '↗', title: 'You share securely', desc: 'Pick documents, set expiry, generate a watermarked C-Share link. Banks receive in seconds.' },
+  { n: '6', icon: '✓', title: 'Recipient verifies', desc: 'QR scan confirms authenticity. Cryptographic proof. No phone calls to HR needed.' },
 ]
 
 const EMPLOYEE_FEATURES = [
@@ -191,7 +186,7 @@ function catStyle(cat: string) {
   return { background: bg, color }
 }
 
-function FaqSection() {
+function FaqSection({ onContact }: { onContact: () => void }) {
   const [role, setRole] = useState('employee')
   const [search, setSearch] = useState('')
   const [openIdx, setOpenIdx] = useState<string | null>(null)
@@ -219,9 +214,8 @@ function FaqSection() {
   return (
     <section className="max-w-5xl mx-auto px-6 py-16">
       <div className="text-center mb-10">
-        <p className="text-xs font-bold text-indigo-500 tracking-widest uppercase mb-3">FAQ</p>
-        <h2 className="text-3xl font-extrabold text-slate-900 mb-3">
-          Questions we hear <GradText>before they're asked</GradText>
+        <h2 className="text-3xl font-extrabold text-slate-900 mb-3" style={{ textWrap: 'balance' }}>
+          Questions we hear <AccentText>before they're asked</AccentText>
         </h2>
         <p className="text-slate-400 text-sm max-w-lg mx-auto">
           Crispy answers for every role — Employee, CHRO, CISO, and CFO.
@@ -302,10 +296,10 @@ function FaqSection() {
       {!search.trim() && (
         <div className="mt-8 text-center">
           <p className="text-xs text-slate-400 mb-3">Have a question that isn't answered here?</p>
-          <a href="prana-docs/wireframes/PRANA_FAQ_by_Role.html" target="_blank" rel="noopener"
-            className="text-xs font-semibold text-indigo-500 hover:underline mr-6">
-            View full FAQ ↗
-          </a>
+          <button onClick={onContact}
+            className="text-xs font-semibold text-indigo-600 hover:underline">
+            Contact us →
+          </button>
         </div>
       )}
     </section>
@@ -349,8 +343,7 @@ function ContactModal({ onClose }: { onClose: () => void }) {
         <div className="px-8 py-6">
           {sent ? (
             <div className="text-center py-8">
-              <div className="w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-4 text-3xl"
-                style={{ background: 'linear-gradient(135deg, #10B981, #22D3EE)' }}>
+              <div className="w-16 h-16 rounded-full bg-emerald-500 flex items-center justify-center mx-auto mb-4 text-white text-2xl font-bold">
                 ✓
               </div>
               <h3 className="text-lg font-bold text-slate-800 mb-2">Message sent!</h3>
@@ -387,9 +380,9 @@ function ContactModal({ onClose }: { onClose: () => void }) {
                 <textarea className={`${inp} resize-none h-24`} value={form.message} onChange={sf('message')} placeholder="Tell us what you need…" />
               </div>
               {mutation.isError && <p className="text-xs text-red-600 bg-red-50 rounded-lg px-3 py-2">Failed to send. Please try again.</p>}
-              <GradBtn type="submit" className="w-full !rounded-xl !py-3.5">
+              <PrimaryBtn type="submit" className="w-full !rounded-xl !py-3.5">
                 {mutation.isPending ? 'Sending…' : 'Send message — we reply within 24 hours →'}
-              </GradBtn>
+              </PrimaryBtn>
             </form>
           )}
         </div>
@@ -438,7 +431,7 @@ export function Landing() {
       <nav className="sticky top-0 z-50 bg-white/90 backdrop-blur border-b border-slate-100">
         <div className="max-w-6xl mx-auto px-6 h-16 flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <div className="w-8 h-8 rounded-lg flex items-center justify-center" style={{ background: GRAD }}>
+            <div className="w-8 h-8 rounded-lg flex items-center justify-center" style={{ background: LOGO_GRAD }}>
               <span className="text-white font-bold text-sm">P</span>
             </div>
             <span className="font-mono font-bold text-slate-900 text-lg tracking-tight">
@@ -452,8 +445,7 @@ export function Landing() {
             <button onClick={() => navigate('/register')} className="text-sm font-semibold text-slate-700 hover:text-indigo-600 transition-colors">For employers</button>
             <button onClick={() => scrollTo(faqRef)} className="text-sm font-semibold text-slate-700 hover:text-indigo-600 transition-colors">FAQ</button>
             <button onClick={openContact}
-              className="text-sm font-bold text-white rounded-xl px-4 py-2 transition-opacity hover:opacity-90"
-              style={{ background: 'linear-gradient(135deg, #6366F1, #22D3EE)' }}>
+              className="text-sm font-bold text-white bg-indigo-600 rounded-xl px-4 py-2 hover:bg-indigo-700 transition-colors">
               Contact
             </button>
           </div>
@@ -508,9 +500,9 @@ export function Landing() {
                 </div>
               )}
             </div>
-            <GradBtn onClick={() => navigate('/register')} className="!px-5 !py-2 !text-sm hidden sm:block">
+            <PrimaryBtn onClick={() => navigate('/register')} className="!px-5 !py-2 !text-sm hidden sm:block">
               Register your org →
-            </GradBtn>
+            </PrimaryBtn>
           </div>
         </div>
       </nav>
@@ -518,12 +510,12 @@ export function Landing() {
       {/* ── Hero ── */}
       <section className="max-w-6xl mx-auto px-6 pt-8 pb-12 text-center">
         <div className="inline-flex items-center gap-2 bg-indigo-50 border border-indigo-100 rounded-full px-4 py-1.5 mb-6">
-          <span className="text-[10px] font-bold tracking-widest text-indigo-500 uppercase">Now live</span>
+          <span className="text-[10px] font-bold text-indigo-600 uppercase tracking-wide">Now live</span>
           <span className="text-[10px] text-indigo-400">Enterprise pilot-ready · DPDP Act 2023 compliant</span>
         </div>
 
-        <h1 className="text-5xl sm:text-7xl font-extrabold text-slate-900 leading-[1.0] mb-6 tracking-tight">
-          One vault. <GradText>Every employer.</GradText> Forever yours.
+        <h1 className="text-5xl sm:text-7xl font-extrabold text-slate-900 leading-[1.0] mb-6 tracking-tight" style={{ textWrap: 'balance' }}>
+          One vault. <AccentText>Every employer.</AccentText> Forever yours.
         </h1>
 
         <p className="text-slate-500 text-lg max-w-2xl mx-auto leading-relaxed mb-8">
@@ -551,20 +543,17 @@ export function Landing() {
         </div>
 
         <div className="flex flex-wrap items-center justify-center gap-3 mb-12">
-          <GradBtn onClick={() => navigate('/register')} className="!px-8 !py-3.5 !text-base">
+          <PrimaryBtn onClick={() => navigate('/register')} className="!px-8 !py-3.5 !text-base">
             Register your organisation →
-          </GradBtn>
+          </PrimaryBtn>
         </div>
 
         {/* Trust strip */}
         <div className="flex flex-wrap items-center justify-center gap-6 py-5 border-y border-slate-100">
           {TRUST_STATS.map(s => (
             <div key={s.value} className="text-center">
-              <div className="font-extrabold text-xl"
-                style={{ background: GRAD, WebkitBackgroundClip: 'text', backgroundClip: 'text', color: 'transparent' }}>
-                {s.value}
-              </div>
-              <div className="text-xs text-slate-400 mt-0.5">{s.label}</div>
+              <div className="font-extrabold text-xl text-slate-900">{s.value}</div>
+              <div className="text-xs text-slate-500 mt-0.5">{s.label}</div>
             </div>
           ))}
         </div>
@@ -599,9 +588,8 @@ export function Landing() {
       {/* ── How it works ── */}
       <section ref={hiwRef} className="max-w-6xl mx-auto px-6 pt-14 pb-10">
         <div className="text-center mb-12">
-          <p className="text-xs font-bold text-indigo-500 tracking-widest uppercase mb-3">How it works</p>
-          <h2 className="text-4xl font-extrabold text-slate-900 mb-3">
-            Six steps, <GradText>fully automated</GradText>
+          <h2 className="text-4xl font-extrabold text-slate-900 mb-3" style={{ textWrap: 'balance' }}>
+            Six steps, fully automated
           </h2>
           <p className="text-slate-500 text-base max-w-md mx-auto">
             From first document push to verified share. PRANA handles everything in between.
@@ -611,8 +599,7 @@ export function Landing() {
         <div className="flex justify-center gap-2 mb-8">
           {HIW_STEPS.map((_, i) => (
             <button key={i} onClick={() => setActiveStep(i)}
-              className={`h-1.5 rounded-full transition-all duration-300 ${i === activeStep ? 'w-8' : 'w-2 bg-slate-200'}`}
-              style={i === activeStep ? { background: GRAD, width: 32 } : {}} />
+              className={`h-1.5 rounded-full transition-all duration-300 ${i === activeStep ? 'w-8 bg-indigo-600' : 'w-2 bg-slate-200'}`} />
           ))}
         </div>
 
@@ -626,11 +613,11 @@ export function Landing() {
                 onMouseLeave={() => setHoveredStep(null)}
                 className="rounded-2xl border p-5 cursor-pointer transition-all duration-300"
                 style={isActive || hoveredStep === i
-                  ? { borderColor: '#C7D2FE', background: 'linear-gradient(135deg, #EEF2FF 0%, #F0FDFA 100%)', boxShadow: '0 4px 16px rgba(99,102,241,0.14)' }
+                  ? { borderColor: '#C7D2FE', background: '#EEF2FF', boxShadow: '0 4px 16px rgba(99,102,241,0.10)' }
                   : { borderColor: '#E2E8F0', background: '#F8FAFC' }}>
                 <div className="flex items-center gap-2 mb-3">
                   <div className="w-7 h-7 rounded-lg flex items-center justify-center text-xs font-bold flex-shrink-0 transition-all duration-200"
-                    style={isActive || hoveredStep === i ? { background: GRAD, color: '#fff' } : { background: '#CBD5E1', color: '#64748B' }}>
+                    style={isActive || hoveredStep === i ? { background: '#6366F1', color: '#fff' } : { background: '#CBD5E1', color: '#64748B' }}>
                     {s.n}
                   </div>
                   <span className="text-xl">{s.icon}</span>
@@ -642,28 +629,21 @@ export function Landing() {
           })}
         </div>
 
-        {/* 3 perspective video placeholders */}
+        {/* Role quick-links */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4 max-w-4xl mx-auto">
           {[
-            { label: 'For CHROs', sublabel: 'Vault health · compliance · zero manual work', color: '#6366F1', glow: '#6366F1' },
-            { label: 'For InfoSec', sublabel: 'Audit trail · access control · anomaly alerts', color: '#0EA5E9', glow: '#22D3EE' },
-            { label: 'For Employees', sublabel: 'Own your docs · share securely · ask PRANA', color: '#10B981', glow: '#10B981' },
+            { label: 'For CHROs', sublabel: 'Vault health · compliance · zero manual work', color: '#6366F1', bg: '#EEF2FF', to: 'chro' },
+            { label: 'For InfoSec', sublabel: 'Audit trail · access control · anomaly alerts', color: '#0EA5E9', bg: '#F0F9FF', to: 'ciso' },
+            { label: 'For Employees', sublabel: 'Own your docs · share securely · ask PRANA', color: '#10B981', bg: '#ECFDF5', to: 'employee' },
           ].map(v => (
-            <div key={v.label} className="bg-slate-900 rounded-2xl overflow-hidden border border-slate-700 aspect-video
-                            flex flex-col items-center justify-center gap-3 relative cursor-pointer group">
-              <div className="absolute inset-0 opacity-20 group-hover:opacity-30 transition-opacity"
-                style={{ background: `radial-gradient(circle at 50% 50%, ${v.glow}, transparent 70%)` }} />
-              <div className="relative z-10 flex flex-col items-center gap-2 px-4 text-center">
-                <div className="w-11 h-11 rounded-full flex items-center justify-center group-hover:scale-110 transition-transform"
-                  style={{ background: v.color }}>
-                  <svg width="16" height="16" viewBox="0 0 24 24" fill="white"><path d="M8 5v14l11-7z"/></svg>
-                </div>
-                <p className="text-white text-xs font-semibold">{v.label}</p>
-                <p className="text-slate-400 text-[10px] leading-relaxed">{v.sublabel}</p>
-                <span className="text-[9px] font-medium px-2 py-0.5 rounded-full mt-1"
-                  style={{ background: `${v.color}22`, color: v.color }}>60 sec · coming soon</span>
-              </div>
-            </div>
+            <button key={v.label}
+              onClick={() => { setPersona(v.to); scrollTo(personaRef) }}
+              className="rounded-2xl border p-6 text-left hover:shadow-md hover:-translate-y-0.5 transition-all duration-200 group"
+              style={{ background: v.bg, borderColor: `${v.color}30` }}>
+              <p className="text-sm font-bold mb-1" style={{ color: v.color }}>{v.label}</p>
+              <p className="text-xs text-slate-500 leading-relaxed">{v.sublabel}</p>
+              <p className="text-xs font-semibold mt-3 group-hover:underline" style={{ color: v.color }}>See details →</p>
+            </button>
           ))}
         </div>
       </section>
@@ -672,9 +652,8 @@ export function Landing() {
       <section ref={personaRef} className="bg-slate-50 border-y border-slate-100 pt-12 pb-16 px-6">
         <div className="max-w-6xl mx-auto">
           <div className="text-center mb-10">
-            <p className="text-xs font-bold text-indigo-500 tracking-widest uppercase mb-3">Who it's for</p>
-            <h2 className="text-4xl font-extrabold text-slate-900">
-              <GradText>Built for everyone</GradText> in the document chain
+            <h2 className="text-4xl font-extrabold text-slate-900" style={{ textWrap: 'balance' }}>
+              Built for everyone in the document chain
             </h2>
           </div>
 
@@ -836,8 +815,7 @@ export function Landing() {
               <div className="space-y-2 mb-5">
                 {CISO_LAYERS.map((l, i) => (
                   <div key={i} className="bg-white rounded-2xl border border-slate-100 px-5 py-4 flex items-start gap-4">
-                    <div className="w-8 h-8 rounded-lg flex items-center justify-center text-white text-xs font-extrabold flex-shrink-0"
-                      style={{ background: GRAD }}>
+                    <div className="w-8 h-8 rounded-lg bg-indigo-600 flex items-center justify-center text-white text-xs font-extrabold flex-shrink-0">
                       {l.n}
                     </div>
                     <div className="flex-1">
@@ -853,8 +831,8 @@ export function Landing() {
                 ))}
               </div>
 
-              <div className="bg-slate-900 rounded-2xl p-5 border-l-4 border-l-red-500">
-                <p className="text-slate-300 text-sm italic">
+              <div className="bg-white/5 border border-white/10 rounded-2xl p-5">
+                <p className="text-slate-300 text-sm italic leading-relaxed">
                   "We built the system so that even we cannot misuse your data. The Portal Admin cannot read a single document —
                   not because of a policy, but because the database refuses the query."
                 </p>
@@ -868,9 +846,9 @@ export function Landing() {
       <section className="bg-slate-900 py-16 px-6">
         <div className="max-w-5xl mx-auto">
           <div className="text-center mb-10">
-            <p className="text-xs font-bold text-indigo-400 tracking-widest uppercase mb-3">Security by design</p>
-            <h2 className="text-3xl font-extrabold text-white mb-3">
-              7-layer trust architecture — <span style={{ background: GRAD, WebkitBackgroundClip: 'text', backgroundClip: 'text', color: 'transparent' }}>applies to everyone</span>
+            <p className="text-xs font-semibold text-indigo-400 uppercase tracking-wider mb-3">Security by design</p>
+            <h2 className="text-3xl font-extrabold text-white mb-3" style={{ textWrap: 'balance' }}>
+              7-layer trust architecture — <span className="text-indigo-400">applies to everyone</span>
             </h2>
             <p className="text-slate-400 text-sm max-w-xl mx-auto">
               Misuse is structurally impossible. These controls work regardless of who has the credentials —
@@ -881,8 +859,7 @@ export function Landing() {
           <div className="grid sm:grid-cols-2 gap-3 mb-8">
             {CISO_LAYERS.map((l) => (
               <div key={l.n} className="flex items-start gap-4 bg-white/5 border border-white/10 rounded-2xl px-5 py-4">
-                <div className="w-8 h-8 rounded-lg flex items-center justify-center text-white text-xs font-extrabold flex-shrink-0"
-                  style={{ background: GRAD }}>
+                <div className="w-8 h-8 rounded-lg bg-indigo-500 flex items-center justify-center text-white text-xs font-extrabold flex-shrink-0">
                   {l.n}
                 </div>
                 <div className="flex-1 min-w-0">
@@ -901,21 +878,18 @@ export function Landing() {
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 mb-8">
             {CISO_STATS.map(s => (
               <div key={s.value} className="bg-white/5 border border-white/10 rounded-2xl p-4 text-center">
-                <div className="text-2xl font-extrabold mb-1"
-                  style={{ background: GRAD, WebkitBackgroundClip: 'text', backgroundClip: 'text', color: 'transparent' }}>
-                  {s.value}
-                </div>
+                <div className="text-2xl font-extrabold mb-1 text-white">{s.value}</div>
                 <div className="text-[10px] text-slate-400 leading-tight">{s.label}</div>
               </div>
             ))}
           </div>
 
-          <div className="border-l-4 border-l-indigo-500 bg-white/5 rounded-r-2xl px-6 py-4">
-            <p className="text-slate-300 text-sm italic">
+          <div className="bg-white/5 border border-indigo-500/25 rounded-2xl px-6 py-5">
+            <p className="text-slate-300 text-sm italic leading-relaxed">
               "We built the system so that even we cannot misuse your data. The Portal Admin cannot read a single document —
               not because of a policy, but because the database refuses the query."
             </p>
-            <p className="text-indigo-400 text-xs mt-2 font-semibold">— PRANA Architecture Principle</p>
+            <p className="text-indigo-400 text-xs mt-3 font-semibold">— PRANA Architecture Principle</p>
           </div>
         </div>
       </section>
@@ -923,9 +897,8 @@ export function Landing() {
       {/* ── What's Live + What's Coming ── */}
       <section className="max-w-5xl mx-auto px-6 py-16">
         <div className="text-center mb-10">
-          <p className="text-xs font-bold text-indigo-500 tracking-widest uppercase mb-3">Product roadmap</p>
-          <h2 className="text-3xl font-extrabold text-slate-900 mb-3">
-            <GradText>Live today.</GradText> What's coming next.
+          <h2 className="text-3xl font-extrabold text-slate-900 mb-3" style={{ textWrap: 'balance' }}>
+            <AccentText>Live today.</AccentText> What's coming next.
           </h2>
           <p className="text-slate-400 text-sm max-w-lg mx-auto">
             The core vault, AI pipeline, mobile app, HRMS integration, and chatbot are all live.
@@ -981,7 +954,7 @@ export function Landing() {
           {/* Phase II */}
           <div className="rounded-3xl border-2 border-indigo-100 bg-indigo-50/30 p-6">
             <div className="flex items-center gap-3 mb-5">
-              <div className="w-9 h-9 rounded-xl flex items-center justify-center" style={{ background: GRAD }}>
+              <div className="w-9 h-9 rounded-xl bg-indigo-600 flex items-center justify-center">
                 <span className="text-white text-sm font-bold">→</span>
               </div>
               <div>
@@ -1019,9 +992,8 @@ export function Landing() {
       {/* ── For Organisations ── */}
       <section className="max-w-6xl mx-auto px-6 pt-10 pb-16">
         <div className="text-center mb-10">
-          <p className="text-xs font-bold text-indigo-500 tracking-widest uppercase mb-3">For organisations</p>
-          <h2 className="text-4xl font-extrabold text-slate-900">
-            Every role in your org, <GradText>covered</GradText>
+          <h2 className="text-4xl font-extrabold text-slate-900" style={{ textWrap: 'balance' }}>
+            Every role in your org, <AccentText>covered</AccentText>
           </h2>
           <p className="text-slate-400 text-sm mt-3 max-w-lg mx-auto">
             Onboard in 15 minutes. No IT integration required to start. HRMS API available for automated pushes.
@@ -1051,9 +1023,9 @@ export function Landing() {
               Push salary slips, Form 16, and HR letters to employee vaults automatically.
               Connects via portal upload or HRMS API. Onboard in 15 minutes.
             </p>
-            <GradBtn onClick={() => navigate('/register')} className="w-full !py-3 !rounded-xl">
+            <PrimaryBtn onClick={() => navigate('/register')} className="w-full !py-3 !rounded-xl">
               Register now →
-            </GradBtn>
+            </PrimaryBtn>
           </div>
           <div className="bg-white rounded-3xl border border-slate-200 p-8">
             <div className="w-12 h-12 rounded-2xl bg-sky-100 flex items-center justify-center text-2xl mb-5">📱</div>
@@ -1063,9 +1035,9 @@ export function Landing() {
               Access your career vault on the web or download the PRANA mobile app.
             </p>
             <div className="flex flex-col gap-2">
-              <GradBtn onClick={() => navigate('/emp/login')} className="w-full !py-3 !rounded-xl">
+              <PrimaryBtn onClick={() => navigate('/emp/login')} className="w-full !py-3 !rounded-xl">
                 Access your vault →
-              </GradBtn>
+              </PrimaryBtn>
               <button className="w-full border border-slate-200 text-slate-600 font-semibold rounded-xl py-2.5 text-sm hover:bg-slate-50 transition-colors">
                 Download the PRANA app
               </button>
@@ -1077,8 +1049,7 @@ export function Landing() {
       {/* ── Privacy promise dark section ── */}
       <section className="bg-slate-900 py-16 px-6">
         <div className="max-w-4xl mx-auto text-center">
-          <div className="w-14 h-14 rounded-2xl mx-auto mb-6 flex items-center justify-center text-3xl"
-            style={{ background: GRAD }}>🔒</div>
+          <div className="w-14 h-14 rounded-2xl bg-indigo-600 mx-auto mb-6 flex items-center justify-center text-3xl">🔒</div>
           <h2 className="text-3xl font-extrabold text-white mb-3">Privacy by design. Not by policy.</h2>
           <p className="text-slate-500 text-sm mb-10">
             Non-negotiable. Structural. Cannot be switched off by any administrator.
@@ -1108,7 +1079,7 @@ export function Landing() {
 
       {/* ── FAQ ── */}
       <div ref={faqRef} className="bg-slate-50 border-t border-slate-100">
-        <FaqSection />
+        <FaqSection onContact={openContact} />
       </div>
 
       <div ref={contactRef} />
@@ -1121,7 +1092,7 @@ export function Landing() {
             {/* Brand */}
             <div className="col-span-2 sm:col-span-1">
               <div className="flex items-center gap-2 mb-3">
-                <div className="w-8 h-8 rounded-lg flex items-center justify-center" style={{ background: GRAD }}>
+                <div className="w-8 h-8 rounded-lg flex items-center justify-center" style={{ background: LOGO_GRAD }}>
                   <span className="text-white font-bold text-sm">P</span>
                 </div>
                 <span className="font-mono font-bold text-white text-lg tracking-tight">
