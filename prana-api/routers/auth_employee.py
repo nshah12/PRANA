@@ -30,6 +30,7 @@ from services.password_service import verify_password, hash_password, needs_reha
 from services.totp_service import TOTPService
 from services.session_service import SessionService
 from services.encryption_service import aes_encrypt, aes_decrypt
+from errors import PranaError
 
 router = APIRouter()
 
@@ -118,10 +119,10 @@ async def _make_step_token(redis, user_id: str, pan_token: str, next_step: str, 
 async def _consume_step_token(redis, token: str, expected_next: str) -> dict:
     raw = await redis.get(f"step:{token}")
     if not raw:
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="STEP_TOKEN_EXPIRED")
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail=PranaError.STEP_TOKEN_EXPIRED)
     data = json.loads(raw)
     if data.get("next") != expected_next:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="INVALID_STEP")
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=PranaError.INVALID_STEP)
     await redis.delete(f"step:{token}")
     return data
 
@@ -130,10 +131,10 @@ async def _peek_step_token(redis, token: str, expected_next: str) -> dict:
     """Read without deleting — caller issues a new step token before this one is consumed."""
     raw = await redis.get(f"step:{token}")
     if not raw:
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="STEP_TOKEN_EXPIRED")
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail=PranaError.STEP_TOKEN_EXPIRED)
     data = json.loads(raw)
     if data.get("next") != expected_next:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="INVALID_STEP")
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=PranaError.INVALID_STEP)
     return data
 
 
@@ -229,12 +230,12 @@ async def login(body: LoginIn, request: Request, db: DbConn):
                     "reason":     "WRONG_PASSWORD",
                     "ip_address": _get_client_ip(request),
                 })
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="INVALID_CREDENTIALS")
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail=PranaError.INVALID_CREDENTIALS)
 
     if row["status"] == "LOCKED":
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="ACCOUNT_LOCKED")
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=PranaError.ACCOUNT_LOCKED)
     if row["status"] in ("SUSPENDED", "PENDING_ACTIVATION"):
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="ACCOUNT_NOT_ACTIVE")
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=PranaError.ACCOUNT_NOT_ACTIVE)
 
     user_id = str(row["employee_user_id"])
     pan_token = row["pan_token"]
@@ -293,9 +294,9 @@ async def verify_totp(body: TOTPVerifyIn, request: Request, response: Response, 
         user_id,
     )
     if not row or not row["totp_secret_enc"]:
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="TOTP_NOT_CONFIGURED")
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail=PranaError.TOTP_NOT_CONFIGURED)
     if row["status"] == "LOCKED":
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="ACCOUNT_LOCKED")
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=PranaError.ACCOUNT_LOCKED)
 
     totp_svc = TOTPService()
     dev_dek = b"\x00" * 32  # DEV: placeholder. Prod: unwrap from KMS.
@@ -320,7 +321,7 @@ async def verify_totp(body: TOTPVerifyIn, request: Request, response: Response, 
                     "locked":     True,
                     "ip_address": _get_client_ip(request),
                 })
-            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="ACCOUNT_LOCKED")
+            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=PranaError.ACCOUNT_LOCKED)
         await db.execute(
             "UPDATE employee_user SET failed_totp_count=$2 WHERE employee_user_id=$1",
             user_id, new_count,
@@ -335,7 +336,7 @@ async def verify_totp(body: TOTPVerifyIn, request: Request, response: Response, 
                 "locked":     False,
                 "ip_address": _get_client_ip(request),
             })
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="INVALID_TOTP")
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail=PranaError.INVALID_TOTP)
 
     await db.execute(
         "UPDATE employee_user SET failed_totp_count=0 WHERE employee_user_id=$1", user_id,
@@ -369,7 +370,7 @@ async def verify_biometric(body: BiometricIn, request: Request, response: Respon
         body.device_id, user_id,
     )
     if not device:
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="DEVICE_NOT_ENROLLED")
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail=PranaError.DEVICE_NOT_ENROLLED)
 
     await db.execute(
         "UPDATE device_credential SET last_used_at=NOW() WHERE device_fingerprint_hash=$1", body.device_id,
@@ -391,7 +392,7 @@ async def setup_password(body: PasswordChangeIn, request: Request, db: DbConn):
     pan_token = data["pan_token"]
 
     if len(body.new_password) < 8:
-        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail="PASSWORD_TOO_SHORT")
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=PranaError.PASSWORD_TOO_SHORT)
 
     new_hash = hash_password(body.new_password)
     await db.execute(
@@ -425,10 +426,10 @@ async def setup_totp_init(body: TOTPInitIn, request: Request, db: DbConn):
     redis = request.app.state.redis
     raw = await redis.get(f"step:{body.step_token}")
     if not raw:
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="STEP_TOKEN_EXPIRED")
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail=PranaError.STEP_TOKEN_EXPIRED)
     data = json.loads(raw)
     if data.get("next") != "totp_setup":
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="INVALID_STEP")
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=PranaError.INVALID_STEP)
 
     totp_svc = TOTPService()
     dev_dek = b"\x00" * 32  # DEV placeholder
@@ -473,7 +474,7 @@ async def setup_totp_confirm(body: TOTPConfirmIn, request: Request, db: DbConn):
         "SELECT totp_secret_enc, consent_status FROM employee_user WHERE employee_user_id=$1", user_id,
     )
     if not row or not row["totp_secret_enc"] or not row["totp_secret_enc"].startswith("STAGED:"):
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="TOTP_INIT_REQUIRED")
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=PranaError.TOTP_INIT_REQUIRED)
 
     encrypted = row["totp_secret_enc"][7:]
     totp_svc = TOTPService()
@@ -481,7 +482,7 @@ async def setup_totp_confirm(body: TOTPConfirmIn, request: Request, db: DbConn):
 
     valid = totp_svc.verify(body.code, encrypted, dev_dek)
     if not valid:
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="INVALID_TOTP_CODE")
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail=PranaError.INVALID_TOTP_CODE)
 
     # Confirm: remove STAGED prefix, set totp_configured_at
     await db.execute(
@@ -518,7 +519,7 @@ async def register_device(body: DeviceRegisterIn, request: Request, db: DbConn,
                            current: Employee):
     """Register a mobile device. Returns device_id for subsequent biometric enrollment."""
     if body.platform not in ("ANDROID", "IOS"):
-        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail="INVALID_PLATFORM")
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=PranaError.INVALID_PLATFORM)
 
     device_id = await db.fetchval(
         """
@@ -547,7 +548,7 @@ async def enroll_biometric(device_id: UUID, request: Request, db: DbConn,
         device_id, current.user_id,
     )
     if not updated:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="DEVICE_NOT_FOUND")
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=PranaError.DEVICE_NOT_FOUND)
     return {"enrolled": True}
 
 
@@ -569,7 +570,7 @@ async def refresh(request: Request, response: Response, db: DbConn):
     """Silent token refresh — reads refresh token from httpOnly cookie only."""
     refresh_token = request.cookies.get("prana_refresh")
     if not refresh_token:
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="NO_REFRESH_TOKEN")
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail=PranaError.NO_REFRESH_TOKEN)
 
     session_svc = SessionService(db, request.app.state.jwt_service)
     tokens = await session_svc.rotate_refresh(
@@ -577,7 +578,7 @@ async def refresh(request: Request, response: Response, db: DbConn):
         ip_address=_get_client_ip(request),
     )
     if not tokens:
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="REFRESH_INVALID")
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail=PranaError.REFRESH_INVALID)
 
     _set_refresh_cookie(response, tokens["refresh_token"], max_age=7 * 86400)
     return {"access_token": tokens["access_token"], "expires_at": tokens["expires_at"]}

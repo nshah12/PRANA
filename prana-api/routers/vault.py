@@ -26,6 +26,7 @@ from pydantic import BaseModel, Field
 from dependencies import AuthUser, Employee, DbConn
 from services.vault_service import VaultService
 from services.share_service import ShareService
+from errors import PranaError
 
 router = APIRouter()
 
@@ -383,7 +384,7 @@ async def revoke_share(share_id: str, request: Request, db: DbConn, current: Emp
     try:
         await svc.revoke(share_id, current.user_id)
     except PermissionError:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="NOT_FOUND")
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=PranaError.NOT_FOUND)
 
 
 # ── Activity feed ─────────────────────────────────────────────────────────────

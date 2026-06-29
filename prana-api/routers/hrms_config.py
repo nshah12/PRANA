@@ -20,6 +20,7 @@ from dependencies import AuthUser, CurrentUser, DbConn, require_oa
 from services.hrms_connector_service import HRMSConnectorService
 from services.hrms_sync_service import HRMSSyncService
 from workflows.hrms_sync import HRMSSyncInput, HRMSSyncWorkflow
+from errors import PranaError
 
 log      = logging.getLogger(__name__)
 router   = APIRouter()
@@ -63,7 +64,7 @@ async def get_config(connector_id: UUID, db: DbConn, current: OAUser):
     tenant_id = UUID(current.tenant_id)
     cfg = await _svc.get_tenant_config(connector_id=connector_id, tenant_id=tenant_id, db=db)
     if not cfg:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="CONNECTOR_CONFIG_NOT_FOUND")
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=PranaError.CONNECTOR_CONFIG_NOT_FOUND)
     return cfg
 
 
@@ -81,7 +82,7 @@ async def create_config(body: CreateConfigRequest, request: Request, db: DbConn,
         tenant_id,
     )
     if not kek_arn:
-        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="TENANT_KEK_NOT_FOUND")
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=PranaError.TENANT_KEK_NOT_FOUND)
 
     kms = request.app.state.kms_service
 
@@ -101,7 +102,7 @@ async def create_config(body: CreateConfigRequest, request: Request, db: DbConn,
         )
     except Exception:
         log.exception("Failed to create HRMS connector config tenant=%s", tenant_id)
-        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="CONFIG_CREATE_FAILED")
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=PranaError.CONFIG_CREATE_FAILED)
 
     log.info("Created HRMS connector config connector_id=%s tenant=%s", connector_id, tenant_id)
     return {"connector_id": str(connector_id)}
@@ -154,7 +155,7 @@ async def test_connection(connector_id: UUID, request: Request, db: DbConn, curr
         connector_id=connector_id, tenant_id=tenant_id, db=db
     )
     if not config:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="CONNECTOR_NOT_FOUND")
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=PranaError.CONNECTOR_NOT_FOUND)
 
     try:
         import boto3
@@ -182,7 +183,7 @@ async def trigger_sync(connector_id: UUID, request: Request, db: DbConn, current
         connector_id=connector_id, tenant_id=tenant_id, db=db
     )
     if not config:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="CONNECTOR_NOT_FOUND")
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=PranaError.CONNECTOR_NOT_FOUND)
 
     if config.get("status") != "ACTIVE":
         raise HTTPException(

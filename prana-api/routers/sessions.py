@@ -11,6 +11,7 @@ CISO / OA-Admin endpoints:
 from fastapi import APIRouter, Depends, HTTPException, Request, status
 
 from dependencies import AuthUser, DbConn, require_oa
+from errors import PranaError
 
 router = APIRouter()
 
@@ -69,7 +70,7 @@ async def remove_device(device_id: str, db: DbConn, current: AuthUser):
         device_id, current.user_id,
     )
     if not row:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="DEVICE_NOT_FOUND")
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=PranaError.DEVICE_NOT_FOUND)
     await db.execute(
         "UPDATE trusted_device SET revoked=TRUE, revoked_at=NOW() WHERE trusted_device_id=$1",
         device_id,
@@ -95,9 +96,9 @@ async def revoke_session(
         session_id, current.tenant_id,
     )
     if not row:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="SESSION_NOT_FOUND")
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=PranaError.SESSION_NOT_FOUND)
     if row["revoked"]:
-        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="ALREADY_REVOKED")
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=PranaError.ALREADY_REVOKED)
 
     async with db.transaction():
         await db.execute(

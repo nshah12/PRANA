@@ -16,6 +16,7 @@ from pydantic import BaseModel
 from dependencies import DbConn, require_oa
 from services.employee_service import EmployeeService
 from services.elevation_service import ElevationService
+from errors import PranaError
 
 router = APIRouter()
 
@@ -128,7 +129,7 @@ async def get_employee(
 ):
     emp = await _svc(request, db).get(employee_uuid, current.tenant_id)
     if not emp:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="EMPLOYEE_NOT_FOUND")
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=PranaError.EMPLOYEE_NOT_FOUND)
     return emp
 
 
@@ -146,7 +147,7 @@ async def update_employee(
         elev_svc = ElevationService(db)
         elev = await elev_svc.get_active(current.user_id)
         if not elev:
-            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="ELEVATION_REQUIRED")
+            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=PranaError.ELEVATION_REQUIRED)
         elevation_id = elev["elevation_id"]
 
     try:

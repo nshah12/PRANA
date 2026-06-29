@@ -12,6 +12,7 @@ from pydantic import BaseModel
 
 from dependencies import DbConn, require_oa
 from services.digest_service import DigestService, period_window, validate_window
+from errors import PranaError
 
 router = APIRouter()
 CISO = Depends(require_oa("ciso", "oa_admin"))
@@ -227,9 +228,9 @@ async def ciso_revoke_share(token_id: str, request: Request, db: DbConn, current
         token_id, current.tenant_id,
     )
     if not row:
-        raise HTTPException(status_code=404, detail="SHARE_NOT_FOUND")
+        raise HTTPException(status_code=404, detail=PranaError.SHARE_NOT_FOUND)
     if row["status"] != "ACTIVE":
-        raise HTTPException(status_code=409, detail="SHARE_NOT_ACTIVE")
+        raise HTTPException(status_code=409, detail=PranaError.SHARE_NOT_ACTIVE)
     await db.execute(
         "UPDATE share_token SET status='REVOKED', revoked_at=NOW() WHERE token_id=$1",
         token_id,
@@ -448,7 +449,7 @@ async def update_access_flag(access_id: str, body: FlagBody, db: DbConn, current
         access_id, current.tenant_id,
     )
     if not row:
-        raise HTTPException(status_code=404, detail="ACCESS_LOG_NOT_FOUND")
+        raise HTTPException(status_code=404, detail=PranaError.ACCESS_LOG_NOT_FOUND)
     await db.execute(
         "UPDATE document_access_log SET is_flagged=$1, flag_reason=$2 WHERE access_id=$3",
         body.is_flagged, body.flag_reason, access_id,
@@ -511,9 +512,9 @@ async def manual_unlock(event_id: str, request: Request, db: DbConn, current=CIS
         event_id, current.tenant_id,
     )
     if not lock_row:
-        raise HTTPException(status_code=404, detail="LOCK_NOT_FOUND")
+        raise HTTPException(status_code=404, detail=PranaError.LOCK_NOT_FOUND)
     if lock_row["reversed_by_event_id"]:
-        raise HTTPException(status_code=409, detail="ALREADY_UNLOCKED")
+        raise HTTPException(status_code=409, detail=PranaError.ALREADY_UNLOCKED)
 
     new_event_id = uuid.uuid4()
     async with db.transaction():
@@ -627,7 +628,7 @@ async def triage_anomaly(anomaly_id: str, body: TriageBody, request: Request, db
         anomaly_id, current.tenant_id,
     )
     if not row:
-        raise HTTPException(status_code=404, detail="ANOMALY_NOT_FOUND")
+        raise HTTPException(status_code=404, detail=PranaError.ANOMALY_NOT_FOUND)
     await db.execute(
         """
         UPDATE anomaly_event

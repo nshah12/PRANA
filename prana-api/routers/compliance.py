@@ -21,6 +21,7 @@ from fastapi import APIRouter, Depends, HTTPException, Request, status
 from pydantic import BaseModel, Field
 
 from dependencies import require_employee, DbConn
+from errors import PranaError
 
 log = logging.getLogger(__name__)
 router = APIRouter()
@@ -64,7 +65,7 @@ async def cancel_erasure(request: Request, db: DbConn, current=Employee):
             await handle.signal("cancel_erasure")
         except Exception as exc:
             log.warning("Could not cancel erasure workflow: %s", exc)
-            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="NO_PENDING_ERASURE")
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=PranaError.NO_PENDING_ERASURE)
 
     kafka = getattr(request.app.state, "kafka_producer", None)
     if kafka:

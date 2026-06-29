@@ -17,6 +17,7 @@ from fastapi import APIRouter, Depends, HTTPException, Request
 from pydantic import BaseModel, Field, field_validator
 
 from services.manifest_service import ManifestService
+from errors import PranaError
 
 log = logging.getLogger(__name__)
 
@@ -74,10 +75,10 @@ def _require_oa_admin(request: Request) -> tuple[UUID, UUID]:
     """Return (tenant_id, oa_user_id) from JWT. Raises 403 if not OA-Admin."""
     claims = getattr(request.state, "jwt_claims", None)
     if not claims:
-        raise HTTPException(status_code=401, detail="MISSING_AUTH")
+        raise HTTPException(status_code=401, detail=PranaError.MISSING_AUTH)
     role = claims.get("role", "")
     if role not in ("oa_admin", "oa_operator"):
-        raise HTTPException(status_code=403, detail="OA_ADMIN_REQUIRED")
+        raise HTTPException(status_code=403, detail=PranaError.OA_ADMIN_REQUIRED)
     return UUID(claims["tenant_id"]), UUID(claims["sub"])
 
 
@@ -85,9 +86,9 @@ def _require_portal_admin(request: Request) -> UUID:
     """Return portal_admin_id from JWT. Raises 403 if not PA."""
     claims = getattr(request.state, "jwt_claims", None)
     if not claims:
-        raise HTTPException(status_code=401, detail="MISSING_AUTH")
+        raise HTTPException(status_code=401, detail=PranaError.MISSING_AUTH)
     if claims.get("role") != "portal_admin":
-        raise HTTPException(status_code=403, detail="PORTAL_ADMIN_REQUIRED")
+        raise HTTPException(status_code=403, detail=PranaError.PORTAL_ADMIN_REQUIRED)
     return UUID(claims["sub"])
 
 
@@ -150,7 +151,7 @@ async def upsert_manifest(doc_type: str, body: ManifestUpsertRequest, request: R
 
     claims = getattr(request.state, "jwt_claims", {})
     if claims.get("role") != "oa_admin":
-        raise HTTPException(status_code=403, detail="OA_ADMIN_ROLE_REQUIRED")
+        raise HTTPException(status_code=403, detail=PranaError.OA_ADMIN_ROLE_REQUIRED)
 
     dt = _validate_doc_type(doc_type)
     svc = _get_svc(request)
@@ -176,7 +177,7 @@ async def delete_manifest_override(doc_type: str, request: Request):
 
     claims = getattr(request.state, "jwt_claims", {})
     if claims.get("role") != "oa_admin":
-        raise HTTPException(status_code=403, detail="OA_ADMIN_ROLE_REQUIRED")
+        raise HTTPException(status_code=403, detail=PranaError.OA_ADMIN_ROLE_REQUIRED)
 
     dt = _validate_doc_type(doc_type)
     svc = _get_svc(request)
@@ -262,7 +263,7 @@ async def resolve_unclassified(
         document_id, tenant_id,
     )
     if not row:
-        raise HTTPException(status_code=404, detail="NOT_FOUND")
+        raise HTTPException(status_code=404, detail=PranaError.NOT_FOUND)
 
     await db.execute(
         """
@@ -331,7 +332,7 @@ def _require_internal_token(request: Request) -> None:
     expected = os.environ.get("INTERNAL_SERVICE_TOKEN", "")
     provided = request.headers.get("X-Internal-Token", "")
     if not expected or provided != expected:
-        raise HTTPException(status_code=403, detail="INTERNAL_TOKEN_REQUIRED")
+        raise HTTPException(status_code=403, detail=PranaError.INTERNAL_TOKEN_REQUIRED)
 
 
 # ── PA routes — platform defaults ─────────────────────────────────────────────

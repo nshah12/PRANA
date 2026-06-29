@@ -15,6 +15,7 @@ from pydantic import BaseModel
 
 from services.share_service import ShareService
 from services.vault_service import VaultService
+from errors import PranaError
 
 router = APIRouter()
 
@@ -68,11 +69,11 @@ async def verify_share_otp(token: str, body: OTPVerifyIn, request: Request):
             raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=str(exc))
 
         if not info["otp_required"]:
-            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="OTP_NOT_REQUIRED")
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=PranaError.OTP_NOT_REQUIRED)
 
         ok = await svc.verify_otp(token, body.otp)
         if not ok:
-            raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="INVALID_OTP")
+            raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail=PranaError.INVALID_OTP)
 
     # Issue short-lived proof cookie so subsequent doc requests don't need OTP again
     redis = request.app.state.redis
@@ -114,12 +115,12 @@ async def serve_shared_document(
             proof_cookie = request.cookies.get(f"share_proof_{token[:8]}")
             stored_proof = await request.app.state.redis.get(f"share_otp_proof:{token}")
             if not proof_cookie or not stored_proof or proof_cookie != stored_proof.decode():
-                raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="OTP_REQUIRED")
+                raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail=PranaError.OTP_REQUIRED)
 
         # Ensure document_id is in this share
         shared_ids = [str(d) for d in info["document_ids"]]
         if str(document_id) not in shared_ids:
-            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="DOCUMENT_NOT_IN_SHARE")
+            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=PranaError.DOCUMENT_NOT_IN_SHARE)
 
         settings = request.app.state.settings
         s3 = boto3.client("s3", region_name=settings.s3_region)

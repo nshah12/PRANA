@@ -17,6 +17,7 @@ from services.encryption_service import verify_password
 from services.otp_service import OTPService
 from services.totp_service import TOTPService
 from services.session_service import SessionService
+from errors import PranaError
 
 router = APIRouter()
 
@@ -79,18 +80,18 @@ async def login(body: OALoginIn, request: Request, db: DbConn):
     # Use same error for unknown email vs wrong password (no enumeration)
     if not row:
         await _log_attempt(db, "oa_user", None, "PASSWORD", "FAILED", "UNKNOWN_USER", ip)
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="INVALID_CREDENTIALS")
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail=PranaError.INVALID_CREDENTIALS)
 
     if row["status"] == "LOCKED":
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="ACCOUNT_LOCKED")
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=PranaError.ACCOUNT_LOCKED)
     if row["status"] in ("SUSPENDED", "DEACTIVATED"):
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="ACCOUNT_INACTIVE")
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=PranaError.ACCOUNT_INACTIVE)
 
     # Check temp_password_hash first (set on account creation), then permanent
     hash_to_check = row["temp_password_hash"] or row["password_hash"]
     if not hash_to_check or not verify_password(body.password, hash_to_check):
         await _log_attempt(db, "oa_user", str(row["oa_user_id"]), "PASSWORD", "FAILED", "WRONG_PASSWORD", ip)
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="INVALID_CREDENTIALS")
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail=PranaError.INVALID_CREDENTIALS)
 
     await _log_attempt(db, "oa_user", str(row["oa_user_id"]), "PASSWORD", "SUCCESS", None, ip)
 
@@ -122,10 +123,10 @@ async def password_reset(body: PasswordResetIn, request: Request, db: DbConn):
     """Complete force_reset flow. Clears temp_password_hash, sets new hash, issues TOTP step."""
     raw = await request.app.state.redis.get(f"reset:{body.step_token}")
     if not raw:
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="STEP_TOKEN_EXPIRED")
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail=PranaError.STEP_TOKEN_EXPIRED)
 
     if len(body.new_password) < 12:
-        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail="PASSWORD_TOO_SHORT")
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=PranaError.PASSWORD_TOO_SHORT)
 
     from services.encryption_service import hash_password
     oa_user_id, tenant_id, role = raw.decode().split(":")
@@ -154,7 +155,7 @@ async def verify_totp(body: OATOTPIn, request: Request, response: Response, db: 
     redis_client = request.app.state.redis
     raw = await redis_client.get(f"step:{body.step_token}")
     if not raw:
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="STEP_TOKEN_EXPIRED")
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail=PranaError.STEP_TOKEN_EXPIRED)
 
     await redis_client.delete(f"step:{body.step_token}")
     oa_user_id, tenant_id, role = raw.decode().split(":")
@@ -164,10 +165,10 @@ async def verify_totp(body: OATOTPIn, request: Request, response: Response, db: 
         oa_user_id,
     )
     if not row or not row["totp_secret_enc"]:
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="TOTP_NOT_CONFIGURED")
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail=PranaError.TOTP_NOT_CONFIGURED)
 
     if row["status"] == "LOCKED":
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="ACCOUNT_LOCKED")
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=PranaError.ACCOUNT_LOCKED)
 
     totp_svc = TOTPService()
     dev_dek = b"\x00" * 32   # dev placeholder — prod unwraps from KMS
@@ -184,14 +185,14 @@ async def verify_totp(body: OATOTPIn, request: Request, response: Response, db: 
                 oa_user_id, new_count,
             )
             await _log_attempt(db, "oa_user", oa_user_id, "TOTP", "FAILED", "TOTP_LOCKOUT", ip)
-            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="ACCOUNT_LOCKED")
+            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=PranaError.ACCOUNT_LOCKED)
 
         await db.execute(
             "UPDATE oa_user SET failed_totp_count=$2 WHERE oa_user_id=$1",
             oa_user_id, new_count,
         )
         await _log_attempt(db, "oa_user", oa_user_id, "TOTP", "FAILED", "WRONG_TOTP", ip)
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="INVALID_TOTP")
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail=PranaError.INVALID_TOTP)
 
     await db.execute(
         "UPDATE oa_user SET failed_totp_count=0, last_login_at=NOW() WHERE oa_user_id=$1",
@@ -225,19 +226,19 @@ async def totp_setup_init(request: Request, db: DbConn):
     body = await request.json()
     step_token = body.get("step_token")
     if not step_token:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="MISSING_STEP_TOKEN")
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=PranaError.MISSING_STEP_TOKEN)
 
     raw = await request.app.state.redis.get(f"step:{step_token}")
     if not raw:
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="STEP_TOKEN_EXPIRED")
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail=PranaError.STEP_TOKEN_EXPIRED)
 
     oa_user_id, tenant_id, role = raw.decode().split(":")
 
     row = await db.fetchrow("SELECT email, totp_configured_at FROM oa_user WHERE oa_user_id=$1", oa_user_id)
     if not row:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="USER_NOT_FOUND")
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=PranaError.USER_NOT_FOUND)
     if row["totp_configured_at"]:
-        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="TOTP_ALREADY_CONFIGURED")
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=PranaError.TOTP_ALREADY_CONFIGURED)
 
     totp_svc = TOTPService()
     secret = totp_svc.generate_secret()
@@ -273,7 +274,7 @@ async def totp_setup_confirm(request: Request, response: Response, db: DbConn):
 
     raw = await request.app.state.redis.get(f"totp_setup:{setup_token}")
     if not raw:
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="SETUP_TOKEN_EXPIRED")
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail=PranaError.SETUP_TOKEN_EXPIRED)
 
     data = json.loads(raw.decode() if isinstance(raw, bytes) else raw)
     secret     = data["secret"]
@@ -284,7 +285,7 @@ async def totp_setup_confirm(request: Request, response: Response, db: DbConn):
 
     totp = pyotp.TOTP(secret)
     if not totp.verify(code, valid_window=1):
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="INVALID_CODE")
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail=PranaError.INVALID_CODE)
 
     await request.app.state.redis.delete(f"totp_setup:{setup_token}")
 
@@ -317,7 +318,7 @@ async def totp_setup_confirm(request: Request, response: Response, db: DbConn):
 async def refresh(request: Request, response: Response, db: DbConn):
     refresh_token = request.cookies.get("prana_refresh")
     if not refresh_token:
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="NO_REFRESH_TOKEN")
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail=PranaError.NO_REFRESH_TOKEN)
 
     session_svc = SessionService(db, request.app.state.jwt_service)
     tokens = await session_svc.rotate_refresh(
@@ -325,7 +326,7 @@ async def refresh(request: Request, response: Response, db: DbConn):
         ip_address=_get_client_ip(request),
     )
     if not tokens:
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="REFRESH_INVALID")
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail=PranaError.REFRESH_INVALID)
 
     _set_refresh_cookie(response, tokens["refresh_token"])
     return {"access_token": tokens["access_token"], "expires_at": tokens["expires_at"]}

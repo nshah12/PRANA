@@ -17,6 +17,7 @@ from pydantic import BaseModel, EmailStr
 from dependencies import PortalAdmin, DbConn
 from services.tenant_service import TenantService
 from lib.cache import cache_get, cache_set, invalidate_tenants
+from errors import PranaError
 
 router = APIRouter()
 
@@ -222,7 +223,7 @@ async def get_tenant(tenant_id: str, current: PortalAdmin, db: DbConn):
     svc = TenantService(db, None)
     tenant = await svc.get(tenant_id)
     if not tenant:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="TENANT_NOT_FOUND")
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=PranaError.TENANT_NOT_FOUND)
     return tenant
 
 
@@ -231,7 +232,7 @@ async def update_tenant(tenant_id: str, body: UpdateTenantIn, current: PortalAdm
     svc = TenantService(db, None)
     existing = await svc.get(tenant_id)
     if not existing:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="TENANT_NOT_FOUND")
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=PranaError.TENANT_NOT_FOUND)
 
     fields = body.model_dump(exclude_none=True)
     # Unwrap nested Pydantic objects to dicts
@@ -268,7 +269,7 @@ async def activate_tenant(tenant_id: str, current: PortalAdmin, request: Request
             contact = json.loads(row["primary_contact"]) if isinstance(row["primary_contact"], str) else row["primary_contact"]
             email = contact.get("email", "")
     if not email:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="MISSING_OA_ADMIN_EMAIL")
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=PranaError.MISSING_OA_ADMIN_EMAIL)
 
     svc = TenantService(db, request.app.state.kms_service)
     result = await svc.activate(tenant_id, email)

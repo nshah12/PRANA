@@ -12,6 +12,7 @@ from pydantic import BaseModel
 
 from dependencies import DbConn, require_oa
 from services.tenant_service import TenantService
+from errors import PranaError
 
 router = APIRouter()
 OAAdmin = Depends(require_oa("oa_admin"))
@@ -32,7 +33,7 @@ async def get_settings(db: DbConn, current=OAAdmin):
         current.tenant_id,
     )
     if not tenant:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="TENANT_NOT_FOUND")
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=PranaError.TENANT_NOT_FOUND)
 
     row = dict(tenant)
     if not row.get("employee_activation_channels"):
@@ -60,7 +61,7 @@ async def update_settings(body: UpdateSettingsIn, db: DbConn, current=OAAdmin):
                                 detail=f"INVALID_CHANNELS: {invalid}")
         if not requested:
             raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-                                detail="AT_LEAST_ONE_CHANNEL_REQUIRED")
+                                detail=PranaError.AT_LEAST_ONE_CHANNEL_REQUIRED)
 
         self_upload = await db.fetchval(
             "SELECT config_value FROM tenant_config WHERE tenant_id=$1 AND config_key='self_upload_policy'",
@@ -89,7 +90,7 @@ async def get_org_profile(db: DbConn, current=OAAdmin):
     svc = TenantService(db, None)
     profile = await svc.get(current.tenant_id)
     if not profile:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="TENANT_NOT_FOUND")
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=PranaError.TENANT_NOT_FOUND)
     return profile
 
 

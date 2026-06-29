@@ -27,6 +27,7 @@ from fastapi import APIRouter, Depends, HTTPException, Request, status
 from pydantic import BaseModel, Field
 
 from dependencies import require_employee, DbConn
+from errors import PranaError
 
 log = logging.getLogger(__name__)
 router = APIRouter()
@@ -101,7 +102,7 @@ async def withdraw_consent_purpose(
         purpose = consent_id.removeprefix("implicit-")
         valid_purposes = [p for p, _ in CONSENT_PURPOSES]
         if purpose not in valid_purposes:
-            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="INVALID_PURPOSE")
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=PranaError.INVALID_PURPOSE)
         await db.execute(
             """
             INSERT INTO employee_consent
@@ -118,7 +119,7 @@ async def withdraw_consent_purpose(
             uuid.UUID(consent_id),
         )
         if not row or str(row["employee_user_id"]) != str(current.user_id):
-            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="NOT_FOUND")
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=PranaError.NOT_FOUND)
         await db.execute(
             "UPDATE employee_consent SET is_active=FALSE, updated_at=NOW() WHERE consent_id=$1",
             uuid.UUID(consent_id),
@@ -263,7 +264,7 @@ async def request_erasure(
     if existing:
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
-            detail="ERASURE_ALREADY_PENDING",
+            detail=PranaError.ERASURE_ALREADY_PENDING,
         )
 
     erasure_id = str(uuid.uuid4())
@@ -339,7 +340,7 @@ async def cancel_erasure(request: Request, db: DbConn, current=Employee):
         current.user_id,
     )
     if not row:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="NO_PENDING_ERASURE")
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=PranaError.NO_PENDING_ERASURE)
 
     temporal = getattr(request.app.state, "temporal_client", None)
     if temporal:

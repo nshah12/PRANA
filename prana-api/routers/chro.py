@@ -26,6 +26,7 @@ from fastapi import Query
 
 from dependencies import DbConn, require_oa
 from services.digest_service import DigestService, period_window, validate_window
+from errors import PranaError
 
 _digest_svc = DigestService()
 
@@ -823,7 +824,7 @@ async def download_report(report_id: str, db: DbConn, current=CHRO):
         report_id, current.tenant_id,
     )
     if not row:
-        raise HTTPException(status_code=404, detail="REPORT_NOT_FOUND")
+        raise HTTPException(status_code=404, detail=PranaError.REPORT_NOT_FOUND)
 
     data = json.loads(row["report_data"]) if isinstance(row["report_data"], str) else row["report_data"]
     pdf = _build_pdf(row["title"], data.get("rows", []), generated_by=current.email)

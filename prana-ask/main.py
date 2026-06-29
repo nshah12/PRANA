@@ -21,6 +21,7 @@ from fastapi.responses import JSONResponse
 from pydantic import BaseModel
 
 from config import get_settings
+from errors import AskError
 from llm_client import LLMClient, EmbeddingClient, QdrantClient
 from ask_service import AskService
 from context_builder import ContextBuilder
@@ -87,7 +88,7 @@ def create_app() -> FastAPI:
     async def require_internal(request: Request):
         token = request.headers.get("X-Prana-Ask-Secret")
         if token != get_settings().api_secret:
-            raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="UNAUTHORIZED")
+            raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail=AskError.UNAUTHORIZED)
 
     # ── Ask endpoint ──────────────────────────────────────────────────────────
 
@@ -104,17 +105,17 @@ def create_app() -> FastAPI:
         # employee_user_id set by prana-api from JWT claims — never from request body
         employee_id_header = request.headers.get("X-Employee-ID")
         if not employee_id_header:
-            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="MISSING_EMPLOYEE_ID")
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=AskError.MISSING_EMPLOYEE_ID)
         try:
             employee_user_id = UUID(employee_id_header)
         except ValueError:
-            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="INVALID_EMPLOYEE_ID")
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=AskError.INVALID_EMPLOYEE_ID)
 
         query = (body.query or "").strip()
         if not query:
-            raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail="EMPTY_QUERY")
+            raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=AskError.EMPTY_QUERY)
         if len(query) > 1000:
-            raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail="QUERY_TOO_LONG")
+            raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=AskError.QUERY_TOO_LONG)
 
         db = request.app.state.db_pool
         ctx_builder = ContextBuilder(

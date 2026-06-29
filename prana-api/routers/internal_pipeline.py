@@ -12,6 +12,7 @@ from typing import Optional
 
 from fastapi import APIRouter, Depends, Header, HTTPException, Request
 from pydantic import BaseModel
+from errors import PranaError
 
 
 log = logging.getLogger(__name__)
@@ -23,7 +24,7 @@ _ALLOWED_INTERNAL_SERVICES = {"prana-ai"}
 
 def _require_internal(x_internal_service: Optional[str] = Header(default=None)):
     if x_internal_service not in _ALLOWED_INTERNAL_SERVICES:
-        raise HTTPException(status_code=403, detail="INTERNAL_ONLY")
+        raise HTTPException(status_code=403, detail=PranaError.INTERNAL_ONLY)
 
 
 # ── Models ────────────────────────────────────────────────────────────────────

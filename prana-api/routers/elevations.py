@@ -21,6 +21,7 @@ from fastapi import APIRouter, Depends, HTTPException, Request, status
 from pydantic import BaseModel
 
 from dependencies import DbConn, require_oa
+from errors import PranaError
 
 router = APIRouter()
 
@@ -49,9 +50,9 @@ async def request_elevation(
     current=Depends(require_oa("oa_operator", "oa_admin")),
 ):
     if body.duration_hours not in (2, 4, 8):
-        raise HTTPException(status_code=422, detail="INVALID_DURATION")
+        raise HTTPException(status_code=422, detail=PranaError.INVALID_DURATION)
     if not body.reason.strip():
-        raise HTTPException(status_code=422, detail="REASON_REQUIRED")
+        raise HTTPException(status_code=422, detail=PranaError.REASON_REQUIRED)
 
     # Block if already has a PENDING or ACTIVE elevation
     existing = await db.fetchval(
@@ -62,7 +63,7 @@ async def request_elevation(
         current.tenant_id, current.user_id,
     )
     if existing:
-        raise HTTPException(status_code=409, detail="ELEVATION_ALREADY_ACTIVE")
+        raise HTTPException(status_code=409, detail=PranaError.ELEVATION_ALREADY_ACTIVE)
 
     elevation_id = str(uuid.uuid4())
 
@@ -235,9 +236,9 @@ async def approve_elevation(
         elevation_id, current.tenant_id,
     )
     if not row:
-        raise HTTPException(status_code=404, detail="ELEVATION_NOT_FOUND")
+        raise HTTPException(status_code=404, detail=PranaError.ELEVATION_NOT_FOUND)
     if row["status"] != "PENDING":
-        raise HTTPException(status_code=409, detail="ELEVATION_NOT_PENDING")
+        raise HTTPException(status_code=409, detail=PranaError.ELEVATION_NOT_PENDING)
 
     # Signal the waiting ElevationWorkflow — it handles the DB status update
     temporal = getattr(request.app.state, "temporal_client", None)
@@ -250,7 +251,7 @@ async def approve_elevation(
                 "duration_hours": row["duration_hours"],
             })
         except Exception:
-            raise HTTPException(status_code=503, detail="WORKFLOW_UNAVAILABLE")
+            raise HTTPException(status_code=503, detail=PranaError.WORKFLOW_UNAVAILABLE)
 
     kafka = getattr(request.app.state, "kafka_producer", None)
     if kafka:
@@ -280,9 +281,9 @@ async def deny_elevation(
         elevation_id, current.tenant_id,
     )
     if not row:
-        raise HTTPException(status_code=404, detail="ELEVATION_NOT_FOUND")
+        raise HTTPException(status_code=404, detail=PranaError.ELEVATION_NOT_FOUND)
     if row["status"] != "PENDING":
-        raise HTTPException(status_code=409, detail="ELEVATION_NOT_PENDING")
+        raise HTTPException(status_code=409, detail=PranaError.ELEVATION_NOT_PENDING)
 
     temporal = getattr(request.app.state, "temporal_client", None)
     if temporal:
@@ -293,7 +294,7 @@ async def deny_elevation(
                 "approver_id": current.user_id,
             })
         except Exception:
-            raise HTTPException(status_code=503, detail="WORKFLOW_UNAVAILABLE")
+            raise HTTPException(status_code=503, detail=PranaError.WORKFLOW_UNAVAILABLE)
 
     kafka = getattr(request.app.state, "kafka_producer", None)
     if kafka:
@@ -322,12 +323,12 @@ async def end_elevation_early(
         elevation_id, current.tenant_id,
     )
     if not row:
-        raise HTTPException(status_code=404, detail="ELEVATION_NOT_FOUND")
+        raise HTTPException(status_code=404, detail=PranaError.ELEVATION_NOT_FOUND)
     if row["status"] != "ACTIVE":
-        raise HTTPException(status_code=409, detail="ELEVATION_NOT_ACTIVE")
+        raise HTTPException(status_code=409, detail=PranaError.ELEVATION_NOT_ACTIVE)
     # Operator can only end their own; admin can end any
     if current.role != "oa_admin" and str(row["requestor_id"]) != current.user_id:
-        raise HTTPException(status_code=403, detail="NOT_YOUR_ELEVATION")
+        raise HTTPException(status_code=403, detail=PranaError.NOT_YOUR_ELEVATION)
 
     temporal = getattr(request.app.state, "temporal_client", None)
     if temporal:
@@ -335,7 +336,7 @@ async def end_elevation_early(
             wf = temporal.get_workflow_handle(f"elevation-{elevation_id}")
             await wf.signal("end_early")
         except Exception:
-            raise HTTPException(status_code=503, detail="WORKFLOW_UNAVAILABLE")
+            raise HTTPException(status_code=503, detail=PranaError.WORKFLOW_UNAVAILABLE)
 
     kafka = getattr(request.app.state, "kafka_producer", None)
     if kafka:

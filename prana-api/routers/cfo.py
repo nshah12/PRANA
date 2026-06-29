@@ -14,6 +14,7 @@ from pydantic import BaseModel
 
 from dependencies import DbConn, require_oa
 from services.digest_service import DigestService, period_window, validate_window
+from errors import PranaError
 
 router = APIRouter()
 CFO = Depends(require_oa("cfo", "oa_admin"))
@@ -240,7 +241,7 @@ async def acknowledge_anomaly(anomaly_id: str, db: DbConn, current=CFO):
             anomaly_id, current.tenant_id,
         )
         if not row:
-            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="ANOMALY_NOT_FOUND")
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=PranaError.ANOMALY_NOT_FOUND)
         await db.execute(
             "UPDATE anomaly_event SET status='ACKNOWLEDGED', acknowledged_by=$2, acknowledged_at=NOW() WHERE anomaly_id=$1",
             anomaly_id, current.user_id,

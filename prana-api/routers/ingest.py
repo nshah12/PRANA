@@ -31,6 +31,7 @@ from pydantic import BaseModel
 
 from dependencies import DbConn, require_oa
 from kafka.producer import TOPIC_INGEST
+from errors import PranaError
 
 router = APIRouter()
 
@@ -150,7 +151,7 @@ async def batch_upload(
     archive_bytes = await archive.read()
 
     if not archive.filename.lower().endswith(".zip"):
-        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail="ARCHIVE_MUST_BE_ZIP")
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=PranaError.ARCHIVE_MUST_BE_ZIP)
 
     batch_id = str(uuid.uuid4())
     results: list  = []
@@ -160,7 +161,7 @@ async def batch_upload(
     try:
         zf = zipfile.ZipFile(io.BytesIO(archive_bytes))
     except zipfile.BadZipFile:
-        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail="INVALID_ZIP")
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=PranaError.INVALID_ZIP)
 
     all_filenames = [e.filename for e in zf.infolist() if not e.is_dir()]
 
@@ -239,7 +240,7 @@ async def pipeline_status_stream(
         document_id, tenant_id,
     )
     if not row:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="DOCUMENT_NOT_FOUND")
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=PranaError.DOCUMENT_NOT_FOUND)
 
     initial_status = row["pipeline_status"]
 
@@ -420,9 +421,9 @@ async def resolve_exception(
         exception_id, current.tenant_id,
     )
     if not row:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="EXCEPTION_NOT_FOUND")
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=PranaError.EXCEPTION_NOT_FOUND)
     if row["status"] != "OPEN":
-        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="ALREADY_RESOLVED")
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=PranaError.ALREADY_RESOLVED)
 
     async with db.transaction():
         await db.execute(
@@ -474,7 +475,7 @@ async def dismiss_exception(
         exception_id, current.tenant_id,
     )
     if not row:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="EXCEPTION_NOT_FOUND")
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=PranaError.EXCEPTION_NOT_FOUND)
 
     async with db.transaction():
         await db.execute(
@@ -505,9 +506,9 @@ async def dismiss_exception(
 def _validate_file(filename: str, file_bytes: bytes) -> None:
     ext = filename.rsplit(".", 1)[-1].lower() if filename and "." in filename else ""
     if ext not in _ALLOWED_EXTENSIONS:
-        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail="UNSUPPORTED_FILE_TYPE")
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=PranaError.UNSUPPORTED_FILE_TYPE)
     if len(file_bytes) == 0:
-        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail="EMPTY_FILE")
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=PranaError.EMPTY_FILE)
 
 
 async def _ingest_one(

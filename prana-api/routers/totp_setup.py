@@ -14,6 +14,7 @@ from pydantic import BaseModel
 from dependencies import AuthUser, DbConn
 from services.encryption_service import aes_encrypt
 from services.totp_service import TOTPService
+from errors import PranaError
 
 router = APIRouter()
 _totp_svc = TOTPService()
@@ -36,7 +37,7 @@ async def init_totp(current: AuthUser, request: Request, db: DbConn):
     # Block if already configured — must go through PA/OA-Admin reset to redo
     already = await _get_totp_configured_at(db, current)
     if already:
-        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="TOTP_ALREADY_CONFIGURED")
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=PranaError.TOTP_ALREADY_CONFIGURED)
 
     secret = _totp_svc.generate_secret()
     account_label = await _get_account_label(db, current)
@@ -70,7 +71,7 @@ async def confirm_totp(body: TOTPConfirmIn, request: Request, db: DbConn):
 
     raw = await request.app.state.redis.get(f"totp_setup:{body.setup_token}")
     if not raw:
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="SETUP_TOKEN_EXPIRED")
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail=PranaError.SETUP_TOKEN_EXPIRED)
 
     data = json.loads(raw.decode())
     secret = data["secret"]
@@ -82,7 +83,7 @@ async def confirm_totp(body: TOTPConfirmIn, request: Request, db: DbConn):
     import pyotp
     totp = pyotp.TOTP(secret)
     if not totp.verify(body.code, valid_window=1):
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="INVALID_CODE")
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail=PranaError.INVALID_CODE)
 
     await request.app.state.redis.delete(f"totp_setup:{body.setup_token}")
 

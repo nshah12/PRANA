@@ -10,6 +10,7 @@ from fastapi import APIRouter, Depends, HTTPException, Request, status
 from pydantic import BaseModel
 
 from dependencies import DbConn, require_pa, AuthUser as PortalAdmin
+from errors import PranaError
 
 router = APIRouter()
 PA = Depends(require_pa)
@@ -157,12 +158,12 @@ async def activate_tenant(
         "SELECT tenant_id, status FROM tenant WHERE tenant_id=$1", tenant_id
     )
     if not row:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="TENANT_NOT_FOUND")
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=PranaError.TENANT_NOT_FOUND)
     if row["status"] not in ("PENDING", "PENDING_VERIFICATION"):
-        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="ALREADY_ACTIVATED")
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=PranaError.ALREADY_ACTIVATED)
 
     if body.home_region_override and not body.override_reason:
-        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail="OVERRIDE_REASON_REQUIRED")
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=PranaError.OVERRIDE_REASON_REQUIRED)
 
     update_region = f", home_region='{body.home_region_override}'" if body.home_region_override else ""
     await db.execute(
@@ -210,7 +211,7 @@ class OaEmergencyIn(BaseModel):
 async def oa_emergency_create(body: OaEmergencyIn, request: Request, db: DbConn, current=PA):
     tenant = await db.fetchrow("SELECT tenant_id FROM tenant WHERE domain=$1", body.tenant_domain)
     if not tenant:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="TENANT_NOT_FOUND")
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=PranaError.TENANT_NOT_FOUND)
 
     import secrets, string
     temp_pw = "".join(secrets.choice(string.ascii_letters + string.digits) for _ in range(16))
@@ -243,7 +244,7 @@ async def oa_emergency_create(body: OaEmergencyIn, request: Request, db: DbConn,
 async def oa_emergency_suspend(body: OaEmergencyIn, db: DbConn, current=PA):
     tenant = await db.fetchrow("SELECT tenant_id FROM tenant WHERE domain=$1", body.tenant_domain)
     if not tenant:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="TENANT_NOT_FOUND")
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=PranaError.TENANT_NOT_FOUND)
 
     await db.execute(
         "UPDATE oa_user SET status='INACTIVE' WHERE email=$1 AND tenant_id=$2",
@@ -268,7 +269,7 @@ async def oa_emergency_suspend(body: OaEmergencyIn, db: DbConn, current=PA):
 async def oa_emergency_reset(body: OaEmergencyIn, db: DbConn, current=PA):
     tenant = await db.fetchrow("SELECT tenant_id FROM tenant WHERE domain=$1", body.tenant_domain)
     if not tenant:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="TENANT_NOT_FOUND")
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=PranaError.TENANT_NOT_FOUND)
 
     import secrets, string
     temp_pw = "".join(secrets.choice(string.ascii_letters + string.digits) for _ in range(16))

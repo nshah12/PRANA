@@ -16,6 +16,7 @@ from pydantic import BaseModel, field_validator
 
 from dependencies import DbConn, PortalAdmin
 from services.hrms_connector_service import HRMSConnectorService, _VALID_AUTH_METHODS
+from errors import PranaError
 
 log    = logging.getLogger(__name__)
 router = APIRouter()
@@ -64,7 +65,7 @@ async def get_definition(connector_key: str, db: DbConn, _pa: PortalAdmin):
     """Get a single connector definition by its key (e.g. 'darwinbox')."""
     defn = await _svc.get_definition(connector_key=connector_key, db=db)
     if not defn:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="CONNECTOR_NOT_FOUND")
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=PranaError.CONNECTOR_NOT_FOUND)
     return defn
 
 

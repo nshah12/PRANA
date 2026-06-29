@@ -23,6 +23,7 @@ from fastapi import APIRouter, Depends, HTTPException, Request, status
 from pydantic import BaseModel
 
 from dependencies import DbConn, require_oa
+from errors import PranaError
 
 router = APIRouter()
 
@@ -171,7 +172,7 @@ async def get_exception(
         exception_id, current.tenant_id,
     )
     if not row:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="EXCEPTION_NOT_FOUND")
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=PranaError.EXCEPTION_NOT_FOUND)
 
     exc = _serialize_exception(row)
     exc["extracted_fields"] = _safe_extracted_fields(row["extracted_fields"])
@@ -208,9 +209,9 @@ async def resolve_exception(
         exception_id, current.tenant_id,
     )
     if not row:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="EXCEPTION_NOT_FOUND")
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=PranaError.EXCEPTION_NOT_FOUND)
     if row["status"] != "OPEN":
-        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="EXCEPTION_NOT_OPEN")
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=PranaError.EXCEPTION_NOT_OPEN)
 
     # Validate employee belongs to this tenant
     emp_uuid = await db.fetchval(
@@ -218,7 +219,7 @@ async def resolve_exception(
         body.employee_uuid, current.tenant_id,
     )
     if not emp_uuid:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="EMPLOYEE_NOT_FOUND")
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=PranaError.EMPLOYEE_NOT_FOUND)
 
     now = datetime.datetime.now(tz=datetime.timezone.utc)
     await db.execute(
@@ -281,9 +282,9 @@ async def dismiss_exception(
         exception_id, current.tenant_id,
     )
     if not row:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="EXCEPTION_NOT_FOUND")
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=PranaError.EXCEPTION_NOT_FOUND)
     if row["status"] != "OPEN":
-        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="EXCEPTION_NOT_OPEN")
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=PranaError.EXCEPTION_NOT_OPEN)
 
     now = datetime.datetime.now(tz=datetime.timezone.utc)
     await db.execute(

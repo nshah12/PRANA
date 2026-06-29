@@ -38,6 +38,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
 from pydantic import BaseModel, Field
 
 from dependencies import require_oa, DbConn
+from errors import PranaError
 
 log = logging.getLogger(__name__)
 router = APIRouter()
@@ -92,13 +93,13 @@ async def list_obligations(
 
     if statutory_act:
         if statutory_act not in VALID_ACTS:
-            raise HTTPException(status_code=400, detail="INVALID_ACT")
+            raise HTTPException(status_code=400, detail=PranaError.INVALID_ACT)
         params.append(statutory_act)
         conditions.append(f"statutory_act = ${len(params)}")
 
     if status_filter:
         if status_filter not in VALID_STATUSES:
-            raise HTTPException(status_code=400, detail="INVALID_STATUS")
+            raise HTTPException(status_code=400, detail=PranaError.INVALID_STATUS)
         params.append(status_filter)
         conditions.append(f"status = ${len(params)}")
 
@@ -190,7 +191,7 @@ async def get_obligation(obligation_id: str, db: DbConn, current=CHRO):
     try:
         obl_uuid = uuid.UUID(obligation_id)
     except ValueError:
-        raise HTTPException(status_code=404, detail="NOT_FOUND")
+        raise HTTPException(status_code=404, detail=PranaError.NOT_FOUND)
     row = await db.fetchrow(
         """
         SELECT obligation_id, tenant_id, obligation_name, statutory_act, category,
@@ -203,7 +204,7 @@ async def get_obligation(obligation_id: str, db: DbConn, current=CHRO):
         current.tenant_id,
     )
     if not row:
-        raise HTTPException(status_code=404, detail="NOT_FOUND")
+        raise HTTPException(status_code=404, detail=PranaError.NOT_FOUND)
     return {"obligation": _serialize_obligation(row)}
 
 
@@ -228,7 +229,7 @@ async def create_obligation(
 ):
     """OA-Admin: add a statutory compliance obligation to the tracker."""
     if body.statutory_act not in VALID_ACTS:
-        raise HTTPException(status_code=400, detail="INVALID_ACT")
+        raise HTTPException(status_code=400, detail=PranaError.INVALID_ACT)
 
     obligation_id = str(uuid.uuid4())
     await db.execute(
@@ -282,12 +283,12 @@ async def update_obligation(
 ):
     """OA-Admin: update obligation status or attach a proof-of-filing document."""
     if body.status and body.status not in {"IN_PROGRESS", "COMPLETE"}:
-        raise HTTPException(status_code=400, detail="INVALID_STATUS")
+        raise HTTPException(status_code=400, detail=PranaError.INVALID_STATUS)
 
     try:
         obl_uuid = uuid.UUID(obligation_id)
     except ValueError:
-        raise HTTPException(status_code=404, detail="NOT_FOUND")
+        raise HTTPException(status_code=404, detail=PranaError.NOT_FOUND)
 
     row = await db.fetchrow(
         "SELECT obligation_id FROM compliance_obligation WHERE obligation_id=$1 AND tenant_id=$2",
@@ -295,7 +296,7 @@ async def update_obligation(
         current.tenant_id,
     )
     if not row:
-        raise HTTPException(status_code=404, detail="NOT_FOUND")
+        raise HTTPException(status_code=404, detail=PranaError.NOT_FOUND)
 
     sets = []
     params: list = []
@@ -317,7 +318,7 @@ async def update_obligation(
         sets.append(f"headcount = ${len(params)}")
 
     if not sets:
-        raise HTTPException(status_code=400, detail="NO_FIELDS_TO_UPDATE")
+        raise HTTPException(status_code=400, detail=PranaError.NO_FIELDS_TO_UPDATE)
 
     params.append(obl_uuid)
     sets_str = ", ".join(sets) + ", updated_at = NOW()"
