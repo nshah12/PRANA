@@ -11,6 +11,7 @@ from typing import Optional
 import asyncpg
 
 from insights.benchmark_service import BenchmarkService
+from pipeline.errors import PipelineError, PipelineException
 
 log = logging.getLogger(__name__)
 
@@ -59,47 +60,56 @@ class Stage06Route:
             "SELECT employee_user_id FROM employee_master WHERE employee_uuid=$1", employee_uuid
         )
 
-        async with self._db.transaction():
-            await self._db.execute(
-                """
-                UPDATE document SET
-                  employee_uuid=$2, pan_token=$3,
-                  extracted_fields=$4, resolution_method=$5, resolution_confidence=$6,
-                  pipeline_status='ROUTED', routed_at=NOW(), s3_key=$7
-                WHERE document_id=$1
-                """,
-                document_id, employee_uuid, pan_token,
-                json.dumps(safe_fields), resolution_method, resolution_confidence, s3_key,
-            )
-
-            # Career event from this document
-            event_type = _doc_type_to_event(doc_type)
-            if event_type:
+        try:
+            async with self._db.transaction():
                 await self._db.execute(
                     """
-                    INSERT INTO career_event
-                      (pan_token, employee_user_id, employee_uuid, tenant_id,
-                       event_type, event_date, verified, doc_uuid, metadata)
-                    VALUES ($1,$2,$3,$4,$5,$6,TRUE,$7,$8)
-                    ON CONFLICT DO NOTHING
+                    UPDATE document SET
+                      employee_uuid=$2, pan_token=$3,
+                      extracted_fields=$4, resolution_method=$5, resolution_confidence=$6,
+                      pipeline_status='ROUTED', routed_at=NOW(), s3_key=$7
+                    WHERE document_id=$1
                     """,
-                    pan_token, employee_user_id, employee_uuid, tenant_id,
-                    event_type, _period_to_date(doc_period),
-                    document_id, json.dumps({"benchmarks": benchmarks}),
+                    document_id, employee_uuid, pan_token,
+                    json.dumps(safe_fields), resolution_method, resolution_confidence, s3_key,
                 )
 
-            await self._db.execute(
-                """
-                UPDATE employee_master
-                SET vault_completeness = (
-                  SELECT LEAST(100, COUNT(DISTINCT doc_type) * 10)
-                  FROM document
-                  WHERE employee_uuid=$1 AND pipeline_status='ROUTED' AND is_deleted=FALSE
-                ), updated_at=NOW()
-                WHERE employee_uuid=$1
-                """,
-                employee_uuid,
-            )
+                # Career event from this document
+                event_type = _doc_type_to_event(doc_type)
+                if event_type:
+                    await self._db.execute(
+                        """
+                        INSERT INTO career_event
+                          (pan_token, employee_user_id, employee_uuid, tenant_id,
+                           event_type, event_date, verified, doc_uuid, metadata)
+                        VALUES ($1,$2,$3,$4,$5,$6,TRUE,$7,$8)
+                        ON CONFLICT DO NOTHING
+                        """,
+                        pan_token, employee_user_id, employee_uuid, tenant_id,
+                        event_type, _period_to_date(doc_period),
+                        document_id, json.dumps({"benchmarks": benchmarks}),
+                    )
+
+                await self._db.execute(
+                    """
+                    UPDATE employee_master
+                    SET vault_completeness = (
+                      SELECT LEAST(100, COUNT(DISTINCT doc_type) * 10)
+                      FROM document
+                      WHERE employee_uuid=$1 AND pipeline_status='ROUTED' AND is_deleted=FALSE
+                    ), updated_at=NOW()
+                    WHERE employee_uuid=$1
+                    """,
+                    employee_uuid,
+                )
+        except PipelineException:
+            raise
+        except Exception as exc:
+            raise PipelineException(
+                code=PipelineError.S06_ROUTE_DB_TRANSACTION_FAILED,
+                stage="stage06",
+                message=f"ROUTED transaction failed for doc={document_id}: {exc}",
+            ) from exc
 
         # Publish DOC_ROUTED to prana.pipeline.events AFTER the transaction commits.
         # Consumers: SSEFanoutConsumer (browser update), AnalyticsConsumer (vault health),

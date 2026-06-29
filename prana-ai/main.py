@@ -21,6 +21,7 @@ from fastapi.responses import JSONResponse
 from config import get_settings
 from llm_client import LLMClient, EmbeddingClient, QdrantClient
 from manifest.manifest_client import ManifestClient
+from pipeline.errors import PipelineException
 from pipeline.stage03_scan import Stage03Scan
 from pipeline.stage04_extract import Stage04Extract
 from pipeline.stage05_resolve import Stage05Resolve
@@ -96,6 +97,17 @@ def create_app() -> FastAPI:
             raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="UNAUTHORIZED")
 
     Internal = Depends(require_internal)
+
+    # ── Structured pipeline errors → 422 with code + retryable flag ─────────
+
+    @app.exception_handler(PipelineException)
+    async def _pipeline_exc(request: Request, exc: PipelineException):
+        import logging
+        logging.getLogger(__name__).error(
+            "pipeline_error stage=%s code=%s retryable=%s msg=%s",
+            exc.stage, exc.code.value, exc.retryable, exc.message,
+        )
+        return JSONResponse(status_code=422, content=exc.to_http_dict())
 
     # ── Unhandled exceptions — never leak stack traces ────────────────────────
 

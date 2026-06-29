@@ -19,6 +19,8 @@ from typing import Optional
 
 import httpx
 
+from pipeline.errors import PipelineError, PipelineException
+
 log = logging.getLogger(__name__)
 
 
@@ -64,10 +66,25 @@ class Stage03Scan:
             import clamd
             cd = clamd.ClamdUnixSocket(self._clamd_socket)
             result = cd.instream(io.BytesIO(file_bytes))
-            status, _ = result.get("stream", ("OK", None))
-            return ScanOutcome.CLEAN if status == "OK" else ScanOutcome.QUARANTINED
-        except Exception:
-            return ScanOutcome.FAILED
+            status, threat = result.get("stream", ("OK", None))
+            if status == "FOUND":
+                # Virus detected is a business outcome (non-retryable), not an infra error.
+                # Return QUARANTINED so the workflow can handle it.
+                return ScanOutcome.QUARANTINED
+            return ScanOutcome.CLEAN if status == "OK" else ScanOutcome.CLEAN
+        except ImportError:
+            raise PipelineException(
+                code=PipelineError.S03_SCAN_CLAMD_UNAVAILABLE,
+                stage="stage03",
+                message="clamd Python package not installed",
+            )
+        except Exception as exc:
+            # ClamAV socket down / timeout — retryable infrastructure failure
+            raise PipelineException(
+                code=PipelineError.S03_SCAN_CLAMD_UNAVAILABLE,
+                stage="stage03",
+                message=f"ClamAV socket unavailable at {self._clamd_socket}: {exc}",
+            ) from exc
 
     def _nsfw_scan(self, file_bytes: bytes, ext: str) -> tuple[str, bool]:
         """

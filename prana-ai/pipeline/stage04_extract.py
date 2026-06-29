@@ -30,6 +30,7 @@ from extraction.extraction_service import ExtractionService, DocType
 from llm_client import LLMClient
 from manifest.manifest_client import ManifestClient, ManifestData
 from manifest.prompt_builder import build_prompt, build_auto_detect_prompt
+from pipeline.errors import PipelineError, PipelineException
 
 log = logging.getLogger(__name__)
 
@@ -85,8 +86,16 @@ class Stage04Extract:
         ext = ext.lower().lstrip(".")
 
         # ── 1. OCR ──────────────────────────────────────────────────────────────
-        raw_text, format_used = self._ocr(file_bytes, ext)
+        raw_text, format_used = self._ocr(file_bytes, ext)  # raises PipelineException on total failure
         redacted_text = _PAN_RE.sub("[NIK_REDACTED]", raw_text)
+
+        # Quality gate — blank output is non-retryable (document has no extractable text)
+        if not redacted_text.strip() or len(redacted_text.strip()) < 20:
+            raise PipelineException(
+                code=PipelineError.S04_EXTRACT_OCR_BLANK_OUTPUT,
+                stage="stage04",
+                message=f"OCR produced blank or near-blank output ({len(redacted_text)} chars) for .{ext}",
+            )
 
         # ── 2. AUTO_DETECT path ─────────────────────────────────────────────────
         if doc_type.upper() == AUTO_DETECT_SENTINEL:
@@ -184,8 +193,27 @@ class Stage04Extract:
         auto_detected: bool,
     ) -> Stage04Result:
         system, user = build_prompt(manifest, redacted_text)
-        raw = await self._llm.complete(system=system, user=user, temperature=0.0)
+        try:
+            raw = await self._llm.complete(system=system, user=user, temperature=0.0)
+        except TimeoutError as exc:
+            raise PipelineException(
+                code=PipelineError.S04_EXTRACT_LLM_TIMEOUT,
+                stage="stage04",
+                message=f"LLM call timed out for {manifest.doc_type}: {exc}",
+            ) from exc
+        except Exception as exc:
+            raise PipelineException(
+                code=PipelineError.S04_EXTRACT_LLM_UNAVAILABLE,
+                stage="stage04",
+                message=f"LLM call failed for {manifest.doc_type}: {exc}",
+            ) from exc
         parsed = _safe_parse_json(raw)
+        if not parsed:
+            raise PipelineException(
+                code=PipelineError.S04_EXTRACT_LLM_JSON_INVALID,
+                stage="stage04",
+                message=f"LLM response unparseable as JSON for {manifest.doc_type}",
+            )
 
         overall_confidence = float(parsed.get("overall_confidence", 0.0))
 
@@ -252,18 +280,40 @@ class Stage04Extract:
             # Unknown extension — try Textract which handles many formats
             log.warning("Unknown extension %s — attempting Textract", ext)
             return self._textract_ocr(file_bytes), "textract"
+        except PipelineException:
+            raise  # password-protected and other structured errors propagate immediately
         except Exception as primary_err:
             log.warning("Primary OCR failed (%s), falling back to Textract: %s", ext, primary_err)
             try:
                 return self._textract_ocr(file_bytes), "textract"
             except Exception as fallback_err:
                 log.error("Textract fallback also failed: %s", fallback_err)
-                return "", "failed"
+                raise PipelineException(
+                    code=PipelineError.S04_EXTRACT_OCR_TEXTRACT_UNAVAILABLE,
+                    stage="stage04",
+                    message=f"Both primary OCR and Textract failed for .{ext}: {fallback_err}",
+                ) from fallback_err
 
     def _ocr_pdf(self, file_bytes: bytes) -> str:
         """PDF → text via PyMuPDF (high quality, handles native + scanned PDFs)."""
         import fitz  # PyMuPDF
-        doc = fitz.open(stream=file_bytes, filetype="pdf")
+        try:
+            doc = fitz.open(stream=file_bytes, filetype="pdf")
+        except Exception as exc:
+            msg = str(exc).lower()
+            if "password" in msg or "encrypt" in msg:
+                raise PipelineException(
+                    code=PipelineError.S04_EXTRACT_PASSWORD_PROTECTED,
+                    stage="stage04",
+                    message="PDF is password-protected — cannot extract without employee-provided password",
+                ) from exc
+            raise
+        if doc.needs_pass:
+            raise PipelineException(
+                code=PipelineError.S04_EXTRACT_PASSWORD_PROTECTED,
+                stage="stage04",
+                message="PDF requires a password to open",
+            )
         pages_text = []
         for page in doc:
             # Try native text extraction first (fast, perfect for digitally generated PDFs)
