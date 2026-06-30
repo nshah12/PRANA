@@ -9,8 +9,10 @@ import {
   View, Text, ScrollView, Pressable, StyleSheet,
   Animated, ActivityIndicator,
 } from 'react-native';
+import { tUi } from '@/i18n';
 import { LinearGradient } from 'expo-linear-gradient';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { router } from 'expo-router';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { colors, fonts, gradJourney, radius } from '@/prana-theme/tokens';
 import { api } from '@/lib/api';
@@ -45,6 +47,19 @@ interface CatalogBadge extends Badge {
   earned: boolean;
 }
 
+interface CoachingAction {
+  action_id:     string;
+  action_type:   string;   // REQUEST_DOC | SELF_UPLOAD | ENGAGE
+  doc_type:      string | null;
+  doc_period:    string | null;
+  employer_name: string | null;
+  score_impact:  number;
+  pillar:        string;   // completeness | freshness | engagement
+  priority:      number;
+  cta:           string;   // REQUEST | UPLOAD | CHECKIN
+  cta_route:     string | null;
+}
+
 // ── Hooks ─────────────────────────────────────────────────────────────────────
 
 function useProfile() {
@@ -59,6 +74,14 @@ function useCatalog() {
   return useQuery<{ catalog: CatalogBadge[] }>({
     queryKey: ['gamification', 'catalog'],
     queryFn: () => api.get('/v1/gamification/catalog').then(r => r.data),
+    staleTime: 5 * 60_000,
+  });
+}
+
+function useCoaching() {
+  return useQuery<{ coaching: CoachingAction[]; total: number }>({
+    queryKey: ['gamification', 'coaching'],
+    queryFn: () => api.get('/v1/gamification/coaching').then(r => r.data),
     staleTime: 5 * 60_000,
   });
 }
@@ -201,11 +224,72 @@ function BadgeShelf({ catalog }: { catalog: CatalogBadge[] }) {
   );
 }
 
+// ── Coaching Section ──────────────────────────────────────────────────────────
+
+const PILLAR_COLOR: Record<string, string> = {
+  completeness: '#6366f1',
+  freshness:    '#059669',
+  engagement:   '#d97706',
+};
+
+function CoachingSection({ actions }: { actions: CoachingAction[] }) {
+  if (actions.length === 0) {
+    return (
+      <View style={styles.coachingCard}>
+        <Text style={styles.sectionTitle}>{tUi('YOUR_NEXT_STEPS')}</Text>
+        <Text style={styles.coachingEmpty}>{tUi('COACHING_EMPTY')}</Text>
+      </View>
+    );
+  }
+
+  return (
+    <View style={styles.coachingCard}>
+      <Text style={styles.sectionTitle}>{tUi('YOUR_NEXT_STEPS')}</Text>
+      {actions.map((action) => {
+        const accentColor = PILLAR_COLOR[action.pillar] ?? colors.primary;
+        const ctaLabel =
+          action.cta === 'UPLOAD'  ? tUi('COACHING_CTA_UPLOAD') :
+          action.cta === 'CHECKIN' ? tUi('COACHING_CTA_CHECKIN') :
+          tUi('COACHING_CTA_REQUEST');
+
+        return (
+          <View key={action.action_id} style={styles.coachingRow}>
+            <View style={[styles.coachingAccent, { backgroundColor: accentColor }]} />
+            <View style={styles.coachingBody}>
+              <Text style={styles.coachingDocType}>
+                {action.doc_type?.replace(/_/g, ' ') ?? 'Daily check-in'}
+                {action.doc_period ? `  ·  ${action.doc_period}` : ''}
+              </Text>
+              {action.employer_name ? (
+                <Text style={styles.coachingEmployer}>{action.employer_name}</Text>
+              ) : null}
+              <Text style={[styles.coachingImpact, { color: accentColor }]}>
+                +{action.score_impact} pts
+              </Text>
+            </View>
+            <Pressable
+              style={[styles.coachingCta, { borderColor: accentColor }]}
+              onPress={() => {
+                if (action.cta_route) {
+                  router.push(action.cta_route as any);
+                }
+              }}
+            >
+              <Text style={[styles.coachingCtaText, { color: accentColor }]}>{ctaLabel}</Text>
+            </Pressable>
+          </View>
+        );
+      })}
+    </View>
+  );
+}
+
 // ── Main Screen ───────────────────────────────────────────────────────────────
 
 export default function GamificationScreen() {
   const { data: profile, isLoading: profileLoading, error: profileError } = useProfile();
   const { data: catalog, isLoading: catalogLoading } = useCatalog();
+  const { data: coachingData } = useCoaching();
   const checkin = useCheckin();
 
   if (profileLoading) {
@@ -220,8 +304,8 @@ export default function GamificationScreen() {
   if (profileError || !profile) {
     return (
       <SafeAreaView style={styles.center}>
-        <Text style={styles.errorText}>Could not load career score.</Text>
-        <Text style={styles.errorSub}>Check your connection and try again.</Text>
+        <Text style={styles.errorText}>{tUi('CAREER_SCORE_LOAD_FAILED')}</Text>
+        <Text style={styles.errorSub}>{tUi('CHECK_CONNECTION')}</Text>
       </SafeAreaView>
     );
   }
@@ -245,6 +329,9 @@ export default function GamificationScreen() {
 
         {/* Score breakdown */}
         <ScoreBreakdown breakdown={profile.score_breakdown} />
+
+        {/* Coaching: Your Next Steps */}
+        <CoachingSection actions={coachingData?.coaching ?? []} />
 
         {/* Badge catalog */}
         {catalogLoading ? (
@@ -296,6 +383,18 @@ const styles = StyleSheet.create({
   barTrack:      { flex: 1, height: 8, backgroundColor: colors.border, borderRadius: 4, overflow: 'hidden', marginHorizontal: 8 },
   barFill:       { height: '100%', borderRadius: 4 },
   barPts:        { width: 36, fontSize: 11, color: colors.textSecondary, textAlign: 'right' },
+
+  // Coaching
+  coachingCard:     { backgroundColor: colors.card, borderRadius: radius.card, padding: 16, marginBottom: 20 },
+  coachingEmpty:    { fontSize: 13, color: colors.textSecondary, fontFamily: fonts.regular, lineHeight: 20 },
+  coachingRow:      { flexDirection: 'row', alignItems: 'center', marginBottom: 14, gap: 10 },
+  coachingAccent:   { width: 3, height: 44, borderRadius: 2 },
+  coachingBody:     { flex: 1 },
+  coachingDocType:  { fontSize: 13, fontFamily: fonts.semibold, color: colors.text },
+  coachingEmployer: { fontSize: 11, color: colors.textSecondary, marginTop: 1 },
+  coachingImpact:   { fontSize: 11, fontFamily: fonts.semibold, marginTop: 2 },
+  coachingCta:      { borderWidth: 1.5, borderRadius: 16, paddingHorizontal: 12, paddingVertical: 5 },
+  coachingCtaText:  { fontSize: 12, fontFamily: fonts.semibold },
 
   // Badges
   badgeSection:  { marginBottom: 20 },

@@ -9,12 +9,16 @@ Org self-registration (3-step):
   POST /public/org-register/verify   — step 2: verify OTP, get verified_token
   POST /public/org-register/complete — step 3: submit full form
 
+Credential verification (no auth — for recruiters / banks):
+  GET  /public/verify/{code}         — verify a PRANA-XXXXXX-XXXXXX document code
+
 PA read endpoints (auth required — Portal Admin only):
   GET  /public/contact-inquiries     — all contact submissions
   GET  /public/org-applications      — all self-registration applications
   PATCH /public/org-applications/{id} — mark reviewed / set status
 """
 import hashlib
+from errors import PranaError, prana_error
 import random
 import string
 import json
@@ -123,7 +127,7 @@ async def org_register_init(
     if count and int(count) >= 3:
         raise HTTPException(
             status_code=status.HTTP_429_TOO_MANY_REQUESTS,
-            detail="Too many OTP requests for this email. Please wait 10 minutes.",
+            detail=PranaError.OTP_RATE_LIMITED,
         )
 
     otp = _gen_otp()
@@ -174,16 +178,16 @@ async def org_register_verify(
         body.session_token,
     )
     if not row:
-        raise HTTPException(status_code=404, detail="Session not found. Please restart registration.")
+        raise HTTPException(status_code=404, detail=PranaError.SESSION_NOT_FOUND)
 
     if row["verified"]:
-        raise HTTPException(status_code=400, detail="OTP already used.")
+        raise HTTPException(status_code=400, detail=PranaError.OTP_ALREADY_USED)
 
     if row["expires_at"] < datetime.now(timezone.utc):
-        raise HTTPException(status_code=400, detail="OTP expired. Please restart registration.")
+        raise HTTPException(status_code=400, detail=PranaError.REGISTRATION_OTP_EXPIRED)
 
     if row["otp_hash"] != _hash_otp(body.otp.strip()):
-        raise HTTPException(status_code=400, detail="Incorrect code. Please try again.")
+        raise HTTPException(status_code=400, detail=PranaError.REGISTRATION_CODE_INVALID)
 
     # Mark as verified — the same token becomes the verified_token for step 3
     await conn.execute(
@@ -214,15 +218,15 @@ async def org_register_complete(
     if not row:
         raise HTTPException(
             status_code=400,
-            detail="Email verification required. Please complete the OTP step first.",
+            detail=PranaError.EMAIL_VERIFICATION_REQUIRED,
         )
 
     # Token expires 10 min after creation — verified session must be used promptly
     if row["expires_at"] < datetime.now(timezone.utc) - timedelta(minutes=30):
-        raise HTTPException(status_code=400, detail="Verification session expired. Please restart.")
+        raise HTTPException(status_code=400, detail=PranaError.VERIFICATION_SESSION_EXPIRED)
 
     if not body.agreed_to_dpa:
-        raise HTTPException(status_code=400, detail="Data Processing Agreement acceptance is required.")
+        raise HTTPException(status_code=400, detail=PranaError.DPA_REQUIRED)
 
     app_id = await conn.fetchval(
         """
@@ -327,6 +331,101 @@ async def list_org_applications(
 class ReviewIn(BaseModel):
     status:       str            # REVIEWED | APPROVED | REJECTED
     review_notes: str = ""
+
+
+# ── Credential verification (no auth) ─────────────────────────────────────────
+
+@router.get("/verify/{code}")
+async def verify_credential(
+    code: str,
+    request: Request,
+    conn: asyncpg.Connection = Depends(get_conn),
+):
+    """
+    Public credential verification endpoint — no auth required.
+    Recruiters, banks, and new employers call this to confirm a document
+    is genuine and was pushed by a verified employer.
+
+    Privacy: returns only metadata — no document content, no raw salary,
+    no full PAN, no employee full name. Employee shown as first-initial + last name.
+
+    Also writes a VERIFICATION_CHECK entry to document_access_log so the
+    employee can see who verified their credentials.
+    """
+    if not code.startswith("PRANA-") or len(code) != 19:
+        raise HTTPException(
+            status_code=400,
+            detail=PranaError.NOT_FOUND,
+        )
+
+    row = await conn.fetchrow(
+        """
+        SELECT d.document_id, d.doc_type, d.doc_period, d.pushed_at, d.routed_at,
+               d.file_hash_sha256, d.verification_code, d.tenant_id, d.employee_uuid,
+               d.is_deleted,
+               t.company_name,
+               eu.full_name
+        FROM document d
+        JOIN tenant t ON t.tenant_id = d.tenant_id
+        LEFT JOIN employee_master em ON em.employee_uuid = d.employee_uuid
+        LEFT JOIN employee_user eu ON eu.employee_user_id = em.employee_user_id
+        WHERE d.verification_code = $1
+          AND d.pipeline_status   = 'ROUTED'
+          AND d.is_deleted        = FALSE
+        LIMIT 1
+        """,
+        code,
+    )
+
+    if not row:
+        raise HTTPException(status_code=404, detail=PranaError.DOCUMENT_NOT_FOUND)
+
+    # Employee display: first initial + last name only (privacy)
+    full_name: str = row["full_name"] or ""
+    parts = full_name.strip().split()
+    if len(parts) >= 2:
+        display_name = f"{parts[0][0]}. {parts[-1]}"
+    elif parts:
+        display_name = parts[0]
+    else:
+        display_name = "—"
+
+    # Log verification access
+    try:
+        ip = request.client.host if request.client else "unknown"
+        await conn.execute(
+            """
+            INSERT INTO document_access_log
+                (document_id, employee_user_id, employee_uuid, tenant_id,
+                 actor_type, actor_id, access_type, access_channel,
+                 ip_address, watermark_applied, accessed_at)
+            VALUES ($1, $2, $3, $4,
+                    'VERIFIER', $4::text, 'VERIFY', 'SHARE_LINK',
+                    $5, FALSE, NOW())
+            """,
+            row["document_id"],
+            None,
+            row["employee_uuid"],
+            row["tenant_id"],
+            ip,
+        )
+    except Exception:
+        pass  # logging failure must never block the verification response
+
+    now_iso = datetime.now(timezone.utc).isoformat()
+
+    return {
+        "verified":           True,
+        "verification_code":  code,
+        "doc_type":           row["doc_type"],
+        "doc_period":         row["doc_period"],
+        "pushed_by":          row["company_name"],
+        "pushed_at":          row["pushed_at"].isoformat() if row["pushed_at"] else None,
+        "routed_at":          row["routed_at"].isoformat() if row["routed_at"] else None,
+        "employee_display":   display_name,
+        "file_hash_sha256":   row["file_hash_sha256"],
+        "verified_at":        now_iso,
+    }
 
 
 @router.patch("/org-applications/{app_id}", status_code=200)

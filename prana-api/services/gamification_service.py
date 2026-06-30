@@ -309,6 +309,185 @@ class GamificationService:
             "is_new": False,
         }
 
+    # ── Coaching actions ──────────────────────────────────────────────────────
+
+    async def get_coaching_actions(self, employee_user_id: UUID, db) -> list[dict]:
+        """
+        Return prioritised list of actions the employee can take to improve their
+        career score.  Each item includes an estimated score_impact so the UI can
+        show "Do this → +8 pts".
+
+        Privacy: no raw salary, CTC, or PAN in any output field.
+        """
+        doc_rows = await db.fetch(
+            """
+            SELECT d.doc_type, d.doc_period, d.tenant_id, d.routed_at
+            FROM document d
+            JOIN employee_master em ON em.employee_uuid = d.employee_uuid
+            WHERE em.employee_user_id = $1
+              AND d.pipeline_status = 'ROUTED'
+              AND d.is_deleted = FALSE
+            ORDER BY d.routed_at DESC
+            """,
+            employee_user_id,
+        )
+        master_rows = await db.fetch(
+            """
+            SELECT em.tenant_id, em.doj, em.dol, em.vault_completeness,
+                   t.company_name
+            FROM employee_master em
+            JOIN tenant t ON t.tenant_id = em.tenant_id
+            WHERE em.employee_user_id = $1
+              AND em.is_deleted = FALSE
+            ORDER BY em.doj ASC
+            """,
+            employee_user_id,
+        )
+
+        actions: list[dict] = []
+        today = date.today()
+
+        docs_by_tenant: dict[str, set[str]] = {}
+        for r in doc_rows:
+            key = str(r["tenant_id"])
+            docs_by_tenant.setdefault(key, set()).add(r["doc_type"])
+
+        # ── 1. Employment proof (OFFER or APPOINTMENT) per employer ──────────
+        for m in master_rows:
+            tid = str(m["tenant_id"])
+            held = docs_by_tenant.get(tid, set())
+            if "OFFER_LETTER" not in held and "APPOINTMENT_LETTER" not in held:
+                actions.append({
+                    "action_id":     f"emp-proof-{tid[:8]}",
+                    "action_type":   "REQUEST_DOC",
+                    "doc_type":      "OFFER_LETTER",
+                    "doc_period":    None,
+                    "employer_id":   tid,
+                    "employer_name": m["company_name"],
+                    "score_impact":  8,
+                    "pillar":        "completeness",
+                    "priority":      1,
+                    "cta":           "REQUEST",
+                    "cta_route":     "/(vault)/doc-request",
+                })
+
+        # ── 2. Missing FORM_16 for years with salary slips ───────────────────
+        slip_years: set[int] = set()
+        for r in doc_rows:
+            if r["doc_type"] == "SALARY_SLIP" and r["doc_period"]:
+                try:
+                    y, m_num = int(r["doc_period"].split("-")[0]), int(r["doc_period"].split("-")[1])
+                    fy_start = y if m_num >= 4 else y - 1
+                    slip_years.add(fy_start)
+                except (ValueError, IndexError):
+                    pass
+
+        form16_fy: set[str] = {
+            r["doc_period"].replace("FY:", "") if r["doc_period"] and r["doc_period"].startswith("FY:") else ""
+            for r in doc_rows if r["doc_type"] == "FORM_16"
+        }
+        form16_fy.discard("")
+
+        for fy_start in sorted(slip_years, reverse=True)[:3]:
+            fy_label = f"{fy_start}-{str(fy_start + 1)[-2:]}"
+            if fy_label not in form16_fy:
+                actions.append({
+                    "action_id":     f"form16-{fy_label}",
+                    "action_type":   "REQUEST_DOC",
+                    "doc_type":      "FORM_16",
+                    "doc_period":    f"FY:{fy_label}",
+                    "employer_id":   None,
+                    "employer_name": None,
+                    "score_impact":  6,
+                    "pillar":        "completeness",
+                    "priority":      2,
+                    "cta":           "REQUEST",
+                    "cta_route":     "/(vault)/doc-request",
+                })
+
+        # ── 3. Relieving letter for past employers ────────────────────────────
+        for m in master_rows:
+            if m["dol"] is None:
+                continue
+            tid = str(m["tenant_id"])
+            held = docs_by_tenant.get(tid, set())
+            if "RELIEVING_LETTER" not in held and "EXPERIENCE_LETTER" not in held:
+                actions.append({
+                    "action_id":     f"relieving-{tid[:8]}",
+                    "action_type":   "REQUEST_DOC",
+                    "doc_type":      "RELIEVING_LETTER",
+                    "doc_period":    None,
+                    "employer_id":   tid,
+                    "employer_name": m["company_name"],
+                    "score_impact":  5,
+                    "pillar":        "completeness",
+                    "priority":      3,
+                    "cta":           "REQUEST",
+                    "cta_route":     "/(vault)/doc-request",
+                })
+
+        # ── 4. Freshness: no docs in last 90 days ────────────────────────────
+        if doc_rows:
+            latest = max(
+                (r["routed_at"].date() if hasattr(r["routed_at"], "date") else r["routed_at"])
+                for r in doc_rows if r["routed_at"]
+            )
+            days_stale = (today - latest).days if latest else 999
+            if days_stale > 90:
+                actions.append({
+                    "action_id":     "freshness-salary-slip",
+                    "action_type":   "REQUEST_DOC",
+                    "doc_type":      "SALARY_SLIP",
+                    "doc_period":    None,
+                    "employer_id":   str(master_rows[-1]["tenant_id"]) if master_rows else None,
+                    "employer_name": master_rows[-1]["company_name"] if master_rows else None,
+                    "score_impact":  10,
+                    "pillar":        "freshness",
+                    "priority":      1,
+                    "cta":           "REQUEST",
+                    "cta_route":     "/(vault)/doc-request",
+                })
+        elif master_rows:
+            # Vault is empty — prompt first upload
+            actions.append({
+                "action_id":     "first-doc",
+                "action_type":   "SELF_UPLOAD",
+                "doc_type":      "SALARY_SLIP",
+                "doc_period":    None,
+                "employer_id":   str(master_rows[-1]["tenant_id"]),
+                "employer_name": master_rows[-1]["company_name"],
+                "score_impact":  15,
+                "pillar":        "completeness",
+                "priority":      1,
+                "cta":           "UPLOAD",
+                "cta_route":     "/(vault)/vault/self-upload",
+            })
+
+        # ── 5. Engagement: no streak ──────────────────────────────────────────
+        streak_days = await db.fetchval(
+            "SELECT current_streak_days FROM employee_streak WHERE employee_user_id = $1",
+            employee_user_id,
+        ) or 0
+
+        if int(streak_days) < 3:
+            actions.append({
+                "action_id":     "streak-start",
+                "action_type":   "ENGAGE",
+                "doc_type":      None,
+                "doc_period":    None,
+                "employer_id":   None,
+                "employer_name": None,
+                "score_impact":  3,
+                "pillar":        "engagement",
+                "priority":      4,
+                "cta":           "CHECKIN",
+                "cta_route":     None,
+            })
+
+        # Sort: primary by priority, secondary by impact descending
+        actions.sort(key=lambda a: (a["priority"], -a["score_impact"]))
+        return actions[:10]  # cap at 10 actions
+
     # ── Persist helpers (called by workflow, not HTTP handler) ────────────────
 
     async def persist_score(self, employee_user_id: UUID, score_data: dict, db) -> None:

@@ -76,7 +76,11 @@ def test_stage_update_tolerates_kafka_failure(client, mock_kafka):
 def test_routed_updates_db_and_publishes(client, mock_db, mock_kafka):
     conn = AsyncMock()
     conn.execute = AsyncMock()
-    mock_db.acquire = MagicMock(return_value=conn)
+    # async with db.acquire() as conn — needs async context manager
+    acquire_ctx = MagicMock()
+    acquire_ctx.__aenter__ = AsyncMock(return_value=conn)
+    acquire_ctx.__aexit__ = AsyncMock(return_value=False)
+    mock_db.acquire = MagicMock(return_value=acquire_ctx)
     mock_kafka.doc_routed = AsyncMock()
 
     resp = client.post("/internal/pipeline/routed",

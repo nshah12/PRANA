@@ -210,3 +210,24 @@ async def badge_catalog(db: DbConn, current: Employee):
 async def _aiter(rows):
     for r in rows:
         yield r
+
+
+# ── Coaching actions ───────────────────────────────────────────────────────────
+
+@router.get("/coaching")
+async def get_coaching_actions(db: DbConn, current: Employee):
+    """
+    Returns up to 10 personalised actions the employee can take to raise
+    their career score, ordered by priority then score_impact descending.
+
+    Each action carries:
+      score_impact  — estimated pts gain if completed
+      pillar        — which score pillar it improves
+      cta           — REQUEST | UPLOAD | CHECKIN
+      cta_route     — deep-link into the mobile app
+
+    Privacy: no raw salary, CTC, or PAN in any field.
+    """
+    emp_id: UUID = UUID(current.user_id)
+    actions = await _svc.get_coaching_actions(emp_id, db)
+    return {"coaching": actions, "total": len(actions)}

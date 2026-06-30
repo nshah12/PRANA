@@ -8,6 +8,8 @@ Kong routes do NOT include /internal/* — this is enforced in kong.yml.
 SG rule: api_from_ai_internal in terraform/modules/networking/main.tf.
 """
 import logging
+import random
+import string
 from typing import Optional
 
 from fastapi import APIRouter, Depends, Header, HTTPException, Request
@@ -20,6 +22,14 @@ log = logging.getLogger(__name__)
 router = APIRouter(include_in_schema=False)
 
 _ALLOWED_INTERNAL_SERVICES = {"prana-ai"}
+
+
+def _gen_verification_code() -> str:
+    """PRANA-XXXXXX-XXXXXX — 19 chars total, URL-safe, human-readable."""
+    chars = string.ascii_uppercase + string.digits
+    a = "".join(random.choices(chars, k=6))
+    b = "".join(random.choices(chars, k=6))
+    return f"PRANA-{a}-{b}"
 
 
 def _require_internal(x_internal_service: Optional[str] = Header(default=None)):
@@ -95,25 +105,28 @@ async def pipeline_routed(payload: RoutedPayload, request: Request):
 
     # Update pipeline_status in prana-api's document row (prana-ai writes to
     # its own DB view; prana-api is authoritative for the REST-facing document table)
-    conn = db.acquire()
-    await conn.execute(
-        """
-        UPDATE document
-        SET pipeline_status = 'ROUTED',
-            employee_uuid   = $2,
-            pan_token       = $3,
-            doc_type        = $4,
-            routed_at       = NOW()
-        WHERE document_id = $1
-          AND tenant_id   = $5
-          AND is_deleted  = FALSE
-        """,
-        payload.document_id,
-        payload.employee_uuid,
-        payload.pan_token,
-        payload.doc_type,
-        payload.tenant_id,
-    )
+    vcode = _gen_verification_code()
+    async with db.acquire() as conn:
+        await conn.execute(
+            """
+            UPDATE document
+            SET pipeline_status     = 'ROUTED',
+                employee_uuid       = $2,
+                pan_token           = $3,
+                doc_type            = $4,
+                routed_at           = NOW(),
+                verification_code   = COALESCE(verification_code, $6)
+            WHERE document_id = $1
+              AND tenant_id   = $5
+              AND is_deleted  = FALSE
+            """,
+            payload.document_id,
+            payload.employee_uuid,
+            payload.pan_token,
+            payload.doc_type,
+            payload.tenant_id,
+            vcode,
+        )
 
     if kafka:
         try:
