@@ -44,7 +44,8 @@ class ManifestData:
         return out
 
     def format_supported(self, ext: str) -> bool:
-        return ext.lower() in self.supported_formats or "auto" in self.supported_formats
+        lower_formats = [f.lower() for f in self.supported_formats]
+        return ext.lower() in lower_formats or "auto" in lower_formats
 
     def score_against(self, partial_fields: dict) -> float:
         if not self.classification_signals:

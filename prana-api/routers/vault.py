@@ -113,6 +113,47 @@ async def view_document(
 
 # ── Timeline ──────────────────────────────────────────────────────────────────
 
+@router.get("/documents/{document_id}/credential")
+async def get_credential(document_id: str, request: Request, db: DbConn, current: Employee):
+    """
+    Career Passport credential card — returns verification metadata for a ROUTED document.
+    Employee-facing: used to display QR code + share credential with recruiters/banks.
+    Privacy: returns only non-sensitive metadata — no raw salary, no PAN, no insights.
+    """
+    row = await db.fetchrow(
+        """
+        SELECT d.document_id, d.pipeline_status, d.verification_code,
+               d.doc_type, d.doc_period, d.pushed_at, d.routed_at, d.file_hash_sha256,
+               t.tenant_name
+        FROM document d
+        JOIN employee_master em ON em.employee_uuid = d.employee_uuid
+        JOIN employee_user eu ON eu.employee_user_id = em.employee_user_id
+        JOIN tenant t ON t.tenant_id = d.tenant_id
+        WHERE d.document_id = $1::uuid
+          AND eu.employee_user_id = $2::uuid
+          AND d.is_deleted = FALSE
+        LIMIT 1
+        """,
+        document_id, current.user_id,
+    )
+
+    if not row or row["pipeline_status"] != "ROUTED" or not row["verification_code"]:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=PranaError.DOCUMENT_NOT_FOUND)
+
+    code = row["verification_code"]
+    return {
+        "verification_code": code,
+        "verify_url":        f"https://verify.prana.in/{code}",
+        "qr_url":            f"/public/qr/{code}",
+        "doc_type":          row["doc_type"],
+        "doc_period":        row["doc_period"],
+        "pushed_by":         row["tenant_name"],
+        "pushed_at":         row["pushed_at"].isoformat() if row["pushed_at"] else None,
+        "routed_at":         row["routed_at"].isoformat() if row["routed_at"] else None,
+        "file_hash_sha256":  row["file_hash_sha256"],
+    }
+
+
 @router.get("/timeline")
 async def get_timeline(request: Request, db: DbConn, current: Employee):
     svc = _vault(request, db, current)

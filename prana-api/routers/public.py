@@ -18,6 +18,7 @@ PA read endpoints (auth required — Portal Admin only):
   PATCH /public/org-applications/{id} — mark reviewed / set status
 """
 import hashlib
+import io
 from errors import PranaError, prana_error
 import random
 import string
@@ -334,6 +335,36 @@ class ReviewIn(BaseModel):
 
 
 # ── Credential verification (no auth) ─────────────────────────────────────────
+
+@router.get("/qr/{code}")
+async def credential_qr(code: str):
+    """
+    Generate a QR code PNG for a PRANA verification code.
+    No auth required — intended to be embedded in share cards and emails.
+    The QR encodes the public verify URL so recruiters can scan and verify.
+    """
+    if not code.startswith("PRANA-") or len(code) != 19:
+        raise HTTPException(status_code=400, detail=PranaError.NOT_FOUND)
+
+    import qrcode  # installed as qrcode[pil]
+    from fastapi.responses import Response
+
+    verify_url = f"https://verify.prana.in/{code}"
+    qr = qrcode.QRCode(version=None, error_correction=qrcode.constants.ERROR_CORRECT_M, box_size=8, border=2)
+    qr.add_data(verify_url)
+    qr.make(fit=True)
+    img = qr.make_image(fill_color="#04261C", back_color="#FFFFFF")
+
+    buf = io.BytesIO()
+    img.save(buf, format="PNG")
+    buf.seek(0)
+
+    return Response(
+        content=buf.read(),
+        media_type="image/png",
+        headers={"Cache-Control": "public, max-age=86400"},
+    )
+
 
 @router.get("/verify/{code}")
 async def verify_credential(

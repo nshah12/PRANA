@@ -179,6 +179,24 @@ export async function createShare(params: CreateShareParams): Promise<CreatedSha
   return api.post<CreatedShare>('/vault/shares', params);
 }
 
+// ── Career Passport credential card ──────────────────────────────────────────
+
+export interface CredentialCard {
+  verification_code: string;
+  verify_url:        string;
+  qr_url:            string;
+  doc_type:          string;
+  doc_period:        string | null;
+  pushed_by:         string;
+  pushed_at:         string | null;
+  routed_at:         string | null;
+  file_hash_sha256:  string | null;
+}
+
+export async function getCredential(docId: string): Promise<CredentialCard> {
+  return api.get<CredentialCard>(`/vault/documents/${docId}/credential`);
+}
+
 // ── Bulk ZIP download ─────────────────────────────────────────────────────────
 
 export async function requestZipDownload(document_ids: string[]): Promise<{ job_id: string; download_url?: string }> {

@@ -292,3 +292,114 @@ async def test_list_shares_returns_wrapped_shape(client, mock_db):
         resp = await client.get("/v1/vault/share", headers=headers)
     assert resp.status_code == 200
     assert "shares" in resp.json()
+
+
+# ── Career Passport / credential card tests ───────────────────────────────────
+
+@pytest.mark.asyncio
+async def test_credential_requires_auth(client):
+    """Credential endpoint must require employee JWT."""
+    resp = await client.get("/v1/vault/documents/doc-001/credential")
+    assert resp.status_code in (401, 403)
+
+
+@pytest.mark.asyncio
+async def test_credential_not_found_returns_404(client, mock_db):
+    """Unknown document_id or doc not owned by employee → 404."""
+    headers = _auth_headers(client)
+    mock_db.fetchrow = AsyncMock(return_value=None)
+    resp = await client.get("/v1/vault/documents/doc-001/credential", headers=headers)
+    assert resp.status_code == 404
+
+
+@pytest.mark.asyncio
+async def test_credential_not_routed_returns_404(client, mock_db):
+    """Document exists but pipeline_status != ROUTED → 404 (no verification code yet)."""
+    import uuid
+    from datetime import datetime, timezone
+    from unittest.mock import MagicMock
+
+    row = MagicMock()
+    row.__getitem__ = lambda self, k: {
+        "document_id":       str(uuid.uuid4()),
+        "pipeline_status":   "EXTRACTING",
+        "verification_code": None,
+        "doc_type":          "SALARY_SLIP",
+        "doc_period":        "2024-03",
+        "tenant_name":       "Acme Corp",
+        "pushed_at":         datetime(2024, 3, 1, tzinfo=timezone.utc),
+        "routed_at":         None,
+        "file_hash_sha256":  None,
+    }.get(k)
+
+    headers = _auth_headers(client)
+    mock_db.fetchrow = AsyncMock(return_value=row)
+    resp = await client.get("/v1/vault/documents/doc-001/credential", headers=headers)
+    assert resp.status_code == 404
+
+
+@pytest.mark.asyncio
+async def test_credential_happy_path_shape(client, mock_db):
+    """ROUTED doc with verification code returns credential card fields."""
+    import uuid
+    from datetime import datetime, timezone
+    from unittest.mock import MagicMock
+
+    doc_id = str(uuid.uuid4())
+    row = MagicMock()
+    row.__getitem__ = lambda self, k: {
+        "document_id":       doc_id,
+        "pipeline_status":   "ROUTED",
+        "verification_code": "PRANA-AB1234-CD5678",
+        "doc_type":          "SALARY_SLIP",
+        "doc_period":        "2024-03",
+        "tenant_name":       "Infosys Ltd",
+        "pushed_at":         datetime(2024, 3, 1, tzinfo=timezone.utc),
+        "routed_at":         datetime(2024, 3, 2, tzinfo=timezone.utc),
+        "file_hash_sha256":  "deadbeef",
+    }.get(k)
+
+    headers = _auth_headers(client)
+    mock_db.fetchrow = AsyncMock(return_value=row)
+    resp = await client.get(f"/v1/vault/documents/{doc_id}/credential", headers=headers)
+    assert resp.status_code == 200
+    data = resp.json()
+
+    assert data["verification_code"] == "PRANA-AB1234-CD5678"
+    assert "verify_url" in data
+    assert "PRANA-AB1234-CD5678" in data["verify_url"]
+    assert data["doc_type"] == "SALARY_SLIP"
+    assert data["pushed_by"] == "Infosys Ltd"
+    assert data["file_hash_sha256"] == "deadbeef"
+    # Must not expose raw salary/PAN field keys — doc_type "SALARY_SLIP" is fine as a type label
+    for forbidden_key in ("gross_salary", "net_salary", "basic_salary", "enc_pan", "pan_token", "ctc"):
+        assert forbidden_key not in data, f"Forbidden field in credential response: {forbidden_key}"
+
+
+@pytest.mark.asyncio
+async def test_credential_privacy_no_salary_in_response(client, mock_db):
+    """Privacy contract: credential card must never contain any insight with raw ₹ salary."""
+    import uuid
+    from datetime import datetime, timezone
+    from unittest.mock import MagicMock
+
+    row = MagicMock()
+    row.__getitem__ = lambda self, k: {
+        "document_id":       str(uuid.uuid4()),
+        "pipeline_status":   "ROUTED",
+        "verification_code": "PRANA-AB1234-CD5678",
+        "doc_type":          "SALARY_SLIP",
+        "doc_period":        "2024-03",
+        "tenant_name":       "TCS",
+        "pushed_at":         datetime(2024, 3, 1, tzinfo=timezone.utc),
+        "routed_at":         datetime(2024, 3, 2, tzinfo=timezone.utc),
+        "file_hash_sha256":  "abc",
+    }.get(k)
+
+    headers = _auth_headers(client)
+    mock_db.fetchrow = AsyncMock(return_value=row)
+    resp = await client.get("/v1/vault/documents/doc-001/credential", headers=headers)
+    assert resp.status_code == 200
+    response_text = resp.text
+    for forbidden in ("gross_salary", "net_salary", "basic_salary", "ctc", "pan"):
+        assert forbidden not in response_text.lower()

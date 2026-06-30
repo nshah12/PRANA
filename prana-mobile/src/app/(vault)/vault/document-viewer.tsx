@@ -10,22 +10,187 @@
  * policy numbers, percentages, qualitative assessments.
  *
  * API:
- *   GET  /vault/documents/{id}         → document metadata + insights
- *   GET  /vault/documents/{id}/download → { presigned_url }
- *   POST /vault/shares                  → { share_url, token_id, expires_at }
+ *   GET  /vault/documents/{id}                → document metadata + insights
+ *   GET  /vault/documents/{id}/credential     → Career Passport credential card
+ *   GET  /public/qr/{code}                    → QR code PNG (no auth)
+ *   GET  /vault/documents/{id}/download       → { presigned_url }
+ *   POST /vault/shares                        → { share_url, token_id, expires_at }
  */
 import React, { useState } from 'react';
 import {
   View, Text, ScrollView, Pressable, StyleSheet,
   Modal, ActivityIndicator, TextInput, Linking, TouchableWithoutFeedback,
+  Image, Share, Clipboard,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { router, useLocalSearchParams } from 'expo-router';
 import { useAuth } from '@/context/AuthContext';
 import { colors, fonts, gradJourney, docIconGradients } from '@/prana-theme/tokens';
-import { useDocument, getDownloadUrl, createShare } from '@/hooks/useVault';
+import { useDocument, getDownloadUrl, createShare, getCredential, type CredentialCard } from '@/hooks/useVault';
 import { SOURCE_META } from '@/prana-components/DocumentCard';
+import { tUi } from '@/i18n';
+
+// ── Career Passport modal ─────────────────────────────────────────────────────
+function CareerPassportModal({
+  docId,
+  docTitle,
+  onClose,
+}: { docId: string; docTitle: string; onClose: () => void }) {
+  const [credential, setCredential] = useState<CredentialCard | null>(null);
+  const [loading, setLoading]       = useState(true);
+  const [copied,  setCopied]        = useState(false);
+  const [error,   setError]         = useState('');
+
+  React.useEffect(() => {
+    getCredential(docId)
+      .then(setCredential)
+      .catch(() => setError('CREDENTIAL_UNAVAILABLE'))
+      .finally(() => setLoading(false));
+  }, [docId]);
+
+  async function handleShare() {
+    if (!credential) return;
+    try {
+      await Share.share({
+        message: `Verify my ${docTitle} credential: ${credential.verify_url}`,
+        url: credential.verify_url,
+        title: 'PRANA Career Passport',
+      });
+    } catch { /* user cancelled */ }
+  }
+
+  function handleCopy() {
+    if (!credential) return;
+    Clipboard.setString(credential.verify_url);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
+  }
+
+  return (
+    <Modal transparent animationType="slide" onRequestClose={onClose}>
+      <TouchableWithoutFeedback onPress={onClose}>
+        <View style={cp.overlay}>
+          <TouchableWithoutFeedback>
+            <View style={cp.panel}>
+              <View style={cp.handle} />
+
+              <Text style={cp.title}>Career Passport</Text>
+              <Text style={cp.sub}>Share this QR with a recruiter or bank to verify {docTitle}</Text>
+
+              {loading ? (
+                <View style={cp.center}>
+                  <ActivityIndicator size="large" color={colors.emerald} />
+                </View>
+              ) : error || !credential ? (
+                <View style={cp.center}>
+                  <Text style={cp.errorText}>
+                    {error === 'CREDENTIAL_UNAVAILABLE'
+                      ? 'Credential not available yet — document is still processing.'
+                      : 'Could not load credential.'}
+                  </Text>
+                </View>
+              ) : (
+                <>
+                  {/* QR code served from backend */}
+                  <View style={cp.qrWrap}>
+                    <Image
+                      source={{ uri: `https://api.prana.in${credential.qr_url}` }}
+                      style={cp.qrImage}
+                      resizeMode="contain"
+                    />
+                  </View>
+
+                  {/* Verification code */}
+                  <View style={cp.codeRow}>
+                    <Text style={cp.codeLabel}>VERIFICATION CODE</Text>
+                    <Text style={cp.code}>{credential.verification_code}</Text>
+                  </View>
+
+                  {/* Metadata strip */}
+                  <View style={cp.metaStrip}>
+                    <View style={cp.metaItem}>
+                      <Text style={cp.metaKey}>Document</Text>
+                      <Text style={cp.metaVal}>{credential.doc_type.replace(/_/g, ' ')}</Text>
+                    </View>
+                    {credential.doc_period ? (
+                      <View style={cp.metaItem}>
+                        <Text style={cp.metaKey}>Period</Text>
+                        <Text style={cp.metaVal}>{credential.doc_period}</Text>
+                      </View>
+                    ) : null}
+                    <View style={cp.metaItem}>
+                      <Text style={cp.metaKey}>Issued by</Text>
+                      <Text style={cp.metaVal}>{credential.pushed_by}</Text>
+                    </View>
+                  </View>
+
+                  {/* Privacy note */}
+                  <View style={cp.privacyRow}>
+                    <Text style={cp.privacyText}>🔒  Verifier sees only document type, period, and employer name — no salary figures.</Text>
+                  </View>
+
+                  {/* Actions */}
+                  <View style={cp.actions}>
+                    <Pressable style={[cp.copyBtn, copied && cp.copyBtnDone]} onPress={handleCopy}>
+                      <Text style={cp.copyText}>{copied ? '✓ Copied' : 'Copy link'}</Text>
+                    </Pressable>
+                    <Pressable onPress={handleShare} style={cp.shareBtn}>
+                      <LinearGradient
+                        colors={gradJourney.colors}
+                        locations={gradJourney.locations}
+                        start={gradJourney.start}
+                        end={gradJourney.end}
+                        style={cp.shareBtnInner}
+                      >
+                        <Text style={cp.shareBtnText}>↗  Share</Text>
+                      </LinearGradient>
+                    </Pressable>
+                  </View>
+                </>
+              )}
+
+              <Pressable style={cp.closeBtn} onPress={onClose}>
+                <Text style={cp.closeText}>Done</Text>
+              </Pressable>
+            </View>
+          </TouchableWithoutFeedback>
+        </View>
+      </TouchableWithoutFeedback>
+    </Modal>
+  );
+}
+
+const cp = StyleSheet.create({
+  overlay:       { flex: 1, backgroundColor: 'rgba(0,0,0,0.7)', justifyContent: 'flex-end' },
+  panel:         { backgroundColor: colors.surface, borderTopLeftRadius: 28, borderTopRightRadius: 28, padding: 20, paddingBottom: 40 },
+  handle:        { width: 36, height: 4, backgroundColor: colors.surface3, borderRadius: 2, alignSelf: 'center', marginBottom: 20 },
+  title:         { fontFamily: fonts.displayBold, fontSize: 20, color: colors.ink, textAlign: 'center', marginBottom: 6 },
+  sub:           { fontFamily: fonts.bodyMedium, fontSize: 13, color: colors.ink3, textAlign: 'center', lineHeight: 19, marginBottom: 20 },
+  center:        { height: 200, alignItems: 'center', justifyContent: 'center' },
+  errorText:     { fontFamily: fonts.bodyMedium, fontSize: 14, color: colors.ink3, textAlign: 'center', paddingHorizontal: 20 },
+  qrWrap:        { alignItems: 'center', backgroundColor: '#FFFFFF', borderRadius: 16, padding: 16, marginBottom: 16, borderWidth: 1, borderColor: colors.surface3 },
+  qrImage:       { width: 200, height: 200 },
+  codeRow:       { alignItems: 'center', marginBottom: 16 },
+  codeLabel:     { fontFamily: fonts.mono, fontSize: 9, fontWeight: '700', color: colors.ink3, letterSpacing: 1.4, marginBottom: 6 },
+  code:          { fontFamily: fonts.mono, fontSize: 16, color: colors.emerald, letterSpacing: 1.5, fontWeight: '700' },
+  metaStrip:     { flexDirection: 'row', gap: 8, marginBottom: 12, justifyContent: 'center', flexWrap: 'wrap' },
+  metaItem:      { backgroundColor: colors.surface3, borderRadius: 10, paddingHorizontal: 10, paddingVertical: 7, alignItems: 'center' },
+  metaKey:       { fontFamily: fonts.mono, fontSize: 9, color: colors.ink3, marginBottom: 2 },
+  metaVal:       { fontFamily: fonts.bodySemiBold, fontSize: 12, color: colors.ink },
+  privacyRow:    { backgroundColor: 'rgba(52,211,153,0.07)', borderWidth: 1, borderColor: 'rgba(52,211,153,0.18)', borderRadius: 10, padding: 10, marginBottom: 16 },
+  privacyText:   { fontFamily: fonts.mono, fontSize: 10, color: '#047857', lineHeight: 16 },
+  actions:       { flexDirection: 'row', gap: 10, marginBottom: 12 },
+  copyBtn:       { flex: 1, height: 48, borderRadius: 14, borderWidth: 1.5, borderColor: colors.surface3, alignItems: 'center', justifyContent: 'center' },
+  copyBtnDone:   { borderColor: colors.emerald, backgroundColor: 'rgba(52,211,153,0.08)' },
+  copyText:      { fontFamily: fonts.bodySemiBold, fontSize: 14, color: colors.ink },
+  shareBtn:      { flex: 1 },
+  shareBtnInner: { height: 48, borderRadius: 14, alignItems: 'center', justifyContent: 'center' },
+  shareBtnText:  { fontFamily: fonts.displayBold, fontSize: 14, color: '#04261C' },
+  closeBtn:      { alignItems: 'center', paddingVertical: 12 },
+  closeText:     { fontFamily: fonts.bodySemiBold, fontSize: 14, color: colors.ink3 },
+});
+
 
 // ── Share bottom sheet ────────────────────────────────────────────────────────
 const EXPIRY_OPTIONS = [
@@ -56,7 +221,7 @@ function ShareSheet({
       });
       setShareUrl(res.share_url);
     } catch {
-      setError('Couldn\'t create share link. Try again.');
+      setError(tUi('SHARE_CREATE_FAILED'));
     } finally {
       setLoading(false);
     }
@@ -261,8 +426,9 @@ export default function DocumentViewerScreen() {
   const watermarkLine = `PRANA VERIFIED  ·  ${profile?.vault_url ?? 'prana.in/vault'}  ·  `;
   const watermark = Array(50).fill(watermarkLine).join('');
 
-  const [shareVisible, setShareVisible] = useState(params.action === 'share');
-  const [downloading, setDownloading]   = useState(false);
+  const [shareVisible,    setShareVisible]    = useState(params.action === 'share');
+  const [passportVisible, setPassportVisible] = useState(params.action === 'passport');
+  const [downloading,     setDownloading]     = useState(false);
 
   async function handleDownload() {
     if (downloading) return;
@@ -290,7 +456,7 @@ export default function DocumentViewerScreen() {
     return (
       <View style={s.loadScreen}>
         <Text style={s.errorEmoji}>⚠</Text>
-        <Text style={s.errorTitle}>Couldn't load document</Text>
+        <Text style={s.errorTitle}>{tUi('DOC_LOAD_FAILED')}</Text>
         <Pressable onPress={() => router.back()} style={s.backPill}>
           <Text style={s.backPillText}>← Go back</Text>
         </Pressable>
@@ -302,7 +468,7 @@ export default function DocumentViewerScreen() {
     return (
       <View style={s.loadScreen}>
         <Text style={s.errorEmoji}>📄</Text>
-        <Text style={s.errorTitle}>Document not found</Text>
+        <Text style={s.errorTitle}>{tUi('DOC_NOT_FOUND')}</Text>
         <Pressable onPress={() => router.back()} style={s.backPill}>
           <Text style={s.backPillText}>← Go back</Text>
         </Pressable>
@@ -316,6 +482,9 @@ export default function DocumentViewerScreen() {
     <View style={s.screen}>
       {shareVisible && (
         <ShareSheet docId={doc.id} docTitle={doc.title} onClose={() => setShareVisible(false)} />
+      )}
+      {passportVisible && (
+        <CareerPassportModal docId={doc.id} docTitle={doc.title} onClose={() => setPassportVisible(false)} />
       )}
 
       {/* Top bar */}
@@ -339,6 +508,10 @@ export default function DocumentViewerScreen() {
                   ? <ActivityIndicator size="small" color="#FFFFFF" />
                   : <Text style={s.topBtnIcon}>⬇</Text>
                 }
+              </Pressable>
+              <Pressable style={s.passportBtn} onPress={() => setPassportVisible(true)}>
+                <Text style={s.passportBtnIcon}>◈</Text>
+                <Text style={s.passportBtnLabel}>Verify</Text>
               </Pressable>
               <Pressable style={s.shareTopBtn} onPress={() => setShareVisible(true)}>
                 <Text style={s.shareTopIcon}>↗</Text>
@@ -448,6 +621,9 @@ const s = StyleSheet.create({
   topActions: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   topBtn: { width: 36, height: 36, borderRadius: 10, backgroundColor: 'rgba(255,255,255,0.08)', alignItems: 'center', justifyContent: 'center' },
   topBtnIcon: { fontSize: 15, color: '#FFFFFF' },
+  passportBtn: { flexDirection: 'row', alignItems: 'center', gap: 5, backgroundColor: 'rgba(52,211,153,0.12)', borderRadius: 20, paddingHorizontal: 12, paddingVertical: 7, borderWidth: 1, borderColor: 'rgba(52,211,153,0.25)' },
+  passportBtnIcon: { fontSize: 13, color: colors.emerald },
+  passportBtnLabel: { fontFamily: fonts.bodySemiBold, fontSize: 12, color: colors.emerald },
   shareTopBtn: { flexDirection: 'row', alignItems: 'center', gap: 5, backgroundColor: 'rgba(255,255,255,0.08)', borderRadius: 20, paddingHorizontal: 12, paddingVertical: 7 },
   shareTopIcon: { fontSize: 13, color: '#FFFFFF' },
   shareTopLabel: { fontFamily: fonts.bodySemiBold, fontSize: 12, color: '#FFFFFF' },

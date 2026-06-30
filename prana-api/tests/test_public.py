@@ -99,3 +99,30 @@ async def test_verify_no_auth_required(client, mock_db):
     resp = await client.get("/public/verify/PRANA-ABC123-XYZ789")
     assert resp.status_code != 401
     assert resp.status_code != 403
+
+
+# ── QR code endpoint tests ─────────────────────────────────────────────────────
+
+@pytest.mark.asyncio
+async def test_qr_malformed_code_returns_400(client):
+    """Non-PRANA codes must be rejected before image generation."""
+    for bad in ["notprana", "PRANA-123", "prana-ABC123-DEF456"]:
+        resp = await client.get(f"/public/qr/{bad}")
+        assert resp.status_code == 400, f"Expected 400 for {bad}"
+
+
+@pytest.mark.asyncio
+async def test_qr_valid_code_returns_png(client):
+    """Valid PRANA code returns a PNG image (no auth required)."""
+    resp = await client.get("/public/qr/PRANA-ABC123-XYZ789")
+    assert resp.status_code == 200
+    assert resp.headers["content-type"] == "image/png"
+    assert len(resp.content) > 100   # some bytes — real QR PNG
+
+
+@pytest.mark.asyncio
+async def test_qr_requires_no_auth(client):
+    """QR endpoint is public — must not require Authorization."""
+    resp = await client.get("/public/qr/PRANA-ABC123-XYZ789")
+    assert resp.status_code != 401
+    assert resp.status_code != 403
