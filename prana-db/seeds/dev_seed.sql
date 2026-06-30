@@ -15,17 +15,12 @@ BEGIN;
 -- PORTAL ADMIN
 -- ============================================================
 -- Password: Prana@Admin0124  (Argon2id hash — dev only)
--- TOTP: JBSWY3DPEHPK3PXP dev secret (AES-256-GCM encrypted with 32-zero-byte dev DEK)
--- Use the same "PRANA Dev" authenticator entry as OA users
-INSERT INTO portal_admin
-  (pa_id, email, password_hash, status, failed_totp_count, totp_secret_enc, totp_configured_at)
-VALUES
+-- TOTP: not pre-seeded — first login shows QR setup screen (scan & register in authenticator)
+INSERT INTO portal_admin (pa_id, email, password_hash, status, failed_totp_count) VALUES
   ('00000000-0000-0000-0000-000000000001',
    'admin@prana.in',
    '$argon2id$v=19$m=65536,t=2,p=2$v1IK5h0cAV6pMKgZGj+x5Q$zo5H2rqMaLcDmTpLOegF2jzWn365MC5+oVUTFJlB2E4',
-   'ACTIVE', 0,
-   'S8T6sSddYaqbY0zTcQVdToNL1L6TDQMluxVR6OmP7xuTt0I/9LhXIL8aJiU=',
-   NOW());
+   'ACTIVE', 0);
 
 -- ============================================================
 -- TENANTS
