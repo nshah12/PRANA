@@ -2,36 +2,31 @@
 reset_dev.py — Full dev environment reset to a known-good state.
 
 1. Resets all passwords (OA users, portal_admin, employee_user) to Prana@Admin0124
-2. Uploads a real placeholder PDF to MinIO for every document row that lacks one
-3. Revokes all active sessions
+2. Clears TOTP for all OA + PA accounts → QR setup screen shows on next login
+3. Uploads a real placeholder PDF to MinIO for every document row that lacks one
+4. Revokes all active sessions
 
 Run from prana-api/:
     python scripts/reset_dev.py
 
 After running:
   - ALL logins work with password: Prana@Admin0124
-  - ALL 575 documents are viewable (real PDF bytes in MinIO)
+  - First login per account: QR code appears → scan in authenticator app
+  - Subsequent logins: enter 6-digit code from authenticator
 """
 import asyncio, sys, os
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 import boto3
-import pyotp
 from botocore.config import Config
 import asyncpg
-from services.encryption_service import hash_password, verify_password, aes_encrypt
-from services.totp_service import TOTPService
+from services.encryption_service import hash_password, verify_password
 
 DB_URL = os.environ.get("DATABASE_URL", "postgresql://yugabyte:yugabyte@localhost:5433/prana")
 OA_PASSWORD  = "Prana@Admin0124"
 EMP_PASSWORD = "Prana@Admin0124"
 PA_PASSWORD  = "Prana@Admin0124"
 
-# Fixed TOTP secret for ALL dev accounts — scan the QR once, works forever
-# otpauth://totp/PRANA:admin@techcorp.in?secret=JBSWY3DPEHPK3PXP&issuer=PRANA
-DEV_TOTP_SECRET = "JBSWY3DPEHPK3PXP"
-_DEV_DEK = b"\x00" * 32   # matches what auth_oa.py uses in dev
-DEV_TOTP_ENC = aes_encrypt(DEV_TOTP_SECRET, _DEV_DEK)
 
 MINIO_ENDPOINT  = os.environ.get("S3_ENDPOINT_URL", "http://localhost:9010")
 MINIO_ACCESS    = os.environ.get("S3_ACCESS_KEY_ID", "minioadmin")
@@ -134,32 +129,29 @@ async def reset():
     async with conn.transaction():
 
         # ── 1. Reset portal_admin ────────────────────────────────────────────
-        import datetime as _dt2
         await conn.execute("""
             UPDATE portal_admin SET
                 password_hash      = $1,
-                totp_secret_enc    = $2,
-                totp_configured_at = $3,
+                totp_secret_enc    = NULL,
+                totp_configured_at = NULL,
                 failed_totp_count  = 0,
                 status             = 'ACTIVE'
             WHERE email = 'admin@prana.in'
-        """, pw_hash, DEV_TOTP_ENC, _dt2.datetime.now(_dt2.timezone.utc))
-        print("portal_admin: reset admin@prana.in")
+        """, pw_hash)
+        print("portal_admin: reset admin@prana.in (TOTP cleared — QR shows on next login)")
 
-        # ── 2. Reset all oa_users in rich-seed orgs ──────────────────────────
-        # Sets a fixed TOTP secret so QR is stable across resets — scan once, use forever
-        import datetime as _dt
+        # ── 2. Reset all oa_users — clear TOTP so QR setup runs on next login ─
         result = await conn.execute("""
             UPDATE oa_user SET
                 password_hash      = $1,
-                totp_secret_enc    = $2,
-                totp_configured_at = $3,
+                totp_secret_enc    = NULL,
+                totp_configured_at = NULL,
                 force_reset        = FALSE,
                 failed_totp_count  = 0,
                 status             = 'ACTIVE'
-            WHERE tenant_id = ANY($4::uuid[])
-        """, pw_hash, DEV_TOTP_ENC, _dt.datetime.now(_dt.timezone.utc), [r[0] for r in RICH_ORGS])
-        print(f"oa_user: {result}")
+            WHERE tenant_id = ANY($2::uuid[])
+        """, pw_hash, [r[0] for r in RICH_ORGS])
+        print(f"oa_user: {result} (TOTP cleared — QR shows on next login)")
 
         # ── 3. Reset employee_user passwords ────────────────────────────────
         emp_hash = hash_password(EMP_PASSWORD)
