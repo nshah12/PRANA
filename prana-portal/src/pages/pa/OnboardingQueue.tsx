@@ -8,7 +8,7 @@ export function OnboardingQueue() {
   const qc = useQueryClient()
   const { data, isLoading } = useQuery({
     queryKey: ['pa-onboarding'],
-    queryFn: () => api.get('/admin/tenants?status=PENDING').then(r => r.data),
+    queryFn: () => api.get('/admin/tenants?status_filter=PENDING').then(r => r.data),
   })
 
   const [approvingId, setApprovingId] = useState<string | null>(null)
