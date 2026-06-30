@@ -223,7 +223,7 @@ export function Sidebar() {
       if (user.role === 'portal_admin') {
         const [meta, inc] = await Promise.all([
           api.get('/admin/meta-dashboard').then(r => r.data).catch(() => ({})),
-          api.get('/pa/incidents').then(r => r.data).catch(() => ({ p1_open: 0 })),
+          api.get('/admin/incidents').then(r => r.data).catch(() => ({ p1_open: 0 })),
         ])
         return {
           exceptions: meta.open_exceptions || 0,
