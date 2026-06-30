@@ -31,17 +31,17 @@ export function HRMSCatalogue() {
 
   const { data, isLoading, isError } = useQuery<{ items: ConnectorDef[] }>({
     queryKey: ['pa-hrms-definitions'],
-    queryFn:  () => api.get('/admin/hrms/definitions').then(r => r.data),
+    queryFn:  () => api.get('/v1/admin/hrms/definitions').then(r => r.data),
     staleTime: 60_000,
   })
 
   const activateMut = useMutation({
-    mutationFn: (id: string) => api.patch(`/admin/hrms/definitions/${id}/activate`).then(r => r.data),
+    mutationFn: (id: string) => api.patch(`/v1/admin/hrms/definitions/${id}/activate`).then(r => r.data),
     onSuccess:  () => qc.invalidateQueries({ queryKey: ['pa-hrms-definitions'] }),
   })
 
   const deactivateMut = useMutation({
-    mutationFn: (id: string) => api.patch(`/admin/hrms/definitions/${id}/deactivate`).then(r => r.data),
+    mutationFn: (id: string) => api.patch(`/v1/admin/hrms/definitions/${id}/deactivate`).then(r => r.data),
     onSuccess:  () => qc.invalidateQueries({ queryKey: ['pa-hrms-definitions'] }),
   })
 
