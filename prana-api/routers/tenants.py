@@ -9,6 +9,7 @@ PUT  /admin/tenants/{id}/config/{key}
 PATCH /admin/tenants/{id}     — update tenant profile fields
 """
 import json
+from messages import SuccessCode, success_response
 from datetime import datetime, timezone
 from typing import Optional, List
 from fastapi import APIRouter, HTTPException, Request, status
@@ -254,7 +255,7 @@ async def update_tenant(tenant_id: str, body: UpdateTenantIn, current: PortalAdm
         )
 
     await svc.update_profile(tenant_id, current.user_id, **fields)
-    return {"message": "Tenant updated"}
+    return {"message": SuccessCode.TENANT_UPDATED}
 
 
 @router.post("/{tenant_id}/activate", status_code=status.HTTP_200_OK)
@@ -288,7 +289,7 @@ async def suspend_tenant(tenant_id: str, body: SuspendIn, current: PortalAdmin, 
     kafka = getattr(request.app.state, "kafka_producer", None)
     if kafka:
         await kafka.tenant_event({"event_type": "TENANT_SUSPENDED", "tenant_id": tenant_id, "reason": body.reason})
-    return {"message": "Tenant suspended"}
+    return {"message": SuccessCode.TENANT_SUSPENDED}
 
 
 @router.put("/{tenant_id}/config/{key}", status_code=status.HTTP_200_OK)
@@ -305,4 +306,4 @@ async def update_tenant_config(
             "tenant_id": tenant_id,
             "config_key": key,
         })
-    return {"message": "Config updated"}
+    return {"message": SuccessCode.TENANT_CONFIG_UPDATED}

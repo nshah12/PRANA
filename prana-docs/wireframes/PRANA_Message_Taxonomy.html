@@ -1,0 +1,245 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>PRANA — Message Taxonomy</title>
+<style>
+  :root {
+    --bg:#f8f7f4; --surface:#fff; --border:rgba(0,0,0,0.08); --border-strong:rgba(0,0,0,0.14);
+    --text:#0b0b0b; --text-2:#52514e; --text-3:#898781; --radius:8px;
+    --api-bg:#e6f1fb; --api-border:#b5d4f4; --api-text:#0c447c; --api-dot:#185fa5;
+    --ai-bg:#eaf3de;  --ai-border:#c0dd97;  --ai-text:#3b6d11;  --ai-dot:#639922;
+    --ask-bg:#faeeda; --ask-border:#fac775; --ask-text:#854f0b; --ask-dot:#ba7517;
+    --cat-error:#fcebeb;   --cat-error-t:#a32d2d;  --cat-error-b:#f7c1c1;
+    --cat-success:#eaf3de; --cat-success-t:#3b6d11; --cat-success-b:#c0dd97;
+    --cat-info:#e6f1fb;    --cat-info-t:#0c447c;    --cat-info-b:#b5d4f4;
+    --cat-valid:#faeeda;   --cat-valid-t:#854f0b;   --cat-valid-b:#fac775;
+    --cat-status:#f1efe8;  --cat-status-t:#444441;  --cat-status-b:#d3d1c7;
+    --cat-pipe:#eaf3de;    --cat-pipe-t:#3b6d11;    --cat-pipe-b:#c0dd97;
+    --nr-bg:#fcebeb; --nr-t:#a32d2d; --nr-b:#f7c1c1;
+  }
+  @media(prefers-color-scheme:dark){
+    :root{
+      --bg:#1a1a19; --surface:#232321; --border:rgba(255,255,255,0.08); --border-strong:rgba(255,255,255,0.14);
+      --text:#fff; --text-2:#c3c2b7; --text-3:#898781;
+      --api-bg:#0c2a4a; --api-border:#185fa5; --api-text:#85b7eb; --api-dot:#378add;
+      --ai-bg:#172d0a; --ai-border:#3b6d11; --ai-text:#c0dd97; --ai-dot:#97c459;
+      --ask-bg:#2c1e06; --ask-border:#854f0b; --ask-text:#fac775; --ask-dot:#ef9f27;
+      --cat-error:#2a0f0f; --cat-error-t:#f09595; --cat-error-b:#791f1f;
+      --cat-success:#172d0a; --cat-success-t:#c0dd97; --cat-success-b:#3b6d11;
+      --cat-info:#0c2a4a; --cat-info-t:#85b7eb; --cat-info-b:#185fa5;
+      --cat-valid:#2c1e06; --cat-valid-t:#fac775; --cat-valid-b:#854f0b;
+      --cat-status:#2c2c2a; --cat-status-t:#b4b2a9; --cat-status-b:#5f5e5a;
+      --cat-pipe:#172d0a; --cat-pipe-t:#c0dd97; --cat-pipe-b:#3b6d11;
+      --nr-bg:#2a0f0f; --nr-t:#f09595; --nr-b:#791f1f;
+    }
+  }
+  *{box-sizing:border-box;margin:0;padding:0;}
+  body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;background:var(--bg);color:var(--text);font-size:14px;line-height:1.5;}
+  .page{max-width:1300px;margin:0 auto;padding:32px 24px 80px;}
+  h1{font-size:22px;font-weight:500;margin-bottom:4px;}
+  .sub{font-size:13px;color:var(--text-2);margin-bottom:6px;}
+  .meta{font-size:11px;color:var(--text-3);margin-bottom:24px;}
+  .stats{display:flex;gap:10px;flex-wrap:wrap;margin-bottom:24px;}
+  .sc{background:var(--surface);border:0.5px solid var(--border);border-radius:var(--radius);padding:10px 14px;min-width:110px;}
+  .sc-label{font-size:11px;text-transform:uppercase;letter-spacing:.05em;color:var(--text-3);margin-bottom:3px;}
+  .sc-val{font-size:20px;font-weight:500;}
+  .sc-sub{font-size:11px;color:var(--text-3);}
+  .controls{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:14px;}
+  .sw{position:relative;flex:1;min-width:200px;max-width:340px;}
+  .sw svg{position:absolute;left:10px;top:50%;transform:translateY(-50%);color:var(--text-3);width:14px;height:14px;}
+  input[type=search]{width:100%;padding:7px 10px 7px 30px;border:0.5px solid var(--border-strong);border-radius:var(--radius);background:var(--surface);color:var(--text);font-size:13px;outline:none;}
+  input[type=search]:focus{border-color:#378add;box-shadow:0 0 0 3px rgba(55,138,221,.15);}
+  .fg{display:flex;gap:5px;flex-wrap:wrap;}
+  .fb{padding:4px 11px;border:0.5px solid var(--border-strong);border-radius:16px;background:var(--surface);color:var(--text-2);font-size:12px;cursor:pointer;transition:all .12s;white-space:nowrap;}
+  .fb:hover{background:var(--bg);}
+  .fb.on{background:#185fa5;border-color:#185fa5;color:#fff;}
+  .fb.on.cat-error{background:#a32d2d;border-color:#a32d2d;}
+  .fb.on.cat-success{background:#3b6d11;border-color:#3b6d11;}
+  .fb.on.cat-info{background:#185fa5;border-color:#185fa5;}
+  .fb.on.cat-valid{background:#854f0b;border-color:#854f0b;}
+  .fb.on.cat-status{background:#444441;border-color:#444441;}
+  .fb.on.svc-ai{background:#639922;border-color:#639922;}
+  .fb.on.svc-ask{background:#ba7517;border-color:#ba7517;}
+  .fb.on.nr{background:#a32d2d;border-color:#a32d2d;}
+  .fb.on.cat-ui{background:#5b2d9e;border-color:#5b2d9e;color:#fff;}
+  .fb.on.svc-fe{background:#5b2d9e;border-color:#5b2d9e;}
+  .nb{display:inline-flex;align-items:center;justify-content:center;background:rgba(0,0,0,0.08);border-radius:10px;font-size:11px;color:inherit;padding:0 6px;margin-left:5px;}
+  .tw{background:var(--surface);border:0.5px solid var(--border);border-radius:12px;overflow:hidden;}
+  table{width:100%;border-collapse:collapse;table-layout:fixed;}
+  col.cc{width:30%;} col.cv{width:42%;} col.cs{width:80px;} col.cd{width:13%;} col.cr{width:80px;}
+  th{background:var(--bg);text-align:left;padding:8px 13px;font-size:11px;font-weight:500;text-transform:uppercase;letter-spacing:.05em;color:var(--text-3);border-bottom:0.5px solid var(--border);position:sticky;top:0;z-index:2;}
+  td{padding:8px 13px;border-bottom:0.5px solid var(--border);vertical-align:middle;}
+  tr:last-child td{border-bottom:none;}
+  tr:hover td{background:var(--bg);}
+  .gsep td{background:var(--bg);color:var(--text-3);font-size:11px;font-weight:500;text-transform:uppercase;letter-spacing:.06em;padding:5px 13px;border-bottom:0.5px solid var(--border);}
+  .cc-cell{display:flex;align-items:center;gap:6px;}
+  .code{font-family:'SF Mono','Fira Code',Consolas,monospace;font-size:12px;color:var(--text);word-break:break-all;}
+  .cpbtn{opacity:0;border:none;background:none;cursor:pointer;color:var(--text-3);padding:2px;border-radius:3px;}
+  tr:hover .cpbtn{opacity:1;}
+  .cpbtn:hover{background:var(--bg);}
+  .cat{display:inline-block;padding:2px 8px;border-radius:10px;font-size:11px;font-weight:500;border:0.5px solid transparent;white-space:nowrap;}
+  .cat-error  {background:var(--cat-error);  color:var(--cat-error-t);  border-color:var(--cat-error-b);}
+  .cat-success{background:var(--cat-success);color:var(--cat-success-t);border-color:var(--cat-success-b);}
+  .cat-info   {background:var(--cat-info);   color:var(--cat-info-t);   border-color:var(--cat-info-b);}
+  .cat-valid  {background:var(--cat-valid);  color:var(--cat-valid-t);  border-color:var(--cat-valid-b);}
+  .cat-status {background:var(--cat-status); color:var(--cat-status-t); border-color:var(--cat-status-b);}
+  .cat-pipe   {background:var(--cat-pipe);   color:var(--cat-pipe-t);   border-color:var(--cat-pipe-b);}
+  .cat-ui     {background:#f0ebfb;color:#5b2d9e;border-color:#cdb5f5;}
+  .svc{display:inline-flex;align-items:center;gap:4px;padding:2px 8px;border-radius:10px;font-size:11px;font-weight:500;border:0.5px solid transparent;white-space:nowrap;}
+  .svc-api{background:var(--api-bg);color:var(--api-text);border-color:var(--api-border);}
+  .svc-ai {background:var(--ai-bg); color:var(--ai-text); border-color:var(--ai-border);}
+  .svc-ask{background:var(--ask-bg);color:var(--ask-text);border-color:var(--ask-border);}
+  .svc-fe {background:#f0ebfb;color:#5b2d9e;border-color:#cdb5f5;}
+  .dot{width:5px;height:5px;border-radius:50%;flex-shrink:0;}
+  .d-api{background:var(--api-dot);} .d-ai{background:var(--ai-dot);} .d-ask{background:var(--ask-dot);} .d-fe{background:#7c3aed;}
+  .nr-badge{display:inline-block;padding:2px 7px;border-radius:10px;font-size:11px;background:var(--nr-bg);color:var(--nr-t);border:0.5px solid var(--nr-b);}
+  .lv{font-size:12px;color:var(--text-2);font-style:italic;}
+  .empty{text-align:center;padding:48px;color:var(--text-3);font-size:13px;}
+  .toast{position:fixed;bottom:22px;left:50%;transform:translateX(-50%);background:#232321;color:#fff;font-size:12px;padding:5px 14px;border-radius:16px;opacity:0;transition:opacity .18s;pointer-events:none;z-index:99;}
+  .toast.show{opacity:1;}
+</style>
+</head>
+<body>
+<div class="page">
+  <h1>PRANA &mdash; Message Taxonomy</h1>
+  <p class="sub">Every code the backend emits and the frontend renders. Zero hardcoded strings. Adding a language = adding one JSON file.</p>
+  <p class="meta">Generated from <code>prana-portal/src/i18n/en.json</code> &nbsp;&middot;&nbsp; 349 codes total &nbsp;&middot;&nbsp; Enforced by MSG-01 / MSG-02 in enforce_rules.py</p>
+
+  <div class="stats">
+    <div class="sc"><div class="sc-label">Total</div><div class="sc-val" id="s-total">349</div><div class="sc-sub">4 services &middot; 8 categories</div></div>
+    <div class="sc"><div class="sc-label">Error</div><div class="sc-val" id="s-error" style="color:var(--cat-error-t)">100</div><div class="sc-sub">PranaError</div></div>
+    <div class="sc"><div class="sc-label">Success</div><div class="sc-val" id="s-success" style="color:var(--cat-success-t)">60</div><div class="sc-sub">SuccessCode</div></div>
+    <div class="sc"><div class="sc-label">Info</div><div class="sc-val" id="s-info" style="color:var(--cat-info-t)">17</div><div class="sc-sub">InfoCode</div></div>
+    <div class="sc"><div class="sc-label">Validation</div><div class="sc-val" id="s-valid" style="color:var(--cat-valid-t)">19</div><div class="sc-sub">ValidationCode</div></div>
+    <div class="sc"><div class="sc-label">Status</div><div class="sc-val" id="s-status" style="color:var(--cat-status-t)">13</div><div class="sc-sub">StatusCode</div></div>
+    <div class="sc"><div class="sc-label">Pipeline</div><div class="sc-val" id="s-pipe" style="color:var(--cat-pipe-t)">84</div><div class="sc-sub">PipelineError</div></div>
+    <div class="sc"><div class="sc-label">Ask</div><div class="sc-val" id="s-ask" style="color:var(--ask-dot)">7</div><div class="sc-sub">AskError</div></div>
+    <div class="sc"><div class="sc-label">UI Copy</div><div class="sc-val" id="s-ui" style="color:#5b2d9e">49</div><div class="sc-sub">tUi() — frontend only</div></div>
+    <div class="sc"><div class="sc-label">Non-retry</div><div class="sc-val" id="s-nr" style="color:var(--cat-error-t)">10</div><div class="sc-sub">Temporal fails fast</div></div>
+  </div>
+
+  <div class="controls">
+    <div class="sw">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
+      <input type="search" id="search" placeholder="Search code or display text&hellip;" autocomplete="off">
+    </div>
+    <div class="fg" id="fg-cat">
+      <button class="fb on" data-cat="all">All <span class="nb" id="fb-all">349</span></button>
+      <button class="fb cat-error"   data-cat="error">Error <span class="nb" id="fb-error">100</span></button>
+      <button class="fb cat-success" data-cat="success">Success <span class="nb" id="fb-success">60</span></button>
+      <button class="fb cat-info"    data-cat="info">Info <span class="nb" id="fb-info">17</span></button>
+      <button class="fb cat-valid"   data-cat="validation">Validation <span class="nb" id="fb-valid">19</span></button>
+      <button class="fb cat-status"  data-cat="status">Status <span class="nb" id="fb-status">13</span></button>
+      <button class="fb cat-pipe"    data-cat="pipeline_error">Pipeline <span class="nb" id="fb-pipe">84</span></button>
+      <button class="fb"             data-cat="ask_error">Ask <span class="nb" id="fb-ask">7</span></button>
+      <button class="fb cat-ui"      data-cat="ui">UI Copy <span class="nb" id="fb-ui">49</span></button>
+    </div>
+    <div class="fg" id="fg-svc">
+      <button class="fb on" data-svc="all">All services</button>
+      <button class="fb svc-api" data-svc="prana-api">prana-api</button>
+      <button class="fb svc-ai"  data-svc="prana-ai">prana-ai</button>
+      <button class="fb svc-ask" data-svc="prana-ask">prana-ask</button>
+      <button class="fb svc-fe"  data-svc="frontend">frontend</button>
+    </div>
+    <button class="fb nr" id="btn-nr">Non-retryable only</button>
+  </div>
+
+  <div class="tw">
+    <table id="tbl">
+      <colgroup><col class="cc"><col class="cv"><col class="cs"><col class="cd"><col class="cr"></colgroup>
+      <thead><tr>
+        <th>Code</th><th>English (en-IN)</th><th>Service</th><th>Category</th><th>Non-retry</th>
+      </tr></thead>
+      <tbody id="tbody"></tbody>
+    </table>
+    <div class="empty" id="empty" style="display:none">No matching codes</div>
+  </div>
+</div>
+<div class="toast" id="toast"></div>
+
+<script>
+const NR = new Set(["S05_RESOLVE_CROSS_TENANT", "S03_SCAN_CSAM_DETECTED", "S06_ROUTE_ALREADY_TERMINAL", "S04_EXTRACT_OCR_BLANK_OUTPUT", "S04_EXTRACT_DARK_IMAGE", "S03_SCAN_VIRUS_DETECTED", "S06_ROUTE_LEGAL_HOLD_BLOCK", "S03_SCAN_NSFW_EXPLICIT", "S04_EXTRACT_CORRUPTED", "S04_EXTRACT_PASSWORD_PROTECTED"]);
+const LOCALE = {"error":{"INVALID_CREDENTIALS":"Incorrect email or password.","ACCOUNT_LOCKED":"Account locked due to too many failed attempts. Try again in {minutes} minutes.","ACCOUNT_INACTIVE":"This account is inactive. Contact your administrator.","ACCOUNT_NOT_ACTIVE":"Your account is not active yet.","INVALID_TOTP":"Incorrect authenticator code. Please try again.","INVALID_TOTP_CODE":"Incorrect OTP code. Please try again.","TOTP_NOT_CONFIGURED":"Two-factor authentication is not set up on this account.","TOTP_ALREADY_CONFIGURED":"Two-factor authentication is already configured.","TOTP_INIT_REQUIRED":"Please complete two-factor authentication setup first.","STEP_TOKEN_EXPIRED":"Session timed out. Please start the login again.","INVALID_STEP":"Unexpected step in login flow.","MISSING_STEP_TOKEN":"Session data missing. Please start the login again.","SETUP_TOKEN_EXPIRED":"This setup link has expired. Request a new one.","INVALID_CODE":"Invalid code. Please try again.","NO_REFRESH_TOKEN":"Session expired. Please log in again.","REFRESH_INVALID":"Session is no longer valid. Please log in again.","USER_NOT_FOUND":"No account found with these details.","PASSWORD_TOO_SHORT":"Password must be at least {min} characters.","DEVICE_NOT_ENROLLED":"This device is not registered.","DEVICE_NOT_FOUND":"Device not found.","INVALID_PLATFORM":"Unsupported platform.","SESSION_NOT_FOUND":"Session not found.","ALREADY_REVOKED":"This session has already been signed out.","MISSING_AUTH":"You must be signed in to access this.","OA_ADMIN_REQUIRED":"This action requires an OA Admin role.","OA_ADMIN_ROLE_REQUIRED":"This action requires an OA Admin role.","PORTAL_ADMIN_REQUIRED":"This action requires a Portal Admin role.","INTERNAL_TOKEN_REQUIRED":"Access denied.","INTERNAL_ONLY":"This endpoint is not publicly accessible.","ELEVATION_REQUIRED":"Elevated access is required for this action.","INSUFFICIENT_ROLE":"You don't have permission to do this.","TENANT_NOT_FOUND":"Organisation not found.","ALREADY_ACTIVATED":"This organisation has already been activated.","OVERRIDE_REASON_REQUIRED":"Please provide a reason for overriding this configuration.","MISSING_OA_ADMIN_EMAIL":"An admin email address is required to provision this organisation.","TENANT_KEK_NOT_FOUND":"Encryption key not found for this organisation.","AT_LEAST_ONE_CHANNEL_REQUIRED":"Please enable at least one notification channel.","CONFIG_CREATE_FAILED":"Failed to save configuration. Please try again.","DOCUMENT_NOT_FOUND":"Document not found.","UNSUPPORTED_FILE_TYPE":"Only PDF files are accepted.","EMPTY_FILE":"The file appears to be empty.","ARCHIVE_MUST_BE_ZIP":"Batch uploads must be a .zip file.","INVALID_ZIP":"The zip file is corrupted or invalid.","REPORT_NOT_FOUND":"Report not found.","ANOMALY_NOT_FOUND":"Anomaly record not found.","ACCESS_LOG_NOT_FOUND":"Access log entry not found.","SHARE_NOT_FOUND":"Share link not found or has expired.","SHARE_NOT_ACTIVE":"This share link is no longer active.","OTP_NOT_REQUIRED":"OTP verification is not required for this share.","INVALID_OTP":"Incorrect OTP. Please check and try again.","OTP_REQUIRED":"Please verify the OTP before accessing this document.","DOCUMENT_NOT_IN_SHARE":"This document is not included in the share.","EXCEPTION_NOT_FOUND":"Exception record not found.","ALREADY_RESOLVED":"This has already been resolved.","EXCEPTION_NOT_OPEN":"Only open exceptions can be resolved.","EMPLOYEE_NOT_FOUND":"Employee not found.","INVALID_DURATION":"Please enter a valid duration.","REASON_REQUIRED":"A reason is required for this action.","ELEVATION_ALREADY_ACTIVE":"You already have an active elevation.","ELEVATION_NOT_FOUND":"Elevation request not found.","ELEVATION_NOT_PENDING":"This elevation is no longer pending.","ELEVATION_NOT_ACTIVE":"No active elevation found.","NOT_YOUR_ELEVATION":"You can only manage your own elevation requests.","WORKFLOW_UNAVAILABLE":"Workflow not available. Please try again.","INVALID_PURPOSE":"Invalid consent purpose.","ERASURE_ALREADY_PENDING":"An erasure request is already in progress.","NO_PENDING_ERASURE":"No pending erasure request found.","NOT_FOUND":"The requested resource was not found.","LOCK_NOT_FOUND":"Lock record not found.","ALREADY_UNLOCKED":"This is already unlocked.","CONNECTOR_CONFIG_NOT_FOUND":"No HRMS connector configured for this organisation.","CONNECTOR_NOT_FOUND":"Connector not found.","INVALID_ACT":"Invalid statutory act selected.","INVALID_STATUS":"Invalid status value.","NO_FIELDS_TO_UPDATE":"No fields provided to update.","OTP_RATE_LIMITED":"Too many OTP requests. Please wait before trying again.","OTP_ALREADY_USED":"This OTP has already been used. Please request a new one.","REGISTRATION_OTP_EXPIRED":"OTP expired. Please restart the registration.","REGISTRATION_CODE_INVALID":"Incorrect code. Please check and try again.","EMAIL_VERIFICATION_REQUIRED":"Email verification is required. Please complete the OTP step.","VERIFICATION_SESSION_EXPIRED":"Verification session expired. Please restart.","DPA_REQUIRED":"Please accept the Data Processing Agreement to continue.","NO_TENANT_OVERRIDE":"Platform-level defaults cannot be overridden at tenant level.","CHANNEL_NOT_PERMITTED":"This notification channel is not permitted for your organisation tier.","INVALID_DATE_RANGE":"Please provide both from_date and to_date, or leave both empty to use the default period.","WEBHOOK_SIG_MISSING":"Webhook signature header is required.","WEBHOOK_SIG_MISMATCH":"Webhook signature verification failed.","INFRA_DB_UNAVAILABLE":"Database temporarily unavailable. Please try again in a moment.","INFRA_REDIS_UNAVAILABLE":"Cache service temporarily unavailable. Please try again.","INFRA_KAFKA_UNAVAILABLE":"Event service temporarily unavailable. Please try again.","INFRA_S3_UNAVAILABLE":"Document storage temporarily unavailable. Please try again.","INFRA_KMS_UNAVAILABLE":"Encryption service temporarily unavailable. Please try again.","INFRA_TEMPORAL_UNAVAILABLE":"Workflow service temporarily unavailable. Please try again.","INFRA_SERVICE_UNAVAILABLE":"Service temporarily unavailable. Please try again in a moment.","DEVICE_LIMIT_REACHED":"You've reached the device limit. Remove an old device in Settings first.","PUSH_REQUEST_NOT_FOUND":"No login request found. This link may have expired.","PUSH_REQUEST_STATUS_INVALID":"Unexpected login request status. Please try again.","PUSH_APPROVAL_FAILED":"Approval failed. Try again or deny the request.","CONSENT_RECORD_FAILED":"Could not record your consent. Check your connection and try again.","UPLOAD_FAILED":"Upload failed. Check your connection and try again."},"success":{"LOGIN_SUCCESS":"Signed in successfully.","LOGOUT_SUCCESS":"Signed out successfully.","TOTP_SETUP_COMPLETE":"Two-factor authentication enabled.","PASSWORD_CHANGED":"Password updated successfully.","DEVICE_ENROLLED":"Device registered successfully.","DOC_UPLOADED":"Document uploaded. Processing will begin shortly.","DOC_BATCH_UPLOADED":"{accepted} of {total} documents uploaded successfully.","DOC_SHARED":"Share link created.","SHARE_REVOKED":"Share link revoked.","SHARE_OTP_VERIFIED":"Identity verified. Document is now accessible.","TENANT_PROVISIONED":"Organisation provisioned successfully.","TENANT_CONFIG_UPDATED":"Configuration saved.","OA_USER_CREATED":"User created and invitation sent.","OA_USER_DEACTIVATED":"User deactivated.","EMPLOYEE_LINKED":"Employee account linked.","EXCEPTION_RESOLVED":"Exception resolved. Document will continue processing.","EXCEPTION_DISMISSED":"Exception dismissed.","ELEVATION_REQUESTED":"Elevation request submitted.","ELEVATION_APPROVED":"Elevation approved.","ELEVATION_REVOKED":"Elevation revoked.","ERASURE_REQUESTED":"Erasure request submitted. You will be notified within 30 days.","EXPORT_REQUESTED":"Data export requested. You will receive a link within 72 hours.","CORRECTION_REQUESTED":"Correction request submitted.","CONSENT_WITHDRAWN":"Consent withdrawn. Processing for this purpose has stopped.","GRIEVANCE_SUBMITTED":"Grievance submitted. We will acknowledge within 48 hours.","CONNECTOR_SAVED":"HRMS connector saved.","CONNECTOR_TESTED":"Connection successful.","SYNC_TRIGGERED":"Sync started.","OBLIGATION_CREATED":"Compliance obligation added.","OBLIGATION_UPDATED":"Obligation updated.","LOCK_APPLIED":"Account locked.","LOCK_REMOVED":"Account unlocked.","ANOMALY_FLAGGED":"Anomaly flagged for review.","ERASURE_CANCELLED":"Erasure request cancelled. Your account is safe.","CONSENT_GRANTED":"Consent granted. Documents from your employers will be processed.","ANOMALY_ACKNOWLEDGED":"Anomaly acknowledged. CHRO notified.","ANOMALY_UPDATED":"Anomaly record updated.","DIGEST_SETTINGS_SAVED":"Digest settings saved.","TEST_DIGEST_QUEUED":"Test digest queued. You will receive it shortly.","ACCESS_REVOKED":"Access revoked.","ALERT_ACKNOWLEDGED":"Alert acknowledged.","ROLE_UPDATED":"Role updated successfully.","DEVICE_REMOVED":"Device removed.","SESSION_REVOKED":"Session revoked.","EMPLOYEE_UPDATED":"Employee record updated.","MARKED_AS_ALUMNI":"Marked as alumni. Employer access to this account has been removed.","ELEVATION_ENDED":"Elevated session ended.","ELEVATION_DENIED":"Elevation request denied.","SETTINGS_UPDATED":"Settings saved.","PROFILE_UPDATED":"Profile updated.","TENANT_UPDATED":"Organisation updated.","TENANT_ACTIVATED":"Organisation activated.","TENANT_REJECTED":"Organisation application rejected.","TENANT_SUSPENDED":"Organisation suspended.","EMERGENCY_ACCOUNT_CREATED":"Emergency account created.","ACCOUNT_SUSPENDED":"Account suspended.","ADMIN_PASSWORD_RESET":"Password reset. A temporary password has been sent.","STORAGE_REQUEST_APPROVED":"Storage request approved.","STORAGE_REQUEST_REJECTED":"Storage request rejected.","STORAGE_REQUEST_HELD":"Storage request placed on hold."},"info":{"PIPELINE_QUEUED":"Document queued for processing.","PIPELINE_SCANNING":"Scanning document for safety…","PIPELINE_ENCRYPTING":"Encrypting document…","PIPELINE_EXTRACTING":"Extracting information…","PIPELINE_RESOLVING":"Matching employee identity…","PIPELINE_ROUTING":"Routing to vault…","PIPELINE_COMPLETE":"Document ready in vault.","PIPELINE_FAILED":"Processing failed. Please contact support if this persists.","SESSION_EXPIRING_SOON":"Your session will expire in {minutes} minutes.","SESSION_EXTENDED":"Session extended.","SHARE_OTP_SENT":"OTP sent to {channel}.","SHARE_SESSION_ACTIVE":"Secure access active. Expires in {minutes} minutes.","SHARE_SESSION_EXPIRING":"Your access will expire in {minutes} minutes.","SYNC_IN_PROGRESS":"Syncing with HRMS…","SYNC_COMPLETE":"Sync complete. {count} records updated.","SYNC_PARTIAL":"Sync partially complete. {success} succeeded, {failed} failed.","RATE_LIMIT_WARNING":"You are approaching the request limit. Please slow down."},"validation":{"FIELD_REQUIRED":"This field is required.","FIELD_TOO_SHORT":"Must be at least {min} characters.","FIELD_TOO_LONG":"Must be {max} characters or fewer.","FIELD_INVALID_FORMAT":"Invalid format.","PHONE_REQUIRED":"Mobile number is required.","PHONE_INVALID_FORMAT":"Enter a valid Indian mobile number (e.g. +91 98765 43210).","EMAIL_REQUIRED":"Email address is required.","EMAIL_INVALID_FORMAT":"Enter a valid email address.","FILE_REQUIRED":"Please select a file.","FILE_TOO_LARGE":"File size must be under {maxMB} MB.","FILE_TYPE_NOT_ALLOWED":"Only {types} files are accepted.","DATE_INVALID":"Enter a valid date.","DATE_IN_PAST":"Date cannot be in the past.","DATE_IN_FUTURE":"Date cannot be in the future.","PASSWORDS_DO_NOT_MATCH":"Passwords do not match.","PASSWORD_TOO_WEAK":"Password must include uppercase, lowercase, a number, and a symbol.","OTP_EXPIRED":"This OTP has expired. Request a new one.","OTP_ATTEMPTS_EXCEEDED":"Too many incorrect attempts. Please request a new OTP.","FORM_INVALID":"Please correct the errors above."},"status":{"QUEUED":"Queued","SCANNING":"Scanning","ENCRYPTING":"Encrypting","EXTRACTING":"Extracting","RESOLVING":"Matching identity","ROUTING":"Routing to vault","ROUTED":"In vault","QUARANTINED":"Quarantined","EXCEPTION":"Needs review","LOW_CONFIDENCE":"Low confidence","UNCLASSIFIED":"Unclassified","FAILED":"Failed","LEGAL_HOLD":"Legal hold"},"pipeline_error":{"S01_INGEST_FILE_MISSING":"File not found.","S01_INGEST_SIZE_EXCEEDED":"File exceeds maximum allowed size.","S01_INGEST_EXT_REJECTED":"File type not supported.","S01_INGEST_S3_UPLOAD_FAILED":"Upload failed. Please try again.","S01_INGEST_DB_INSERT_FAILED":"Could not record the document. Please try again.","S02_ENCRYPT_KMS_UNAVAILABLE":"Encryption service unavailable.","S02_ENCRYPT_KMS_PERMISSION_DENIED":"Encryption permission denied.","S02_ENCRYPT_FF3_INIT_FAILED":"Encryption initialisation failed.","S02_ENCRYPT_FF3_PAN_FAILED":"Identity encryption failed.","S02_ENCRYPT_AES_FAILED":"Encryption failed.","S02_ENCRYPT_S3_UPLOAD_FAILED":"Could not store encrypted file.","S02_ENCRYPT_S3_DELETE_FAILED":"Cleanup warning.","S02_ENCRYPT_OCR_TESSERACT_FAILED":"Text recognition failed (primary).","S02_ENCRYPT_OCR_TEXTRACT_FAILED":"Text recognition failed (fallback).","S02_ENCRYPT_PAN_NOT_FOUND":"Could not detect identity in document.","S02_ENCRYPT_MULTIPLE_PANS":"Multiple identities detected — manual review required.","S03_SCAN_CLAMD_UNAVAILABLE":"Security scan service unavailable.","S03_SCAN_CLAMD_TIMEOUT":"Security scan timed out.","S03_SCAN_CLAMD_ERROR":"Security scan error.","S03_SCAN_VIRUS_DETECTED":"Document blocked: potential security threat detected.","S03_SCAN_NUDENET_UNAVAILABLE":"Content scan service unavailable.","S03_SCAN_NUDENET_FAILED":"Content scan failed.","S03_SCAN_NSFW_EXPLICIT":"Document blocked: inappropriate content detected.","S03_SCAN_NSFW_SUGGESTIVE":"Document flagged for review.","S03_SCAN_PHOTODNA_UNAVAILABLE":"Safety scan service unavailable.","S03_SCAN_PHOTODNA_ERROR":"Safety scan error.","S03_SCAN_CSAM_DETECTED":"Document blocked and reported.","S03_SCAN_FORMAT_UNSUPPORTED":"File format not supported for scanning.","S04_EXTRACT_PDF_FAILED":"Could not read PDF.","S04_EXTRACT_DOCX_FAILED":"Could not read Word document.","S04_EXTRACT_XLSX_FAILED":"Could not read spreadsheet.","S04_EXTRACT_OCR_TESSERACT_UNAVAILABLE":"Text recognition unavailable.","S04_EXTRACT_OCR_TESSERACT_TIMEOUT":"Text recognition timed out.","S04_EXTRACT_OCR_TEXTRACT_UNAVAILABLE":"Cloud text recognition unavailable.","S04_EXTRACT_OCR_TEXTRACT_QUOTA":"Cloud text recognition quota exceeded.","S04_EXTRACT_OCR_BLANK_OUTPUT":"No text found in document.","S04_EXTRACT_OCR_LOW_CONFIDENCE":"Text recognition confidence is low.","S04_EXTRACT_PASSWORD_PROTECTED":"Document is password protected. Please unlock and re-upload.","S04_EXTRACT_MANIFEST_NOT_FOUND":"Document type configuration missing.","S04_EXTRACT_MANIFEST_BUILD_FAILED":"Document type configuration error.","S04_EXTRACT_LLM_UNAVAILABLE":"AI extraction service unavailable.","S04_EXTRACT_LLM_TIMEOUT":"AI extraction timed out.","S04_EXTRACT_LLM_JSON_INVALID":"AI returned unexpected output.","S04_EXTRACT_LLM_SCHEMA_INVALID":"AI output format mismatch.","S04_EXTRACT_LOW_CONFIDENCE":"Extraction confidence too low — sent for manual review.","S04_EXTRACT_AUTODETECT_FAILED":"Could not detect document type.","S04_EXTRACT_LANGUAGE_UNSUPPORTED":"Document language is not supported.","S04_EXTRACT_CORRUPTED":"Document appears to be corrupted.","S04_EXTRACT_DARK_IMAGE":"Document image is too dark to read.","S05_RESOLVE_CROSS_TENANT":"Security alert: document belongs to a different organisation.","S05_RESOLVE_L1_DB_ERROR":"Identity lookup failed (level 1).","S05_RESOLVE_L2_DB_ERROR":"Identity lookup failed (level 2).","S05_RESOLVE_L3_DB_ERROR":"Identity lookup failed (level 3).","S05_RESOLVE_L3_MULTIPLE_CANDIDATES":"Multiple employees matched — manual review required.","S05_RESOLVE_L4_EMBEDDING_FAILED":"AI identity matching failed.","S05_RESOLVE_L4_QDRANT_UNAVAILABLE":"Identity search service unavailable.","S05_RESOLVE_L4_QDRANT_ERROR":"Identity search error.","S05_RESOLVE_L4_MULTIPLE_CANDIDATES":"Multiple matches found — manual review required.","S05_RESOLVE_UNRESOLVED":"Employee could not be identified — sent for review.","S05_RESOLVE_MANIFEST_FETCH_FAILED":"Could not fetch identity manifest.","S05_RESOLVE_EMBEDDING_GENERATION_FAILED":"Identity embedding failed.","S06_ROUTE_DB_TRANSACTION_FAILED":"Could not save to vault.","S06_ROUTE_S3_MOVE_FAILED":"Could not move document to vault.","S06_ROUTE_KAFKA_PUBLISH_FAILED":"Notification delivery issue.","S06_ROUTE_SENSITIVE_STRIP_FAILED":"Could not sanitise document data.","S06_ROUTE_BENCHMARK_FAILED":"Career benchmarking failed.","S06_ROUTE_EXCEPTION_QUEUE_FAILED":"Could not add to review queue.","S06_ROUTE_UNCLASSIFIED_QUEUE_FAILED":"Could not add to unclassified queue.","S06_ROUTE_INTERNAL_CALLBACK_FAILED":"Could not notify processing service.","S06_ROUTE_ALREADY_TERMINAL":"Document is already in a final state.","S06_ROUTE_LEGAL_HOLD_BLOCK":"Document is under legal hold and cannot be routed.","S06_ROUTE_VAULT_HEALTH_FAILED":"Could not update vault summary.","S06_ROUTE_CAREER_EVENT_UNKNOWN":"Could not determine career event type.","INFRA_DB_UNAVAILABLE":"Database unavailable.","INFRA_REDIS_UNAVAILABLE":"Cache unavailable.","INFRA_KAFKA_UNAVAILABLE":"Event bus unavailable.","INFRA_S3_UNAVAILABLE":"Storage unavailable.","INFRA_KMS_UNAVAILABLE":"Encryption service unavailable.","INFRA_LLM_URL_MISSING":"AI service not configured.","INFRA_QDRANT_UNAVAILABLE":"Search service unavailable.","INFRA_CONFIG_MISSING":"Required configuration missing.","INFRA_CONFIG_INVALID":"Configuration value is invalid.","INFRA_WORKER_HEARTBEAT_FAILED":"Worker health check failed.","INFRA_INTERNAL_HTTP_FAILED":"Internal service call failed."},"ask_error":{"UNAUTHORIZED":"Unauthorised.","MISSING_EMPLOYEE_ID":"Employee identity missing.","INVALID_EMPLOYEE_ID":"Invalid employee identity.","EMPTY_QUERY":"Please type a question.","QUERY_TOO_LONG":"Your question is too long. Please shorten it.","PRIVACY_BLOCK":"I can share insights about your career but cannot share specific financial figures.","RAG_UNAVAILABLE":"Ask PRANA is temporarily unavailable. Please try again shortly."},"ui":{"LOADING":"Loading…","RETRY":"Try again","SOMETHING_WENT_WRONG":"Something went wrong. Please try again.","NO_INTERNET":"No internet connection. Check your network and retry.","SESSION_EXPIRED":"Your session has expired. Please sign in again.","VAULT_EMPTY":"Your vault is empty. Documents pushed by your employer will appear here.","VAULT_LOADING":"Loading your documents…","VAULT_DOCUMENT_PROCESSING":"This document is being processed. It will be ready shortly.","ACTIVITY_EMPTY":"No activity yet. Access and sharing history will appear here.","CAREER_EMPTY":"Your career timeline will build as documents are added to your vault.","ASK_PLACEHOLDER":"Ask anything about your career documents…","ASK_EMPTY":"No conversations yet. Ask anything about your career.","ASK_THINKING":"Thinking…","SHARES_EMPTY":"No active shares. Create a share link from any document in your vault.","SHARE_EXPIRED":"This share link has expired.","SHARE_OTP_PROMPT":"Enter the OTP sent to verify your identity.","DOC_LOADING":"Loading document…","DOC_PASSWORD_PROMPT":"This document is password protected. Enter the password to view it.","DOC_PASSWORD_SESSION_NOTE":"Your decrypted view is active for 10 minutes. Nothing is saved to your device.","UPLOAD_DRAG_DROP":"Drag and drop PDF files here, or tap to browse","UPLOAD_PROCESSING":"Uploading and queuing for processing…","CONSENT_REQUIRED":"Your consent is required before we can process your documents.","ERASURE_WARNING":"This will permanently delete your account and all documents. This cannot be undone.","NOTIF_DOC_READY":"Your document is ready in the vault.","NOTIF_EXCEPTION":"A document needs your attention.","BIOMETRIC_FAILED":"Biometric check failed. Try again or sign in another way.","BIOMETRIC_ENROLLMENT_FAILED":"Could not complete enrollment. You can enable this later in Settings.","FILE_PICKER_UNAVAILABLE":"Couldn't open file picker. Please try again.","OTP_RESEND_FAILED":"Could not resend OTP. Try again.","ACCOUNT_LOCKED_CONTACT":"Account locked. Contact support or wait for auto-unlock.","ATTEMPTS_REMAINING":"Incorrect code. {remaining} attempt(s) remaining.","UNLOCK_PROMPT":"Enter the document password to continue.","SHARE_CREATE_FAILED":"Couldn't create share link. Check your connection and try again.","ACTIVITY_LOAD_FAILED":"Failed to load activity. Tap to retry.","EMPLOYER_NOT_REGISTERED":"This number isn't linked to a PRANA vault yet. Your employer needs to add you first.","NO_MESSAGES_YET":"No messages yet","CAREER_LOAD_FAILED":"Could not load career data. Try again later.","REQUESTS_LOAD_FAILED":"Could not load requests.","NO_REQUESTS_YET":"No requests yet","CAREER_SCORE_LOAD_FAILED":"Could not load career score.","CHECK_CONNECTION":"Check your connection and try again.","NO_NOMINEES_YET":"No nominees yet","NOMINEE_NAME_PLACEHOLDER":"Nominee's legal name","NO_TRUSTED_DEVICES":"No trusted devices yet","NO_SHARE_LINKS_YET":"No share links yet","VAULT_HEALTH_LOAD_FAILED":"Could not load health data. Try again later.","DOC_LOAD_FAILED":"Couldn't load document","DOC_NOT_FOUND":"Document not found","NO_PAST_EMPLOYERS":"No past employers found"}};
+const SVC_MAP = {"error":"prana-api","success":"prana-api","info":"prana-api","validation":"prana-api","status":"prana-api","pipeline_error":"prana-ai","ask_error":"prana-ask","ui":"frontend"};
+const CAT_LABEL = {"error":"Error","success":"Success","info":"Info","validation":"Validation","status":"Status","pipeline_error":"Pipeline","ask_error":"Ask","ui":"UI Copy"};
+const CAT_CLASS = {"error":"cat-error","success":"cat-success","info":"cat-info","validation":"cat-valid","status":"cat-status","pipeline_error":"cat-pipe","ask_error":"cat-pipe","ui":"cat-ui"};
+
+const ALL_ROWS = [];
+for (const [cat, entries] of Object.entries(LOCALE)) {
+  for (const [code, locale] of Object.entries(entries)) {
+    ALL_ROWS.push({ cat, code, locale, svc: SVC_MAP[cat] || "prana-api" });
+  }
+}
+
+let activeCat = "all", activeSvc = "all", nrOnly = false, query = "";
+
+function render() {
+  const q = query.toLowerCase();
+  const tbody = document.getElementById("tbody");
+  tbody.innerHTML = "";
+  let lastGroup = null, vis = 0;
+  for (const row of ALL_ROWS) {
+    if (activeCat !== "all" && row.cat !== activeCat) continue;
+    if (activeSvc !== "all" && row.svc !== activeSvc) continue;
+    if (nrOnly && !NR.has(row.code)) continue;
+    if (q && !row.code.toLowerCase().includes(q) && !row.locale.toLowerCase().includes(q) && !row.cat.includes(q)) continue;
+    const group = row.svc + "||" + row.cat;
+    if (group !== lastGroup) {
+      const sep = document.createElement("tr");
+      sep.className = "gsep";
+      sep.innerHTML = `<td colspan="5">${row.svc} &mdash; ${CAT_LABEL[row.cat] || row.cat}</td>`;
+      tbody.appendChild(sep);
+      lastGroup = group;
+    }
+    const svcKey = {"prana-api":"api","prana-ai":"ai","prana-ask":"ask","frontend":"fe"}[row.svc] || "api";
+    const catCls = CAT_CLASS[row.cat] || "cat-error";
+    const nr = NR.has(row.code) ? '<span class="nr-badge">&#x2717; no</span>' : "";
+    const tr = document.createElement("tr");
+    tr.innerHTML = `
+      <td><div class="cc-cell">
+        <span class="code">${row.code}</span>
+        <button class="cpbtn" title="Copy" onclick="cp(this,'${row.code}')">
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
+        </button>
+      </div></td>
+      <td><span class="lv">${row.locale}</span></td>
+      <td><span class="svc svc-${svcKey}"><span class="dot d-${svcKey}"></span>${row.svc}</span></td>
+      <td><span class="cat ${catCls}">${CAT_LABEL[row.cat] || row.cat}</span></td>
+      <td>${nr}</td>
+    `;
+    tbody.appendChild(tr);
+    vis++;
+  }
+  document.getElementById("empty").style.display = vis === 0 ? "block" : "none";
+}
+
+document.getElementById("search").addEventListener("input", e => { query = e.target.value; render(); });
+document.getElementById("fg-cat").addEventListener("click", e => {
+  const btn = e.target.closest("[data-cat]"); if (!btn) return;
+  activeCat = btn.dataset.cat;
+  document.querySelectorAll("[data-cat]").forEach(b => b.classList.remove("on"));
+  btn.classList.add("on"); render();
+});
+document.getElementById("fg-svc").addEventListener("click", e => {
+  const btn = e.target.closest("[data-svc]"); if (!btn) return;
+  activeSvc = btn.dataset.svc;
+  document.querySelectorAll("[data-svc]").forEach(b => b.classList.remove("on"));
+  btn.classList.add("on"); render();
+});
+document.getElementById("btn-nr").addEventListener("click", e => {
+  nrOnly = !nrOnly; e.target.classList.toggle("on", nrOnly); render();
+});
+function cp(btn, code) {
+  navigator.clipboard.writeText(code).then(() => {
+    const t = document.getElementById("toast");
+    t.textContent = "Copied " + code;
+    t.classList.add("show");
+    setTimeout(() => t.classList.remove("show"), 1400);
+  });
+}
+render();
+</script>
+</body>
+</html>

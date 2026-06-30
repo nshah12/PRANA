@@ -7,6 +7,7 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { router, useLocalSearchParams } from 'expo-router';
 import { colors, fonts, gradJourney } from '@/prana-theme/tokens';
+import { tUi } from '@/i18n';
 
 // ── Session timer ─────────────────────────────────────────────────
 const SESSION_SECONDS = 10 * 60; // 10 minutes
@@ -151,7 +152,7 @@ export default function UnlockDocumentScreen() {
   }, [remaining, phase]);
 
   function handleUnlock() {
-    if (!password.trim()) { setError('Enter the document password to continue.'); return; }
+    if (!password.trim()) { setError(tUi('UNLOCK_PROMPT')); return; }
     setError('');
     setPhase('processing');
   }

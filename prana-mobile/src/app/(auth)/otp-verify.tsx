@@ -9,6 +9,7 @@ import { router } from 'expo-router';
 import { api } from '@/lib/api';
 import { authStore } from '@/lib/auth-store';
 import { colors, fonts, radius } from '@/prana-theme/tokens';
+import { tError, tUi } from '@/i18n';
 
 const CODE_LEN = 6;
 const RESEND_WAIT = 30;
@@ -83,10 +84,10 @@ export default function OtpVerifyScreen() {
       }
     } catch (e: any) {
       const errCode = e?.body?.error ?? e?.response?.data?.error;
-      if (errCode === 'INVALID_OTP')   setError('Incorrect code. Check and try again.');
-      else if (errCode === 'EXPIRED')  setError('Code expired. Request a new one below.');
-      else if (errCode === 'LOCKED')   setError('Too many attempts. Request a new code.');
-      else setError('Verification failed. Try again.');
+      if (errCode === 'INVALID_OTP')   setError(tError('INVALID_OTP'));
+      else if (errCode === 'EXPIRED' || errCode === 'OTP_EXPIRED')  setError(tError('OTP_ALREADY_USED'));
+      else if (errCode === 'LOCKED' || errCode === 'OTP_RATE_LIMITED') setError(tError('OTP_RATE_LIMITED'));
+      else setError(tUi('SOMETHING_WENT_WRONG'));
       setCode('');
       shake();
       inputRef.current?.focus();
@@ -107,7 +108,7 @@ export default function OtpVerifyScreen() {
       setCode('');
       inputRef.current?.focus();
     } catch {
-      setError('Could not resend OTP. Try again.');
+      setError(tUi('OTP_RESEND_FAILED'));
     } finally {
       setResending(false);
     }

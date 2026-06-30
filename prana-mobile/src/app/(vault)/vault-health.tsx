@@ -2,6 +2,7 @@ import React from 'react';
 import {
   View, Text, Pressable, StyleSheet, ScrollView, ActivityIndicator,
 } from 'react-native';
+import { tUi } from '@/i18n';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { router } from 'expo-router';
 import { useQuery } from '@tanstack/react-query';
@@ -129,7 +130,7 @@ export default function VaultHealthScreen() {
         </View>
       ) : errH ? (
         <View style={s.center}>
-          <Text style={s.errorText}>Could not load health data. Try again later.</Text>
+          <Text style={s.errorText}>{tUi('VAULT_HEALTH_LOAD_FAILED')}</Text>
         </View>
       ) : (
         <ScrollView style={s.body} contentContainerStyle={s.bodyContent} showsVerticalScrollIndicator={false}>

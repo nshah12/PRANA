@@ -3,6 +3,7 @@ import {
   View, Text, Pressable, StyleSheet, ScrollView, TextInput,
   ActivityIndicator, Modal,
 } from 'react-native';
+import { tUi } from '@/i18n';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { router } from 'expo-router';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
@@ -124,12 +125,12 @@ export default function DocRequestScreen() {
         </View>
       ) : error ? (
         <View style={s.center}>
-          <Text style={s.errorText}>Could not load requests.</Text>
+          <Text style={s.errorText}>{tUi('REQUESTS_LOAD_FAILED')}</Text>
         </View>
       ) : requests.length === 0 ? (
         <View style={s.center}>
           <Text style={s.emptyIcon}>📩</Text>
-          <Text style={s.emptyTitle}>No requests yet</Text>
+          <Text style={s.emptyTitle}>{tUi('NO_REQUESTS_YET')}</Text>
           <Text style={s.emptySub}>Tap "+ New" to ask your employer for a missing document.</Text>
         </View>
       ) : (

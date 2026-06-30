@@ -21,6 +21,7 @@ import * as LocalAuthentication from 'expo-local-authentication';
 import { api } from '@/lib/api';
 import { authStore } from '@/lib/auth-store';
 import { colors, fonts, gradJourney } from '@/prana-theme/tokens';
+import { tUi } from '@/i18n';
 
 // ── Biometric scanner visual ──────────────────────────────────────────────────
 function ScannerOrb({ scanning }: { scanning: boolean }) {
@@ -154,7 +155,7 @@ export default function EnableFaceIdScreen() {
         setScanning(false);
         setStatus('idle');
         if (result.error !== 'user_cancel') {
-          setErrorMsg('Biometric authentication failed. Try again or skip for now.');
+          setErrorMsg(tUi('BIOMETRIC_FAILED'));
         }
         return;
       }
@@ -175,7 +176,7 @@ export default function EnableFaceIdScreen() {
     } catch {
       setScanning(false);
       setStatus('error');
-      setErrorMsg('Could not complete enrollment. You can enable this later in Settings.');
+      setErrorMsg(tUi('BIOMETRIC_ENROLLMENT_FAILED'));
     }
   }
 

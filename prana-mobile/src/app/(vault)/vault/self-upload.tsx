@@ -22,6 +22,7 @@ import { router } from 'expo-router';
 import * as DocumentPicker from 'expo-document-picker';
 import { colors, fonts, gradJourney } from '@/prana-theme/tokens';
 import { api } from '@/lib/api';
+import { tError, tUi } from '@/i18n';
 
 // ── Doc type options ──────────────────────────────────────────────────────────
 
@@ -151,7 +152,7 @@ export default function SelfUploadScreen() {
         setError('');
       }
     } catch {
-      setError('Couldn\'t open file picker. Please try again.');
+      setError(tUi('FILE_PICKER_UNAVAILABLE'));
     }
   }
 
@@ -189,8 +190,7 @@ export default function SelfUploadScreen() {
       setTimeout(() => router.replace('/(vault)/vault'), 1400);
     } catch (e: unknown) {
       setUploadState('error');
-      const msg = (e as { message?: string })?.message ?? '';
-      setError(msg || 'Upload failed. Check your connection and try again.');
+      setError(tError('UPLOAD_FAILED'));
       setProgress(0);
     }
   }

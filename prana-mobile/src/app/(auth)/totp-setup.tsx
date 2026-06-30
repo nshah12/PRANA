@@ -9,6 +9,7 @@ import { router } from 'expo-router';
 import { api } from '@/lib/api';
 import { authStore } from '@/lib/auth-store';
 import { colors, fonts, radius } from '@/prana-theme/tokens';
+import { tError, tUi } from '@/i18n';
 
 // QR code rendered as SVG-like grid using the returned svg string in a WebView,
 // or via a native QR library. Here we use a real API response that includes
@@ -154,8 +155,8 @@ export default function TotpSetupScreen() {
       router.replace('/(auth)/register-device');
     } catch (e: any) {
       const errCode = e?.body?.error ?? e?.response?.data?.error;
-      if (errCode === 'INVALID_TOTP') setVerifyError('Wrong code. Double-check the time on your phone and try again.');
-      else setVerifyError('Verification failed. Try again.');
+      if (errCode === 'INVALID_TOTP') setVerifyError(tError('INVALID_TOTP_CODE'));
+      else setVerifyError(tUi('SOMETHING_WENT_WRONG'));
       setCode('');
       shake();
       inputRef.current?.focus();
@@ -214,7 +215,7 @@ export default function TotpSetupScreen() {
 
             {phase === 'error' && (
               <View style={s.errorWrap}>
-                <Text style={s.errorWrapText}>Could not generate TOTP setup. Check your connection.</Text>
+                <Text style={s.errorWrapText}>{tUi('SOMETHING_WENT_WRONG')}</Text>
                 <Pressable onPress={loadTotpSetup} style={s.retryBtn}>
                   <Text style={s.retryText}>Try again</Text>
                 </Pressable>

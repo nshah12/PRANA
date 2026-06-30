@@ -24,6 +24,7 @@ import { router } from 'expo-router';
 import { api } from '@/lib/api';
 import { authStore } from '@/lib/auth-store';
 import { colors, fonts, gradJourney, radius } from '@/prana-theme/tokens';
+import { tError, tUi, tValidation } from '@/i18n';
 
 function PulsingVault() {
   const pulse  = useRef(new Animated.Value(1)).current;
@@ -100,12 +101,12 @@ export default function SignInScreen() {
   async function handleContinue() {
     const cleaned = mobile.replace(/\D/g, '');
     if (cleaned.length < 10) {
-      setError('Enter your 10-digit mobile number registered with PRANA.');
+      setError(tValidation('PHONE_REQUIRED'));
       shake();
       return;
     }
     if (!password) {
-      setError('Enter your password.');
+      setError(tValidation('FIELD_REQUIRED'));
       shake();
       return;
     }
@@ -127,13 +128,13 @@ export default function SignInScreen() {
     } catch (e: any) {
       const code = e?.body?.error ?? e?.response?.data?.error;
       if (code === 'INVALID_CREDENTIALS') {
-        setError('Mobile number or password is incorrect.');
+        setError(tError('INVALID_CREDENTIALS'));
       } else if (code === 'MOBILE_NOT_REGISTERED') {
-        setError('This number isn\'t linked to a PRANA vault yet. Your employer needs to add you first.');
-      } else if (code === 'LOCKED') {
-        setError('Account locked after too many attempts. Try again later or contact support.');
+        setError(tUi('EMPLOYER_NOT_REGISTERED'));
+      } else if (code === 'LOCKED' || code === 'ACCOUNT_LOCKED') {
+        setError(tUi('ACCOUNT_LOCKED_CONTACT'));
       } else {
-        setError('Something went wrong. Check your connection and try again.');
+        setError(tUi('SOMETHING_WENT_WRONG'));
       }
       shake();
     } finally {

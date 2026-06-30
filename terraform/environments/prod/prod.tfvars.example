@@ -1,0 +1,21 @@
+# Copy to prod.tfvars and fill in real values.
+# NEVER commit prod.tfvars — it contains secrets.
+# Store in AWS Secrets Manager or pass via CI/CD environment variables.
+
+platform_admin_role_arn = "arn:aws:iam::123456789012:role/prana-platform-admin"
+
+# ECR image URIs — set by CI/CD after docker push
+api_image = "123456789012.dkr.ecr.ap-south-1.amazonaws.com/prana/api:v1.0.0"
+ai_image  = "123456789012.dkr.ecr.ap-south-1.amazonaws.com/prana/ai:v1.0.0"
+ask_image = "123456789012.dkr.ecr.ap-south-1.amazonaws.com/prana/ask:v1.0.0"
+
+# YugabyteDB password — generate with: openssl rand -base64 32
+yugabytedb_password = "REPLACE_WITH_STRONG_PASSWORD"
+
+# Domain — change these to use any domain you own
+domain_name     = "prana.in"
+api_subdomain   = "api"          # results in api.prana.in
+route53_zone_id = "REPLACE_WITH_HOSTED_ZONE_ID"
+
+# ACM certificate — must cover api.<domain_name>, validated in ap-south-1 before terraform apply
+acm_certificate_arn = "arn:aws:acm:ap-south-1:123456789012:certificate/REPLACE_WITH_CERT_ID"

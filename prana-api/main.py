@@ -7,6 +7,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
 from config import get_settings
+from errors import PranaError
 from middleware.deprecation import DeprecationMiddleware
 from db import create_pool
 from services.jwt_service import JWTService
@@ -172,13 +173,95 @@ def create_app() -> FastAPI:
     app.add_middleware(DeprecationMiddleware)
 
     # ── Global exception handlers ──────────────────────────────────────────────
+    # Each handler returns a typed PranaError code — never a hardcoded English sentence.
+    # Frontend maps the code to a locale string via tError().
+
+    try:
+        import asyncpg
+        @app.exception_handler(asyncpg.PostgresConnectionError)
+        @app.exception_handler(asyncpg.TooManyConnectionsError)
+        @app.exception_handler(asyncpg.CannotConnectNowError)
+        async def db_unavailable_handler(request: Request, exc: Exception):
+            return JSONResponse(
+                status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+                content={"error": PranaError.INFRA_DB_UNAVAILABLE},
+            )
+    except ImportError:
+        pass
+
+    try:
+        import redis.exceptions as redis_exc
+        @app.exception_handler(redis_exc.ConnectionError)
+        @app.exception_handler(redis_exc.TimeoutError)
+        async def redis_unavailable_handler(request: Request, exc: Exception):
+            return JSONResponse(
+                status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+                content={"error": PranaError.INFRA_REDIS_UNAVAILABLE},
+            )
+    except ImportError:
+        pass
+
+    try:
+        import aiokafka.errors as kafka_errors
+        @app.exception_handler(kafka_errors.KafkaConnectionError)
+        @app.exception_handler(kafka_errors.KafkaTimeoutError)
+        async def kafka_unavailable_handler(request: Request, exc: Exception):
+            return JSONResponse(
+                status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+                content={"error": PranaError.INFRA_KAFKA_UNAVAILABLE},
+            )
+    except ImportError:
+        pass
+
+    try:
+        import botocore.exceptions as boto_exc
+        @app.exception_handler(boto_exc.EndpointConnectionError)
+        @app.exception_handler(boto_exc.ConnectTimeoutError)
+        async def aws_unavailable_handler(request: Request, exc: Exception):
+            # Could be S3 or KMS — generic AWS infra error
+            return JSONResponse(
+                status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+                content={"error": PranaError.INFRA_SERVICE_UNAVAILABLE},
+            )
+
+        @app.exception_handler(boto_exc.ClientError)
+        async def aws_client_error_handler(request: Request, exc: Exception):
+            code = getattr(exc, "response", {}).get("Error", {}).get("Code", "")
+            if code in ("KMSInvalidStateException", "DisabledException", "InvalidKeyUsageException"):
+                return JSONResponse(
+                    status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+                    content={"error": PranaError.INFRA_KMS_UNAVAILABLE},
+                )
+            if code in ("NoSuchBucket", "NoSuchKey"):
+                return JSONResponse(
+                    status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+                    content={"error": PranaError.INFRA_S3_UNAVAILABLE},
+                )
+            # Other boto errors fall through to the generic handler
+            return JSONResponse(
+                status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+                content={"error": PranaError.INFRA_SERVICE_UNAVAILABLE},
+            )
+    except ImportError:
+        pass
+
+    try:
+        from temporalio.service import RPCError
+        @app.exception_handler(RPCError)
+        async def temporal_unavailable_handler(request: Request, exc: Exception):
+            return JSONResponse(
+                status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+                content={"error": PranaError.INFRA_TEMPORAL_UNAVAILABLE},
+            )
+    except ImportError:
+        pass
 
     @app.exception_handler(Exception)
     async def unhandled_exception_handler(request: Request, exc: Exception):
         # Never leak stack traces to clients
         return JSONResponse(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            content={"error": "INTERNAL_ERROR"},
+            content={"error": PranaError.INFRA_SERVICE_UNAVAILABLE},
         )
 
     # ── Health ─────────────────────────────────────────────────────────────────

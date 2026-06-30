@@ -21,6 +21,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { router, useLocalSearchParams } from 'expo-router';
 import { colors, fonts, gradJourney } from '@/prana-theme/tokens';
 import { useDocuments, createShare, type VaultDocument } from '@/hooks/useVault';
+import { tUi } from '@/i18n';
 import { SOURCE_META } from '@/prana-components/DocumentCard';
 
 const DOC_TYPE_LABELS: Record<string, string> = {
@@ -179,7 +180,7 @@ export default function CreateShareScreen() {
       });
       setCreated({ share_url: res.share_url, expires_at: res.expires_at });
     } catch {
-      setError('Couldn\'t create share link. Check your connection and try again.');
+      setError(tUi('SHARE_CREATE_FAILED'));
     } finally {
       setCreating(false);
     }

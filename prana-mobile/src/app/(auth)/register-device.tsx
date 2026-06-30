@@ -23,6 +23,7 @@ import * as SecureStore from 'expo-secure-store';
 import { api } from '@/lib/api';
 import { authStore } from '@/lib/auth-store';
 import { colors, fonts, gradJourney } from '@/prana-theme/tokens';
+import { tError, tUi } from '@/i18n';
 
 // ── Animated device card ──────────────────────────────────────────────────────
 function DeviceCard({ name, accepted }: { name: string; accepted: boolean }) {
@@ -174,9 +175,9 @@ export default function RegisterDeviceScreen() {
     } catch (e: any) {
       const code = e?.body?.error ?? e?.response?.data?.error;
       if (code === 'DEVICE_LIMIT_REACHED') {
-        setError("You've reached the 5-device limit. Remove an old device from Settings first.");
+        setError(tError('DEVICE_LIMIT_REACHED'));
       } else {
-        setError('Couldn\'t register this device. Please try again.');
+        setError(tUi('SOMETHING_WENT_WRONG'));
       }
       setLoading(false);
     }

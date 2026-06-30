@@ -3,6 +3,7 @@ import {
   View, Text, Pressable, StyleSheet, ScrollView,
   ActivityIndicator, Switch, FlatList, TextInput,
 } from 'react-native';
+import { tUi } from '@/i18n';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { router } from 'expo-router';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
@@ -160,7 +161,7 @@ export default function AlumniScreen() {
           {!empLoading && employers.length === 0 && (
             <View style={styles.emptyBox}>
               <Text style={styles.emptyIcon}>🏢</Text>
-              <Text style={styles.emptyTitle}>No past employers found</Text>
+              <Text style={styles.emptyTitle}>{tUi('NO_PAST_EMPLOYERS')}</Text>
               <Text style={styles.emptySub}>
                 Past employers appear here once your documents have been processed.
               </Text>
@@ -241,7 +242,7 @@ export default function AlumniScreen() {
           {!inboxLoading && messages.length === 0 && (
             <View style={[styles.emptyBox, { marginTop: 60 }]}>
               <Text style={styles.emptyIcon}>💬</Text>
-              <Text style={styles.emptyTitle}>No messages yet</Text>
+              <Text style={styles.emptyTitle}>{tUi('NO_MESSAGES_YET')}</Text>
               <Text style={styles.emptySub}>
                 When a past employer's CHRO sends you an in-app message, it appears here.
                 They can also reach you directly via mobile/email if you've shared those.

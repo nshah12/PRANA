@@ -12,6 +12,7 @@ GET  /vault/compliance/grievances       â€” list employee's grievances
 All routes require employee JWT. employee_user_id always from JWT claims.
 """
 import uuid
+from messages import SuccessCode, success_response
 import json
 import logging
 import datetime
@@ -49,7 +50,7 @@ async def request_erasure(request: Request, db: DbConn, current=Employee):
         })
 
     return {
-        "message": "Erasure request received. Your account will be deleted in 30 days unless you cancel.",
+        "message": SuccessCode.ERASURE_REQUESTED,
         "cancel_before_days": 30,
         "workflow_id": workflow_id,
     }
@@ -74,7 +75,7 @@ async def cancel_erasure(request: Request, db: DbConn, current=Employee):
             "employee_user_id": str(current.user_id),
             "tenant_id": str(current.tenant_id) if current.tenant_id else None,
         })
-    return {"message": "Erasure cancelled. Your account is safe."}
+    return {"message": SuccessCode.ERASURE_CANCELLED}
 
 
 # â”€â”€ Data export â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
@@ -98,7 +99,7 @@ async def request_export(request: Request, db: DbConn, current=Employee):
         })
 
     return {
-        "message": "Export request received. A download link will be sent to your registered number within 24 hours.",
+        "message": SuccessCode.EXPORT_REQUESTED,
         "workflow_id": workflow_id,
     }
 
@@ -122,7 +123,7 @@ async def withdraw_consent(request: Request, db: DbConn, current=Employee):
             "employee_user_id": str(current.user_id),
             "tenant_id": str(current.tenant_id) if current.tenant_id else None,
         })
-    return {"message": "Consent withdrawn. PRANA will not process new documents from your employers."}
+    return {"message": SuccessCode.CONSENT_WITHDRAWN}
 
 
 @router.post("/consent/grant", status_code=status.HTTP_200_OK)
@@ -139,7 +140,7 @@ async def grant_consent(request: Request, db: DbConn, current=Employee):
             "employee_user_id": str(current.user_id),
             "tenant_id": str(current.tenant_id) if current.tenant_id else None,
         })
-    return {"message": "Consent granted. PRANA will process documents pushed by your employers."}
+    return {"message": SuccessCode.CONSENT_GRANTED}
 
 
 # â”€â”€ Consent status â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€

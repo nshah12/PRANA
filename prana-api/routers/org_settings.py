@@ -6,6 +6,7 @@ GET  /org/profile         — full tenant profile (all enterprise fields)
 PATCH /org/profile        — OA-editable fields: branding, contacts, workforce, statutory
 """
 import json
+from messages import SuccessCode, success_response
 from typing import Optional, List
 from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel
@@ -69,7 +70,7 @@ async def update_settings(body: UpdateSettingsIn, db: DbConn, current=OAAdmin):
         )
         if self_upload == "BLOCKED_ENTIRELY" and requested & BFSI_FORBIDDEN:
             raise HTTPException(status_code=status.HTTP_403_FORBIDDEN,
-                                detail="BFSI_POLICY: SMS channel not permitted for this tenant")
+                                detail=PranaError.CHANNEL_NOT_PERMITTED)
 
         normalised = ",".join(sorted(requested))  # stable order
         await db.execute(
@@ -82,7 +83,7 @@ async def update_settings(body: UpdateSettingsIn, db: DbConn, current=OAAdmin):
             current.tenant_id, normalised, current.user_id,
         )
 
-    return {"message": "Settings updated"}
+    return {"message": SuccessCode.SETTINGS_UPDATED}
 
 
 @router.get("/profile")
@@ -151,4 +152,4 @@ async def update_org_profile(body: UpdateOrgProfileIn, db: DbConn, current=OAAdm
             # strip None values from nested dicts
             fields[key] = {k: v for k, v in fields[key].items() if v is not None}
     await svc.update_profile(current.tenant_id, current.user_id, **fields)
-    return {"message": "Profile updated"}
+    return {"message": SuccessCode.PROFILE_UPDATED}

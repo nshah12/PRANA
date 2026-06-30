@@ -3,6 +3,7 @@ CISO (Tenant) endpoints â€” read-only security observer + limited action au
 All queries scoped by tenant_id from JWT. Never sees document contents, salary, or PAN.
 """
 import json
+from messages import SuccessCode, success_response
 import uuid
 import datetime
 from typing import Literal, Optional
@@ -244,7 +245,7 @@ async def ciso_revoke_share(token_id: str, request: Request, db: DbConn, current
             "actor_type": "CISO",
             "share_token_id": token_id,
         })
-    return {"message": "Share revoked"}
+    return {"message": SuccessCode.SHARE_REVOKED}
 
 
 # â”€â”€ Key health â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
@@ -454,7 +455,7 @@ async def update_access_flag(access_id: str, body: FlagBody, db: DbConn, current
         "UPDATE document_access_log SET is_flagged=$1, flag_reason=$2 WHERE access_id=$3",
         body.is_flagged, body.flag_reason, access_id,
     )
-    return {"message": "Updated"}
+    return {"message": SuccessCode.ANOMALY_UPDATED}
 
 
 # â”€â”€ Account lock management â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
@@ -554,7 +555,7 @@ async def manual_unlock(event_id: str, request: Request, db: DbConn, current=CIS
             "target_account_id": str(lock_row["account_id"]),
             "reversed_lock_event_id": event_id,
         })
-    return {"message": "Account unlocked"}
+    return {"message": SuccessCode.LOCK_REMOVED}
 
 
 # â”€â”€ Anomaly triage queue â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
@@ -647,7 +648,7 @@ async def triage_anomaly(anomaly_id: str, body: TriageBody, request: Request, db
             "anomaly_id": anomaly_id,
             "new_status": body.status,
         })
-    return {"message": "Anomaly updated"}
+    return {"message": SuccessCode.ANOMALY_UPDATED}
 
 
 # â”€â”€ Elevation history â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
@@ -720,7 +721,7 @@ async def save_digest_settings(body: DigestConfigBody, db: DbConn, current=CISO)
     await _digest_svc.save_config(
         db, current.tenant_id, "ciso", body.model_dump(), str(current.user_id)
     )
-    return {"message": "CISO digest settings saved"}
+    return {"message": SuccessCode.DIGEST_SETTINGS_SAVED}
 
 
 # â”€â”€ Digest: data endpoints â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€

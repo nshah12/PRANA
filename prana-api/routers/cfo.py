@@ -6,6 +6,7 @@ Cohort minimum 30 enforced before returning payroll data.
 All queries scoped to tenant_id from JWT.
 """
 import json
+from messages import SuccessCode, success_response
 from datetime import date, datetime, timedelta, timezone
 from typing import Literal
 
@@ -251,7 +252,7 @@ async def acknowledge_anomaly(anomaly_id: str, db: DbConn, current=CFO):
     except Exception:
         pass
     # In production: AnomalyAcknowledgementWorkflow fan-out notifies CHRO with identity context
-    return {"message": "Anomaly acknowledged — CHRO notified"}
+    return {"message": SuccessCode.ANOMALY_ACKNOWLEDGED}
 
 
 # ── Consent dashboard ─────────────────────────────────────────────────────────
@@ -314,7 +315,7 @@ async def save_digest_settings(body: DigestConfigBody, db: DbConn, current=CFO):
     await _digest_svc.save_config(
         db, current.tenant_id, "cfo", body.model_dump(), str(current.user_id)
     )
-    return {"message": "CFO digest settings saved"}
+    return {"message": SuccessCode.DIGEST_SETTINGS_SAVED}
 
 
 # ── Digest: data endpoints ────────────────────────────────────────────────────

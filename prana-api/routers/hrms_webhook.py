@@ -15,6 +15,7 @@ Contract:
 HTTP handler rule: validate → load → dispatch → 202. No DB side-effects here.
 """
 from __future__ import annotations
+from errors import PranaError, prana_error
 
 import hashlib
 import hmac
@@ -54,7 +55,7 @@ async def receive_webhook(
     if not x_prana_webhook_sig:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
-            detail={"error": "MISSING_SIGNATURE", "message": "X-PRANA-Webhook-Sig header required"},
+            detail={"error": "MISSING_SIGNATURE", "detail": PranaError.WEBHOOK_SIG_MISSING},
         )
 
     db    = request.app.state.db_pool
@@ -68,7 +69,7 @@ async def receive_webhook(
     if config is None:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail={"error": "CONNECTOR_NOT_FOUND", "message": "Unknown connector"},
+            detail={"error": "CONNECTOR_NOT_FOUND", "detail": PranaError.CONNECTOR_NOT_FOUND},
         )
 
     webhook_secret = config.get("webhook_secret") or ""
@@ -76,7 +77,7 @@ async def receive_webhook(
         log.warning("HRMS webhook: bad signature connector_id=%s", connector_id)
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
-            detail={"error": "INVALID_SIGNATURE", "message": "Signature mismatch"},
+            detail={"error": "INVALID_SIGNATURE", "detail": PranaError.WEBHOOK_SIG_MISMATCH},
         )
 
     try:

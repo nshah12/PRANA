@@ -19,6 +19,7 @@ HTTP handler contract (NEVER violate):
   No direct Temporal calls in HTTP path except Temporal signals (targeting specific in-flight instances).
 """
 import uuid
+from messages import SuccessCode, success_response
 import json
 import logging
 from typing import Optional
@@ -136,7 +137,7 @@ async def withdraw_consent_purpose(
             "purpose": purpose,
         })
 
-    return {"message": "Consent withdrawn for this purpose.", "purpose": purpose}
+    return {"message": SuccessCode.CONSENT_WITHDRAWN, "purpose": purpose}
 
 
 # ── Data export ───────────────────────────────────────────────────────────────
@@ -174,7 +175,7 @@ async def request_export(request: Request, db: DbConn, current=Employee):
 
     return {
         "job_id": job_id,
-        "message": "Export request received. A download link will be sent to your registered number within 24 hours.",
+        "message": SuccessCode.EXPORT_REQUESTED,
     }
 
 
@@ -231,7 +232,7 @@ async def request_correction(
     return {
         "correction_id": correction_id,
         "status": "PENDING",
-        "message": "Correction request submitted. Our team will review within 7 working days.",
+        "message": SuccessCode.CORRECTION_REQUESTED,
     }
 
 
@@ -293,7 +294,7 @@ async def request_erasure(
 
     return {
         "erasure_id": erasure_id,
-        "message": "Erasure request received. Your account will be deleted in 30 days unless you cancel.",
+        "message": SuccessCode.ERASURE_REQUESTED,
         "cancel_before_days": 30,
     }
 
@@ -354,7 +355,7 @@ async def cancel_erasure(request: Request, db: DbConn, current=Employee):
         "UPDATE erasure_request SET status='CANCELLED', updated_at=NOW() WHERE employee_user_id=$1 AND status='PENDING'",
         current.user_id,
     )
-    return {"message": "Erasure cancelled. Your account is safe."}
+    return {"message": SuccessCode.ERASURE_CANCELLED}
 
 
 # ── Grievance ─────────────────────────────────────────────────────────────────
@@ -402,7 +403,7 @@ async def file_grievance(
     return {
         "grievance_id": grievance_id,
         "status": "RAISED",
-        "message": "Grievance filed. Our Grievance Officer will respond within 30 days as required by DPDP Act 2023.",
+        "message": SuccessCode.GRIEVANCE_SUBMITTED,
         "sla_days": 30,
     }
 

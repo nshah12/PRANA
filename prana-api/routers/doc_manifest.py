@@ -186,7 +186,7 @@ async def delete_manifest_override(doc_type: str, request: Request):
     if not deleted:
         raise HTTPException(
             status_code=404,
-            detail="NO_TENANT_OVERRIDE. Platform defaults cannot be deleted via this endpoint.",
+            detail=PranaError.NO_TENANT_OVERRIDE,
         )
     log.info("manifest override deleted: tenant=%s doc_type=%s by=%s", tenant_id, dt, oa_user_id)
     return {"deleted": True, "doc_type": dt}

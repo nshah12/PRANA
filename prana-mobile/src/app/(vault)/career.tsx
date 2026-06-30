@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { View, Text, StyleSheet, Pressable, ScrollView, Dimensions, ActivityIndicator } from 'react-native';
+import { tUi } from '@/i18n';
 import { LinearGradient } from 'expo-linear-gradient';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { colors, fonts, gradJourney, gradTopBg } from '@/prana-theme/tokens';
@@ -316,7 +317,7 @@ export default function CareerScreen() {
           </View>
         ) : isError ? (
           <View style={styles.loadingWrap}>
-            <Text style={styles.loadingText}>Could not load career data. Try again later.</Text>
+            <Text style={styles.loadingText}>{tUi('CAREER_LOAD_FAILED')}</Text>
           </View>
         ) : (
           <>

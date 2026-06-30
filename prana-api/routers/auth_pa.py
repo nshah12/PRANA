@@ -19,6 +19,7 @@ from services.encryption_service import verify_password
 from services.totp_service import TOTPService
 from services.session_service import SessionService
 from errors import PranaError
+from messages import SuccessCode, success_response
 
 router = APIRouter()
 
@@ -276,7 +277,7 @@ async def logout(request: Request, response: Response, db: DbConn, current=Depen
     session_svc = SessionService(db, request.app.state.jwt_service)
     await session_svc.revoke(current.session_id, reason="LOGOUT")
     response.delete_cookie("prana_refresh", path="/auth/admin/refresh")
-    return {"message": "Logged out"}
+    return {"message": SuccessCode.LOGOUT_SUCCESS}
 
 
 async def _get_pa_lock_threshold(db) -> int:

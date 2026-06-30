@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import {
   View, Text, Pressable, StyleSheet, ScrollView, TextInput, ActivityIndicator,
 } from 'react-native';
+import { tUi } from '@/i18n';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { router } from 'expo-router';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
@@ -87,7 +88,7 @@ export default function NominationScreen() {
         ) : nominees.length === 0 ? (
           <View style={s.emptyCard}>
             <Text style={s.emptyIcon}>👤</Text>
-            <Text style={s.emptyTitle}>No nominees yet</Text>
+            <Text style={s.emptyTitle}>{tUi('NO_NOMINEES_YET')}</Text>
             <Text style={s.emptySub}>Add a trusted person to manage your vault.</Text>
           </View>
         ) : (
@@ -117,7 +118,7 @@ export default function NominationScreen() {
             <Text style={s.formTitle}>Add nominee</Text>
 
             <Text style={s.label}>Full name</Text>
-            <TextInput style={s.input} value={name} onChangeText={setName} placeholder="Nominee's legal name" placeholderTextColor={colors.ink3} />
+            <TextInput style={s.input} value={name} onChangeText={setName} placeholder={tUi('NOMINEE_NAME_PLACEHOLDER')} placeholderTextColor={colors.ink3} />
 
             <Text style={s.label}>Relationship</Text>
             <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom: 14 }}>

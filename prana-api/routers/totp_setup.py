@@ -8,6 +8,7 @@ Employee calls this on first vault access after OTP login.
 Until confirmed, vault is inaccessible (totp_configured_at IS NULL).
 """
 from datetime import datetime, timezone
+from messages import SuccessCode, success_response
 from fastapi import APIRouter, HTTPException, Request, status
 from pydantic import BaseModel
 
@@ -96,7 +97,7 @@ async def confirm_totp(body: TOTPConfirmIn, request: Request, db: DbConn):
         await _save_totp_secret(db, user_type, user_id, enc_secret, now)
         await _save_backup_codes(db, user_type, user_id, hashes)
 
-    return {"message": "TOTP configured", "configured_at": now.isoformat()}
+    return {"message": SuccessCode.TOTP_SETUP_COMPLETE, "configured_at": now.isoformat()}
 
 
 # ── Helpers ───────────────────────────────────────────────────────────────────

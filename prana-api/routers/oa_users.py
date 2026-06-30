@@ -13,6 +13,7 @@ POST /org/elevations/{id}/deny           — deny (OA-Admin)
 POST /org/elevations/{id}/end-early      — end early (OA-Operator who requested)
 """
 from fastapi import APIRouter, Depends, HTTPException, Request, status
+from messages import SuccessCode, success_response
 from pydantic import BaseModel, EmailStr
 
 from dependencies import DbConn, require_oa
@@ -81,7 +82,7 @@ async def create_user(
             "created_by": str(current.user_id),
         })
 
-    return {"oa_user_id": result["oa_user_id"], "message": "User created — temp password sent via email"}
+    return {"oa_user_id": result["oa_user_id"], "message": SuccessCode.OA_USER_CREATED}
 
 
 @router.post("/users/{oa_user_id}/deactivate", status_code=status.HTTP_200_OK, dependencies=[OAAdmin])
@@ -93,7 +94,7 @@ async def deactivate_user(oa_user_id: str, db: DbConn, current=Depends(require_o
         code = str(e)
         status_code = status.HTTP_409_CONFLICT if code == "MIN_ADMIN_CONSTRAINT" else status.HTTP_404_NOT_FOUND
         raise HTTPException(status_code=status_code, detail=code)
-    return {"message": "User deactivated"}
+    return {"message": SuccessCode.OA_USER_DEACTIVATED}
 
 
 @router.post("/users/{oa_user_id}/change-role", status_code=status.HTTP_200_OK, dependencies=[OAAdmin])
@@ -110,14 +111,14 @@ async def change_role(
         code = str(e)
         status_code = status.HTTP_409_CONFLICT if code == "MIN_ADMIN_CONSTRAINT" else status.HTTP_404_NOT_FOUND
         raise HTTPException(status_code=status_code, detail=code)
-    return {"message": "Role updated"}
+    return {"message": SuccessCode.ROLE_UPDATED}
 
 
 @router.post("/users/{oa_user_id}/unlock", status_code=status.HTTP_200_OK, dependencies=[OAAdmin])
 async def unlock_user(oa_user_id: str, db: DbConn, current=Depends(require_oa("oa_admin"))):
     svc = OAUserService(db)
     await svc.unlock(oa_user_id, current.tenant_id, current.user_id)
-    return {"message": "Account unlocked"}
+    return {"message": SuccessCode.LOCK_REMOVED}
 
 
 # ── Badge counts (sidebar) ────────────────────────────────────────────────────
@@ -184,7 +185,7 @@ async def deny_elevation(elevation_id: str, db: DbConn, current=Depends(require_
         await svc.deny(elevation_id, current.user_id, current.tenant_id)
     except ValueError as e:
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=str(e))
-    return {"message": "Denied"}
+    return {"message": SuccessCode.ELEVATION_DENIED}
 
 
 @router.post("/elevations/{elevation_id}/end-early", status_code=status.HTTP_200_OK, dependencies=[OAOperator])
@@ -195,4 +196,4 @@ async def end_elevation_early(
 ):
     svc = ElevationService(db)
     await svc.end_early(elevation_id, current.user_id, current.tenant_id)
-    return {"message": "Elevation ended"}
+    return {"message": SuccessCode.ELEVATION_ENDED}

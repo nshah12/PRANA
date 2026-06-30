@@ -15,6 +15,7 @@ Events handled:
   LEGAL_HOLD_RELEASED       → (same)
 """
 import json
+from messages import SuccessCode, success_response
 import logging
 from typing import Optional
 
@@ -94,7 +95,7 @@ class ComplianceConsumer:
                 )
             # Push notification — export can take time; push when ready isn't here yet
             await self._notify("push", uid, tid, "DATA_EXPORT_REQUESTED",
-                               {"message": "Your data export is being prepared"})
+                               {"message": SuccessCode.EXPORT_REQUESTED})
 
         elif etype in ("CORRECTION_REQUESTED", "DATA_CORRECTION_REQUESTED"):
             if self._temporal:

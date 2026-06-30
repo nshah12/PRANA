@@ -17,6 +17,7 @@ Exception signal (resolve/dismiss) is a direct Temporal signal — not a Kafka e
 because it targets a specific running workflow instance.
 """
 import asyncio
+from messages import SuccessCode, success_response
 import datetime
 import hashlib
 import json
@@ -460,7 +461,7 @@ async def resolve_exception(
         except Exception:
             pass   # workflow may have timed out — DB is source of truth
 
-    return {"message": "Exception resolved"}
+    return {"message": SuccessCode.EXCEPTION_RESOLVED}
 
 
 @router.post("/exceptions/{exception_id}/dismiss", status_code=status.HTTP_200_OK)
@@ -498,7 +499,7 @@ async def dismiss_exception(
         "ip_address":   _client_ip(request),
     })
 
-    return {"message": "Exception dismissed"}
+    return {"message": SuccessCode.EXCEPTION_DISMISSED}
 
 
 # ── Helpers ───────────────────────────────────────────────────────────────────

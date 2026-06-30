@@ -27,6 +27,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { router, useLocalSearchParams } from 'expo-router';
 import { api } from '@/lib/api';
 import { colors, fonts, gradJourney } from '@/prana-theme/tokens';
+import { tError, tUi } from '@/i18n';
 
 type RequestStatus = 'loading' | 'pending' | 'approved' | 'denied' | 'expired' | 'error';
 
@@ -120,7 +121,7 @@ export default function PushApprovalScreen() {
       loadRequest(session_id);
     } else {
       setStatus('error');
-      setError('No login request found. This link may have expired.');
+      setError(tError('PUSH_REQUEST_NOT_FOUND'));
     }
     return () => { if (pollRef.current) clearInterval(pollRef.current); };
   }, [session_id]);
@@ -139,11 +140,11 @@ export default function PushApprovalScreen() {
         setStatus('expired');
       } else {
         setStatus('error');
-        setError('Unexpected request status.');
+        setError(tError('PUSH_REQUEST_STATUS_INVALID'));
       }
     } catch {
       setStatus('error');
-      setError('Couldn\'t load the login request. Check your connection.');
+      setError(tUi('SOMETHING_WENT_WRONG'));
     }
   }
 
@@ -161,7 +162,7 @@ export default function PushApprovalScreen() {
       await api.post('/auth/employee/device/push-approve', { session_id });
       setStatus('approved');
     } catch {
-      setError('Approval failed. Try again or deny the request.');
+      setError(tError('PUSH_APPROVAL_FAILED'));
     }
   }
 

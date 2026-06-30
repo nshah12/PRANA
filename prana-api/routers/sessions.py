@@ -9,6 +9,7 @@ CISO / OA-Admin endpoints:
   POST /auth/sessions/{session_id}/revoke -- force-revoke any session in this tenant
 """
 from fastapi import APIRouter, Depends, HTTPException, Request, status
+from messages import SuccessCode, success_response
 
 from dependencies import AuthUser, DbConn, require_oa
 from errors import PranaError
@@ -75,7 +76,7 @@ async def remove_device(device_id: str, db: DbConn, current: AuthUser):
         "UPDATE trusted_device SET revoked=TRUE, revoked_at=NOW() WHERE trusted_device_id=$1",
         device_id,
     )
-    return {"message": "Device removed"}
+    return {"message": SuccessCode.DEVICE_REMOVED}
 
 
 @router.post("/{session_id}/revoke", status_code=status.HTTP_200_OK)
@@ -119,4 +120,4 @@ async def revoke_session(
             "target_user": str(row["user_id"]),
         })
 
-    return {"message": "Session revoked"}
+    return {"message": SuccessCode.SESSION_REVOKED}

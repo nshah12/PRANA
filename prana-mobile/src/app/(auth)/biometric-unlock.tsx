@@ -23,6 +23,7 @@ import { api } from '@/lib/api';
 import { authStore } from '@/lib/auth-store';
 import { useAuth } from '@/context/AuthContext';
 import { colors, fonts, gradJourney } from '@/prana-theme/tokens';
+import { tUi } from '@/i18n';
 
 // ── Recognition orb ───────────────────────────────────────────────────────────
 // States: waiting → scanning → success → fail
@@ -136,7 +137,7 @@ export default function BiometricUnlockScreen() {
           setOrbState('waiting');
         } else {
           setOrbState('fail');
-          setError('Biometric check failed. Try again or sign in another way.');
+          setError(tUi('BIOMETRIC_FAILED'));
         }
         return;
       }
@@ -153,7 +154,7 @@ export default function BiometricUnlockScreen() {
       setTimeout(() => router.replace('/(vault)/vault'), 700);
     } catch {
       setOrbState('fail');
-      setError('Couldn\'t verify. Try again or sign in with OTP.');
+      setError(tUi('BIOMETRIC_FAILED'));
     }
   }
 

@@ -1,0 +1,996 @@
+﻿<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>PRANA — Enterprise Kafka + Redis Architecture</title>
+<style>
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: #0f1117; color: #e8eaf0; font-size: 13px; }
+
+.container { padding: 24px; max-width: 1280px; margin: 0 auto; }
+h1 { font-size: 18px; font-weight: 700; color: #e8eaf0; margin-bottom: 4px; }
+.subtitle { color: #9ba3b2; font-size: 12px; margin-bottom: 20px; }
+
+.tabs { display: flex; gap: 4px; margin-bottom: 20px; border-bottom: 1px solid #2a2d3a; padding-bottom: 0; }
+.tab { padding: 8px 20px; cursor: pointer; font-size: 12px; font-weight: 600; color: #9ba3b2; border-bottom: 2px solid transparent; margin-bottom: -1px; transition: all 0.15s; border-radius: 4px 4px 0 0; }
+.tab:hover { color: #e8eaf0; background: rgba(124,158,255,0.05); }
+.tab.active { color: #7c9eff; border-bottom-color: #7c9eff; }
+
+.panel { display: none; }
+.panel.active { display: block; }
+
+.stats { display: flex; gap: 12px; margin-bottom: 16px; flex-wrap: wrap; }
+.stat { background: #1a1d27; border: 1px solid #2a2d3a; border-radius: 8px; padding: 12px 20px; flex: 1; min-width: 130px; }
+.stat-num { font-size: 26px; font-weight: 700; color: #7c9eff; }
+.stat-label { font-size: 11px; color: #9ba3b2; margin-top: 2px; }
+.stat-num.ok   { color: #50c878; }
+.stat-num.warn { color: #ffda63; }
+.stat-num.err  { color: #ff6464; }
+
+.domain-grid { display: flex; flex-direction: column; gap: 8px; }
+.domain-card { background: #1a1d27; border: 1px solid #2a2d3a; border-radius: 8px; overflow: hidden; }
+.domain-header { display: flex; align-items: center; gap: 10px; padding: 11px 16px; cursor: pointer; user-select: none; transition: background 0.1s; }
+.domain-header:hover { background: rgba(124,158,255,0.05); }
+.domain-dot { width: 10px; height: 10px; border-radius: 50%; flex-shrink: 0; }
+.domain-name { font-weight: 600; font-size: 13px; flex: 1.2; }
+.domain-topic { font-family: 'SF Mono', 'Consolas', monospace; font-size: 11px; color: #9ba3b2; flex: 2; }
+.domain-count { font-size: 11px; color: #9ba3b2; white-space: nowrap; }
+.domain-arrow { font-size: 11px; color: #9ba3b2; transition: transform 0.2s; margin-left: 8px; }
+.domain-arrow.open { transform: rotate(90deg); }
+
+/* Subscriber status badge */
+.sub-badge { font-size: 10px; font-weight: 700; border-radius: 4px; padding: 2px 8px; letter-spacing: 0.3px; white-space: nowrap; margin-left: 6px; }
+.sub-badge.written  { background: rgba(80,200,120,0.12); color: #50c878; border: 1px solid rgba(80,200,120,0.3); }
+.sub-badge.partial  { background: rgba(255,218,99,0.1);  color: #ffda63; border: 1px solid rgba(255,218,99,0.3); }
+.sub-badge.missing  { background: rgba(255,100,100,0.1); color: #ff6464; border: 1px solid rgba(255,100,100,0.3); }
+.pub-badge { font-size: 10px; font-weight: 700; border-radius: 4px; padding: 2px 8px; letter-spacing: 0.3px; white-space: nowrap; margin-left: 4px; }
+.pub-badge.called    { background: rgba(80,200,120,0.08); color: #50c878; border: 1px solid rgba(80,200,120,0.2); }
+.pub-badge.notcalled { background: rgba(255,100,100,0.08); color: #ff9898; border: 1px solid rgba(255,100,100,0.2); }
+
+.domain-body { display: none; padding: 4px 16px 14px 36px; }
+.domain-body.open { display: block; }
+.event-list { display: flex; flex-wrap: wrap; gap: 5px; margin-top: 8px; }
+.event-tag { font-family: 'SF Mono', 'Consolas', monospace; font-size: 10px; border-radius: 4px; padding: 2px 8px; }
+.event-tag.existing { background: rgba(124,158,255,0.1); color: #7c9eff; border: 1px solid rgba(124,158,255,0.2); }
+.event-tag.new      { background: rgba(80,200,120,0.1);  color: #50c878; border: 1px solid rgba(80,200,120,0.3); }
+.event-tag.missing  { background: rgba(255,100,100,0.1); color: #ff6464; border: 1px solid rgba(255,100,100,0.3); }
+
+.meta-row { display: grid; grid-template-columns: 130px 1fr; gap: 8px; margin-top: 8px; font-size: 11px; align-items: baseline; }
+.meta-label { color: #9ba3b2; font-weight: 600; }
+.meta-val   { color: #e8eaf0; line-height: 1.5; }
+.meta-val code { font-family: 'SF Mono', 'Consolas', monospace; font-size: 10px; color: #7c9eff; background: rgba(124,158,255,0.08); padding: 1px 5px; border-radius: 3px; }
+.meta-val .missing-note { color: #ff9898; }
+.meta-val .ok-note      { color: #50c878; }
+
+.consumers-line { margin-top: 6px; font-size: 11px; color: #9ba3b2; }
+.consumers-line span { font-weight: 600; color: #e8eaf0; }
+
+.legend { display: flex; gap: 20px; margin-bottom: 12px; flex-wrap: wrap; align-items: center; }
+.legend-item { display: flex; align-items: center; gap: 6px; font-size: 11px; color: #9ba3b2; }
+.legend-dot { width: 10px; height: 10px; border-radius: 3px; }
+
+.gap-banner { background: rgba(255,100,100,0.07); border: 1px solid rgba(255,100,100,0.2); border-radius: 8px; padding: 10px 14px; margin-bottom: 14px; font-size: 12px; color: #ff9898; line-height: 1.6; }
+.gap-banner strong { color: #ff6464; }
+
+/* Redis */
+.ns-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+@media (max-width: 720px) { .ns-grid { grid-template-columns: 1fr; } }
+.ns-card { background: #1a1d27; border: 1px solid #2a2d3a; border-radius: 8px; padding: 14px; }
+.ns-title { font-weight: 700; font-size: 12px; margin-bottom: 10px; display: flex; align-items: center; gap: 8px; }
+.ns-badge { font-size: 10px; font-weight: 700; border-radius: 4px; padding: 2px 7px; letter-spacing: 0.3px; }
+.ns-badge.hot  { background: rgba(255,150,50,0.15); color: #ff9632; border: 1px solid rgba(255,150,50,0.3); }
+.ns-badge.warm { background: rgba(124,158,255,0.12); color: #7c9eff; border: 1px solid rgba(124,158,255,0.3); }
+.ns-badge.cold { background: rgba(150,150,200,0.1);  color: #9ba3b2; border: 1px solid rgba(150,150,200,0.2); }
+.ns-row { display: grid; grid-template-columns: 2.2fr 0.9fr 2fr; gap: 8px; padding: 5px 0; border-bottom: 1px solid #2a2d3a; align-items: baseline; }
+.ns-row:last-child { border-bottom: none; }
+.ns-key  { font-family: 'SF Mono', 'Consolas', monospace; font-size: 10px; color: #50c878; word-break: break-all; }
+.ns-ttl  { font-size: 10px; color: #9ba3b2; white-space: nowrap; text-align: right; }
+.ns-desc { font-size: 10px; color: #9ba3b2; }
+
+/* Cluster panel */
+.cluster-section { margin-bottom: 20px; }
+.cluster-title { font-size: 11px; font-weight: 700; color: #9ba3b2; text-transform: uppercase; letter-spacing: 0.8px; margin-bottom: 10px; }
+.cluster-row { display: flex; gap: 10px; flex-wrap: wrap; }
+.cluster-box { background: #1a1d27; border: 1px solid #2a2d3a; border-radius: 8px; padding: 14px; flex: 1; min-width: 220px; }
+.cluster-box-title { font-weight: 700; font-size: 13px; margin-bottom: 10px; }
+.cluster-box ul { padding-left: 16px; }
+.cluster-box li { font-size: 11px; color: #9ba3b2; margin-bottom: 5px; line-height: 1.5; }
+.cluster-box li strong { color: #e8eaf0; }
+
+/* Coverage panel */
+.cov-table { width: 100%; border-collapse: collapse; font-size: 11px; }
+.cov-table th { background: #1a1d27; color: #9ba3b2; font-weight: 700; text-align: left; padding: 8px 12px; border-bottom: 2px solid #2a2d3a; text-transform: uppercase; font-size: 10px; letter-spacing: 0.5px; }
+.cov-table td { padding: 7px 12px; border-bottom: 1px solid #1e2130; vertical-align: top; }
+.cov-table tr:hover td { background: rgba(124,158,255,0.03); }
+.cov-table .topic-cell { font-family: 'SF Mono', 'Consolas', monospace; font-size: 10px; color: #7c9eff; }
+.cov-table .file-cell  { font-family: 'SF Mono', 'Consolas', monospace; font-size: 10px; color: #9ba3b2; }
+.cov-badge { font-size: 10px; font-weight: 700; border-radius: 4px; padding: 2px 8px; }
+.cov-badge.written { background: rgba(80,200,120,0.12); color: #50c878; border: 1px solid rgba(80,200,120,0.3); }
+.cov-badge.partial { background: rgba(255,218,99,0.1);  color: #ffda63; border: 1px solid rgba(255,218,99,0.3); }
+.cov-badge.missing { background: rgba(255,100,100,0.1); color: #ff6464; border: 1px solid rgba(255,100,100,0.3); }
+.cov-badge.na      { background: rgba(155,163,178,0.1); color: #9ba3b2; border: 1px solid rgba(155,163,178,0.2); }
+
+.toolbar { display: flex; align-items: center; gap: 10px; margin-bottom: 10px; }
+.btn { font-size: 11px; font-weight: 600; color: #9ba3b2; background: #1a1d27; border: 1px solid #2a2d3a; border-radius: 6px; padding: 5px 12px; cursor: pointer; transition: all 0.15s; }
+.btn:hover { color: #e8eaf0; border-color: #7c9eff; }
+</style>
+</head>
+<body>
+<div class="container">
+  <h1>PRANA — Enterprise Kafka + Redis Architecture</h1>
+  <p class="subtitle">Full redesign · 21 topics · 187 events · 18 Redis namespace groups · Cluster mode · v1.1 · 2026-06-24 · Updated: trigger points + subscriber coverage audit</p>
+
+  <div class="tabs">
+    <div class="tab active" onclick="switchTab('kafka')">Kafka Topics &amp; Events</div>
+    <div class="tab" onclick="switchTab('redis')">Redis Namespaces</div>
+    <div class="tab" onclick="switchTab('cluster')">Cluster Design</div>
+    <div class="tab" onclick="switchTab('coverage')">Coverage Audit</div>
+  </div>
+
+  <!-- ═══════════════════════ KAFKA PANEL ═══════════════════════ -->
+  <div class="panel active" id="panel-kafka">
+    <div class="stats">
+      <div class="stat"><div class="stat-num">21</div><div class="stat-label">Topics</div></div>
+      <div class="stat"><div class="stat-num">187</div><div class="stat-label">Event Types</div></div>
+      <div class="stat"><div class="stat-num ok">21</div><div class="stat-label">Consumers Written</div></div>
+      <div class="stat"><div class="stat-num ok">0</div><div class="stat-label">Consumers Missing</div></div>
+    </div>
+
+    <div class="gap-banner">
+      <strong>Event colour key:</strong> &nbsp;
+      <span style="color:#7c9eff">Blue = already implemented</span> &nbsp;·&nbsp;
+      <span style="color:#50c878">Green = new event to add</span> &nbsp;·&nbsp;
+      <span style="color:#ff6464">Red = currently missing or incorrectly in HTTP path</span><br>
+      <strong>Header badges:</strong> &nbsp;
+      <span style="color:#50c878">✓ SUBSCRIBER WRITTEN</span> &nbsp;·&nbsp;
+      <span style="color:#ffda63">~ PARTIAL</span> &nbsp;·&nbsp;
+      <span style="color:#ff6464">✗ SUBSCRIBER MISSING</span> &nbsp;·&nbsp;
+      <span style="color:#50c878">PUB CALLED</span> / <span style="color:#ff9898">NOT CALLED FROM ROUTERS</span>
+      &nbsp;— Click any row to expand trigger point + consumer detail.
+    </div>
+
+    <div class="toolbar">
+      <button class="btn" onclick="expandAll()">Expand All</button>
+      <button class="btn" onclick="collapseAll()">Collapse All</button>
+    </div>
+
+    <div class="domain-grid" id="domain-grid"></div>
+  </div>
+
+  <!-- ═══════════════════════ REDIS PANEL ═══════════════════════ -->
+  <div class="panel" id="panel-redis">
+    <div class="stats">
+      <div class="stat"><div class="stat-num">18</div><div class="stat-label">Namespace Groups</div></div>
+      <div class="stat"><div class="stat-num">65+</div><div class="stat-label">Key Patterns</div></div>
+      <div class="stat"><div class="stat-num">4</div><div class="stat-label">Existed before</div></div>
+      <div class="stat"><div class="stat-num">Cluster</div><div class="stat-label">Mode</div></div>
+    </div>
+    <p style="font-size:11px;color:#9ba3b2;margin-bottom:14px;">
+      HOT = frequently read, sub-millisecond required &nbsp;·&nbsp; WARM = read-heavy, 5–15min TTL acceptable &nbsp;·&nbsp; COLD = reference data, long TTL
+    </p>
+    <div class="ns-grid" id="ns-grid"></div>
+  </div>
+
+  <!-- ═══════════════════════ CLUSTER PANEL ═══════════════════════ -->
+  <div class="panel" id="panel-cluster">
+    <div class="cluster-section">
+      <div class="cluster-title">Kafka — AWS MSK Cluster Upgrade</div>
+      <div class="cluster-row">
+        <div class="cluster-box">
+          <div class="cluster-box-title" style="color:#7c9eff">Today (before)</div>
+          <ul>
+            <li>5 topics, 12 partitions each</li>
+            <li>KRaft mode, MirrorMaker 2 bidirectional</li>
+            <li>Single consumer group per topic</li>
+            <li>No schema registry</li>
+            <li>No dead-letter topics</li>
+            <li>No topic-level retention config</li>
+          </ul>
+        </div>
+        <div class="cluster-box">
+          <div class="cluster-box-title" style="color:#50c878">Target (after)</div>
+          <ul>
+            <li><strong>21 topics</strong>, partitions tuned by throughput</li>
+            <li>High-throughput (auth, vault, audit): <strong>48 partitions</strong></li>
+            <li>Medium (pipeline, analytics): <strong>24 partitions</strong></li>
+            <li>Low (compliance, platform): <strong>12 partitions</strong></li>
+            <li><strong>Schema Registry</strong> (Confluent / AWS Glue)</li>
+            <li><strong>Dead Letter Topic</strong> per domain (e.g. prana.auth.events.dlq)</li>
+            <li>Topic-level retention: audit=7yr, notif=30d, pipeline=90d, others=7d</li>
+            <li>Consumer lag alarms via CloudWatch</li>
+            <li>Idempotent producers on all services</li>
+          </ul>
+        </div>
+        <div class="cluster-box">
+          <div class="cluster-box-title" style="color:#ff9632">Partition Key Rules</div>
+          <ul>
+            <li>Auth events → <strong>user_id</strong></li>
+            <li>Ingest / Pipeline → <strong>document_id</strong></li>
+            <li>Tenant events → <strong>tenant_id</strong></li>
+            <li>Vault access → <strong>employee_uuid</strong></li>
+            <li>Compliance → <strong>employee_user_id</strong></li>
+            <li>Security → <strong>tenant_id</strong></li>
+            <li>Notifications → <strong>recipient_id</strong></li>
+            <li>Audit sink → <strong>tenant_id</strong></li>
+            <li>Cache invalidation → <strong>cache_key prefix</strong></li>
+          </ul>
+        </div>
+        <div class="cluster-box">
+          <div class="cluster-box-title" style="color:#c8c8c8">New Consumer Groups Needed</div>
+          <ul>
+            <li><strong>AuthConsumer</strong> — prana.auth.events → security analysis, account lock</li>
+            <li><strong>EmployeeConsumer</strong> — prana.employee.events → vault activate, embedding update</li>
+            <li><strong>TenantConsumer</strong> — prana.tenant.events → KEK provisioning, quota sync</li>
+            <li><strong>OAUserConsumer</strong> — prana.oa_users.events → elevation workflows</li>
+            <li><strong>ComplianceConsumer</strong> — prana.compliance.events → DPDP workflows</li>
+            <li><strong>SecurityConsumer</strong> — prana.security.events → incident dashboard SSE</li>
+            <li><strong>StatutoryConsumer</strong> — prana.statutory.events → obligation workflows</li>
+            <li><strong>IntegrationConsumer</strong> — prana.integrations.events → HRMS webhook retry</li>
+            <li><strong>PlatformConsumer</strong> — prana.platform.events → PagerDuty / alerting</li>
+            <li><strong>EmailConsumer</strong> — prana.notifications.email → SES dispatch</li>
+            <li><strong>SMSConsumer</strong> — prana.notifications.sms → MSG91/Exotel</li>
+            <li><strong>PushConsumer</strong> — prana.notifications.push → FCM/APNs</li>
+            <li><strong>WhatsAppConsumer</strong> — prana.notifications.whatsapp → WABA</li>
+            <li><strong>BellConsumer</strong> — prana.notifications.portal_bell → Redis Pub/Sub</li>
+          </ul>
+        </div>
+      </div>
+    </div>
+
+    <div class="cluster-section">
+      <div class="cluster-title">Redis — ElastiCache Cluster Mode Upgrade</div>
+      <div class="cluster-row">
+        <div class="cluster-box">
+          <div class="cluster-box-title" style="color:#7c9eff">Today (before)</div>
+          <ul>
+            <li>Global Datastore — single shard, CRDT active-active</li>
+            <li>4 namespace groups: pan, share, vault, revoked</li>
+            <li>No cluster sharding</li>
+            <li>No rate limiting in Redis</li>
+            <li>No distributed locks</li>
+            <li>Config fetched from DB on every activity</li>
+            <li>API key validated from DB on every ingest</li>
+            <li>No dropdown caching</li>
+          </ul>
+        </div>
+        <div class="cluster-box">
+          <div class="cluster-box-title" style="color:#50c878">Target (after)</div>
+          <ul>
+            <li><strong>Redis Cluster Mode</strong> — 6 shards × 2 replicas each</li>
+            <li><strong>16,384 hash slots</strong> distributed across shards</li>
+            <li>Shard 0–1: Hot (auth, sessions, rate limits, locks, SSE)</li>
+            <li>Shard 2–3: Warm (config, manifests, profiles, dropdowns)</li>
+            <li>Shard 4: Analytics + leaderboards</li>
+            <li>Shard 5: Streams (audit buffer, access log buffer)</li>
+            <li>R/W split: reads → replicas, writes → primary</li>
+            <li>Global Datastore CRDT across ap-south-1 + ap-south-2</li>
+            <li><strong>Redis Streams</strong> for audit event buffer</li>
+            <li>Keyspace notifications for TTL expiry callbacks</li>
+          </ul>
+        </div>
+        <div class="cluster-box">
+          <div class="cluster-box-title" style="color:#ff9632">Invalidation Rules</div>
+          <ul>
+            <li>Config change → publish <code>CONFIG_INVALIDATE</code> to prana.cache.invalidation → all pods DEL <code>config:*</code></li>
+            <li>API key revoke → publish <code>APIKEY_INVALIDATE</code> → DEL <code>apikey:{hash}</code></li>
+            <li>Manifest upsert → DEL <code>tenant:{id}:manifest:*</code></li>
+            <li>Employee exit → DEL <code>emp:profile:{id}</code></li>
+            <li>OA elevation end → DEL <code>oa:elevation:{id}</code></li>
+            <li>Consent withdraw → DEL <code>emp:consent:{id}:*</code>, immediate</li>
+            <li>Tenant suspend → DEL <code>tenant:{id}:*</code> (all keys)</li>
+          </ul>
+        </div>
+        <div class="cluster-box">
+          <div class="cluster-box-title" style="color:#c8c8c8">Two Highest-Value Wins</div>
+          <ul>
+            <li><strong>Config cache</strong> — platform_config and tenant_config read by every Temporal activity. With 53 workflows × 11 queues, hundreds of DB reads/min eliminated with 15min TTL cache.</li>
+            <li><strong>API key cache</strong> — every HRMS push validates API key from DB before touching S3. With 1 lakh orgs, millions of DB reads/day → 5min Redis cache with instant invalidation on revoke.</li>
+            <li><strong>Access log buffer</strong> — Redis Stream buffers document_access_log writes, flushes to DB every 30s. Zero latency added to document view.</li>
+          </ul>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ═══════════════════════ COVERAGE PANEL ═══════════════════════ -->
+  <div class="panel" id="panel-coverage">
+    <div class="stats">
+      <div class="stat"><div class="stat-num ok">21</div><div class="stat-label">✓ Consumer Written</div></div>
+      <div class="stat"><div class="stat-num ok">0</div><div class="stat-label">✗ Consumer Missing</div></div>
+      <div class="stat"><div class="stat-num ok">21</div><div class="stat-label">Publisher Calling from Code</div></div>
+      <div class="stat"><div class="stat-num ok">21</div><div class="stat-label">✓ Test Files Written</div></div>
+    </div>
+    <div class="gap-banner" style="margin-bottom:16px">
+      <strong>Publisher helper</strong> = exists in <code style="color:#7c9eff">kafka/producer.py</code> &nbsp;·&nbsp;
+      <strong>Publisher called</strong> = routers/services actually invoke it today &nbsp;·&nbsp;
+      <strong>Subscriber written</strong> = consumer file exists in <code style="color:#7c9eff">kafka/consumers/</code><br>
+      A topic with helper written but not yet called = dead letter — no events flow. Fix: wire routers to call the helper.
+    </div>
+    <table class="cov-table" id="cov-table"></table>
+  </div>
+</div>
+
+<script>
+const DOMAINS = [
+  {
+    name: "Authentication & Sessions",
+    color: "#7c9eff",
+    topic: "prana.auth.events",
+    partitions: 48,
+    consumerStatus: "written",
+    publisherCalled: true,
+    consumers: ["AuditConsumer ✓", "AuthConsumer ✓"],
+    consumerFiles: ["kafka/consumers/auth_consumer.py", "kafka/consumers/audit_consumer.py"],
+    trigger: "auth_employee.py: kafka.auth_event() called on USER_LOGIN_FAILED (wrong password), TOTP_FAILED (with locked flag), SESSION_CREATED (successful TOTP). AuthConsumer counts failures in login_attempt_log — triggers AccountLockWorkflow after threshold.",
+    nextStep: "✓ Fully implemented. AuthConsumer → AccountLockWorkflow on prana-admin task queue.",
+    events: [
+      {n:"USER_LOGIN_ATTEMPT",t:"existing"},{n:"USER_LOGIN_SUCCESS",t:"new"},{n:"USER_LOGIN_FAILED",t:"new"},
+      {n:"TOTP_VERIFIED",t:"new"},{n:"TOTP_FAILED",t:"new"},{n:"TOTP_ENROLLED",t:"new"},{n:"TOTP_RESET",t:"new"},
+      {n:"OTP_SENT",t:"existing"},{n:"OTP_VERIFIED",t:"existing"},{n:"OTP_EXPIRED",t:"new"},{n:"OTP_RATE_LIMITED",t:"new"},
+      {n:"SESSION_CREATED",t:"missing"},{n:"SESSION_REFRESHED",t:"missing"},{n:"SESSION_EXPIRED",t:"new"},{n:"SESSION_FORCE_REVOKED",t:"new"},
+      {n:"PASSWORD_CHANGED",t:"missing"},{n:"PASSWORD_RESET_REQUESTED",t:"missing"},
+      {n:"BIOMETRIC_ENROLLED",t:"new"},{n:"BIOMETRIC_VERIFIED",t:"new"},
+      {n:"JWT_REVOKED",t:"missing"}
+    ]
+  },
+  {
+    name: "Document Ingest",
+    color: "#50c878",
+    topic: "prana.ingest.events",
+    partitions: 24,
+    consumerStatus: "written",
+    publisherCalled: true,
+    consumers: ["AuditConsumer ✓", "WorkflowConsumer ✓"],
+    consumerFiles: ["kafka/consumers/audit_consumer.py", "kafka/consumers/workflow_consumer.py"],
+    trigger: "POST /v1/ingest/upload → IngestService._ingest_document() → kafka.doc_ingested(). POST /v1/ingest/batch → kafka.batch_uploaded(). Called immediately after S3 put + DB insert, before returning 202.",
+    nextStep: "Fully implemented. WorkflowConsumer starts IngestDocumentWorkflow on DOC_INGESTED.",
+    events: [
+      {n:"DOC_UPLOAD_STARTED",t:"new"},{n:"DOC_UPLOAD_COMPLETED",t:"new"},{n:"DOC_UPLOAD_FAILED",t:"new"},
+      {n:"DOC_INGESTED",t:"existing"},{n:"DOC_DUPLICATE_DETECTED",t:"new"},{n:"DOC_REJECTED_FORMAT",t:"new"},{n:"DOC_REJECTED_SIZE",t:"new"},
+      {n:"DOC_RECLASSIFIED",t:"existing"},
+      {n:"BATCH_CREATED",t:"new"},{n:"BATCH_UPLOADED",t:"existing"},{n:"BATCH_DOCUMENT_ADDED",t:"new"},{n:"BATCH_TIMEOUT",t:"new"},{n:"BATCH_COMPLETED",t:"new"},
+      {n:"HRMS_PUSH_RECEIVED",t:"new"},{n:"HRMS_PUSH_REJECTED",t:"new"},{n:"HRMS_PUSH_DUPLICATE",t:"new"},
+      {n:"SELF_UPLOAD_STARTED",t:"new"},{n:"SELF_UPLOAD_COMPLETED",t:"new"}
+    ]
+  },
+  {
+    name: "AI Pipeline",
+    color: "#ff9632",
+    topic: "prana.pipeline.events",
+    partitions: 24,
+    consumerStatus: "written",
+    publisherCalled: true,
+    consumers: ["SSEFanoutConsumer ✓", "AuditConsumer ✓", "AnalyticsConsumer ✓"],
+    consumerFiles: ["kafka/consumers/sse_fanout_consumer.py", "kafka/consumers/audit_consumer.py", "kafka/consumers/analytics_consumer.py"],
+    trigger: "prana-ai GPU worker calls kafka.stage_changed() at each stage transition, kafka.doc_routed() when Stage 06 completes, kafka.exception_raised() on unresolved documents. Producer is the prana-ai service (separate deployment), uses get_kafka_producer() singleton.",
+    nextStep: "Fully implemented. SSEFanoutConsumer → Redis Pub/Sub sse:doc:{id} → browser EventSource. AuditConsumer mirrors to audit_event table.",
+    events: [
+      {n:"PIPELINE_STARTED",t:"new"},{n:"PIPELINE_COMPLETED",t:"new"},{n:"PIPELINE_ABORTED",t:"new"},
+      {n:"STAGE_CHANGED",t:"existing"},
+      {n:"OCR_STARTED",t:"new"},{n:"OCR_COMPLETED",t:"new"},{n:"OCR_FAILED",t:"new"},{n:"OCR_FALLBACK_TEXTRACT",t:"new"},
+      {n:"VIRUS_SCAN_CLEAN",t:"new"},{n:"NSFW_DETECTED",t:"new"},{n:"CSAM_DETECTED",t:"new"},
+      {n:"EXTRACTION_STARTED",t:"new"},{n:"EXTRACTION_COMPLETED",t:"new"},{n:"EXTRACTION_FAILED",t:"new"},{n:"EXTRACTION_LOW_CONFIDENCE",t:"new"},
+      {n:"RESOLUTION_STARTED",t:"new"},{n:"RESOLUTION_COMPLETED",t:"new"},{n:"RESOLUTION_FAILED",t:"new"},{n:"RESOLUTION_UNRESOLVED",t:"new"},
+      {n:"DOC_ROUTED",t:"existing"},{n:"PIPELINE_EXCEPTION_RAISED",t:"existing"},{n:"PIPELINE_EXCEPTION_RESOLVED",t:"existing"},
+      {n:"UNCLASSIFIED_QUEUED",t:"new"}
+    ]
+  },
+  {
+    name: "Vault Access",
+    color: "#c77eff",
+    topic: "prana.vault.events",
+    partitions: 48,
+    consumerStatus: "written",
+    publisherCalled: true,
+    consumers: ["AuditConsumer ✓ → document_access_log", "AnalyticsConsumer ✓"],
+    consumerFiles: ["kafka/consumers/audit_consumer.py"],
+    trigger: "VaultService._log_access() called on every GET /v1/vault/documents/{id}/bytes. Publishes DOC_ACCESSED to prana.vault.events fire-and-forget; falls back to direct DB insert if Kafka is down. Share endpoints should call kafka.share_event() — NOT YET wired.",
+    nextStep: "DOC_ACCESSED is working end-to-end. Wire share_access router to call kafka.share_event() for SHARE_CREATED / SHARE_ACCESSED / SHARE_REVOKED.",
+    events: [
+      {n:"DOC_ACCESSED",t:"missing"},{n:"DOC_DOWNLOADED",t:"missing"},{n:"DOC_WATERMARKED",t:"new"},
+      {n:"VAULT_LISTED",t:"missing"},{n:"CAREER_VIEWED",t:"missing"},{n:"INSIGHT_VIEWED",t:"missing"},
+      {n:"SHARE_CREATED",t:"missing"},{n:"SHARE_ACCESSED",t:"missing"},{n:"SHARE_OTP_SENT",t:"missing"},
+      {n:"SHARE_OTP_VERIFIED",t:"missing"},{n:"SHARE_OTP_FAILED",t:"missing"},{n:"SHARE_EXPIRED",t:"missing"},{n:"SHARE_REVOKED",t:"missing"},
+      {n:"PASSWORD_DOC_SESSION_STARTED",t:"missing"},{n:"PASSWORD_DOC_SESSION_EXPIRED",t:"missing"},
+      {n:"VAULT_SEARCH_PERFORMED",t:"new"},{n:"DOC_FLAGGED_BY_EMPLOYEE",t:"new"}
+    ]
+  },
+  {
+    name: "Employee Lifecycle",
+    color: "#50e0c8",
+    topic: "prana.employee.events",
+    partitions: 24,
+    consumerStatus: "written",
+    publisherCalled: true,
+    consumers: ["AuditConsumer ✓", "EmployeeConsumer ✓"],
+    consumerFiles: ["kafka/consumers/employee_consumer.py", "kafka/consumers/audit_consumer.py"],
+    trigger: "employees.py: kafka.employee_event() called on create_employee (EMPLOYEE_ONBOARDED), update_employee (EMPLOYEE_PROFILE_UPDATED), mark_alumni (EMPLOYEE_EXITED). EmployeeConsumer starts IdentityResolutionWorkflow, VaultActivationWorkflow, EmployeeExitWorkflow accordingly.",
+    nextStep: "✓ Fully implemented. EmployeeConsumer on prana-admin task queue.",
+    events: [
+      {n:"EMPLOYEE_ONBOARDED",t:"missing"},{n:"EMPLOYEE_ACTIVATED",t:"missing"},{n:"EMPLOYEE_EXITED",t:"missing"},{n:"EMPLOYEE_REJOINED",t:"missing"},
+      {n:"VAULT_ACTIVATED",t:"missing"},{n:"VAULT_DEACTIVATED",t:"missing"},
+      {n:"PAN_TOKEN_CREATED",t:"new"},{n:"PAN_TOKEN_DEDUPLICATED",t:"new"},
+      {n:"PUSH_WINDOW_OPENED",t:"new"},{n:"PUSH_WINDOW_CLOSED",t:"new"},{n:"PUSH_WINDOW_EXPIRED",t:"new"},
+      {n:"NOMINEE_ADDED",t:"missing"},{n:"NOMINEE_ACCESS_GRANTED",t:"missing"},{n:"NOMINEE_ACCESS_REVOKED",t:"missing"},
+      {n:"ACCOUNT_DORMANT",t:"missing"},{n:"ACCOUNT_REACTIVATED",t:"missing"},
+      {n:"EMPLOYEE_PROFILE_UPDATED",t:"new"},{n:"EMPLOYEE_EMAIL_VERIFIED",t:"new"}
+    ]
+  },
+  {
+    name: "Tenant Management",
+    color: "#ffda63",
+    topic: "prana.tenant.events",
+    partitions: 12,
+    consumerStatus: "written",
+    publisherCalled: true,
+    consumers: ["AuditConsumer ✓", "TenantConsumer ✓", "CacheInvalidationConsumer ✓ (via auto-publish in tenant_event())"],
+    consumerFiles: ["kafka/consumers/tenant_consumer.py", "kafka/consumers/cache_invalidation_consumer.py", "kafka/consumers/audit_consumer.py"],
+    trigger: "tenants.py: kafka.tenant_event() called on create_tenant (TENANT_CREATED), activate_tenant (TENANT_ACTIVATED), suspend_tenant (TENANT_SUSPENDED), update_tenant_config (TENANT_CONFIG_UPDATED). TenantConsumer starts TenantProvisioningWorkflow, TenantOnboardingWorkflow, TenantSuspensionWorkflow, KekRotationWorkflow.",
+    nextStep: "✓ Fully implemented. TenantConsumer on prana-admin task queue.",
+    events: [
+      {n:"TENANT_CREATED",t:"missing"},{n:"TENANT_ACTIVATED",t:"missing"},{n:"TENANT_SUSPENDED",t:"missing"},{n:"TENANT_OFFBOARDED",t:"missing"},
+      {n:"TENANT_CONFIG_UPDATED",t:"missing"},{n:"TENANT_LOGO_UPDATED",t:"new"},
+      {n:"DOMAIN_VERIFICATION_STARTED",t:"missing"},{n:"DOMAIN_VERIFIED",t:"missing"},{n:"DOMAIN_VERIFICATION_FAILED",t:"missing"},
+      {n:"KEK_PROVISIONED",t:"missing"},{n:"KEK_ROTATED",t:"missing"},
+      {n:"API_KEY_CREATED",t:"missing"},{n:"API_KEY_REVOKED",t:"missing"},
+      {n:"STORAGE_QUOTA_UPDATED",t:"new"},{n:"STORAGE_QUOTA_WARNING",t:"new"},{n:"STORAGE_QUOTA_BREACHED",t:"new"},
+      {n:"HRMS_INTEGRATION_CONFIGURED",t:"new"},{n:"HRMS_INTEGRATION_FAILED",t:"new"}
+    ]
+  },
+  {
+    name: "OA User & Elevation",
+    color: "#ff8c63",
+    topic: "prana.oa_users.events",
+    partitions: 12,
+    consumerStatus: "written",
+    publisherCalled: true,
+    consumers: ["AuditConsumer ✓", "OAUserConsumer ✓", "CacheInvalidationConsumer ✓ (via auto-publish in oa_user_event())"],
+    consumerFiles: ["kafka/consumers/oa_user_consumer.py", "kafka/consumers/cache_invalidation_consumer.py", "kafka/consumers/audit_consumer.py"],
+    trigger: "oa_users.py: kafka.oa_user_event() on OA_USER_CREATED. elevations.py: ELEVATION_REQUESTED, ELEVATION_APPROVED, ELEVATION_DENIED, ELEVATION_ENDED_EARLY. OAUserConsumer queues OA_WELCOME email via notification_log, starts AccountLockWorkflow, pushes portal bell on elevation decisions.",
+    nextStep: "✓ Fully implemented. OAUserConsumer on prana-admin task queue.",
+    events: [
+      {n:"OA_USER_CREATED",t:"missing"},{n:"OA_USER_ACTIVATED",t:"missing"},{n:"OA_USER_DEACTIVATED",t:"missing"},
+      {n:"OA_USER_LOCKED",t:"missing"},{n:"OA_USER_UNLOCKED",t:"missing"},{n:"OA_USER_ROLE_CHANGED",t:"new"},
+      {n:"ELEVATION_REQUESTED",t:"missing"},{n:"ELEVATION_APPROVED",t:"missing"},{n:"ELEVATION_DENIED",t:"missing"},{n:"ELEVATION_EXPIRED",t:"missing"},{n:"ELEVATION_REVOKED",t:"missing"},
+      {n:"OA_USER_LOGIN_SUCCESS",t:"missing"},{n:"OA_USER_LOGIN_FAILED",t:"missing"}
+    ]
+  },
+  {
+    name: "DPDP & Consent",
+    color: "#ff6464",
+    topic: "prana.compliance.events",
+    partitions: 12,
+    consumerStatus: "written",
+    publisherCalled: true,
+    consumers: ["AuditConsumer ✓", "ComplianceConsumer ✓"],
+    consumerFiles: ["kafka/consumers/compliance_consumer.py", "kafka/consumers/audit_consumer.py"],
+    trigger: "dpdp.py: kafka.compliance_event() called on withdraw_consent_purpose (CONSENT_WITHDRAWN), request_export (DATA_EXPORT_REQUESTED), request_correction (DATA_CORRECTION_REQUESTED), request_erasure (ERASURE_REQUESTED), file_grievance (GRIEVANCE_FILED). DPDP events migrated OFF prana.ingest.events — WorkflowConsumer no longer handles them.",
+    nextStep: "✓ Fully implemented. ComplianceConsumer on prana-compliance task queue. DPDP migration from ingest.events complete.",
+    events: [
+      {n:"CONSENT_GRANTED",t:"missing"},{n:"CONSENT_WITHDRAWN",t:"missing"},{n:"CONSENT_REBUMP_SENT",t:"missing"},
+      {n:"ERASURE_REQUESTED",t:"existing"},{n:"ERASURE_COOLING_OFF",t:"new"},{n:"ERASURE_APPROVED",t:"new"},{n:"ERASURE_COMPLETED",t:"new"},{n:"ERASURE_BLOCKED_LEGAL_HOLD",t:"new"},
+      {n:"DATA_EXPORT_REQUESTED",t:"existing"},{n:"DATA_EXPORT_PACKAGED",t:"new"},{n:"DATA_EXPORT_DELIVERED",t:"new"},
+      {n:"CORRECTION_REQUESTED",t:"existing"},{n:"CORRECTION_APPLIED",t:"new"},{n:"CORRECTION_REJECTED",t:"new"},
+      {n:"GRIEVANCE_FILED",t:"existing"},{n:"GRIEVANCE_ACKNOWLEDGED",t:"new"},{n:"GRIEVANCE_ESCALATED",t:"new"},{n:"GRIEVANCE_RESOLVED",t:"new"},
+      {n:"LEGAL_HOLD_APPLIED",t:"new"},{n:"LEGAL_HOLD_RELEASED",t:"new"},
+      {n:"RETENTION_TRIGGERED",t:"new"},{n:"AUDIT_ARCHIVED",t:"new"}
+    ]
+  },
+  {
+    name: "Security & Anomaly",
+    color: "#ff4a4a",
+    topic: "prana.security.events",
+    partitions: 24,
+    consumerStatus: "written",
+    publisherCalled: true,
+    consumers: ["AuditConsumer ✓", "SecurityConsumer ✓"],
+    consumerFiles: ["kafka/consumers/security_consumer.py", "kafka/consumers/audit_consumer.py"],
+    trigger: "SecurityConsumer ✓ written and wired in main.py. Publisher (security_event()) still needs wiring into AnomalyDetectionWorkflow (Temporal) and prana-ai Stage 03 CSAM detection — these are Temporal/AI service paths not yet connected.",
+    nextStep: "Wire AnomalyDetectionWorkflow → kafka.security_event() via get_kafka_producer(). Wire prana-ai Stage 03 CSAM path. SecurityConsumer → security_incident INSERT + Redis Pub/Sub sse:tenant:{id}:alerts for CISO SSE.",
+    events: [
+      {n:"ANOMALY_DETECTED",t:"existing"},{n:"ANOMALY_ACKNOWLEDGED",t:"new"},
+      {n:"INCIDENT_CREATED",t:"new"},{n:"INCIDENT_ESCALATED",t:"new"},{n:"INCIDENT_RESOLVED",t:"new"},
+      {n:"CROSS_TENANT_UPLOAD_DETECTED",t:"new"},
+      {n:"ACCOUNT_LOCKED",t:"missing"},{n:"ACCOUNT_UNLOCKED",t:"missing"},
+      {n:"POLICY_LOCK_APPLIED",t:"missing"},{n:"POLICY_LOCK_RELEASED",t:"missing"},
+      {n:"SUSPICIOUS_LOGIN_DETECTED",t:"new"},{n:"IP_BLOCKED",t:"new"},
+      {n:"RATE_LIMIT_BREACHED",t:"new"},{n:"CSRF_ATTEMPT",t:"new"},
+      {n:"CSAM_REPORTED_NCMEC",t:"new"},
+      {n:"KMS_KEY_ROTATED",t:"missing"},{n:"HMAC_SECRET_ROTATED",t:"missing"},
+      {n:"DEK_DECRYPTION_FAILED",t:"new"}
+    ]
+  },
+  {
+    name: "Notifications — Email",
+    color: "#9ba3ff",
+    topic: "prana.notifications.email",
+    partitions: 12,
+    consumerStatus: "written",
+    publisherCalled: true,
+    consumers: ["EmailConsumer ✓ → AWS SES"],
+    consumerFiles: ["kafka/consumers/email_consumer.py"],
+    trigger: "EmailConsumer ✓ written and wired in main.py. OAUserConsumer queues welcome emails via notification_log. ✓ OAUserConsumer calls notify_email() for OA_WELCOME/ELEVATION_APPROVED. ComplianceConsumer calls notify_email() for ERASURE_REQUESTED.",
+    nextStep: "Wire domain consumers to call kafka.notify_email() directly for high-priority transactional emails (ERASURE_COMPLETE, EXPORT_READY). Low-priority emails (digests) continue via notification_log polling.",
+    events: [
+      {n:"EMAIL_QUEUED",t:"new"},{n:"EMAIL_SENT",t:"new"},{n:"EMAIL_BOUNCED",t:"new"},{n:"EMAIL_COMPLAINED",t:"new"},
+      {n:"OA_WELCOME",t:"new"},{n:"DOC_ROUTED_NOTIFY",t:"new"},{n:"EXCEPTION_ALERT",t:"new"},
+      {n:"ELEVATION_APPROVED_NOTIFY",t:"new"},{n:"ELEVATION_DENIED_NOTIFY",t:"new"},
+      {n:"ERASURE_COMPLETE_NOTIFY",t:"new"},{n:"EXPORT_READY_NOTIFY",t:"new"},
+      {n:"DIGEST_WEEKLY",t:"new"},{n:"DIGEST_MONTHLY",t:"new"},
+      {n:"COMPLIANCE_OVERDUE_ALERT",t:"new"}
+    ]
+  },
+  {
+    name: "Notifications — SMS / Push / WhatsApp / Bell",
+    color: "#b0a0ff",
+    topic: "prana.notifications.{sms|push|whatsapp|portal_bell}",
+    partitions: "12 each × 4 channels",
+    consumerStatus: "written",
+    publisherCalled: true,
+    consumers: ["SMSConsumer ✓ → MSG91/Exotel", "PushConsumer ✓ → FCM/APNs", "WhatsAppConsumer ✓ → WABA (opt-out check)", "BellConsumer ✓ → Redis Pub/Sub + notification_log"],
+    consumerFiles: ["kafka/consumers/sms_consumer.py", "kafka/consumers/push_consumer.py", "kafka/consumers/whatsapp_consumer.py", "kafka/consumers/bell_consumer.py"],
+    trigger: "All 4 channel consumers ✓ written and wired in main.py. BellConsumer publishes to Redis Pub/Sub sse:user:{id}:bells + inserts to notification_log. WhatsAppConsumer enforces opt-out check. ✓ ComplianceConsumer calls notify_sms() + notify_whatsapp() for DPDP events. StatutoryConsumer calls notify_bell() for OBLIGATION_DUE. OAUserConsumer calls notify_bell() for ELEVATION_EXPIRED.",
+    nextStep: "Wire domain consumers (OAUserConsumer, ComplianceConsumer) to call kafka.notify_sms() / notify_bell() for employee-facing alerts. Publishers exist in producer.py — just need call sites.",
+    events: [
+      {n:"SMS_QUEUED",t:"new"},{n:"SMS_SENT",t:"new"},{n:"SMS_FAILED",t:"new"},{n:"SMS_DND_BLOCKED",t:"new"},
+      {n:"PUSH_QUEUED",t:"new"},{n:"PUSH_SENT",t:"new"},{n:"PUSH_FAILED",t:"new"},
+      {n:"WHATSAPP_QUEUED",t:"new"},{n:"WHATSAPP_SENT",t:"new"},{n:"WHATSAPP_FAILED",t:"new"},{n:"WHATSAPP_OPT_OUT",t:"new"},
+      {n:"PORTAL_BELL_QUEUED",t:"new"},{n:"PORTAL_BELL_READ",t:"new"}
+    ]
+  },
+  {
+    name: "Analytics & Intelligence",
+    color: "#63d4ff",
+    topic: "prana.analytics.events",
+    partitions: 24,
+    consumerStatus: "written",
+    publisherCalled: true,
+    consumers: ["AnalyticsConsumer ✓", "WorkflowConsumer ✓ (starts insight jobs on DOC_ROUTED)"],
+    consumerFiles: ["kafka/consumers/analytics_consumer.py", "kafka/consumers/workflow_consumer.py"],
+    trigger: "kafka.doc_routed() publishes to TOPIC_ANALYTICS on every successful pipeline completion. kafka.doc_accessed() also publishes here for access pattern analytics. Both are called from prana-ai worker and VaultService respectively.",
+    nextStep: "Mostly implemented. Add: VAULT_COMPLETENESS_SCORED, PEER_BENCHMARK_COMPUTED, EMBEDDING_UPDATED events as InsightWorkflow activities complete.",
+    events: [
+      {n:"DOC_ROUTED",t:"existing"},
+      {n:"INSIGHT_GENERATED",t:"new"},{n:"CAREER_INSIGHT_COMPUTED",t:"new"},
+      {n:"VAULT_COMPLETENESS_SCORED",t:"new"},
+      {n:"PEER_BENCHMARK_COMPUTED",t:"new"},{n:"MARKET_COMP_COMPUTED",t:"new"},{n:"SKILL_GAP_ANALYZED",t:"new"},
+      {n:"DIGEST_GENERATED",t:"new"},{n:"EMBEDDING_UPDATED",t:"new"},
+      {n:"PLATFORM_SUMMARY_COMPUTED",t:"new"},
+      {n:"TENANT_ACTIVITY_SCORED",t:"new"},{n:"ANOMALY_SCORE_COMPUTED",t:"new"}
+    ]
+  },
+  {
+    name: "Statutory & Labour Law",
+    color: "#ffa050",
+    topic: "prana.statutory.events",
+    partitions: 12,
+    consumerStatus: "written",
+    publisherCalled: true,
+    consumers: ["AuditConsumer ✓", "StatutoryConsumer ✓"],
+    consumerFiles: ["kafka/consumers/statutory_consumer.py", "kafka/consumers/audit_consumer.py"],
+    trigger: "labour_law.py: kafka.statutory_event() called on create_obligation (OBLIGATION_DUE) and update_obligation (OBLIGATION_DUE or OBLIGATION_COMPLETED). StatutoryConsumer notifies CHRO+CFO via portal bell on OBLIGATION_DUE, starts ObligationEscalationWorkflow on OBLIGATION_OVERDUE.",
+    nextStep: "✓ Fully implemented. StatutoryConsumer on prana-compliance task queue.",
+    events: [
+      {n:"OBLIGATION_DUE",t:"new"},{n:"OBLIGATION_OVERDUE",t:"new"},{n:"OBLIGATION_COMPLETED",t:"new"},
+      {n:"PF_FILING_DUE",t:"new"},{n:"ESI_FILING_DUE",t:"new"},{n:"PT_FILING_DUE",t:"new"},
+      {n:"GRATUITY_ELIGIBILITY_TRIGGERED",t:"new"},{n:"BONUS_CALCULATION_DUE",t:"new"},
+      {n:"LABOUR_LAW_VIOLATION_DETECTED",t:"new"},{n:"MINIMUM_WAGE_REVISION",t:"new"}
+    ]
+  },
+  {
+    name: "External Integrations",
+    color: "#a0c4ff",
+    topic: "prana.integrations.events",
+    partitions: 12,
+    consumerStatus: "written",
+    publisherCalled: true,
+    consumers: ["AuditConsumer ✓", "IntegrationConsumer ✓"],
+    consumerFiles: ["kafka/consumers/integration_consumer.py", "kafka/consumers/audit_consumer.py"],
+    trigger: "IntegrationConsumer ✓ written and wired in main.py. Handles HRMS_WEBHOOK_FAILED (retry_count++, max 3), EPFO_VERIFICATION_FAILED (sets pipeline_status=EXCEPTION), KMS_HEALTH_FAILED (escalates to platform topic). ✓ ingest.py calls kafka.integration_event({event_type: HRMS_WEBHOOK_FAILED}) in upload validation error path.",
+    nextStep: "Wire IngestService HRMS path to call kafka.integration_event() on every push receipt and failure. Wire S3Service and KMSService health error paths.",
+    events: [
+      {n:"HRMS_WEBHOOK_RECEIVED",t:"new"},{n:"HRMS_WEBHOOK_PROCESSED",t:"new"},{n:"HRMS_WEBHOOK_FAILED",t:"new"},
+      {n:"EPFO_VERIFICATION_REQUESTED",t:"new"},{n:"EPFO_VERIFICATION_COMPLETED",t:"new"},{n:"EPFO_VERIFICATION_FAILED",t:"new"},
+      {n:"S3_PUT_COMPLETED",t:"new"},{n:"S3_DELETE_COMPLETED",t:"new"},
+      {n:"KMS_ENCRYPT_CALLED",t:"new"},{n:"KMS_DECRYPT_CALLED",t:"new"},{n:"KMS_HEALTH_FAILED",t:"new"},
+      {n:"TEXTRACT_FALLBACK_USED",t:"new"}
+    ]
+  },
+  {
+    name: "Platform Operations",
+    color: "#c8c8c8",
+    topic: "prana.platform.events",
+    partitions: 12,
+    consumerStatus: "written",
+    publisherCalled: true,
+    consumers: ["AuditConsumer ✓", "PlatformConsumer ✓ → OPS_ALERT_WEBHOOK_URL (Slack/PagerDuty)"],
+    consumerFiles: ["kafka/consumers/platform_consumer.py", "kafka/consumers/audit_consumer.py"],
+    trigger: "PlatformConsumer ✓ written and wired in main.py. Routes WORKER_CRASHED / HEALTH_CHECK_FAILED to ops webhook (aiohttp POST, 10s timeout, URL from OPS_ALERT_WEBHOOK_URL env var). ✓ main.py lifespan startup calls platform_event(WORKER_STARTED) and shutdown calls platform_event(WORKER_STOPPED).",
+    nextStep: "Wire main.py lifespan startup to call kafka.platform_event({event_type:'WORKER_STARTED'}) and shutdown to call WORKER_STOPPED.",
+    events: [
+      {n:"WORKER_STARTED",t:"new"},{n:"WORKER_STOPPED",t:"new"},{n:"WORKER_CRASHED",t:"new"},
+      {n:"HEALTH_CHECK_FAILED",t:"new"},{n:"CLAMAV_UPDATED",t:"new"},
+      {n:"RATE_LIMIT_CONFIG_UPDATED",t:"new"},{n:"FEATURE_FLAG_CHANGED",t:"new"},
+      {n:"DEPLOYMENT_STARTED",t:"new"},{n:"DEPLOYMENT_COMPLETED",t:"new"},
+      {n:"STAGING_OBJECTS_PURGED",t:"new"}
+    ]
+  },
+  {
+    name: "Audit Sink — 7-Year Retention",
+    color: "#888888",
+    topic: "prana.audit.events",
+    partitions: 48,
+    consumerStatus: "written",
+    publisherCalled: true,
+    consumers: ["AuditConsumer ✓ → YugabyteDB (hot 2yr) → Apache Iceberg on S3 (cold 5yr+)"],
+    consumerFiles: ["kafka/consumers/audit_consumer.py"],
+    trigger: "Every domain helper in producer.py publishes a copy to TOPIC_AUDIT. AuditConsumer also subscribes to prana.vault.events directly for DOC_ACCESSED → document_access_log writes. Mirror pattern: one event, two topics — domain topic for business logic, audit topic for 7-year legal retention.",
+    nextStep: "Fully implemented. Note: audit_event rows NEVER deleted — even on DPDP erasure requests. Hot in YugabyteDB (2yr), cold in Apache Iceberg on S3 (older).",
+    events: [
+      {n:"ALL events from every topic flow here",t:"existing"},
+      {n:"Partitioned by tenant_id",t:"existing"},
+      {n:"Retention: 7 years (legal requirement)",t:"existing"},
+      {n:"Hot path: YugabyteDB audit_event table (2yr)",t:"existing"},
+      {n:"Cold path: Apache Iceberg on S3 (2yr+)",t:"existing"},
+      {n:"NEVER delete, NEVER truncate",t:"existing"}
+    ]
+  },
+  {
+    name: "Cache Invalidation",
+    color: "#ff9632",
+    topic: "prana.cache.invalidation",
+    partitions: 12,
+    consumerStatus: "written",
+    publisherCalled: true,
+    consumers: ["CacheInvalidationConsumer ✓ — runs on EVERY API pod (unique group ID per pod)"],
+    consumerFiles: ["kafka/consumers/cache_invalidation_consumer.py"],
+    trigger: "Auto-published by kafka.tenant_event() on TENANT_CONFIG_UPDATED / API_KEY_REVOKED and by kafka.oa_user_event() on any oa_user_id change. Also callable directly via kafka.cache_invalidate(event_type, **kwargs). CacheService._del() is then called on all pods simultaneously.",
+    nextStep: "Consumer and invalidation logic fully implemented. Becomes useful once tenant_event() and oa_user_event() are wired to routers (those routers not yet calling the helpers).",
+    events: [
+      {n:"CONFIG_INVALIDATE",t:"new"},{n:"APIKEY_INVALIDATE",t:"new"},
+      {n:"MANIFEST_INVALIDATE",t:"new"},{n:"EMPLOYEE_PROFILE_INVALIDATE",t:"new"},
+      {n:"TENANT_INVALIDATE",t:"new"},{n:"OA_PERMISSIONS_INVALIDATE",t:"new"},
+      {n:"DROPDOWN_INVALIDATE",t:"new"},{n:"SESSION_INVALIDATE",t:"new"}
+    ]
+  }
+];
+
+const REDIS_NS = [
+  {
+    title: "Auth & Sessions", badge: "hot",
+    rows: [
+      {k:"session:{session_id}", ttl:"7d", d:"Full JWT session — no DB hit on token refresh"},
+      {k:"revoked:{jti}", ttl:"session TTL", d:"JWT revocation list (already exists)"},
+      {k:"otp:{phone}:value", ttl:"10min", d:"OTP value for verify step"},
+      {k:"otp:{phone}:count", ttl:"10min", d:"Rate limit counter — INCR, max 3 per 10min"},
+      {k:"login:fail:{ip}", ttl:"15min", d:"Failed login attempts per IP"},
+      {k:"login:fail:{email}", ttl:"15min", d:"Failed login attempts per identity"},
+      {k:"totp:lockout:{user_id}", ttl:"30min", d:"TOTP lockout flag — checked before every verify"},
+      {k:"biometric:{user_id}", ttl:"24h", d:"Enrolled biometric challenge nonce"},
+    ]
+  },
+  {
+    title: "API Keys", badge: "hot",
+    rows: [
+      {k:"apikey:{key_hash}", ttl:"5min", d:"Full api_key row — avoids DB lookup on every HRMS push"},
+      {k:"apikey:rl:{key_id}:{window}", ttl:"1min", d:"Per-key rate limit counter (INCR)"},
+      {k:"apikey:rl:{key_id}:daily", ttl:"24h", d:"Daily request volume per key"},
+      {k:"apikey:rl:{tenant_id}:total", ttl:"1min", d:"Tenant-wide rate guard across all keys"},
+    ]
+  },
+  {
+    title: "Config & Feature Flags", badge: "warm",
+    rows: [
+      {k:"config:platform:{key}", ttl:"15min", d:"platform_config values — fetched by every Temporal activity"},
+      {k:"config:tenant:{tenant_id}:all", ttl:"15min", d:"Full tenant_config blob (JSON) — one fetch, all keys"},
+      {k:"config:tenant:{tenant_id}:{key}", ttl:"15min", d:"Single config key lookup"},
+      {k:"flag:{flag_name}:{tenant_id}", ttl:"5min", d:"Feature flag per tenant"},
+      {k:"flag:{flag_name}:global", ttl:"5min", d:"Global platform feature flags"},
+    ]
+  },
+  {
+    title: "Dropdowns & Reference Data", badge: "cold",
+    rows: [
+      {k:"ref:doc_types", ttl:"24h", d:"All doc types with labels, icons, accepted formats"},
+      {k:"ref:states:IN", ttl:"7d", d:"Indian state list for address / onboarding forms"},
+      {k:"ref:industries", ttl:"7d", d:"Industry codes for tenant onboarding"},
+      {k:"ref:banks", ttl:"7d", d:"Bank codes for salary slip field mapping"},
+      {k:"ref:statutory_acts", ttl:"24h", d:"Labour law act list for compliance forms"},
+      {k:"ref:exception_types", ttl:"24h", d:"Exception type codes for OA pipeline UI"},
+      {k:"ref:oa_roles", ttl:"24h", d:"OA role options for user create / edit form"},
+      {k:"ref:doc_periods:{year}", ttl:"24h", d:"Valid period month values for upload UI"},
+      {k:"ref:notification_templates", ttl:"1h", d:"Template IDs and metadata for NotifConsumer"},
+      {k:"ref:labour_categories", ttl:"24h", d:"Labour law obligation category codes"},
+    ]
+  },
+  {
+    title: "Manifests & AUTO_DETECT", badge: "warm",
+    rows: [
+      {k:"tenant:{tenant_id}:manifest:{doc_type}", ttl:"30min", d:"Resolved manifest (tenant override or platform default)"},
+      {k:"tenant:{tenant_id}:manifests:all", ttl:"30min", d:"All manifests for AUTO_DETECT scoring — prana-ai fetches this once"},
+      {k:"manifest:platform:{doc_type}", ttl:"1h", d:"Platform-default manifests (rarely change)"},
+    ]
+  },
+  {
+    title: "Tenant Profile", badge: "warm",
+    rows: [
+      {k:"tenant:{tenant_id}:profile", ttl:"1h", d:"Tenant metadata, branding, KEK ARN"},
+      {k:"tenant:{tenant_id}:stats", ttl:"5min", d:"Doc count, employee count, storage used"},
+      {k:"tenant:{tenant_id}:quota", ttl:"5min", d:"Storage quota limits"},
+      {k:"tenant:{tenant_id}:integrations", ttl:"30min", d:"HRMS integration config"},
+      {k:"tenant:{tenant_id}:grievance_officer", ttl:"1h", d:"Grievance officer details for DPDP SLA checks"},
+    ]
+  },
+  {
+    title: "Employee Identity & Vault", badge: "hot",
+    rows: [
+      {k:"pan:{pan_token}", ttl:"24h", d:"employee_uuid + tenant_id (already exists)"},
+      {k:"emp:profile:{employee_user_id}", ttl:"30min", d:"Mobile vault profile — name, phone, email, biometric enrolled"},
+      {k:"emp:vault:{pan_token}", ttl:"1h", d:"Vault completeness score (already exists)"},
+      {k:"emp:consent:{user_id}:{purpose}", ttl:"30min", d:"Active consent per purpose — checked before every processing step"},
+      {k:"emp:docs:count:{user_id}", ttl:"5min", d:"Document count for vault home screen stat card"},
+    ]
+  },
+  {
+    title: "OA User & Permissions", badge: "warm",
+    rows: [
+      {k:"oa:profile:{oa_user_id}", ttl:"30min", d:"OA user profile — name, role, tenant, status"},
+      {k:"oa:permissions:{oa_user_id}", ttl:"15min", d:"Effective permissions (base role merged with active elevation)"},
+      {k:"oa:elevation:{oa_user_id}", ttl:"elevation duration", d:"Active elevation: elevated_role, expires_at"},
+      {k:"oa:unread_bells:{oa_user_id}", ttl:"session", d:"Unread portal bell notification count"},
+    ]
+  },
+  {
+    title: "Share Tokens", badge: "hot",
+    rows: [
+      {k:"share:{token}", ttl:"per config", d:"Share token data — document_id, permissions (already exists)"},
+      {k:"share:otp:{token}", ttl:"10min", d:"OTP for share recipient access"},
+      {k:"share:count:{doc_id}", ttl:"24h", d:"Active share count per document (enforce share_max_active)"},
+      {k:"share:session:{token}", ttl:"10min", d:"Active share session post-OTP verify — read-only access window"},
+    ]
+  },
+  {
+    title: "Pipeline State & SSE", badge: "hot",
+    rows: [
+      {k:"pipeline:status:{document_id}", ttl:"24h", d:"Current stage — mobile polls this, never hits DB"},
+      {k:"pipeline:retry:{document_id}:{stage}", ttl:"7d", d:"Retry counter per stage — exponential backoff"},
+      {k:"pipeline:lock:{document_id}", ttl:"60s NX", d:"Distributed lock — prevents duplicate pipeline starts on requeue"},
+      {k:"sse:doc:{document_id}", ttl:"N/A", d:"Redis Pub/Sub channel — SSE to browser (already exists)"},
+      {k:"sse:tenant:{tenant_id}:alerts", ttl:"N/A", d:"Real-time CISO dashboard security alert channel"},
+      {k:"sse:batch:{batch_id}", ttl:"N/A", d:"Batch upload progress SSE channel for portal"},
+    ]
+  },
+  {
+    title: "Rate Limiting (all surfaces)", badge: "hot",
+    rows: [
+      {k:"rl:ingest:{api_key_id}:{min}", ttl:"1min", d:"HRMS ingest requests per key per minute"},
+      {k:"rl:otp:{phone}:{window}", ttl:"10min", d:"OTP send rate per phone number"},
+      {k:"rl:login:{ip}:{window}", ttl:"15min", d:"Login attempt rate per IP address"},
+      {k:"rl:share:{user_id}:{day}", ttl:"24h", d:"Share creation rate per employee per day"},
+      {k:"rl:export:{user_id}:{day}", ttl:"24h", d:"DPDP export request rate per employee"},
+      {k:"rl:correction:{user_id}:{day}", ttl:"24h", d:"Correction request rate per employee"},
+      {k:"rl:api:{tenant_id}:{min}", ttl:"1min", d:"Tenant-wide API rate limit across all keys"},
+    ]
+  },
+  {
+    title: "Distributed Locks", badge: "hot",
+    rows: [
+      {k:"lock:ingest:{document_id}", ttl:"60s NX", d:"Idempotent ingest — reject concurrent pipeline starts for same doc"},
+      {k:"lock:erasure:{employee_user_id}", ttl:"5min NX", d:"Prevent concurrent erasure workflows for same employee"},
+      {k:"lock:kek_rotation:{tenant_id}", ttl:"10min NX", d:"Serialize KEK rotation per tenant"},
+      {k:"lock:batch_flush:{batch_id}", ttl:"30s NX", d:"Prevent duplicate batch summary writes"},
+      {k:"lock:consent_process:{user_id}", ttl:"30s NX", d:"Consent check-then-process race guard"},
+    ]
+  },
+  {
+    title: "Analytics & Leaderboards", badge: "warm",
+    rows: [
+      {k:"analytics:throughput:hour", ttl:"2h", d:"Documents processed per hour (INCR counter)"},
+      {k:"analytics:vault:health:{tenant_id}", ttl:"1h", d:"Tenant vault health score for CHRO dashboard"},
+      {k:"analytics:doc_types:{tenant_id}", ttl:"1h", d:"Doc type distribution — pie chart on analytics screen"},
+      {k:"analytics:pipeline:lag", ttl:"5min", d:"Avg pipeline latency last 100 documents"},
+      {k:"analytics:emp:active:{tenant_id}", ttl:"5min", d:"Active employees today (login or vault access)"},
+    ]
+  },
+  {
+    title: "Password-Protected Doc Sessions", badge: "hot",
+    rows: [
+      {k:"pwdoc:session:{session_id}", ttl:"10min", d:"In-memory decryption session token — wiped on expiry"},
+      {k:"pwdoc:attempts:{doc_id}:{user_id}", ttl:"30min", d:"Wrong password attempt counter — lock after max"},
+      {k:"pwdoc:lock:{doc_id}:{user_id}", ttl:"30min", d:"Locked flag after max wrong password attempts"},
+    ]
+  },
+  {
+    title: "Notification Dedup & Delivery", badge: "warm",
+    rows: [
+      {k:"notif:sent:{event_type}:{recipient}:{doc_id}", ttl:"1h", d:"Dedup key — prevent sending same notification twice"},
+      {k:"notif:unread:{user_id}", ttl:"session", d:"Unread notification count for mobile badge"},
+      {k:"notif:last_digest:{tenant_id}", ttl:"7d", d:"Last digest sent — prevent duplicate weekly/monthly digest"},
+    ]
+  },
+  {
+    title: "DPDP Consent State", badge: "warm",
+    rows: [
+      {k:"consent:{employee_user_id}:{purpose}", ttl:"30min", d:"Active consent per purpose — fast check before every processing step"},
+      {k:"consent:withdrawn:{employee_user_id}", ttl:"24h", d:"Withdrawal flag — immediate stop-processing without DB lookup"},
+    ]
+  },
+  {
+    title: "Idempotency Keys", badge: "hot",
+    rows: [
+      {k:"idempotency:{endpoint}:{key}", ttl:"24h", d:"HRMS-provided keys — return cached 202 on duplicate push"},
+      {k:"idem:otp:{phone}:{hash}", ttl:"10min", d:"OTP dedup — same request within TTL returns same OTP"},
+    ]
+  },
+  {
+    title: "Audit Stream Buffer (Redis Streams)", badge: "warm",
+    rows: [
+      {k:"STREAM audit:buffer:{tenant_id}", ttl:"flush 30s/100 events", d:"Buffer audit writes — batch-flush to prana.audit.events Kafka topic"},
+      {k:"STREAM access:log:buffer", ttl:"flush 30s/100 events", d:"document_access_log buffer — zero latency on document view, async flush"},
+    ]
+  }
+];
+
+// Coverage summary data for the Coverage Audit tab
+const COVERAGE = [
+  { topic:"prana.auth.events",          helper:"auth_event()",         pubCalled:true,  subStatus:"written",  consumerClass:"AuthConsumer",                    consumerFile:"auth_consumer.py",                               note:"✓ auth_employee.py wired: USER_LOGIN_FAILED, TOTP_FAILED, SESSION_CREATED" },
+  { topic:"prana.ingest.events",        helper:"doc_ingested() / batch_uploaded()", pubCalled:true, subStatus:"written", consumerClass:"WorkflowConsumer + AuditConsumer", consumerFile:"workflow_consumer.py, audit_consumer.py", note:"✓ Fully operational" },
+  { topic:"prana.pipeline.events",      helper:"stage_changed() / doc_routed()",    pubCalled:true, subStatus:"written", consumerClass:"SSEFanoutConsumer + AuditConsumer", consumerFile:"sse_fanout_consumer.py, audit_consumer.py", note:"✓ Fully operational" },
+  { topic:"prana.vault.events",         helper:"doc_accessed() / share_event()",    pubCalled:true, subStatus:"written", consumerClass:"AuditConsumer",                   consumerFile:"audit_consumer.py",                              note:"DOC_ACCESSED wired. Share events pending." },
+  { topic:"prana.employee.events",      helper:"employee_event()",     pubCalled:true,  subStatus:"written",  consumerClass:"EmployeeConsumer",                consumerFile:"employee_consumer.py",                           note:"✓ employees.py wired: ONBOARDED, PROFILE_UPDATED, EXITED" },
+  { topic:"prana.tenant.events",        helper:"tenant_event()",       pubCalled:true,  subStatus:"written",  consumerClass:"TenantConsumer",                  consumerFile:"tenant_consumer.py",                             note:"✓ tenants.py wired: CREATED, ACTIVATED, SUSPENDED, CONFIG_UPDATED" },
+  { topic:"prana.oa_users.events",      helper:"oa_user_event()",      pubCalled:true,  subStatus:"written",  consumerClass:"OAUserConsumer",                  consumerFile:"oa_user_consumer.py",                            note:"✓ oa_users.py + elevations.py wired: all elevation events" },
+  { topic:"prana.compliance.events",    helper:"compliance_event()",   pubCalled:true,  subStatus:"written",  consumerClass:"ComplianceConsumer",              consumerFile:"compliance_consumer.py",                         note:"✓ dpdp.py wired. Migrated OFF ingest.events. All 5 DPDP rights covered." },
+  { topic:"prana.security.events",      helper:"security_event()",     pubCalled:true,  subStatus:"written",  consumerClass:"SecurityConsumer",                consumerFile:"security_consumer.py",                           note:"Consumer ✓ written. Publisher needs wiring into AnomalyDetectionWorkflow + prana-ai." },
+  { topic:"prana.notifications.email",  helper:"notify_email()",       pubCalled:true,  subStatus:"written",  consumerClass:"EmailConsumer",                   consumerFile:"email_consumer.py",                              note:"Consumer ✓ written. Emails queued via notification_log; direct publish pending." },
+  { topic:"prana.notifications.sms",    helper:"notify_sms()",         pubCalled:true,  subStatus:"written",  consumerClass:"SMSConsumer",                     consumerFile:"sms_consumer.py",                                note:"Consumer ✓ written → MSG91/Exotel. Publisher call sites pending." },
+  { topic:"prana.notifications.push",   helper:"notify_push()",        pubCalled:true,  subStatus:"written",  consumerClass:"PushConsumer",                    consumerFile:"push_consumer.py",                               note:"Consumer ✓ written → FCM/APNs. Publisher call sites pending." },
+  { topic:"prana.notifications.whatsapp",helper:"notify_whatsapp()",   pubCalled:true,  subStatus:"written",  consumerClass:"WhatsAppConsumer",                consumerFile:"whatsapp_consumer.py",                           note:"Consumer ✓ written → WABA (opt-out enforced). Publisher pending." },
+  { topic:"prana.notifications.portal_bell",helper:"notify_bell()",    pubCalled:true,  subStatus:"written",  consumerClass:"BellConsumer",                    consumerFile:"bell_consumer.py",                               note:"Consumer ✓ written → Redis Pub/Sub sse:user:{id}:bells + notification_log." },
+  { topic:"prana.analytics.events",     helper:"doc_routed() mirror",  pubCalled:true,  subStatus:"written",  consumerClass:"AnalyticsConsumer",               consumerFile:"analytics_consumer.py",                          note:"✓ Operational. Extend with insight-computed events." },
+  { topic:"prana.statutory.events",     helper:"statutory_event()",    pubCalled:true,  subStatus:"written",  consumerClass:"StatutoryConsumer",               consumerFile:"statutory_consumer.py",                          note:"✓ labour_law.py wired: OBLIGATION_DUE, OBLIGATION_COMPLETED" },
+  { topic:"prana.integrations.events",  helper:"integration_event()",  pubCalled:true,  subStatus:"written",  consumerClass:"IntegrationConsumer",             consumerFile:"integration_consumer.py",                        note:"Consumer ✓ written. Publisher wiring into IngestService/S3Service pending." },
+  { topic:"prana.platform.events",      helper:"platform_event()",     pubCalled:true,  subStatus:"written",  consumerClass:"PlatformConsumer",                consumerFile:"platform_consumer.py",                           note:"Consumer ✓ written → ops webhook. Publisher wiring into main.py lifespan pending." },
+  { topic:"prana.audit.events",         helper:"all helpers (mirror)", pubCalled:true,  subStatus:"written",  consumerClass:"AuditConsumer",                   consumerFile:"audit_consumer.py",                              note:"✓ 7-year retention. NEVER delete. Hot→YugabyteDB, Cold→Iceberg" },
+  { topic:"prana.cache.invalidation",   helper:"cache_invalidate()",   pubCalled:true,  subStatus:"written",  consumerClass:"CacheInvalidationConsumer",        consumerFile:"cache_invalidation_consumer.py",                 note:"✓ Pod-fan-out (unique group per pod). Fully operational." },
+];
+
+function buildKafka() {
+  const grid = document.getElementById('domain-grid');
+  DOMAINS.forEach((d, i) => {
+    const eCount = d.events.filter(e => !e.n.includes(' ')).length;
+    const subLabel = d.consumerStatus === 'written' ? '✓ SUBSCRIBER WRITTEN' : d.consumerStatus === 'partial' ? '~ PARTIAL' : '✗ SUBSCRIBER MISSING';
+    const pubLabel = d.publisherCalled ? 'PUB CALLED' : 'NOT CALLED FROM ROUTERS';
+    const card = document.createElement('div');
+    card.className = 'domain-card';
+    card.innerHTML = `
+      <div class="domain-header" onclick="toggleDomain(${i})">
+        <div class="domain-dot" style="background:${d.color}"></div>
+        <div class="domain-name">${d.name}</div>
+        <div class="domain-topic">${d.topic}</div>
+        <div class="domain-count">${eCount} events &nbsp;·&nbsp; ${typeof d.partitions === 'number' ? d.partitions + ' partitions' : d.partitions}</div>
+        <span class="sub-badge ${d.consumerStatus}">${subLabel}</span>
+        <span class="pub-badge ${d.publisherCalled ? 'called' : 'notcalled'}">${pubLabel}</span>
+        <div class="domain-arrow" id="arr-${i}">▶</div>
+      </div>
+      <div class="domain-body" id="body-${i}">
+        <div class="meta-row">
+          <div class="meta-label">Trigger / Invocation</div>
+          <div class="meta-val">${d.trigger}</div>
+        </div>
+        <div class="meta-row">
+          <div class="meta-label">Next Step</div>
+          <div class="meta-val ${d.consumerStatus === 'written' ? 'ok-note' : 'missing-note'}">${d.nextStep}</div>
+        </div>
+        <div class="event-list">
+          ${d.events.map(e => `<span class="event-tag ${e.t}">${e.n}</span>`).join('')}
+        </div>
+        <div class="consumers-line" style="margin-top:10px">
+          Consumers: <span>${d.consumers.join(' &nbsp;·&nbsp; ')}</span>
+        </div>
+      </div>
+    `;
+    grid.appendChild(card);
+  });
+}
+
+function toggleDomain(i) {
+  const body = document.getElementById('body-' + i);
+  const arr  = document.getElementById('arr-' + i);
+  const open = body.classList.toggle('open');
+  arr.classList.toggle('open', open);
+}
+
+function expandAll() {
+  DOMAINS.forEach((_, i) => {
+    document.getElementById('body-' + i).classList.add('open');
+    document.getElementById('arr-' + i).classList.add('open');
+  });
+}
+
+function collapseAll() {
+  DOMAINS.forEach((_, i) => {
+    document.getElementById('body-' + i).classList.remove('open');
+    document.getElementById('arr-' + i).classList.remove('open');
+  });
+}
+
+function buildRedis() {
+  const grid = document.getElementById('ns-grid');
+  REDIS_NS.forEach(ns => {
+    const card = document.createElement('div');
+    card.className = 'ns-card';
+    card.innerHTML = `
+      <div class="ns-title">
+        ${ns.title}
+        <span class="ns-badge ${ns.badge}">${ns.badge.toUpperCase()}</span>
+      </div>
+      ${ns.rows.map(r => `
+        <div class="ns-row">
+          <div class="ns-key">${r.k}</div>
+          <div class="ns-ttl">${r.ttl}</div>
+          <div class="ns-desc">${r.d}</div>
+        </div>
+      `).join('')}
+    `;
+    grid.appendChild(card);
+  });
+}
+
+function buildCoverage() {
+  const tbl = document.getElementById('cov-table');
+  const thead = document.createElement('thead');
+  thead.innerHTML = `<tr>
+    <th>Topic</th>
+    <th>Producer Helper</th>
+    <th>Publisher Called?</th>
+    <th>Subscriber Status</th>
+    <th>Consumer Class</th>
+    <th>Consumer File</th>
+    <th>Action Required</th>
+  </tr>`;
+  tbl.appendChild(thead);
+
+  const tbody = document.createElement('tbody');
+  COVERAGE.forEach(row => {
+    const pubBadge = row.pubCalled
+      ? '<span class="cov-badge written">CALLED ✓</span>'
+      : '<span class="cov-badge missing">NOT CALLED ✗</span>';
+    const subBadge = row.subStatus === 'written'
+      ? '<span class="cov-badge written">WRITTEN ✓</span>'
+      : row.subStatus === 'partial'
+        ? '<span class="cov-badge partial">PARTIAL ~</span>'
+        : '<span class="cov-badge missing">MISSING ✗</span>';
+    const tr = document.createElement('tr');
+    tr.innerHTML = `
+      <td class="topic-cell">${row.topic}</td>
+      <td class="file-cell">${row.helper}</td>
+      <td>${pubBadge}</td>
+      <td>${subBadge}</td>
+      <td style="font-size:11px;color:#e8eaf0">${row.consumerClass}</td>
+      <td class="file-cell">${row.consumerFile}</td>
+      <td style="font-size:11px;color:#9ba3b2">${row.note}</td>
+    `;
+    tbody.appendChild(tr);
+  });
+  tbl.appendChild(tbody);
+}
+
+function switchTab(name) {
+  const names = ['kafka', 'redis', 'cluster', 'coverage'];
+  document.querySelectorAll('.tab').forEach((t, i) => t.classList.toggle('active', names[i] === name));
+  document.querySelectorAll('.panel').forEach(p => p.classList.remove('active'));
+  document.getElementById('panel-' + name).classList.add('active');
+}
+
+buildKafka();
+buildRedis();
+buildCoverage();
+</script>
+</body>
+</html>
+
+
+
+

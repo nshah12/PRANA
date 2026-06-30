@@ -131,3 +131,18 @@ async def client(app) -> AsyncGenerator[AsyncClient, None]:
     ) as c:
         c.app = app   # attach so tests can reach app.state
         yield c
+
+
+@pytest.fixture
+def employee_auth_headers(client):
+    """Inject employee JWT claims and return auth headers for use in tests."""
+    from unittest.mock import AsyncMock
+    mock_jwt = client.app.state.jwt_service
+    mock_jwt.decode.return_value = {
+        "sub": "a0000000-0000-0000-0000-000000000001",
+        "user_type": "employee",
+        "jti": "test-session-id-001",
+        "exp": 9999999999,
+    }
+    mock_jwt.is_revoked = AsyncMock(return_value=False)
+    return {"Authorization": "Bearer fake.employee.jwt"}

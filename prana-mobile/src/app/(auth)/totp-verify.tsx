@@ -9,6 +9,7 @@ import { api } from '@/lib/api';
 import { authStore } from '@/lib/auth-store';
 import { useAuth } from '@/context/AuthContext';
 import { colors, fonts, gradJourney } from '@/prana-theme/tokens';
+import { tError, tUi } from '@/i18n';
 
 const CODE_LEN = 6;
 
@@ -77,17 +78,17 @@ export default function TotpVerifyScreen() {
       if (errCode === 'INVALID_TOTP') {
         const remaining = Math.max(0, 5 - newAttempts);
         if (remaining === 0) {
-          setError('Account locked after 5 failed attempts. Contact support.');
+          setError(tUi('ACCOUNT_LOCKED_CONTACT'));
         } else {
-          setError(`Incorrect code. ${remaining} attempt${remaining === 1 ? '' : 's'} remaining.`);
+          setError(tUi('ATTEMPTS_REMAINING').replace('{remaining}', String(remaining)));
         }
-      } else if (errCode === 'LOCKED') {
-        setError('Account locked. Contact support or wait for auto-unlock.');
+      } else if (errCode === 'LOCKED' || errCode === 'ACCOUNT_LOCKED') {
+        setError(tUi('ACCOUNT_LOCKED_CONTACT'));
       } else if (errCode === 'EXPIRED') {
-        setError('Session expired. Please sign in again.');
+        setError(tUi('SESSION_EXPIRED'));
         setTimeout(() => router.replace('/(auth)/sign-in'), 2000);
       } else {
-        setError('Verification failed. Try again.');
+        setError(tUi('SOMETHING_WENT_WRONG'));
       }
       setCode('');
       shake();
@@ -175,9 +176,7 @@ export default function TotpVerifyScreen() {
           {warnLevel !== 'none' && !error && (
             <View style={[s.warnBar, warnLevel === 'high' && s.warnBarHigh]}>
               <Text style={s.warnText}>
-                {warnLevel === 'high'
-                  ? `⚠  ${5 - attempts} attempt${5 - attempts === 1 ? '' : 's'} remaining before lockout`
-                  : `${5 - attempts} attempts remaining`}
+                {tUi('ATTEMPTS_REMAINING').replace('{remaining}', String(5 - attempts))}
               </Text>
             </View>
           )}

@@ -45,5 +45,13 @@ Thumbs.db
 prana-api/uvicorn.err
 prana-portal/vite.err
 
-prana-api/uvicorn.err
-prana-portal/vite.err
+# Runtime temp files
+*.tmp
+
+# Local Claude Code settings
+.claude/settings.local.json
+.claude/launch.json
+
+# Sensitive data
+PRANA/credentials.txt
+**/credentials.txt

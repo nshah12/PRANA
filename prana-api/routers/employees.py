@@ -9,6 +9,7 @@ POST /employees/{uuid}/alumni — mark as alumni (set dol)
 GET  /employees/{uuid}/history — field change history
 """
 from datetime import date
+from messages import SuccessCode, success_response
 from typing import Optional
 from fastapi import APIRouter, Depends, HTTPException, Request, status
 from pydantic import BaseModel
@@ -170,7 +171,7 @@ async def update_employee(
             "changed_by":     current.user_id,
             "changed_fields": list(body.model_dump(exclude_none=True).keys()),
         })
-    return {"message": "Updated"}
+    return {"message": SuccessCode.ANOMALY_UPDATED}
 
 
 @router.post("/{employee_uuid}/alumni", status_code=status.HTTP_200_OK)
@@ -203,7 +204,7 @@ async def mark_alumni(
             "dol":           body.dol.isoformat(),
             "changed_by":    current.user_id,
         })
-    return {"message": "Marked as alumni"}
+    return {"message": SuccessCode.MARKED_AS_ALUMNI}
 
 
 @router.get("/{employee_uuid}/history", status_code=status.HTTP_200_OK, dependencies=[OAAdmin])

@@ -4,6 +4,7 @@ PA has zero SELECT on document rows or employee PII — only aggregates and tena
 All routes require @prana.in JWT (enforced in auth_pa.py at login time).
 """
 import uuid
+from messages import SuccessCode, success_response
 import datetime
 from typing import Optional
 from fastapi import APIRouter, Depends, HTTPException, Request, status
@@ -181,7 +182,7 @@ async def activate_tenant(
             "override_region": body.home_region_override,
             "reason": body.override_reason,
         })
-    return {"message": "Tenant activated", "tenant_id": tenant_id}
+    return {"message": SuccessCode.TENANT_ACTIVATED, "tenant_id": tenant_id}
 
 
 @router.post("/tenants/{tenant_id}/reject")
@@ -190,13 +191,13 @@ async def reject_tenant(tenant_id: str, db: DbConn, current=PA):
         "UPDATE tenant SET status='REJECTED' WHERE tenant_id=$1 AND status IN ('PENDING','PENDING_VERIFICATION')",
         tenant_id,
     )
-    return {"message": "Tenant rejected"}
+    return {"message": SuccessCode.TENANT_REJECTED}
 
 
 @router.post("/tenants/{tenant_id}/suspend")
 async def suspend_tenant(tenant_id: str, db: DbConn, current=PA):
     await db.execute("UPDATE tenant SET status='SUSPENDED' WHERE tenant_id=$1", tenant_id)
-    return {"message": "Tenant suspended"}
+    return {"message": SuccessCode.TENANT_SUSPENDED}
 
 
 # ── OA Emergency Override ─────────────────────────────────────────────────────
@@ -237,7 +238,7 @@ async def oa_emergency_create(body: OaEmergencyIn, request: Request, db: DbConn,
             "action": "create",
             "reason": body.reason,
         })
-    return {"message": "Emergency account created", "temp_password": temp_pw}
+    return {"message": SuccessCode.EMERGENCY_ACCOUNT_CREATED, "temp_password": temp_pw}
 
 
 @router.post("/oa-emergency/suspend")
@@ -262,7 +263,7 @@ async def oa_emergency_suspend(body: OaEmergencyIn, db: DbConn, current=PA):
             "action": "suspend",
             "reason": body.reason,
         })
-    return {"message": "Account suspended"}
+    return {"message": SuccessCode.ACCOUNT_SUSPENDED}
 
 
 @router.post("/oa-emergency/reset")
@@ -291,7 +292,7 @@ async def oa_emergency_reset(body: OaEmergencyIn, db: DbConn, current=PA):
             "action": "reset",
             "reason": body.reason,
         })
-    return {"message": "Password reset", "temp_password": temp_pw}
+    return {"message": SuccessCode.ADMIN_PASSWORD_RESET, "temp_password": temp_pw}
 
 
 # ── Storage requests ──────────────────────────────────────────────────────────
@@ -329,7 +330,7 @@ async def approve_storage(request_id: str, db: DbConn, current=PA):
         "UPDATE storage_request SET status='APPROVED', decided_by=$2, decided_at=NOW() WHERE request_id=$1",
         request_id, current.user_id,
     )
-    return {"message": "Storage request approved"}
+    return {"message": SuccessCode.STORAGE_REQUEST_APPROVED}
 
 
 @router.post("/storage-requests/{request_id}/reject")
@@ -338,7 +339,7 @@ async def reject_storage(request_id: str, db: DbConn, current=PA):
         "UPDATE storage_request SET status='REJECTED', decided_by=$2, decided_at=NOW() WHERE request_id=$1",
         request_id, current.user_id,
     )
-    return {"message": "Storage request rejected"}
+    return {"message": SuccessCode.STORAGE_REQUEST_REJECTED}
 
 
 @router.post("/storage-requests/{request_id}/hold")
@@ -347,7 +348,7 @@ async def hold_storage(request_id: str, db: DbConn, current=PA):
         "UPDATE storage_request SET status='ON_HOLD', decided_by=$2, decided_at=NOW() WHERE request_id=$1",
         request_id, current.user_id,
     )
-    return {"message": "Storage request placed on hold"}
+    return {"message": SuccessCode.STORAGE_REQUEST_HELD}
 
 
 # ── Pipeline health ───────────────────────────────────────────────────────────
@@ -426,7 +427,7 @@ async def acknowledge_anomaly(event_id: str, db: DbConn, current=PA):
         )
     except Exception:
         pass
-    return {"message": "Acknowledged"}
+    return {"message": SuccessCode.ALERT_ACKNOWLEDGED}
 
 
 @router.get("/exceptions")
@@ -655,7 +656,7 @@ async def revoke_api_key(key_id: str, db: DbConn, current=PA):
     await db.execute(
         "UPDATE api_key SET status='REVOKED' WHERE api_key_id=$1", key_id
     )
-    return {"message": "Revoked"}
+    return {"message": SuccessCode.ACCESS_REVOKED}
 
 
 @router.get("/rate-limits")

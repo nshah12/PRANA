@@ -15,6 +15,7 @@ import {
   View, Text, Pressable, StyleSheet, ScrollView,
   ActivityIndicator, Modal, Alert, TouchableWithoutFeedback,
 } from 'react-native';
+import { tUi } from '@/i18n';
 import { LinearGradient } from 'expo-linear-gradient';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { router } from 'expo-router';
@@ -198,7 +199,7 @@ function EmptyShares() {
   return (
     <View style={em.wrap}>
       <View style={em.icon}><Text style={em.iconText}>↗</Text></View>
-      <Text style={em.title}>No share links yet</Text>
+      <Text style={em.title}>{tUi('NO_SHARE_LINKS_YET')}</Text>
       <Text style={em.sub}>
         When you share a document with a bank, recruiter, or anyone else, the link appears here — with a one-tap revoke.
       </Text>

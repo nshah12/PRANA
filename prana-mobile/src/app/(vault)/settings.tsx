@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { View, Text, Switch, Pressable, StyleSheet } from 'react-native';
+import { tUi } from '@/i18n';
 import { router } from 'expo-router';
 import { useAuth } from '@/context/AuthContext';
 import { PageScreen, SectionLabel } from '@/components/PageScreen';
@@ -64,7 +65,7 @@ export default function SettingsScreen() {
       <SectionLabel label="Trusted devices" />
       <View style={styles.group}>
         {devices.length === 0 ? (
-          <Text style={[styles.rowSub, { padding: 12 }]}>No trusted devices yet</Text>
+          <Text style={[styles.rowSub, { padding: 12 }]}>{tUi('NO_TRUSTED_DEVICES')}</Text>
         ) : devices.map((d) => (
           <SettingRow
             key={d.id}

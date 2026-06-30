@@ -8,6 +8,7 @@ import { router } from 'expo-router';
 import { colors, fonts, gradJourney } from '@/prana-theme/tokens';
 import { useQuery } from '@tanstack/react-query';
 import { api } from '@/lib/api';
+import { tUi } from '@/i18n';
 
 // ── API types ─────────────────────────────────────────────────────
 interface PipelineDoc {
@@ -257,9 +258,9 @@ export default function ActivityScreen() {
         </View>
       ) : isError ? (
         <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center', gap: 12 }}>
-          <Text style={{ fontFamily: fonts.mono, fontSize: 12, color: colors.rose }}>Failed to load activity</Text>
+          <Text style={{ fontFamily: fonts.mono, fontSize: 12, color: colors.rose }}>{tUi('ACTIVITY_LOAD_FAILED')}</Text>
           <Pressable onPress={() => refetch()} style={{ padding: 10 }}>
-            <Text style={{ fontFamily: fonts.bodySemiBold, fontSize: 12, color: colors.indigo }}>Retry</Text>
+            <Text style={{ fontFamily: fonts.bodySemiBold, fontSize: 12, color: colors.indigo }}>{tUi('RETRY')}</Text>
           </Pressable>
         </View>
       ) : (

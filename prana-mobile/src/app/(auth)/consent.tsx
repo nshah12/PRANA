@@ -8,6 +8,7 @@ import { router } from 'expo-router';
 import { api } from '@/lib/api';
 import { authStore } from '@/lib/auth-store';
 import { colors, fonts, gradJourney } from '@/prana-theme/tokens';
+import { tError } from '@/i18n';
 
 const CONSENT_VERSION = '2025-06-01';
 
@@ -127,7 +128,7 @@ export default function ConsentScreen() {
       });
       router.replace('/(vault)/vault');
     } catch {
-      setError('Couldn\'t record consent. Check your connection and try again.');
+      setError(tError('CONSENT_RECORD_FAILED'));
       setLoading(false);
     }
   }
