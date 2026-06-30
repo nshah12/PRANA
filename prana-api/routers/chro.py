@@ -13,6 +13,7 @@ All queries scoped to tenant_id from JWT.
 No individual salary figures — vault_health_score only (aggregated).
 """
 from __future__ import annotations
+from messages import SuccessCode, success_response
 
 import json
 from datetime import date, datetime, timedelta, timezone
@@ -593,7 +594,7 @@ async def save_digest_settings(body: DigestConfigBody, db: DbConn, current=CHRO)
     await _digest_svc.save_config(
         db, current.tenant_id, "chro", body.model_dump(), str(current.user_id)
     )
-    return {"message": "CHRO digest settings saved"}
+    return {"message": SuccessCode.DIGEST_SETTINGS_SAVED}
 
 
 # ── Digest: data endpoints ────────────────────────────────────────────────────
@@ -616,8 +617,8 @@ def _resolve_window(
         from_dt = datetime.combine(from_date, datetime.min.time()).replace(tzinfo=timezone.utc)
         to_dt   = datetime.combine(to_date,   datetime.min.time()).replace(tzinfo=timezone.utc) + timedelta(days=1)
         # Reject future to_date — analytics are on historical data only
-        now_utc = datetime.now(tz=timezone.utc)
-        if to_dt > now_utc:
+        # Compare to_date (the requested day) not to_dt (exclusive +1-day bound)
+        if to_date > date.today():
             raise HTTPException(400, detail={
                 "error": "DATE_RANGE_FUTURE",
                 "message": "to_date cannot be in the future.",
@@ -645,7 +646,7 @@ async def weekly_digest(
 
 @router.post("/digest/weekly/send-test")
 async def send_weekly_test(current=CHRO):
-    return {"message": "Test digest queued — DigestWorkflow will deliver via NotifConsumer"}
+    return {"message": SuccessCode.TEST_DIGEST_QUEUED}
 
 
 @router.get("/digest/monthly")
