@@ -175,7 +175,7 @@ Login URL: `http://localhost:3000/admin/login`
 
 | Email | Password | Note |
 |-------|----------|------|
-| admin@prana.in | (set on first login) | force_reset=TRUE — hash is placeholder in dev_seed.sql |
+| admin@prana.in | Prana@Admin0124 | Same password as OA accounts. TOTP required (use dev secret `JBSWY3DPEHPK3PXP`). |
 
 ---
 
