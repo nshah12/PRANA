@@ -48,6 +48,13 @@ prana-portal/vite.err
 # Runtime temp files
 *.tmp
 
+# Installer state — contains generated passwords and ARNs
+.install-state.json
+
+# Generated tfvars — never commit real values
+terraform/**/prod.tfvars
+terraform/**/staging.tfvars
+
 # Local Claude Code settings
 .claude/settings.local.json
 .claude/launch.json
