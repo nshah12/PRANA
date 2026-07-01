@@ -220,6 +220,23 @@ resource "aws_security_group_rule" "ask_from_kong" {
   description              = "prana-ask only reachable from Kong"
 }
 
+# ── Temporal SG — gRPC port 7233 open to prana-api only ──────────────────────
+resource "aws_security_group" "temporal" {
+  name        = "${local.name}-temporal"
+  description = "Temporal server — prana-api connects on 7233"
+  vpc_id      = aws_vpc.prana.id
+  tags        = merge(var.tags, { Name = "${local.name}-temporal" })
+}
+
+resource "aws_security_group_rule" "temporal_egress" {
+  type              = "egress"
+  from_port         = 0
+  to_port           = 0
+  protocol          = "-1"
+  cidr_blocks       = ["0.0.0.0/0"]
+  security_group_id = aws_security_group.temporal.id
+}
+
 output "vpc_id"              { value = aws_vpc.prana.id }
 output "private_subnet_ids"  { value = aws_subnet.private[*].id }
 output "public_subnet_ids"   { value = aws_subnet.public[*].id }
@@ -228,3 +245,4 @@ output "ai_sg_id"            { value = aws_security_group.ai.id }
 output "ask_sg_id"           { value = aws_security_group.ask.id }
 output "kong_sg_id"          { value = aws_security_group.kong.id }
 output "alb_sg_id"           { value = aws_security_group.alb.id }
+output "temporal_sg_id"      { value = aws_security_group.temporal.id }

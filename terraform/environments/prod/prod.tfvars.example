@@ -19,3 +19,11 @@ route53_zone_id = "REPLACE_WITH_HOSTED_ZONE_ID"
 
 # ACM certificate — must cover api.<domain_name>, validated in ap-south-1 before terraform apply
 acm_certificate_arn = "arn:aws:acm:ap-south-1:123456789012:certificate/REPLACE_WITH_CERT_ID"
+
+# ── GitHub Actions secrets required (set in repo Settings → Secrets) ──────────
+# AWS_DEPLOY_ROLE_ARN       — IAM role with OIDC trust for github.com/nshah12/PRANA
+#                             Permissions: ecr:*, ecs:*, secretsmanager:GetSecretValue, s3:PutObject
+# S3_DOCUMENTS_BUCKET       — documents S3 bucket name (used by deploy-kong.yml)
+# ECS_NETWORK_CONFIG        — JSON for ECS run-task --network-configuration
+#                             e.g. {"awsvpcConfiguration":{"subnets":["subnet-xxx"],"securityGroups":["sg-xxx"]}}
+# PORTAL_API_URL            — optional: override API URL for portal build (default: uses .env.production)

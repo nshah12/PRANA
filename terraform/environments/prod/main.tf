@@ -402,3 +402,36 @@ resource "aws_secretsmanager_secret_version" "kafka_bootstrap" {
   secret_id     = aws_secretsmanager_secret.kafka_bootstrap.id
   secret_string = module.kafka_mumbai.bootstrap_servers
 }
+
+# ── ECR — image repositories for all 3 services ───────────────────────────────
+
+module "ecr" {
+  source                = "../../modules/ecr"
+  environment           = local.env
+  services              = ["prana-api", "prana-ai", "prana-ask"]
+  image_retention_count = 10
+  providers             = { aws = aws.mumbai }
+  tags                  = local.common_tags
+}
+
+output "ecr_repository_urls" { value = module.ecr.repository_urls }
+
+# ── Temporal — self-hosted on ECS Fargate ─────────────────────────────────────
+
+module "temporal_mumbai" {
+  source             = "../../modules/temporal"
+  environment        = local.env
+  region             = "ap-south-1"
+  vpc_id             = module.networking_mumbai.vpc_id
+  subnet_ids         = module.networking_mumbai.private_subnet_ids
+  temporal_sg_id     = module.networking_mumbai.temporal_sg_id
+  api_sg_id          = module.networking_mumbai.api_sg_id
+  execution_role_arn = module.compute_mumbai.execution_role_arn
+  ecs_cluster_id     = module.compute_mumbai.ecs_cluster_id
+  db_url_secret_arn  = aws_secretsmanager_secret.db_url.arn
+  server_count       = 2
+  providers          = { aws = aws.mumbai }
+  tags               = local.common_tags
+}
+
+output "temporal_address" { value = module.temporal_mumbai.temporal_address }

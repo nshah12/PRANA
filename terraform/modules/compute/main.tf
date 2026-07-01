@@ -240,6 +240,7 @@ resource "aws_iam_role_policy_attachment" "exec_policy" {
 }
 
 output "cluster_id"           { value = aws_ecs_cluster.prana.id }
+output "ecs_cluster_id"      { value = aws_ecs_cluster.prana.id }
 output "api_task_role_arn"   { value = aws_iam_role.api_task.arn }
 output "ai_task_role_arn"    { value = aws_iam_role.ai_task.arn }
 output "ask_task_role_arn"   { value = aws_iam_role.ask_task.arn }
