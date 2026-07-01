@@ -5,7 +5,7 @@ One instance per process, held on app.state.kafka_producer.
 All events serialised as UTF-8 JSON.
 
 Partition strategy:
-  - prana.ingest.events   → partition by tenant_id  (ingest ordering per tenant)
+  - prana.ingest.events   → partition by document_id (high-cardinality; avoids hot partition for large tenants)
   - prana.pipeline.events → partition by document_id (all stage changes in order)
   - prana.audit.events    → partition by tenant_id
   - prana.notifications   → partition by user_id
@@ -79,11 +79,11 @@ class KafkaPub:
     # ── Domain helpers ────────────────────────────────────────────────────────
 
     async def doc_ingested(self, event: dict) -> None:
-        await self.publish(TOPIC_INGEST, event, key=event["tenant_id"])
+        await self.publish(TOPIC_INGEST, event, key=event["document_id"])  # doc_id avoids tenant hot partition
         await self.publish(TOPIC_AUDIT,  event, key=event["tenant_id"])
 
     async def batch_uploaded(self, event: dict) -> None:
-        await self.publish(TOPIC_INGEST, event, key=event["tenant_id"])
+        await self.publish(TOPIC_INGEST, event, key=event["batch_id"])     # batch_id avoids tenant hot partition
         await self.publish(TOPIC_AUDIT,  event, key=event["tenant_id"])
 
     async def stage_changed(self, event: dict) -> None:

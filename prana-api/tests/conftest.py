@@ -85,7 +85,23 @@ def mock_redis():
 def mock_kafka():
     kafka = AsyncMock()
     kafka.publish = AsyncMock()
+    kafka.doc_accessed = AsyncMock()
     return kafka
+
+
+@pytest.fixture(autouse=True)
+def reset_rate_limiter():
+    """Reset SlowAPI in-memory rate limiter between tests so they don't bleed into each other."""
+    from limiter import limiter as _limiter
+    try:
+        _limiter._limiter.storage.reset()
+    except Exception:
+        pass
+    yield
+    try:
+        _limiter._limiter.storage.reset()
+    except Exception:
+        pass
 
 
 @pytest.fixture

@@ -132,6 +132,7 @@ async def get_credential(document_id: str, request: Request, db: DbConn, current
         WHERE d.document_id = $1::uuid
           AND eu.employee_user_id = $2::uuid
           AND d.is_deleted = FALSE
+          AND d.employee_visible = TRUE
         LIMIT 1
         """,
         document_id, current.user_id,
@@ -308,6 +309,7 @@ async def get_career(request: Request, db: DbConn, current: Employee):
           AND d.doc_type IN ('SALARY_SLIP','INCREMENT_LETTER','PROMOTION_LETTER')
           AND d.doc_period IS NOT NULL
           AND d.is_deleted = FALSE
+          AND d.employee_visible = TRUE
         ORDER BY d.doc_period ASC
         """,
         current.user_id,

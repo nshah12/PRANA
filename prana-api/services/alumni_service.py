@@ -34,16 +34,26 @@ class AlumniService:
 
     # ── Employee: global alumni consent (applies across all past employers) ──
 
-    async def set_alumni_consent(self, employee_user_id: str, grant: bool) -> dict[str, Any]:
+    async def set_alumni_consent(
+        self,
+        employee_user_id: str,
+        grant: bool,
+        notice_language: str = "en",
+        notice_hash: str | None = None,
+    ) -> dict[str, Any]:
         await self._db.execute(
             """
             INSERT INTO employee_consent
-              (employee_user_id, tenant_id, purpose, is_active, consent_version, updated_at)
-            VALUES ($1, NULL, 'alumni_visibility', $2, '1.0', NOW())
+              (employee_user_id, tenant_id, purpose, is_active, consent_version,
+               notice_language, notice_hash, updated_at)
+            VALUES ($1, NULL, 'alumni_visibility', $2, '1.0', $3, $4, NOW())
             ON CONFLICT (employee_user_id, COALESCE(tenant_id, '00000000-0000-0000-0000-000000000000'::uuid), purpose)
-            DO UPDATE SET is_active = EXCLUDED.is_active, updated_at = NOW()
+            DO UPDATE SET is_active = EXCLUDED.is_active,
+                          notice_language = EXCLUDED.notice_language,
+                          notice_hash = EXCLUDED.notice_hash,
+                          updated_at = NOW()
             """,
-            employee_user_id, grant,
+            employee_user_id, grant, notice_language, notice_hash,
         )
         if not grant:
             await self._db.execute(

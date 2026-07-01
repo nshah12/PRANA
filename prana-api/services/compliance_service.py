@@ -14,7 +14,7 @@ from __future__ import annotations
 import json
 import logging
 import uuid
-from datetime import datetime, timezone
+from datetime import date, datetime, timezone
 from typing import Optional
 
 import asyncpg
@@ -67,28 +67,67 @@ class ComplianceService:
         )
         log.info("erasure_notice sent employee_user_id=%s", employee_user_id)
 
-    async def execute_erasure(self, employee_user_id: str) -> None:
+    async def execute_erasure(self, employee_user_id: str) -> dict:
         """
-        Hard-delete all employee PII. Irreversible.
-        Order: documents → career_events → employee_master → employee_user
-        Audit event written BEFORE deletion (can't write after).
+        Erase employee PII. Returns {erased_count, held_count, held_until}.
+
+        Documents split into two groups:
+          - Free (no active statutory hold)  → is_deleted=TRUE, employee_visible=FALSE
+          - Held (employer statutory hold)   → employee_visible=FALSE only
+
+        Held documents remain employer-accessible until statutory_hold_until expires,
+        at which point RetentionWorkflow completes the physical S3 deletion.
+        DPDP Act Section 9(11) permits retention for legal compliance obligations.
+
+        Audit event written BEFORE any deletions (audit log is append-only).
         """
+        today = date.today()
+
+        # Fetch all non-deleted documents and their statutory hold status
+        docs = await self._db.fetch(
+            """SELECT document_id, s3_key, statutory_hold_until
+               FROM document
+               WHERE employee_uuid IN (
+                   SELECT employee_uuid FROM employee_master WHERE employee_user_id = $1
+               )
+               AND is_deleted = FALSE""",
+            employee_user_id,
+        )
+
+        held = [d for d in docs if d["statutory_hold_until"] and d["statutory_hold_until"] > today]
+        free = [d for d in docs if not (d["statutory_hold_until"] and d["statutory_hold_until"] > today)]
+
+        # Audit event before deletions — captures counts for legal record
         await self._db.execute(
             """
             INSERT INTO audit_event
               (actor_id, actor_type, event_type, event_metadata, occurred_at)
-            VALUES ($1, 'employee', 'ERASURE_EXECUTED', '{}'::jsonb, NOW())
+            VALUES ($1, 'employee', 'ERASURE_EXECUTED',
+                    jsonb_build_object('erased_count', $2, 'held_count', $3)::jsonb,
+                    NOW())
             """,
-            employee_user_id,
+            employee_user_id, len(free), len(held),
         )
 
         async with self._db.transaction():
-            # Soft-delete documents (S3 objects cleaned up by RetentionWorkflow)
-            await self._db.execute(
-                "UPDATE document SET is_deleted=TRUE WHERE employee_uuid IN "
-                "(SELECT employee_uuid FROM employee_master WHERE employee_user_id=$1)",
-                employee_user_id,
-            )
+            # Full erasure: free documents — soft-delete and hide from employee
+            if free:
+                free_ids = [str(d["document_id"]) for d in free]
+                await self._db.execute(
+                    "UPDATE document SET is_deleted=TRUE, employee_visible=FALSE "
+                    "WHERE document_id = ANY($1::uuid[])",
+                    free_ids,
+                )
+
+            # Partial erasure: held documents — hide from employee, keep for employer
+            if held:
+                held_ids = [str(d["document_id"]) for d in held]
+                await self._db.execute(
+                    "UPDATE document SET employee_visible=FALSE "
+                    "WHERE document_id = ANY($1::uuid[])",
+                    held_ids,
+                )
+
             await self._db.execute(
                 "DELETE FROM career_event    WHERE employee_user_id=$1", employee_user_id,
             )
@@ -120,7 +159,11 @@ class ComplianceService:
                 employee_user_id,
             )
 
-        log.info("erasure_executed employee_user_id=%s", employee_user_id)
+        log.info("erasure_executed employee_user_id=%s erased=%d held=%d",
+                 employee_user_id, len(free), len(held))
+
+        held_until = max((d["statutory_hold_until"] for d in held), default=None)
+        return {"erased_count": len(free), "held_count": len(held), "held_until": held_until}
 
     # ── Data export ──────────────────────────────────────────────────────────────
 

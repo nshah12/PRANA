@@ -172,6 +172,13 @@ def create_app() -> FastAPI:
     # Blocks sunset versions with 410 Gone — no router changes needed
     app.add_middleware(DeprecationMiddleware)
 
+    # ── Rate limiter (SlowAPI) ─────────────────────────────────────────────────
+    from limiter import limiter as _limiter
+    from slowapi import _rate_limit_exceeded_handler
+    from slowapi.errors import RateLimitExceeded
+    app.state.limiter = _limiter
+    app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
+
     # ── Global exception handlers ──────────────────────────────────────────────
     # Each handler returns a typed PranaError code — never a hardcoded English sentence.
     # Frontend maps the code to a locale string via tError().

@@ -33,6 +33,7 @@ from pydantic import BaseModel
 from dependencies import DbConn, require_oa
 from kafka.producer import TOPIC_INGEST
 from errors import PranaError
+from services.statutory_hold_service import compute_hold_until
 
 router = APIRouter()
 
@@ -287,7 +288,7 @@ async def list_documents(
     offset: int = 0,
     current=Depends(require_oa("oa_operator", "oa_admin")),
 ):
-    conditions = ["tenant_id=$1", "is_deleted=FALSE"]
+    conditions = ["tenant_id=$1", "is_deleted=FALSE", "employer_visible=TRUE"]
     params: list = [current.tenant_id]
     i = 2
 
@@ -336,13 +337,13 @@ async def dashboard_stats(
     current=Depends(require_oa("oa_operator", "oa_admin")),
 ):
     total_docs = await db.fetchval(
-        "SELECT COUNT(*) FROM document WHERE tenant_id=$1 AND is_deleted=FALSE",
+        "SELECT COUNT(*) FROM document WHERE tenant_id=$1 AND is_deleted=FALSE AND employer_visible=TRUE",
         current.tenant_id,
     )
     pending = await db.fetchval(
         """
         SELECT COUNT(*) FROM document
-        WHERE tenant_id=$1 AND is_deleted=FALSE
+        WHERE tenant_id=$1 AND is_deleted=FALSE AND employer_visible=TRUE
           AND pipeline_status NOT IN ('ROUTED','EXCEPTION')
         """,
         current.tenant_id,
@@ -555,9 +556,12 @@ async def _ingest_one(
         return str(existing), event
 
     # Stage 01: upload to S3/MinIO staging
+    # hash_prefix: first 4 chars of the UUID distribute writes across 65,536 S3 key prefixes,
+    # avoiding the 3,500 req/s per-prefix throttle under large batch loads.
     ext = filename.rsplit(".", 1)[-1].lower()
-    staging_key = f"staging/{tenant_id}/{document_id}.{ext}"
-    request.app.state.s3.put_object(
+    hash_prefix = document_id[:4]
+    staging_key = f"staging/{hash_prefix}/{tenant_id}/{document_id}.{ext}"
+    await request.app.state.s3.put_object_async(
         settings.s3_bucket_staging, staging_key, file_bytes, content_type="application/pdf"
     )
 
@@ -575,6 +579,18 @@ async def _ingest_one(
         len(file_bytes), file_hash,
         actor_id, batch_id, filename, comment,
     )
+
+    # Infer statutory retention hold from doc_type — set at upload so ErasureWorkflow
+    # can check it without needing the original upload context.
+    from datetime import date as _date
+    hold_reason, hold_until = compute_hold_until(doc_type, _date.today())
+    if hold_until:
+        await db.execute(
+            "UPDATE document SET statutory_hold_reason=$1, statutory_hold_until=$2, "
+            "statutory_hold_set_at=NOW(), statutory_hold_set_by='SYSTEM_INFER' "
+            "WHERE document_id=$3",
+            hold_reason, hold_until, document_id,
+        )
 
     event = _build_doc_ingested_event(
         document_id=document_id, tenant_id=tenant_id, batch_id=batch_id,

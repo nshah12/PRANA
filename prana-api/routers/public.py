@@ -28,6 +28,7 @@ from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Request, status
 from pydantic import BaseModel, EmailStr
+from limiter import limiter
 import asyncpg
 
 from db import get_db as get_conn
@@ -367,6 +368,7 @@ async def credential_qr(code: str):
 
 
 @router.get("/verify/{code}")
+@limiter.limit("10/minute")
 async def verify_credential(
     code: str,
     request: Request,
@@ -421,27 +423,25 @@ async def verify_credential(
     else:
         display_name = "—"
 
-    # Log verification access
-    try:
-        ip = request.client.host if request.client else "unknown"
-        await conn.execute(
-            """
-            INSERT INTO document_access_log
-                (document_id, employee_user_id, employee_uuid, tenant_id,
-                 actor_type, actor_id, access_type, access_channel,
-                 ip_address, watermark_applied, accessed_at)
-            VALUES ($1, $2, $3, $4,
-                    'VERIFIER', $4::text, 'VERIFY', 'SHARE_LINK',
-                    $5, FALSE, NOW())
-            """,
-            row["document_id"],
-            None,
-            row["employee_uuid"],
-            row["tenant_id"],
-            ip,
-        )
-    except Exception:
-        pass  # logging failure must never block the verification response
+    # Log verification access via Kafka — AuditConsumer writes document_access_log
+    kafka_producer = getattr(request.app.state, "kafka_producer", None)
+    if kafka_producer:
+        try:
+            ip = request.client.host if request.client else "unknown"
+            await kafka_producer.doc_accessed({
+                "event_type":       "DOC_ACCESSED",
+                "document_id":      str(row["document_id"]),
+                "tenant_id":        str(row["tenant_id"]),
+                "employee_uuid":    str(row["employee_uuid"]),
+                "actor_type":       "VERIFIER",
+                "actor_id":         str(row["tenant_id"]),
+                "access_type":      "VERIFY",
+                "access_channel":   "SHARE_LINK",
+                "ip_address":       ip,
+                "watermark_applied": False,
+            })
+        except Exception:
+            pass  # logging failure must never block the verification response
 
     now_iso = datetime.now(timezone.utc).isoformat()
 

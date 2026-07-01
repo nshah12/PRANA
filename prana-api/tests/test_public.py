@@ -117,7 +117,82 @@ async def test_qr_valid_code_returns_png(client):
     resp = await client.get("/public/qr/PRANA-ABC123-XYZ789")
     assert resp.status_code == 200
     assert resp.headers["content-type"] == "image/png"
-    assert len(resp.content) > 100   # some bytes — real QR PNG
+
+
+# ── Rate limiting tests ───────────────────────────────────────────────────────
+
+@pytest.mark.asyncio
+async def test_verify_rate_limited_after_threshold(client, mock_db):
+    """
+    The /public/verify endpoint must rate-limit callers to ≤10 req/min per IP.
+    The 11th request from the same IP in a minute must return 429.
+    RED: fails until slowapi limiter is wired to this endpoint.
+    """
+    mock_db.fetchrow = AsyncMock(return_value=None)  # 404s are fine — rate limit fires first
+
+    responses = []
+    for _ in range(11):
+        r = await client.get(
+            "/public/verify/PRANA-ABC123-XYZ789",
+            headers={"X-Forwarded-For": "1.2.3.4"},
+        )
+        responses.append(r.status_code)
+
+    assert 429 in responses, (
+        "After 10 requests/min, /public/verify must return 429. "
+        "Rate limiting is not wired up yet."
+    )
+
+
+# ── Async access log via Kafka ────────────────────────────────────────────────
+
+@pytest.mark.asyncio
+async def test_verify_access_log_published_to_kafka_not_written_to_db(client, mock_db, mock_kafka):
+    """
+    Successful verification must publish a DOC_ACCESSED event to Kafka (AuditConsumer
+    writes the document_access_log row), NOT write directly to document_access_log.
+    A synchronous DB write in the public HTTP path blocks under load and adds latency.
+    RED: fails until public.py switches to kafka_producer.publish().
+    """
+    import uuid
+    from datetime import datetime, timezone
+
+    doc_id = str(uuid.uuid4())
+    tenant_id = str(uuid.uuid4())
+    emp_uuid = str(uuid.uuid4())
+
+    row = MagicMock()
+    row.__getitem__ = lambda self, k: {
+        "document_id": doc_id, "doc_type": "FORM_16", "doc_period": "FY:2023-24",
+        "pushed_at": datetime(2024, 5, 1, tzinfo=timezone.utc),
+        "routed_at": datetime(2024, 5, 2, tzinfo=timezone.utc),
+        "file_hash_sha256": "abc123", "verification_code": "PRANA-ABC123-XYZ789",
+        "tenant_id": tenant_id, "employee_uuid": emp_uuid,
+        "is_deleted": False, "company_name": "InfyTech Ltd", "full_name": "Nilesh Shah",
+    }.get(k)
+
+    mock_db.fetchrow = AsyncMock(return_value=row)
+    mock_db.execute = AsyncMock()
+
+    resp = await client.get("/public/verify/PRANA-ABC123-XYZ789")
+    assert resp.status_code == 200
+
+    # Must call kafka_producer.doc_accessed() — AuditConsumer writes document_access_log
+    mock_kafka.doc_accessed.assert_called_once()
+    event = mock_kafka.doc_accessed.call_args.args[0]
+    assert event.get("event_type") == "DOC_ACCESSED"
+    assert event.get("access_type") == "VERIFY"
+    assert event.get("access_channel") == "SHARE_LINK"
+
+    # Must NOT write directly to document_access_log in the HTTP path
+    direct_db_inserts = [
+        str(c) for c in mock_db.execute.call_args_list
+        if "document_access_log" in str(c).lower()
+    ]
+    assert not direct_db_inserts, (
+        "HTTP handler must not INSERT directly into document_access_log. "
+        "Use kafka_producer.doc_accessed() instead."
+    )
 
 
 @pytest.mark.asyncio

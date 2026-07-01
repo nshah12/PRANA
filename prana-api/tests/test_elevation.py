@@ -182,7 +182,7 @@ async def test_deny_elevation_happy_path(client, mock_db):
     )
 
     assert resp.status_code == 200
-    assert resp.json().get("message") == "Denied"
+    assert resp.json().get("message") == "ELEVATION_DENIED"
 
 
 @pytest.mark.asyncio
@@ -211,7 +211,7 @@ async def test_end_early_happy_path(client, mock_db):
     )
 
     assert resp.status_code == 200
-    assert resp.json().get("message") == "Elevation ended"
+    assert resp.json().get("message") == "ELEVATION_ENDED"
 
 
 # -- Tenant isolation ---------------------------------------------------------

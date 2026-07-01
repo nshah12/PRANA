@@ -136,7 +136,7 @@ async def test_employee_exit_mark_alumni_returns_200(client, mock_db):
     )
 
     assert resp.status_code == 200
-    assert resp.json().get("message") == "Marked as alumni"
+    assert resp.json().get("message") == "MARKED_AS_ALUMNI"
 
 
 @pytest.mark.asyncio

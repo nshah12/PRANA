@@ -10,18 +10,29 @@ Subscribes to prana.audit.events which receives copies of:
   ELEVATION_APPROVED, ELEVATION_ENDED, ...
 
 The event payload IS the audit metadata — no re-querying needed.
+
+Commit strategy: micro-batch — commit every BATCH_SIZE messages or FLUSH_SECS
+seconds (whichever comes first). This reduces Kafka round-trips from O(N) to
+O(N/BATCH_SIZE) under high-ingest bursts, while keeping redelivery blast radius
+bounded to at most BATCH_SIZE messages.
 """
+import asyncio
 import json
 import logging
+import time
+from typing import AsyncIterable, Iterable
 
 import asyncpg
-from aiokafka import AIOKafkaConsumer
+from aiokafka import AIOKafkaConsumer, TopicPartition
+from aiokafka.structs import OffsetAndMetadata
 
 from config import Settings
 
 log = logging.getLogger(__name__)
 
-GROUP_ID = "prana-audit-consumer"
+GROUP_ID  = "prana-audit-consumer"
+BATCH_SIZE = 500
+FLUSH_SECS = 5.0
 
 
 class AuditConsumer:
@@ -33,7 +44,7 @@ class AuditConsumer:
             bootstrap_servers=settings.kafka_bootstrap_servers,
             group_id=GROUP_ID,
             auto_offset_reset="earliest",
-            enable_auto_commit=False,   # manual commit — commit only after successful DB write
+            enable_auto_commit=False,
             value_deserializer=lambda b: json.loads(b),
         )
 
@@ -41,22 +52,62 @@ class AuditConsumer:
         await self._consumer.start()
         log.info("AuditConsumer started")
         try:
-            async for msg in self._consumer:
-                event = msg.value
-                try:
-                    if event.get("event_type") == "DOC_ACCESSED":
-                        await self._write_access_log(event)
-                    else:
-                        await self._write_audit(event)
-                    await self._consumer.commit()
-                except asyncpg.UniqueViolationError:
-                    # Already written (duplicate delivery) — commit and move on
-                    await self._consumer.commit()
-                except Exception:
-                    log.exception("AuditConsumer DB write failed event_type=%s", event.get("event_type"))
-                    # Don't commit — message will be redelivered
+            await self._run_loop(self._consumer)
         finally:
             await self._consumer.stop()
+
+    async def _run_loop(self, messages) -> None:
+        """
+        Micro-batch commit loop. Extracted so unit tests can pass a plain list
+        of messages without a live Kafka connection.
+        """
+        pending: dict[TopicPartition, OffsetAndMetadata] = {}
+        last_flush = time.monotonic()
+
+        async def _flush():
+            if pending:
+                await self._consumer.commit(offsets=pending)
+                pending.clear()
+
+        async def _iter():
+            # Accept either an async iterable (live consumer) or a plain list (tests).
+            if hasattr(messages, "__aiter__"):
+                async for m in messages:
+                    yield m
+            else:
+                for m in messages:
+                    yield m
+
+        async for msg in _iter():
+            event = msg.value
+            tp    = TopicPartition(msg.topic, msg.partition)
+            next_offset = OffsetAndMetadata(msg.offset + 1, "")
+
+            try:
+                if event.get("event_type") == "DOC_ACCESSED":
+                    await self._write_access_log(event)
+                else:
+                    await self._write_audit(event)
+                pending[tp] = next_offset
+            except asyncpg.UniqueViolationError:
+                # Duplicate delivery — advance past it
+                pending[tp] = next_offset
+            except Exception:
+                log.exception(
+                    "AuditConsumer write failed event_type=%s doc=%s",
+                    event.get("event_type"), event.get("document_id"),
+                )
+                # Flush good messages collected so far, then skip this one
+                await _flush()
+                pending[tp] = next_offset  # skip failed message
+
+            now = time.monotonic()
+            if len(pending) >= BATCH_SIZE or (now - last_flush) >= FLUSH_SECS:
+                await _flush()
+                last_flush = now
+
+        # Final flush for any messages remaining below the batch threshold
+        await _flush()
 
     async def _write_access_log(self, event: dict) -> None:
         async with self._pool.acquire() as conn:

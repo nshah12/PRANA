@@ -37,6 +37,8 @@ class WorkflowConsumer:
         self._settings = settings
         self._temporal = temporal_client
         self._db_pool = db_pool
+        limit = getattr(settings, "max_concurrent_workflow_starts", 50)
+        self._wf_semaphore = asyncio.Semaphore(limit)
         self._consumer = AIOKafkaConsumer(
             "prana.ingest.events",
             "prana.pipeline.events",
@@ -89,35 +91,38 @@ class WorkflowConsumer:
         tenant_id = event["tenant_id"]
         batch_id  = event.get("batch_id")
 
-        # Idempotent: workflow already running → Temporal returns WorkflowAlreadyStartedError, ignore
-        try:
-            await self._temporal.start_workflow(
-                DocumentPipelineWorkflow.run,
-                {
-                    "document_id": doc_id,
-                    "tenant_id":   tenant_id,
-                    "doc_type":    event["doc_type"],
-                    "doc_period":  event.get("doc_period"),
-                    "s3_key":      event["s3_key"],
-                    "s3_bucket":   event["s3_bucket"],
-                },
-                id=f"doc-pipeline-{doc_id}",
-                task_queue=TASK_QUEUE,
-            )
-        except Exception as exc:
-            if "already" not in str(exc).lower():
-                raise
+        # Semaphore caps concurrent Temporal API calls during burst ingest (e.g. 20K batch).
+        # Without it, all start_workflow calls fire simultaneously and saturate the Temporal frontend.
+        async with self._wf_semaphore:
+            # Idempotent: workflow already running → Temporal returns WorkflowAlreadyStartedError, ignore
+            try:
+                await self._temporal.start_workflow(
+                    DocumentPipelineWorkflow.run,
+                    {
+                        "document_id": doc_id,
+                        "tenant_id":   tenant_id,
+                        "doc_type":    event["doc_type"],
+                        "doc_period":  event.get("doc_period"),
+                        "s3_key":      event["s3_key"],
+                        "s3_bucket":   event["s3_bucket"],
+                    },
+                    id=f"doc-pipeline-{doc_id}",
+                    task_queue=TASK_QUEUE,
+                )
+            except Exception as exc:
+                if "already" not in str(exc).lower():
+                    raise
 
-        try:
-            await self._temporal.start_workflow(
-                BatchTimeoutMonitorWorkflow.run,
-                {"document_id": doc_id, "tenant_id": tenant_id, "batch_id": batch_id},
-                id=f"doc-timeout-{doc_id}",
-                task_queue=TASK_QUEUE,
-            )
-        except Exception as exc:
-            if "already" not in str(exc).lower():
-                raise
+            try:
+                await self._temporal.start_workflow(
+                    BatchTimeoutMonitorWorkflow.run,
+                    {"document_id": doc_id, "tenant_id": tenant_id, "batch_id": batch_id},
+                    id=f"doc-timeout-{doc_id}",
+                    task_queue=TASK_QUEUE,
+                )
+            except Exception as exc:
+                if "already" not in str(exc).lower():
+                    raise
 
     async def _handle_doc_reclassified(self, event: dict) -> None:
         """

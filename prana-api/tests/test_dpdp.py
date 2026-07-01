@@ -241,3 +241,100 @@ def test_dpdp_uses_correct_schema_column_raised_at():
 def test_dpdp_erasure_sla_from_config():
     src = (pathlib.Path(__file__).parent.parent / "routers" / "dpdp.py").read_text()
     assert "kafka" in src.lower()
+
+
+# ── Wave 6: Consent notice language + hash (DPDP §5(3)) ─────────────────────
+
+@pytest.mark.asyncio
+async def test_grant_consent_stores_notice_language_in_employee_consent(
+    client, mock_db, employee_auth_headers
+):
+    """
+    POST /vault/compliance/consent/grant must INSERT/UPDATE employee_consent
+    with the notice_language from the request body.
+    RED: fails until grant_consent writes notice_language to employee_consent.
+    """
+    mock_db.execute = AsyncMock(return_value=None)
+
+    resp = await client.post(
+        "/v1/vault/compliance/consent/grant",
+        json={"notice_version": "1.0", "notice_language": "hi", "notice_hash": "a" * 64},
+        headers=employee_auth_headers,
+    )
+    assert resp.status_code in (200, 201)
+
+    calls_sql = [str(c) for c in mock_db.execute.call_args_list]
+    consent_writes = [s for s in calls_sql if "employee_consent" in s.lower()]
+    assert consent_writes, (
+        "grant_consent must write to employee_consent with notice_language/hash. "
+        "DPDP §5(3) requires provable record of which notice the employee saw."
+    )
+    assert any("hi" in s or "notice_language" in s.lower() for s in calls_sql), (
+        "notice_language='hi' must be persisted"
+    )
+
+
+@pytest.mark.asyncio
+async def test_grant_consent_stores_notice_hash(client, mock_db, employee_auth_headers):
+    """notice_hash (SHA256 of consent text) must be written to employee_consent."""
+    import hashlib
+    mock_db.execute = AsyncMock(return_value=None)
+
+    expected_hash = hashlib.sha256("I consent to PRANA processing my career documents.".encode()).hexdigest()
+
+    resp = await client.post(
+        "/v1/vault/compliance/consent/grant",
+        json={"notice_version": "1.0", "notice_language": "en", "notice_hash": expected_hash},
+        headers=employee_auth_headers,
+    )
+    assert resp.status_code in (200, 201)
+
+    calls_sql = [str(c) for c in mock_db.execute.call_args_list]
+    assert any(expected_hash in s for s in calls_sql), (
+        "notice_hash must be persisted in employee_consent"
+    )
+
+
+@pytest.mark.asyncio
+async def test_grant_consent_falls_back_to_accept_language_header(
+    client, mock_db, employee_auth_headers
+):
+    """
+    If notice_language is omitted from body, infer from Accept-Language header.
+    Defaults to 'en' if header absent.
+    RED: fails until grant_consent reads Accept-Language as fallback.
+    """
+    mock_db.execute = AsyncMock(return_value=None)
+
+    headers = dict(employee_auth_headers)
+    headers["Accept-Language"] = "ta"
+
+    resp = await client.post(
+        "/v1/vault/compliance/consent/grant",
+        json={"notice_version": "1.0", "notice_hash": "b" * 64},
+        headers=headers,
+    )
+    assert resp.status_code in (200, 201)
+
+    calls_sql = [str(c) for c in mock_db.execute.call_args_list]
+    assert any("ta" in s or "notice_language" in s.lower() for s in calls_sql), (
+        "When notice_language absent from body, must read from Accept-Language header"
+    )
+
+
+def test_alumni_service_accepts_notice_language_and_hash():
+    """
+    AlumniService.set_alumni_consent() must accept notice_language and notice_hash params
+    and pass them to the employee_consent INSERT.
+    RED: fails until alumni_service signature updated.
+    """
+    import inspect
+    from services.alumni_service import AlumniService
+    sig = inspect.signature(AlumniService.set_alumni_consent)
+    params = list(sig.parameters)
+    assert "notice_language" in params, (
+        "AlumniService.set_alumni_consent() must accept notice_language parameter"
+    )
+    assert "notice_hash" in params, (
+        "AlumniService.set_alumni_consent() must accept notice_hash parameter"
+    )

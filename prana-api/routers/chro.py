@@ -202,7 +202,7 @@ async def statutory_coverage(db: DbConn, current=CHRO):
         """
         SELECT COUNT(DISTINCT employee_uuid) FROM document
         WHERE tenant_id = $1 AND doc_type = 'FORM_16'
-          AND doc_period = $2 AND is_deleted = FALSE
+          AND doc_period = $2 AND is_deleted = FALSE AND employer_visible = TRUE
         """,
         current.tenant_id, current_fy,
     ) or 0)
@@ -213,7 +213,7 @@ async def statutory_coverage(db: DbConn, current=CHRO):
         """
         SELECT COUNT(DISTINCT employee_uuid) FROM document
         WHERE tenant_id = $1 AND doc_type = 'SALARY_SLIP'
-          AND pushed_at >= $2 AND is_deleted = FALSE
+          AND pushed_at >= $2 AND is_deleted = FALSE AND employer_visible = TRUE
         """,
         current.tenant_id, ninety_days_ago,
     ) or 0)
@@ -223,7 +223,7 @@ async def statutory_coverage(db: DbConn, current=CHRO):
         """
         SELECT COUNT(DISTINCT employee_uuid) FROM document
         WHERE tenant_id = $1 AND doc_type = 'PF_ACKNOWLEDGEMENT'
-          AND pushed_at >= $2 AND is_deleted = FALSE
+          AND pushed_at >= $2 AND is_deleted = FALSE AND employer_visible = TRUE
         """,
         current.tenant_id, fy_start,
     ) or 0)
@@ -234,7 +234,7 @@ async def statutory_coverage(db: DbConn, current=CHRO):
         SELECT COUNT(DISTINCT employee_uuid) FROM document
         WHERE tenant_id = $1
           AND doc_type IN ('OFFER_LETTER', 'APPOINTMENT_LETTER')
-          AND is_deleted = FALSE
+          AND is_deleted = FALSE AND employer_visible = TRUE
         """,
         current.tenant_id,
     ) or 0)
@@ -249,7 +249,7 @@ async def statutory_coverage(db: DbConn, current=CHRO):
         SELECT COUNT(DISTINCT employee_uuid) FROM document
         WHERE tenant_id = $1
           AND doc_type IN ('RELIEVING_LETTER', 'EXPERIENCE_LETTER')
-          AND pushed_at >= $2 AND is_deleted = FALSE
+          AND pushed_at >= $2 AND is_deleted = FALSE AND employer_visible = TRUE
         """,
         current.tenant_id, fy_start,
     ) or 0) if exited_count else 0
@@ -790,6 +790,7 @@ async def quarterly_report(db: DbConn, current=CHRO):
         WHERE tenant_id = $1
           AND pushed_at >= NOW() - INTERVAL '3 months'
           AND is_deleted = FALSE
+          AND employer_visible = TRUE
         GROUP BY doc_type
         ORDER BY "Total Documents" DESC
         """,

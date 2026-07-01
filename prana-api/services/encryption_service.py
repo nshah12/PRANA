@@ -2,12 +2,14 @@ import hashlib
 import hmac
 import os
 import struct
+import threading
 from base64 import b64encode, b64decode
-from typing import Optional
+from typing import Callable, Optional
 
 import boto3
 from argon2 import PasswordHasher
 from argon2.exceptions import VerifyMismatchError
+from cachetools import TTLCache
 from cryptography.hazmat.primitives.ciphers import Cipher, algorithms, modes
 from cryptography.hazmat.primitives.ciphers.aead import AESGCM
 
@@ -34,17 +36,54 @@ def password_needs_rehash(hashed: str) -> bool:
 
 # ── NIK / PAN token ───────────────────────────────────────────────────────────
 
-def compute_pan_token(nik: str, platform_secret: str) -> str:
+# ── PAN token versioning ──────────────────────────────────────────────────────
+# Version registry allows key rotation without invalidating all existing tokens.
+# Existing rows keep their version number; new rows use the current default.
+# On secret rotation: bump _CURRENT_PAN_TOKEN_VERSION, add a new algorithm entry,
+# update pan_token_version lazily on next employee login.
+
+_PAN_TOKEN_ALGOS: dict[int, Callable[[str, str], str]] = {
+    1: lambda nik, secret: hmac.new(secret.encode(), nik.encode(), hashlib.sha256).hexdigest(),
+}
+_CURRENT_PAN_TOKEN_VERSION = 1
+
+
+def register_pan_token_version(version: int, algo: Callable[[str, str], str]) -> None:
+    """Register a new PAN token algorithm. Call during service startup for version > 1."""
+    _PAN_TOKEN_ALGOS[version] = algo
+
+
+def compute_pan_token(nik: str, platform_secret: str, version: int = 1) -> str:
     """
-    HMAC-SHA256(NIK, platform_secret) → hex string.
-    Deterministic cross-tenant identity key. One-way — NIK is never recoverable.
+    HMAC-based cross-tenant deduplication key. One-way — NIK is never recoverable.
+    Version 1 = HMAC-SHA256(NIK, platform_secret).
     Call this and immediately discard the raw NIK.
     """
-    return hmac.new(
-        platform_secret.encode(),
-        nik.encode(),
-        hashlib.sha256,
-    ).hexdigest()
+    algo = _PAN_TOKEN_ALGOS.get(version)
+    if not algo:
+        raise ValueError(f"Unknown pan_token version: {version}")
+    return algo(nik, platform_secret)
+
+
+# ── KMS DEK cache ─────────────────────────────────────────────────────────────
+# Caches decrypted DEK bytes in process memory to avoid a KMS round-trip on every
+# document access. TTL=300s matches the Temporal activity heartbeat window.
+# Cache key is a truncated SHA-256 of the ciphertext (enc_dek) — never the DEK itself.
+# Max 1000 DEKs ≈ 32KB footprint. Cleared on process exit automatically.
+
+_DEK_CACHE: TTLCache = TTLCache(maxsize=1000, ttl=300)
+_DEK_LOCK = threading.Lock()
+
+
+def _dek_cache_key(enc_dek: str) -> bytes:
+    """Derive a short opaque cache key from the ciphertext. Never the plaintext DEK."""
+    return hashlib.sha256(enc_dek.encode()).digest()[:16]
+
+
+def clear_dek_cache() -> None:
+    """Clear the DEK cache. Used in tests and for emergency key rotation."""
+    with _DEK_LOCK:
+        _DEK_CACHE.clear()
 
 
 # ── Format-Preserving Encryption (FF3-1) ──────────────────────────────────────
@@ -136,12 +175,25 @@ class KMSService:
         return b64encode(resp["CiphertextBlob"]).decode()
 
     def unwrap_dek(self, enc_dek: str, kek_arn: str) -> bytes:
-        """KMS_Decrypt(enc_dek, KEK) → raw DEK bytes. Never log or cache the result."""
+        """
+        KMS_Decrypt(enc_dek, KEK) → raw DEK bytes.
+        Result is cached in-process for 5 minutes (TTL=300s) to avoid per-request KMS
+        round-trips. Cache is keyed by SHA-256(enc_dek) — never by the plaintext DEK.
+        """
+        cache_key = _dek_cache_key(enc_dek)
+        with _DEK_LOCK:
+            cached = _DEK_CACHE.get(cache_key)
+        if cached is not None:
+            return cached
+
         resp = self._client.decrypt(
             CiphertextBlob=b64decode(enc_dek),
             KeyId=kek_arn,
         )
-        return resp["Plaintext"]
+        dek: bytes = resp["Plaintext"]
+        with _DEK_LOCK:
+            _DEK_CACHE[cache_key] = dek
+        return dek
 
     def sign_jwt(self, message: bytes, key_id: str) -> bytes:
         """RS256 sign via KMS — private key never leaves KMS."""

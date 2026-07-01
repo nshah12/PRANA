@@ -126,19 +126,62 @@ async def withdraw_consent(request: Request, db: DbConn, current=Employee):
     return {"message": SuccessCode.CONSENT_WITHDRAWN}
 
 
+class ConsentGrantBody(BaseModel):
+    notice_version: str = "1.0"
+    notice_language: Optional[str] = None   # falls back to Accept-Language header
+    notice_hash: Optional[str] = None       # SHA-256 of the notice text shown to employee
+
+
 @router.post("/consent/grant", status_code=status.HTTP_200_OK)
-async def grant_consent(request: Request, db: DbConn, current=Employee):
-    """Re-grant processing consent after a previous withdrawal."""
+async def grant_consent(
+    request: Request,
+    db: DbConn,
+    current=Employee,
+    body: ConsentGrantBody = ConsentGrantBody(),
+):
+    """
+    Re-grant processing consent after a previous withdrawal.
+    Persists the language and hash of the notice text shown — DPDP §5(3) audit proof.
+    """
+    # Resolve notice_language: body > Accept-Language header > default 'en'
+    lang = body.notice_language
+    if not lang:
+        lang = (request.headers.get("accept-language") or "en").split(",")[0].split(";")[0].strip()[:5]
+
     await db.execute(
         "UPDATE employee_user SET consent_status='GRANTED' WHERE employee_user_id=$1",
         current.user_id,
     )
+
+    # DPDP §5(3): record exactly which notice version and language the employee agreed to
+    await db.execute(
+        """
+        INSERT INTO employee_consent
+          (employee_user_id, tenant_id, purpose, is_active, consent_version,
+           notice_language, notice_hash, updated_at)
+        VALUES ($1, $2, 'processing', TRUE, $3, $4, $5, NOW())
+        ON CONFLICT (employee_user_id, COALESCE(tenant_id, '00000000-0000-0000-0000-000000000000'::uuid), purpose)
+        DO UPDATE SET is_active = TRUE,
+                      consent_version = EXCLUDED.consent_version,
+                      notice_language = EXCLUDED.notice_language,
+                      notice_hash     = EXCLUDED.notice_hash,
+                      updated_at      = NOW()
+        """,
+        current.user_id,
+        current.tenant_id,
+        body.notice_version,
+        lang,
+        body.notice_hash,
+    )
+
     kafka = getattr(request.app.state, "kafka_producer", None)
     if kafka:
         await kafka.compliance_event({
             "event_type": "CONSENT_GRANTED",
             "employee_user_id": str(current.user_id),
             "tenant_id": str(current.tenant_id) if current.tenant_id else None,
+            "notice_version": body.notice_version,
+            "notice_language": lang,
         })
     return {"message": SuccessCode.CONSENT_GRANTED}
 
