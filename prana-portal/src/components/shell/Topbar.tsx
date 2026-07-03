@@ -3,34 +3,36 @@ import { Bell, Settings, User, LogOut, ChevronDown, Building2 } from 'lucide-rea
 import { useAuthStore, ROLE_COLOR, ROLE_LABEL, type UserRole } from '@/store/auth'
 import { api } from '@/lib/api'
 import { useNavigate } from 'react-router-dom'
+import { tUi } from '@/i18n'
 
-// Role-specific profile menu items
-const ROLE_MENU: Record<string, { icon: React.ReactNode; label: string; path: string }[]> = {
-  oa_operator: [
-    { icon: <User size={13} />,     label: 'My profile',     path: '/org/profile' },
-    { icon: <Settings size={13} />, label: 'Org settings',   path: '/org/settings' },
-  ],
-  oa_admin: [
-    { icon: <User size={13} />,     label: 'Org profile',    path: '/org/profile' },
-    { icon: <Settings size={13} />, label: 'Org settings',   path: '/org/settings' },
-    { icon: <Building2 size={13} />,label: 'User management',path: '/org/users' },
-  ],
-  chro: [
-    { icon: <User size={13} />,     label: 'My profile',     path: '/org/profile' },
-    { icon: <Settings size={13} />, label: 'Alert config',   path: '/org/alerts' },
-  ],
-  cfo: [
-    { icon: <User size={13} />,     label: 'My profile',     path: '/org/profile' },
-    { icon: <Settings size={13} />, label: 'Org settings',   path: '/org/settings' },
-  ],
-  ciso: [
-    { icon: <User size={13} />,     label: 'My profile',     path: '/org/profile' },
-    { icon: <Settings size={13} />, label: 'Security config',path: '/org/settings' },
-  ],
-  portal_admin: [
-    { icon: <Settings size={13} />, label: 'Platform config',path: '/admin/platform' },
-    { icon: <Building2 size={13} />,label: 'Tenant directory',path: '/admin/tenants' },
-  ],
+function getRoleMenu(): Record<string, { icon: React.ReactNode; label: string; path: string }[]> {
+  return {
+    oa_operator: [
+      { icon: <User size={13} />,     label: tUi('TOPBAR_MY_PROFILE'),       path: '/org/profile' },
+      { icon: <Settings size={13} />, label: tUi('TOPBAR_ORG_SETTINGS'),     path: '/org/settings' },
+    ],
+    oa_admin: [
+      { icon: <User size={13} />,     label: tUi('TOPBAR_ORG_PROFILE'),      path: '/org/profile' },
+      { icon: <Settings size={13} />, label: tUi('TOPBAR_ORG_SETTINGS'),     path: '/org/settings' },
+      { icon: <Building2 size={13} />,label: tUi('TOPBAR_USER_MANAGEMENT'),  path: '/org/users' },
+    ],
+    chro: [
+      { icon: <User size={13} />,     label: tUi('TOPBAR_MY_PROFILE'),       path: '/org/profile' },
+      { icon: <Settings size={13} />, label: tUi('TOPBAR_ALERT_CONFIG'),     path: '/org/alerts' },
+    ],
+    cfo: [
+      { icon: <User size={13} />,     label: tUi('TOPBAR_MY_PROFILE'),       path: '/org/profile' },
+      { icon: <Settings size={13} />, label: tUi('TOPBAR_ORG_SETTINGS'),     path: '/org/settings' },
+    ],
+    ciso: [
+      { icon: <User size={13} />,     label: tUi('TOPBAR_MY_PROFILE'),       path: '/org/profile' },
+      { icon: <Settings size={13} />, label: tUi('TOPBAR_SECURITY_CONFIG'),  path: '/org/settings' },
+    ],
+    portal_admin: [
+      { icon: <Settings size={13} />, label: tUi('TOPBAR_PLATFORM_CONFIG'),  path: '/admin/platform' },
+      { icon: <Building2 size={13} />,label: tUi('TOPBAR_TENANT_DIRECTORY'), path: '/admin/tenants' },
+    ],
+  }
 }
 
 export function Topbar() {
@@ -60,7 +62,7 @@ export function Topbar() {
   if (!user) return null
   const color  = ROLE_COLOR[user.role as UserRole]
   const label  = ROLE_LABEL[user.role as UserRole]
-  const menuItems = ROLE_MENU[user.role] ?? []
+  const menuItems = getRoleMenu()[user.role] ?? []
   const initials = user.displayName
     ? user.displayName.split(' ').map((w: string) => w[0]).slice(0, 2).join('').toUpperCase()
     : '?'
@@ -141,7 +143,7 @@ export function Topbar() {
               {/* Tenant info if available */}
               {user.tenantName && (
                 <div className="px-4 py-2.5 border-b border-slate-100">
-                  <p className="text-[10px] text-slate-400 uppercase tracking-wider font-semibold mb-0.5">Organisation</p>
+                  <p className="text-[10px] text-slate-400 uppercase tracking-wider font-semibold mb-0.5">{tUi('TOPBAR_ORGANISATION')}</p>
                   <p className="text-xs text-slate-600 font-medium truncate">{user.tenantName}</p>
                 </div>
               )}
@@ -154,7 +156,7 @@ export function Topbar() {
                              hover:bg-red-50 transition-colors group">
                   <LogOut size={13} className="text-slate-400 group-hover:text-red-500 transition-colors" />
                   <span className="text-sm text-slate-700 group-hover:text-red-600 font-medium transition-colors">
-                    Sign out
+                    {tUi('TOPBAR_SIGN_OUT')}
                   </span>
                 </button>
               </div>

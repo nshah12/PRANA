@@ -7,6 +7,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { router } from 'expo-router';
 import { useAuth } from '@/context/AuthContext';
 import { colors, fonts, gradJourney, radius } from '@/prana-theme/tokens';
+import { tUi } from '@/i18n';
 
 function InfoRow({ label, value, mono }: { label: string; value: string; mono?: boolean }) {
   return (
@@ -80,13 +81,13 @@ export default function ProfileScreen() {
             <Text style={styles.avatarText}>{profile.name?.charAt(0) ?? '?'}</Text>
           </LinearGradient>
           <Text style={styles.heroName}>{profile.name}</Text>
-          <Text style={styles.heroSub}>PRANA Vault Member</Text>
+          <Text style={styles.heroSub}>{tUi('PROFILE_VAULT_MEMBER')}</Text>
 
           {/* Stat chips */}
           <View style={styles.statRow}>
             <View style={styles.statChip}>
               <Text style={styles.statNum}>{profile.employer_count ?? 0}</Text>
-              <Text style={styles.statLabel}>Employers</Text>
+              <Text style={styles.statLabel}>{tUi('PROFILE_STAT_EMPLOYERS')}</Text>
             </View>
             <View style={styles.statDivider} />
             <View style={styles.statChip}>
@@ -95,48 +96,48 @@ export default function ProfileScreen() {
                   ? `${new Date().getFullYear() - new Date(profile.active_since).getFullYear()}y`
                   : '—'}
               </Text>
-              <Text style={styles.statLabel}>On PRANA</Text>
+              <Text style={styles.statLabel}>{tUi('PROFILE_STAT_ON_PRANA')}</Text>
             </View>
             <View style={styles.statDivider} />
             <View style={styles.statChip}>
-              <Text style={[styles.statNum, { fontSize: 13 }]}>Active</Text>
-              <Text style={styles.statLabel}>Status</Text>
+              <Text style={[styles.statNum, { fontSize: 13 }]}>{tUi('PROFILE_STATUS_ACTIVE')}</Text>
+              <Text style={styles.statLabel}>{tUi('PROFILE_STAT_STATUS')}</Text>
             </View>
           </View>
         </View>
 
         {/* Vault link */}
-        <Section title="Vault">
-          <InfoRow label="Vault URL" value={profile.vault_url ?? '—'} mono />
-          <InfoRow label="Member since" value={activeSince} />
+        <Section title={tUi('PROFILE_SECTION_VAULT')}>
+          <InfoRow label={tUi('PROFILE_VAULT_URL')} value={profile.vault_url ?? '—'} mono />
+          <InfoRow label={tUi('PROFILE_MEMBER_SINCE')} value={activeSince} />
         </Section>
 
         {/* Contact */}
-        <Section title="Contact">
-          <InfoRow label="Mobile" value={maskedMobile} mono />
+        <Section title={tUi('PROFILE_SECTION_CONTACT')}>
+          <InfoRow label={tUi('PROFILE_MOBILE')} value={maskedMobile} mono />
         </Section>
 
         {/* Security */}
-        <Section title="Security">
-          <InfoRow label="TOTP 2FA" value={profile.has_totp ? 'Enabled ✓' : 'Not set up'} />
+        <Section title={tUi('PROFILE_SECTION_SECURITY')}>
+          <InfoRow label={tUi('PROFILE_TOTP_2FA')} value={profile.has_totp ? tUi('PROFILE_TOTP_ENABLED') : tUi('PROFILE_TOTP_NOT_SET')} />
           <Pressable
             style={styles.linkRow}
             onPress={() => router.push('/(vault)/settings')}
           >
-            <Text style={styles.linkText}>Manage devices & biometrics</Text>
+            <Text style={styles.linkText}>{tUi('PROFILE_MANAGE_DEVICES')}</Text>
             <Text style={styles.linkChev}>›</Text>
           </Pressable>
         </Section>
 
         {/* Data rights */}
-        <Section title="Privacy & Data">
+        <Section title={tUi('PROFILE_SECTION_PRIVACY')}>
           <Pressable
             style={styles.linkRow}
             onPress={() => router.push('/(vault)/data-rights')}
           >
             <View style={{ flex: 1 }}>
-              <Text style={styles.linkText}>My Data Rights</Text>
-              <Text style={styles.linkSub}>DPDP Act 2023 · Consent, export, erasure</Text>
+              <Text style={styles.linkText}>{tUi('PROFILE_DATA_RIGHTS')}</Text>
+              <Text style={styles.linkSub}>{tUi('PROFILE_DATA_RIGHTS_SUB')}</Text>
             </View>
             <Text style={styles.linkChev}>›</Text>
           </Pressable>
@@ -144,7 +145,7 @@ export default function ProfileScreen() {
 
         {/* Sign out */}
         <Pressable style={styles.signOutBtn} onPress={handleSignOut}>
-          <Text style={styles.signOutText}>Sign out</Text>
+          <Text style={styles.signOutText}>{tUi('PROFILE_SIGN_OUT')}</Text>
         </Pressable>
 
         <View style={{ height: 32 }} />

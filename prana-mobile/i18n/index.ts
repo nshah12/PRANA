@@ -24,6 +24,7 @@ export type MessageCategory =
   | 'pipeline_error'
   | 'ask_error'
   | 'ui'
+  | 'consent'
 
 type LocaleData = typeof en
 
@@ -103,6 +104,10 @@ export function tAskError(code: string): string {
 
 export function tUi(code: string, vars?: Record<string, string | number>): string {
   return t('ui', code, vars)
+}
+
+export function tConsent(code: string, vars?: Record<string, string | number>): string {
+  return t('consent', code, vars)
 }
 
 /**

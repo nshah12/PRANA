@@ -3,6 +3,7 @@ import { useQuery } from '@tanstack/react-query'
 import { Upload, Share2, Download, Copy, Check } from 'lucide-react'
 import { api } from '@/lib/api'
 import { EmpShareModal } from './EmpShareModal'
+import { tUi } from '@/i18n'
 
 const DOC_ICON: Record<string, string> = {
   SALARY_SLIP: '📄', FORM_16: '🧾', OFFER_LETTER: '📃',
@@ -14,7 +15,7 @@ const ORG_BG     = ['rgba(14,165,233,0.08)','rgba(16,185,129,0.08)','rgba(245,15
 const ORG_BORDER = ['rgba(14,165,233,0.2)','rgba(16,185,129,0.2)','rgba(245,158,11,0.2)','rgba(139,92,246,0.2)','rgba(239,68,68,0.2)']
 
 function fmtDate(d: string | null) {
-  if (!d) return 'Present'
+  if (!d) return tUi('VAULT_DATE_PRESENT')
   return new Date(d).toLocaleDateString('en-IN', { month: 'short', year: 'numeric' })
 }
 function fmtPushed(d: string | null) {
@@ -61,9 +62,9 @@ export function EmpVault() {
       label: (e.tenant_name ?? e.name ?? '').split(' ')[0],
       color: ORG_COLORS[i % ORG_COLORS.length],
     })),
-    { id: 'type:SALARY_SLIP', label: 'Salary Slips', color: undefined },
-    { id: 'type:FORM_16',     label: 'Tax Docs',     color: undefined },
-    { id: 'type:LETTER',      label: 'Letters',      color: undefined },
+    { id: 'type:SALARY_SLIP', label: tUi('VAULT_FILTER_SALARY_SLIPS'), color: undefined },
+    { id: 'type:FORM_16',     label: tUi('VAULT_FILTER_TAX_DOCS'),     color: undefined },
+    { id: 'type:LETTER',      label: tUi('VAULT_FILTER_LETTERS'),      color: undefined },
   ]
 
   const filtered = docs.filter(d => {
@@ -105,15 +106,15 @@ export function EmpVault() {
       {/* Header */}
       <div className="flex items-start justify-between mb-5">
         <div>
-          <h1 className="text-xl font-bold text-slate-800">My Vault</h1>
-          <p className="text-sm text-slate-500 mt-0.5">All your employment documents — across every employer, in one place</p>
+          <h1 className="text-xl font-bold text-slate-800">{tUi('VAULT_MY_VAULT')}</h1>
+          <p className="text-sm text-slate-500 mt-0.5">{tUi('VAULT_TAGLINE')}</p>
         </div>
         <div className="flex gap-2">
           <button className="flex items-center gap-1.5 px-3 py-2 text-sm border border-slate-200 rounded-lg text-slate-600 hover:bg-slate-50 transition-colors">
-            <Upload size={14} /> Upload
+            <Upload size={14} /> {tUi('VAULT_UPLOAD_BTN')}
           </button>
           <button className="flex items-center gap-1.5 px-3 py-2 text-sm bg-sky-600 text-white rounded-lg hover:bg-sky-700 transition-colors">
-            <Share2 size={14} /> Share Documents
+            <Share2 size={14} /> {tUi('VAULT_SHARE_DOCUMENTS')}
           </button>
         </div>
       </div>
@@ -122,7 +123,7 @@ export function EmpVault() {
       <div className="rounded-2xl p-5 mb-5 flex items-center justify-between gap-4"
         style={{ background: 'linear-gradient(135deg,#0f172a 0%,#1e3a5f 60%,#0c4a6e 100%)' }}>
         <div className="min-w-0">
-          <p className="text-[10px] font-bold uppercase tracking-[0.18em] text-sky-400 mb-1.5">Your Permanent Vault URL</p>
+          <p className="text-[10px] font-bold uppercase tracking-[0.18em] text-sky-400 mb-1.5">{tUi('VAULT_URL_LABEL')}</p>
           <p className="text-base font-mono font-bold text-white truncate">{vaultUrl}</p>
           <p className="text-[11px] text-slate-400 mt-1.5 font-mono">
             Active since {activeSince} · {employers.length} linked employer{employers.length !== 1 ? 's' : ''} · {docs.length} documents
@@ -131,17 +132,17 @@ export function EmpVault() {
         <button onClick={copyUrl}
           className="flex items-center gap-2 px-3 py-2 rounded-lg text-xs font-semibold shrink-0 transition-all"
           style={{ background:'rgba(14,165,233,0.15)', color:'#38bdf8', border:'1px solid rgba(14,165,233,0.3)' }}>
-          {copied ? <><Check size={13}/> Copied!</> : <><Copy size={13}/> Copy URL</>}
+          {copied ? <><Check size={13}/> {tUi('VAULT_COPIED')}</> : <><Copy size={13}/> {tUi('VAULT_COPY_URL')}</>}
         </button>
       </div>
 
       {/* 4 stat cards */}
       <div className="grid grid-cols-4 gap-3 mb-5">
         {[
-          { val: docs.length,         sub: `${employers.length} employer${employers.length!==1?'s':''}${selfUploads.length?' + '+selfUploads.length+' self':''}`, label: 'Total Documents', color: '#0EA5E9' },
-          { val: activeShares.length, sub: activeShares.filter((s:any)=>(new Date(s.expires_at).getTime()-Date.now())<7*86400000).length + ' expiring this week', label: 'Active Shares', color: '#10B981' },
-          { val: employers.length,    sub: employers.filter((e:any)=>!e.dol).length+' active · '+employers.filter((e:any)=>e.dol).length+' alumni', label: 'Linked Employers', color: '#F59E0B' },
-          { val: selfUploads.length,  sub: 'Uploaded by you', label: 'Self Uploads', color: '#8B5CF6' },
+          { val: docs.length,         sub: `${employers.length} employer${employers.length!==1?'s':''}${selfUploads.length?' + '+selfUploads.length+' self':''}`, label: tUi('VAULT_STAT_TOTAL_DOCS'),      color: '#0EA5E9' },
+          { val: activeShares.length, sub: activeShares.filter((s:any)=>(new Date(s.expires_at).getTime()-Date.now())<7*86400000).length + ' expiring this week', label: tUi('VAULT_STAT_ACTIVE_SHARES'),    color: '#10B981' },
+          { val: employers.length,    sub: employers.filter((e:any)=>!e.dol).length+' active · '+employers.filter((e:any)=>e.dol).length+' alumni', label: tUi('VAULT_STAT_LINKED_EMPLOYERS'), color: '#F59E0B' },
+          { val: selfUploads.length,  sub: 'Uploaded by you', label: tUi('VAULT_STAT_SELF_UPLOADS'),      color: '#8B5CF6' },
         ].map(s => (
           <div key={s.label} className="bg-white border border-slate-200 rounded-xl p-4 shadow-sm">
             <p className="text-3xl font-bold" style={{ color: s.color }}>{s.val}</p>
@@ -182,8 +183,8 @@ export function EmpVault() {
       ) : byOrg.length === 0 ? (
         <div className="text-center py-20 text-slate-400">
           <div className="text-4xl mb-3">📂</div>
-          <p className="font-medium text-slate-600">No documents found</p>
-          <p className="text-sm mt-1">Try a different filter or search term.</p>
+          <p className="font-medium text-slate-600">{tUi('VAULT_NO_DOCS_FOUND')}</p>
+          <p className="text-sm mt-1">{tUi('VAULT_NO_DOCS_HINT')}</p>
         </div>
       ) : (
         <div className="space-y-4">
@@ -208,7 +209,7 @@ export function EmpVault() {
                       ? { background:'rgba(16,185,129,0.1)', color:'#059669', borderColor:'rgba(16,185,129,0.3)' }
                       : { background:'rgba(148,163,184,0.1)', color:'#64748b', borderColor:'#e2e8f0' }
                     }>
-                    {isActive ? 'Active' : 'Alumni'}
+                    {isActive ? tUi('VAULT_BADGE_ACTIVE') : tUi('VAULT_BADGE_ALUMNI')}
                   </span>
                   <span className="ml-auto text-[11px] font-medium text-slate-400">{org.docs.length} documents</span>
                 </div>
@@ -257,7 +258,7 @@ export function EmpVault() {
                     <div className="hidden group-hover:flex items-center gap-1.5 shrink-0">
                       <a href={`/api/v1/vault/documents/${d.document_id}?download=true`}
                         className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-medium border border-slate-200 text-slate-600 hover:bg-slate-100 transition-colors">
-                        <Download size={11}/> Download
+                        <Download size={11}/> {tUi('VAULT_BTN_DOWNLOAD')}
                       </a>
                       <button onClick={() => setShareDocId(d.document_id)}
                         className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-medium bg-sky-600 text-white hover:bg-sky-700 transition-colors">

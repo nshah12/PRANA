@@ -8,61 +8,64 @@ import { router } from 'expo-router';
 import { api } from '@/lib/api';
 import { authStore } from '@/lib/auth-store';
 import { colors, fonts, gradJourney } from '@/prana-theme/tokens';
-import { tError } from '@/i18n';
+import { tError, tConsent } from '@/i18n';
 
 const CONSENT_VERSION = '2025-06-01';
 
-// ── Consent items ─────────────────────────────────────────────────
-const SECTIONS = [
-  {
-    id: 'what',
-    icon: '📄',
-    title: 'What PRANA processes',
-    items: [
-      'Documents pushed by your employer (salary slips, Form 16, letters)',
-      'Documents you upload yourself',
-      'Career events inferred from your documents',
-    ],
-  },
-  {
-    id: 'how',
-    icon: '🔒',
-    title: 'How your data is handled',
-    items: [
-      'Documents are processed in-memory by an LLM — raw figures are never stored',
-      'Only insights and growth indices are stored, not salary numbers or PAN',
-      'Your PAN is encrypted immediately at ingestion — never stored in plaintext',
-      'Password-protected documents are decrypted only in a time-limited session you control',
-    ],
-  },
-  {
-    id: 'who',
-    icon: '👥',
-    title: 'Who can see your documents',
-    items: [
-      'Only you, by default',
-      'Third parties only via time-limited share links you create',
-      'PRANA staff cannot access your document content — only encrypted metadata',
-    ],
-  },
-  {
-    id: 'rights',
-    icon: '⚖️',
-    title: 'Your rights under DPDP Act 2023',
-    items: [
-      'Right to access — download all your data at any time',
-      'Right to correction — dispute any wrongly attributed document',
-      'Right to erasure — request full account and data deletion',
-      'Right to withdraw consent — you may withdraw at any time',
-    ],
-  },
-];
+type ConsentSectionData = { id: string; icon: string; title: string; items: string[] }
+
+function getConsentSections(): ConsentSectionData[] {
+  return [
+    {
+      id: 'what',
+      icon: '📄',
+      title: tConsent('SECT_WHAT_TITLE'),
+      items: [
+        tConsent('SECT_WHAT_ITEM1'),
+        tConsent('SECT_WHAT_ITEM2'),
+        tConsent('SECT_WHAT_ITEM3'),
+      ],
+    },
+    {
+      id: 'how',
+      icon: '🔒',
+      title: tConsent('SECT_HOW_TITLE'),
+      items: [
+        tConsent('SECT_HOW_ITEM1'),
+        tConsent('SECT_HOW_ITEM2'),
+        tConsent('SECT_HOW_ITEM3'),
+        tConsent('SECT_HOW_ITEM4'),
+      ],
+    },
+    {
+      id: 'who',
+      icon: '👥',
+      title: tConsent('SECT_WHO_TITLE'),
+      items: [
+        tConsent('SECT_WHO_ITEM1'),
+        tConsent('SECT_WHO_ITEM2'),
+        tConsent('SECT_WHO_ITEM3'),
+      ],
+    },
+    {
+      id: 'rights',
+      icon: '⚖️',
+      title: tConsent('SECT_RIGHTS_TITLE'),
+      items: [
+        tConsent('SECT_RIGHTS_ITEM1'),
+        tConsent('SECT_RIGHTS_ITEM2'),
+        tConsent('SECT_RIGHTS_ITEM3'),
+        tConsent('SECT_RIGHTS_ITEM4'),
+      ],
+    },
+  ]
+}
 
 // ── Accordion item ────────────────────────────────────────────────
 function ConsentSection({
   section, expanded, onToggle,
 }: {
-  section: typeof SECTIONS[0];
+  section: ConsentSectionData;
   expanded: boolean;
   onToggle: () => void;
 }) {
@@ -159,19 +162,17 @@ export default function ConsentScreen() {
           </View>
 
           {/* Heading */}
-          <Text style={styles.heading}>Before we begin</Text>
-          <Text style={styles.sub}>
-            Under India's DPDP Act 2023, we need your informed consent before processing any of your documents. Please read what we do — and what we don't.
-          </Text>
+          <Text style={styles.heading}>{tConsent('HEADING')}</Text>
+          <Text style={styles.sub}>{tConsent('SUB')}</Text>
 
           {/* DPDP badge */}
           <View style={styles.dpdpBadge}>
-            <Text style={styles.dpdpText}>⚖️  Compliant with Digital Personal Data Protection Act 2023</Text>
+            <Text style={styles.dpdpText}>{tConsent('DPDP_BADGE')}</Text>
           </View>
 
           {/* Accordion sections */}
           <View style={styles.accordion}>
-            {SECTIONS.map(s => (
+            {getConsentSections().map(s => (
               <ConsentSection
                 key={s.id}
                 section={s}
@@ -187,7 +188,7 @@ export default function ConsentScreen() {
               {agreed && <Text style={styles.checkmark}>✓</Text>}
             </View>
             <Text style={styles.checkLabel}>
-              I have read and understood how PRANA processes my data. I consent to the processing described above.
+              {tConsent('CHECKBOX_LABEL')}
             </Text>
           </Pressable>
 
@@ -207,14 +208,14 @@ export default function ConsentScreen() {
               style={[styles.btnGrad, (!agreed || loading) && styles.btnDim]}
             >
               <Text style={styles.btnText}>
-                {loading ? 'Recording consent…' : 'I consent — Open my vault →'}
+                {loading ? tConsent('BTN_LOADING') : tConsent('BTN_ACCEPT')}
               </Text>
             </LinearGradient>
           </Pressable>
 
           <View style={styles.footerNote}>
             <Text style={styles.footerText}>
-              You can withdraw consent or request data deletion at any time from Settings → My Data Rights.
+              {tConsent('FOOTER_NOTE')}
             </Text>
           </View>
         </ScrollView>

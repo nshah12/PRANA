@@ -14,6 +14,8 @@
  *   t('validation', 'FIELD_REQUIRED')             // → "This field is required."
  */
 
+import enData from './en.json'
+
 export type MessageCategory =
   | 'error'
   | 'success'
@@ -23,29 +25,27 @@ export type MessageCategory =
   | 'pipeline_error'
   | 'ask_error'
   | 'ui'
+  | 'consent'
 
 type LocaleData = Record<MessageCategory, Record<string, string>>
 
 let _locale: string = 'en'
-let _messages: LocaleData | null = null
+// Statically imported so 'en' works immediately with no async bootstrap step —
+// setLocale() is optional and only needed to switch to another language.
+let _messages: LocaleData = enData as LocaleData
 
 async function _load(locale: string): Promise<LocaleData> {
   const mod = await import(`./${locale}.json`)
   return mod.default as LocaleData
 }
 
-/** Call once at app bootstrap. Defaults to 'en' if not called. */
+/** Switch active locale (e.g. from user preference). Defaults to 'en' otherwise. */
 export async function setLocale(locale: string): Promise<void> {
   _locale = locale
   _messages = await _load(locale)
 }
 
 function _getMessages(): LocaleData {
-  if (!_messages) {
-    // Synchronous fallback — load en.json eagerly via require (CJS/bundler path)
-    // In Vite the JSON import is synchronous after bundling
-    _messages = require('./en.json') as LocaleData
-  }
   return _messages
 }
 
@@ -106,6 +106,11 @@ export function tInfo(code: string, vars?: Record<string, string | number>): str
 /** Convenience: translate a UI / component copy code. */
 export function tUi(code: string, vars?: Record<string, string | number>): string {
   return t('ui', code, vars)
+}
+
+/** Convenience: translate a consent screen string. */
+export function tConsent(code: string, vars?: Record<string, string | number>): string {
+  return t('consent', code, vars)
 }
 
 /** Current active locale string (e.g. 'en', 'hi'). */

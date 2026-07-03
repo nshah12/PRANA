@@ -3,6 +3,7 @@ import { Upload, AlertTriangle, ShieldCheck, FileCheck } from 'lucide-react'
 import { api } from '@/lib/api'
 import { useAuthStore } from '@/store/auth'
 import { fmtRelative } from '@/lib/utils'
+import { tUi } from '@/i18n'
 
 export function Dashboard() {
   const { user } = useAuthStore()
@@ -30,9 +31,9 @@ export function Dashboard() {
   // Non-OA roles (CHRO, CFO, CISO) — show role-specific landing card
   if (!isOARole) {
     const roleInfo: Record<string, { title: string; desc: string; link: string; linkLabel: string }> = {
-      chro: { title: 'Workforce Overview', desc: 'View vault completeness, document coverage, and workforce analytics for your organisation.', link: '/org/chro', linkLabel: 'Open CHRO Dashboard →' },
-      cfo:  { title: 'Financial Analytics', desc: 'Review compensation analytics, anomaly reports, and acknowledgement queue.', link: '/org/cfo', linkLabel: 'Open CFO Dashboard →' },
-      ciso: { title: 'Security Dashboard', desc: 'Monitor login activity, document access logs, flagged events, and account locks.', link: '/org/ciso', linkLabel: 'Open CISO Dashboard →' },
+      chro: { title: tUi('DASHBOARD_WORKFORCE_OVERVIEW'), desc: tUi('DASHBOARD_WORKFORCE_DESC'), link: '/org/chro', linkLabel: tUi('DASHBOARD_CHRO_LINK') },
+      cfo:  { title: tUi('DASHBOARD_FINANCIAL_ANALYTICS'), desc: tUi('DASHBOARD_FINANCIAL_DESC'), link: '/org/cfo',  linkLabel: tUi('DASHBOARD_CFO_LINK') },
+      ciso: { title: tUi('DASHBOARD_SECURITY_OVERVIEW'),   desc: tUi('DASHBOARD_SECURITY_DESC'),  link: '/org/ciso', linkLabel: tUi('DASHBOARD_CISO_LINK') },
     }
     const info = roleInfo[user?.role ?? ''] ?? { title: 'Portal', desc: 'Select a section from the sidebar.', link: '#', linkLabel: '' }
     return (
@@ -60,15 +61,15 @@ export function Dashboard() {
   )
   if (statsError) return (
     <div className="flex flex-col items-center justify-center py-20 text-slate-400">
-      <p className="text-sm">Failed to load dashboard data.</p>
-      <button onClick={() => refetchStats()} className="mt-3 text-xs text-indigo-600 hover:underline">Retry</button>
+      <p className="text-sm">{tUi('DASHBOARD_LOAD_FAILED')}</p>
+      <button onClick={() => refetchStats()} className="mt-3 text-xs text-indigo-600 hover:underline">{tUi('DASHBOARD_RETRY')}</button>
     </div>
   )
 
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-xl font-semibold text-slate-800">Dashboard</h1>
+        <h1 className="text-xl font-semibold text-slate-800">{tUi('DASHBOARD_TITLE')}</h1>
         <p className="text-sm text-slate-500 mt-0.5">{user?.tenantName}</p>
       </div>
 
@@ -77,11 +78,11 @@ export function Dashboard() {
         <div className="bg-emerald-50 border border-emerald-200 rounded-xl p-4 flex items-start gap-3">
           <ShieldCheck size={18} className="text-emerald-600 mt-0.5 flex-shrink-0" />
           <div>
-            <p className="text-sm font-medium text-emerald-800">Need to view documents?</p>
-            <p className="text-xs text-emerald-600 mt-0.5">Request elevation from an OA-Admin to unlock document viewing for up to 8 hours.</p>
+            <p className="text-sm font-medium text-emerald-800">{tUi('DASHBOARD_ELEVATION_PROMPT')}</p>
+            <p className="text-xs text-emerald-600 mt-0.5">{tUi('DASHBOARD_ELEVATION_DESC')}</p>
             <a href="/org/elevation"
                className="inline-block mt-2 text-xs font-medium text-emerald-700 hover:underline">
-              Request elevation →
+              {tUi('DASHBOARD_ELEVATION_LINK')}
             </a>
           </div>
         </div>
@@ -105,22 +106,22 @@ export function Dashboard() {
 
       {/* Stat cards */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-        <StatCard label="Documents pushed" value={stats?.documents_pushed ?? '—'} color="sky"     icon={<FileCheck size={18}/>} />
-        <StatCard label="Pending pipeline" value={stats?.pending_pipeline ?? '—'} color="amber"   icon={<Upload size={18}/>} />
-        <StatCard label="Open exceptions"  value={stats?.open_exceptions ?? '—'} color="red"      icon={<AlertTriangle size={18}/>} />
-        <StatCard label="Employees"        value={stats?.employees ?? '—'}        color="emerald"  icon={<ShieldCheck size={18}/>} />
+        <StatCard label={tUi('DASHBOARD_STAT_DOCS_PUSHED')} value={stats?.documents_pushed ?? '—'} color="sky"     icon={<FileCheck size={18}/>} />
+        <StatCard label={tUi('DASHBOARD_STAT_PIPELINE')}   value={stats?.pending_pipeline ?? '—'} color="amber"   icon={<Upload size={18}/>} />
+        <StatCard label={tUi('DASHBOARD_STAT_EXCEPTIONS')} value={stats?.open_exceptions ?? '—'}  color="red"      icon={<AlertTriangle size={18}/>} />
+        <StatCard label={tUi('DASHBOARD_STAT_EMPLOYEES')}  value={stats?.employees ?? '—'}         color="emerald"  icon={<ShieldCheck size={18}/>} />
       </div>
 
       {/* Batch activity feed */}
       <div className="bg-white rounded-xl border border-slate-100 shadow-sm">
         <div className="flex items-center justify-between px-5 py-4 border-b border-slate-100">
-          <h2 className="font-medium text-slate-800">Recent uploads</h2>
+          <h2 className="font-medium text-slate-800">{tUi('DASHBOARD_RECENT_UPLOADS')}</h2>
           <a href="/org/upload"
-             className="text-xs font-medium text-violet-600 hover:underline">Upload documents</a>
+             className="text-xs font-medium text-violet-600 hover:underline">{tUi('DASHBOARD_UPLOAD_DOCUMENTS')}</a>
         </div>
         <div className="divide-y divide-slate-50">
           {recent?.documents?.length === 0 && (
-            <p className="px-5 py-8 text-sm text-slate-400 text-center">No documents uploaded yet.</p>
+            <p className="px-5 py-8 text-sm text-slate-400 text-center">{tUi('DASHBOARD_NO_DOCUMENTS')}</p>
           )}
           {recent?.documents?.map((doc: any) => (
             <div key={doc.document_id} className="px-5 py-3 flex items-center gap-4">
