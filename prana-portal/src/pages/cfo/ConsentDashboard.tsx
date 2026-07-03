@@ -2,6 +2,7 @@ import { useQuery, useMutation } from '@tanstack/react-query'
 import { CheckCircle, XCircle, Clock } from 'lucide-react'
 import { api } from '@/lib/api'
 import { fmtDateTime } from '@/lib/utils'
+import { tUi } from '@/i18n'
 
 export function ConsentDashboard() {
   const { data } = useQuery({
@@ -66,7 +67,7 @@ export function ConsentDashboard() {
             </div>
           ))}
           {!data?.events?.length && (
-            <p className="px-5 py-8 text-sm text-slate-400 text-center">No consent events yet.</p>
+            <p className="px-5 py-8 text-sm text-slate-400 text-center">{tUi('CONSENT_DASH_NO_EVENTS')}</p>
           )}
         </div>
       </div>

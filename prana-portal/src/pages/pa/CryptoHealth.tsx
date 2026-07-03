@@ -2,6 +2,7 @@ import { useQuery } from '@tanstack/react-query'
 import { Lock, CheckCircle, RefreshCw } from 'lucide-react'
 import { api } from '@/lib/api'
 import { fmtDateTime } from '@/lib/utils'
+import { tUi } from '@/i18n'
 
 export function CryptoHealth() {
   const { data, refetch, isFetching } = useQuery({
@@ -81,7 +82,7 @@ export function CryptoHealth() {
               ))}
               {!data?.tenant_keys?.length && (
                 <tr>
-                  <td colSpan={5} className="px-5 py-8 text-center text-sm text-slate-400">No tenant keys found.</td>
+                  <td colSpan={5} className="px-5 py-8 text-center text-sm text-slate-400">{tUi('CRYPTO_HEALTH_NO_KEYS')}</td>
                 </tr>
               )}
             </tbody>

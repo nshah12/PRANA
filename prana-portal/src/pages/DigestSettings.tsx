@@ -8,6 +8,7 @@ import { useState, useEffect } from 'react'
 import { api } from '@/lib/api'
 import { useAuthStore } from '@/store/auth'
 import { Plus, X, Mail, Calendar, FileText, CheckCircle } from 'lucide-react'
+import { tUi } from '@/i18n'
 
 type Period = 'weekly' | 'monthly' | 'quarterly'
 
@@ -190,7 +191,7 @@ export function DigestSettings() {
         </div>
 
         {cfg.recipients.length === 0 ? (
-          <p className="text-xs text-slate-400">No recipients configured yet.</p>
+          <p className="text-xs text-slate-400">{tUi('DIGEST_NO_RECIPIENTS')}</p>
         ) : (
           <div className="flex flex-wrap gap-2">
             {cfg.recipients.map(email => (

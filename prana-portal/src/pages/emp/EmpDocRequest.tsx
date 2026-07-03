@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { api } from '@/lib/api'
+import { tUi } from '@/i18n'
 
 const DOC_TYPES = ['FORM_16','SALARY_SLIP','RELIEVING_LETTER','EXPERIENCE_LETTER','INCREMENT_LETTER','OFFER_LETTER','APPOINTMENT_LETTER']
 
@@ -103,7 +104,7 @@ export function EmpDocRequest() {
         <div className="bg-white border border-slate-200 rounded-xl p-5 shadow-sm">
           <p className="text-sm font-semibold text-slate-700 mb-3">Request History</p>
           {requests.length === 0 ? (
-            <p className="text-sm text-slate-400">No requests sent yet.</p>
+            <p className="text-sm text-slate-400">{tUi('EMP_DOC_REQUEST_NONE')}</p>
           ) : requests.map((r: any, i: number) => (
             <div key={i} className={`p-3 rounded-lg mb-2 ${r.status === 'FULFILLED' ? 'bg-white border border-slate-200' : 'border border-amber-200'}`}
               style={r.status !== 'FULFILLED' ? { background: 'rgba(245,158,11,0.03)' } : {}}>

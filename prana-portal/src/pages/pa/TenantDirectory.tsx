@@ -4,6 +4,7 @@ import { Search, Plus, Building2 } from 'lucide-react'
 import { useNavigate } from 'react-router-dom'
 import { api } from '@/lib/api'
 import { fmtDate } from '@/lib/utils'
+import { tUi } from '@/i18n'
 
 export function TenantDirectory() {
   const navigate = useNavigate()
@@ -57,7 +58,7 @@ export function TenantDirectory() {
               <tr>
                 <td colSpan={8} className="px-5 py-12 text-center">
                   <Building2 size={32} className="mx-auto text-slate-300 mb-2" />
-                  <p className="text-slate-500 text-sm font-medium">No tenants found</p>
+                  <p className="text-slate-500 text-sm font-medium">{tUi('TENANT_DIRECTORY_NONE_FOUND')}</p>
                   <button onClick={() => navigate('/admin/tenants/new')}
                     className="mt-3 text-xs text-amber-600 font-medium hover:underline">
                     + Onboard your first tenant

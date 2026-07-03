@@ -316,7 +316,7 @@ export default function PushApprovalScreen() {
               <View style={[s.outcomeCircle, { backgroundColor: 'rgba(251,113,133,0.15)' }]}>
                 <Text style={s.outcomeTick}>!</Text>
               </View>
-              <Text style={s.outcomeTitle}>Something went wrong</Text>
+              <Text style={s.outcomeTitle}>{tUi('PUSH_APPROVAL_ERROR_TITLE')}</Text>
               <Text style={s.outcomeSub}>{error || 'Couldn\'t load the request. Try again.'}</Text>
               <Pressable onPress={() => router.replace('/(vault)/vault')} style={s.outcomeBack}>
                 <Text style={s.outcomeBackText}>Back to my vault →</Text>

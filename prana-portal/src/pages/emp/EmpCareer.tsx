@@ -1,6 +1,7 @@
 import { useQuery } from '@tanstack/react-query'
 import { Share2 } from 'lucide-react'
 import { api } from '@/lib/api'
+import { tUi } from '@/i18n'
 
 const ORG_COLORS = ['#0EA5E9','#10B981','#F59E0B','#8B5CF6','#EF4444']
 const ORG_BG     = ['rgba(14,165,233,0.1)','rgba(16,185,129,0.1)','rgba(245,158,11,0.1)','rgba(139,92,246,0.1)','rgba(239,68,68,0.1)']
@@ -118,7 +119,7 @@ export function EmpCareer() {
       ) : employers.length === 0 ? (
         <div className="text-center py-20 text-slate-400">
           <div className="text-4xl mb-3">🏢</div>
-          <p className="font-medium text-slate-600">No employers linked yet</p>
+          <p className="font-medium text-slate-600">{tUi('EMP_CAREER_NO_EMPLOYERS')}</p>
         </div>
       ) : (
         <div className="relative">

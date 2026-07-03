@@ -3,6 +3,7 @@ import { useQuery } from '@tanstack/react-query'
 import { Search, Upload, UserPlus } from 'lucide-react'
 import { api } from '@/lib/api'
 import { fmtDate } from '@/lib/utils'
+import { tUi } from '@/i18n'
 
 export function EmployeeMaster() {
   const [search, setSearch] = useState('')
@@ -63,7 +64,7 @@ export function EmployeeMaster() {
               <tr><td colSpan={6} className="px-5 py-8 text-center text-slate-400">Loading…</td></tr>
             )}
             {!isLoading && data?.employees?.length === 0 && (
-              <tr><td colSpan={6} className="px-5 py-8 text-center text-slate-400">No employees found.</td></tr>
+              <tr><td colSpan={6} className="px-5 py-8 text-center text-slate-400">{tUi('EMPLOYEE_MASTER_NONE_FOUND')}</td></tr>
             )}
             {data?.employees?.map((emp: any) => (
               <tr key={emp.employee_uuid} className="hover:bg-canvas2 cursor-pointer">

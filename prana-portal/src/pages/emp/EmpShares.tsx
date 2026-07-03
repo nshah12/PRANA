@@ -8,6 +8,7 @@ import { useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { Share2, Trash2, ExternalLink, Clock, Loader2 } from 'lucide-react'
 import { api } from '@/lib/api'
+import { tUi } from '@/i18n'
 import { EmpShareModal } from './EmpShareModal'
 
 interface ShareLink {
@@ -112,7 +113,7 @@ export function EmpShares() {
       ) : shares.length === 0 ? (
         <div className="text-center py-16 text-slate-400">
           <Share2 size={40} className="mx-auto mb-3 opacity-30" />
-          <p className="text-sm">No share links yet</p>
+          <p className="text-sm">{tUi('EMP_SHARES_NONE')}</p>
           <p className="text-xs mt-1">Create one from your Vault to share documents securely.</p>
         </div>
       ) : (

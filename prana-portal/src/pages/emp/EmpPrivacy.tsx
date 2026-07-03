@@ -1,5 +1,6 @@
 import { useQuery } from '@tanstack/react-query'
 import { api } from '@/lib/api'
+import { tUi } from '@/i18n'
 
 export function EmpPrivacy() {
   const { data: profileData, isLoading: profileLoading } = useQuery({
@@ -72,7 +73,7 @@ export function EmpPrivacy() {
         <div className="bg-white border border-slate-200 rounded-xl shadow-sm">
           <p className="text-xs font-semibold text-slate-400 uppercase tracking-wide px-4 pt-4 pb-2">Who Has Accessed Your Documents</p>
           {accessLog.length === 0 ? (
-            <p className="px-4 pb-4 text-sm text-slate-400">No access events yet.</p>
+            <p className="px-4 pb-4 text-sm text-slate-400">{tUi('EMP_PRIVACY_NO_ACCESS_EVENTS')}</p>
           ) : accessLog.slice(0, 6).map((e, i) => (
             <div key={i} className={`px-4 py-2.5 ${i < Math.min(accessLog.length, 6) - 1 ? 'border-b border-slate-100' : ''}`}>
               <p className="text-xs font-medium text-slate-700">
@@ -90,7 +91,7 @@ export function EmpPrivacy() {
         <div className="bg-white border border-slate-200 rounded-xl shadow-sm">
           <p className="text-xs font-semibold text-slate-400 uppercase tracking-wide px-4 pt-4 pb-2">AI Extraction Log</p>
           {docs.length === 0 ? (
-            <p className="px-4 pb-4 text-sm text-slate-400">No documents extracted yet.</p>
+            <p className="px-4 pb-4 text-sm text-slate-400">{tUi('EMP_PRIVACY_NO_DOCS_EXTRACTED')}</p>
           ) : docs.slice(0, 5).map((d, i) => (
             <div key={i} className={`px-4 py-2.5 ${i < Math.min(docs.length, 5) - 1 ? 'border-b border-slate-100' : ''}`}>
               <p className="text-[11px] font-medium text-slate-700 truncate">

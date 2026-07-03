@@ -3,6 +3,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { Clock, CheckCircle2, XCircle, Timer } from 'lucide-react'
 import { api } from '@/lib/api'
 import { useAuthStore } from '@/store/auth'
+import { tUi } from '@/i18n'
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -320,7 +321,7 @@ function AdminView() {
         <p className="text-[11px] font-bold text-slate-400 uppercase tracking-wider mb-3">Recent History</p>
         <div className="bg-white rounded-2xl border border-slate-100 shadow-sm overflow-hidden">
           {history.length === 0 ? (
-            <p className="px-5 py-8 text-sm text-slate-400 text-center">No elevation history yet</p>
+            <p className="px-5 py-8 text-sm text-slate-400 text-center">{tUi('ELEVATION_NO_HISTORY')}</p>
           ) : (
             <table className="w-full text-sm">
               <thead>

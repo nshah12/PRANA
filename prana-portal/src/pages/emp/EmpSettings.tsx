@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { api } from '@/lib/api'
+import { tUi } from '@/i18n'
 
 function Toggle({ on, onChange }: { on: boolean; onChange: () => void }) {
   return (
@@ -95,7 +96,7 @@ export function EmpSettings() {
         {/* Linked Employers */}
         <div className="bg-white border border-slate-200 rounded-xl p-5 shadow-sm">
           <p className="text-xs font-semibold uppercase tracking-wide text-slate-400 mb-3">Linked Employers</p>
-          {employers.length === 0 ? <p className="text-sm text-slate-400">No employers linked yet.</p> : (
+          {employers.length === 0 ? <p className="text-sm text-slate-400">{tUi('EMP_SETTINGS_NO_EMPLOYERS')}</p> : (
             <div className="space-y-2">
               {employers.map((e: any, i: number) => {
                 const isActive = !(e.dol ?? e.to)

@@ -1,5 +1,6 @@
 import { useQuery } from '@tanstack/react-query'
 import { api } from '@/lib/api'
+import { tUi } from '@/i18n'
 
 const DOT: Record<string, string> = {
   VIEW: 'bg-sky-400', DOWNLOAD: 'bg-sky-500',
@@ -50,7 +51,7 @@ export function EmpActivity() {
         ) : events.length === 0 ? (
           <div className="py-16 text-center text-slate-400">
             <div className="text-3xl mb-3">📋</div>
-            <p className="font-medium text-slate-600">No activity yet</p>
+            <p className="font-medium text-slate-600">{tUi('EMP_ACTIVITY_NONE')}</p>
             <p className="text-sm mt-1">Events appear here as documents are pushed and accessed.</p>
           </div>
         ) : events.map((e, i) => (

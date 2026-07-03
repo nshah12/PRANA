@@ -133,7 +133,7 @@ export default function OtpVerifyScreen() {
               <Text style={s.iconEmoji}>💬</Text>
             </View>
             <Text style={s.stepTag}>STEP 2 OF 3 — VERIFY</Text>
-            <Text style={s.title}>Check your messages</Text>
+            <Text style={s.title}>{tUi('OTP_VERIFY_CHECK_MESSAGES')}</Text>
             <Text style={s.sub}>We sent a 6-digit code to{'\n'}<Text style={s.mobile}>{maskedMobile}</Text></Text>
           </View>
 

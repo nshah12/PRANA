@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { Save, Bell } from 'lucide-react'
 import { api } from '@/lib/api'
+import { tUi } from '@/i18n'
 
 const ALERT_TYPES = [
   { id: 'deadline_alert',    label: 'Statutory deadline alert',   description: 'Notifies when a Labour/IT/DPDP deadline is < 30 days away' },
@@ -92,7 +93,7 @@ export function AlertConfig() {
             {saveMutation.isPending ? 'Saving…' : saved ? 'Saved ✓' : 'Save configuration'}
           </button>
           {saveMutation.isError && (
-            <p className="text-xs text-red-600">Failed to save. Please try again.</p>
+            <p className="text-xs text-red-600">{tUi('ALERT_CONFIG_SAVE_FAILED')}</p>
           )}
         </div>
       )}

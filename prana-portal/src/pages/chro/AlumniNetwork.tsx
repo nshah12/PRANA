@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { Users, Download, Mail, Phone, MapPin, Calendar, Send } from 'lucide-react'
 import { api } from '@/lib/api'
+import { tUi } from '@/i18n'
 
 interface AlumniItem {
   employee_uuid:        string
@@ -184,7 +185,7 @@ export function AlumniNetwork() {
           {!isLoading && !error && alumni.length === 0 && (
             <div className="text-center py-20 text-slate-400">
               <Users size={40} className="mx-auto mb-3 opacity-30" />
-              <p className="font-medium">No consented alumni yet</p>
+              <p className="font-medium">{tUi('ALUMNI_NO_CONSENTED')}</p>
               <p className="text-sm mt-1 max-w-sm mx-auto">
                 Former employees opt in from the PRANA mobile app → Alumni Connect → choose your org.
                 They control exactly what contact details to share.
@@ -276,7 +277,7 @@ export function AlumniNetwork() {
       {tab === 'messages' && (
         <div className="bg-white rounded-xl border border-slate-100 shadow-sm overflow-hidden">
           {!outreachData?.items?.length ? (
-            <p className="text-center py-16 text-slate-400 text-sm">No in-app messages sent yet</p>
+            <p className="text-center py-16 text-slate-400 text-sm">{tUi('ALUMNI_NO_MESSAGES')}</p>
           ) : (
             <table className="w-full text-sm">
               <thead>

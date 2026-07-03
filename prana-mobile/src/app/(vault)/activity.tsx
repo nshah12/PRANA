@@ -273,7 +273,7 @@ export default function ActivityScreen() {
           </Text>
           {pushes.length === 0 ? (
             <View style={[styles.listCard, { padding: 20, alignItems: 'center' }]}>
-              <Text style={{ fontFamily: fonts.mono, fontSize: 12, color: colors.ink3 }}>No documents yet</Text>
+              <Text style={{ fontFamily: fonts.mono, fontSize: 12, color: colors.ink3 }}>{tUi('ACTIVITY_NO_DOCUMENTS')}</Text>
             </View>
           ) : (
             pushes.map(push => <PushCard key={push.id} push={push} />)

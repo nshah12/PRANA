@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import { useForm } from 'react-hook-form'
 import { api } from '@/lib/api'
 import { useAuthStore } from '@/store/auth'
+import { tUi } from '@/i18n'
 
 interface Form { new_password: string; confirm: string }
 
@@ -108,7 +109,7 @@ export function ResetPassword() {
               <input
                 {...register('new_password', { required: true, minLength: 12 })}
                 type={showPw ? 'text' : 'password'}
-                placeholder="Minimum 12 characters"
+                placeholder={tUi('RESET_PASSWORD_MIN_CHARS_PLACEHOLDER')}
                 className="w-full border border-slate-200 rounded-xl px-4 py-2.5 text-sm pr-10
                            focus:outline-none focus:ring-2 focus:ring-violet-400 bg-slate-50 focus:bg-white
                            transition-colors"

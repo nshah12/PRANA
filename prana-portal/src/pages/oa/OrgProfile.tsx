@@ -5,6 +5,7 @@ import {
   Save, Lock, AlertTriangle, Check, ChevronDown, ChevronUp,
 } from 'lucide-react'
 import { api } from '@/lib/api'
+import { tUi } from '@/i18n'
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -191,7 +192,7 @@ export function OrgProfile() {
           <ReadOnly label="Organisation Legal Name" value={p.tenant_name} />
           <Field label="Brand / Trade Name">
             <input className={inp} value={form.brand_name ?? ''} onChange={sf('brand_name')}
-              placeholder="Common operating name" />
+              placeholder={tUi('ORG_PROFILE_BRAND_NAME_PLACEHOLDER')} />
           </Field>
           <ReadOnly label="CIN" value={p.cin} />
           <ReadOnly label="GSTIN" value={p.gstin} />

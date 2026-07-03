@@ -3,6 +3,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { api } from '@/lib/api'
 import { fmtDate } from '@/lib/utils'
 import { MessageSquare, Building2, Mail, CheckCircle, Clock, XCircle } from 'lucide-react'
+import { tUi } from '@/i18n'
 
 type Tab = 'contact' | 'applications'
 
@@ -60,7 +61,7 @@ function ContactMessages() {
       {!isLoading && items.length === 0 && (
         <div className="text-center py-12 bg-white rounded-2xl border border-slate-100">
           <MessageSquare size={32} className="mx-auto text-slate-300 mb-2" />
-          <p className="text-slate-400 text-sm">No contact messages yet</p>
+          <p className="text-slate-400 text-sm">{tUi('CONTACT_INQUIRIES_NONE')}</p>
         </div>
       )}
       {items.map((item: any) => {

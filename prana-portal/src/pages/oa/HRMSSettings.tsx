@@ -5,6 +5,7 @@ import {
   CheckCircle2, XCircle, Loader2, AlertCircle, ChevronDown,
 } from 'lucide-react'
 import { api } from '@/lib/api'
+import { tUi } from '@/i18n'
 
 interface ConnectorConfig {
   connector_id:    string
@@ -48,7 +49,7 @@ function SyncHistory({ connectorId }: { connectorId: string }) {
   if (isLoading) return <p className="text-xs text-slate-400">Loading history…</p>
 
   const logs = data?.items ?? []
-  if (!logs.length) return <p className="text-xs text-slate-400">No sync history yet.</p>
+  if (!logs.length) return <p className="text-xs text-slate-400">{tUi('HRMS_NO_SYNC_HISTORY')}</p>
 
   return (
     <div className="divide-y divide-slate-100">
@@ -295,7 +296,7 @@ function AddConnectorForm({ defs, onClose }: { defs: ConnectorDef[]; onClose: ()
       </div>
 
       {createMut.isError && (
-        <p className="text-xs text-red-600">Failed to save. Check credentials JSON and try again.</p>
+        <p className="text-xs text-red-600">{tUi('HRMS_SAVE_FAILED')}</p>
       )}
 
       <div className="flex justify-end gap-2 pt-1">
@@ -375,7 +376,7 @@ export function HRMSSettings() {
       {!configLoading && !configError && configs.length === 0 && !showForm && (
         <div className="text-center py-16 text-slate-400">
           <Plug size={32} className="mx-auto mb-3 opacity-40" />
-          <p className="text-sm font-medium text-slate-600">No HRMS connected yet</p>
+          <p className="text-sm font-medium text-slate-600">{tUi('HRMS_NONE_CONNECTED')}</p>
           <p className="text-xs mt-1">Click "Add connector" to sync employee records automatically.</p>
         </div>
       )}

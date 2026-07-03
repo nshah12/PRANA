@@ -6,6 +6,7 @@ import {
 } from 'recharts'
 import { TrendingUp, Lock, Info } from 'lucide-react'
 import { api } from '@/lib/api'
+import { tUi } from '@/i18n'
 
 interface BandItem {
   grade:          string
@@ -310,7 +311,7 @@ export function CompBenchmarking() {
           {bands.length === 0 && (
             <div className="text-center py-20 text-slate-400">
               <TrendingUp size={40} className="mx-auto mb-3 opacity-30" />
-              <p className="font-medium">No comp bands yet</p>
+              <p className="font-medium">{tUi('COMP_BENCHMARK_NO_BANDS')}</p>
               <p className="text-sm mt-1 max-w-sm mx-auto">
                 Bands appear once employees opt in to sharing their comp data via PRANA.
                 Share the employee opt-in guide to get started.

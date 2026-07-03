@@ -17,6 +17,7 @@ import { getApiBase } from '@/lib/api'
 import QRCode from 'qrcode'
 import { api } from '@/lib/api'
 import { useEmpAuthStore } from '@/store/empAuth'
+import { tUi } from '@/i18n'
 
 type Step = 'identifier' | 'password' | 'totp' | 'force_password' | 'totp_setup' | 'consent'
 
@@ -268,7 +269,7 @@ export function EmpLogin() {
                 type="text" autoComplete="username"
                 value={identifier} onChange={e => setIdentifier(e.target.value)}
                 onKeyDown={e => e.key === 'Enter' && submitIdentifier()}
-                placeholder="Email or mobile number"
+                placeholder={tUi('EMP_LOGIN_PLACEHOLDER_IDENTIFIER')}
                 className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-2.5 text-white text-sm placeholder-slate-500 outline-none focus:border-emerald-400/50"
               />
               <button onClick={submitIdentifier}
@@ -337,7 +338,7 @@ export function EmpLogin() {
                 type="password" autoComplete="new-password"
                 value={confirmPwd} onChange={e => setConfirmPwd(e.target.value)}
                 onKeyDown={e => e.key === 'Enter' && submitForcePassword()}
-                placeholder="Confirm new password"
+                placeholder={tUi('EMP_LOGIN_PLACEHOLDER_CONFIRM_PWD')}
                 className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-2.5 text-white text-sm placeholder-slate-500 outline-none focus:border-emerald-400/50"
               />
               <button onClick={submitForcePassword} disabled={loading}
@@ -370,7 +371,7 @@ export function EmpLogin() {
                 type="text" inputMode="numeric" maxLength={6}
                 value={setupCode} onChange={e => setSetupCode(e.target.value.replace(/\D/g, ''))}
                 onKeyDown={e => e.key === 'Enter' && submitTotpSetup()}
-                placeholder="Enter 6-digit code to confirm"
+                placeholder={tUi('EMP_LOGIN_PLACEHOLDER_CONFIRM_CODE')}
                 className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-2.5 text-white text-sm placeholder-slate-500 outline-none focus:border-emerald-400/50 tracking-widest text-center text-lg"
               />
               <button onClick={submitTotpSetup} disabled={loading || setupCode.length < 6}
