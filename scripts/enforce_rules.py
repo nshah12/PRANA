@@ -437,18 +437,60 @@ def check_tsx_message_rules():
 # ──────────────────────────────────────────────────────────────
 # FRONTEND-01: nested Pressable
 # ──────────────────────────────────────────────────────────────
+def _find_jsx_tag_end(src: str, start: int):
+    """From the start of a `<Tag` match, find the index of its closing `>`
+    and whether the tag is self-closing. Tracks {} brace depth and string
+    literals so `>`/`<` inside prop expressions (e.g. `i < len - 1`) don't
+    get mistaken for the tag boundary."""
+    i, depth, in_string, n = start, 0, None, len(src)
+    while i < n:
+        c = src[i]
+        if in_string:
+            if c == in_string and src[i - 1] != "\\":
+                in_string = None
+        elif c in ("'", '"', "`"):
+            in_string = c
+        elif c == "{":
+            depth += 1
+        elif c == "}":
+            depth -= 1
+        elif c == ">" and depth == 0:
+            j = i - 1
+            while j > start and src[j] in " \t\r\n":
+                j -= 1
+            return i, src[j] == "/"
+        i += 1
+    return None, False
+
+
+def _has_true_nested_tag(src: str, tag: str) -> bool:
+    """Track open/close depth for `tag` in document order (accounting for
+    self-closing tags) — flags only if one instance is truly nested inside
+    another, not just two independent siblings appearing near each other."""
+    events = []
+    for m in re.finditer(rf"<{tag}\b", src):
+        end, self_closing = _find_jsx_tag_end(src, m.start())
+        if end is not None and not self_closing:
+            events.append((end, 1))
+    for m in re.finditer(rf"</{tag}>", src):
+        events.append((m.start(), -1))
+    events.sort(key=lambda e: e[0])
+    depth = 0
+    for _, delta in events:
+        depth += delta
+        if depth > 1:
+            return True
+    return False
+
+
 def check_frontend_rules():
     mobile = ROOT / "prana-mobile"
     if not mobile.exists():
         return
     for tsx in mobile.rglob("*.tsx"):
         src = tsx.read_text(encoding="utf-8", errors="ignore")
-        # crude check: Pressable inside Pressable in same file
-        pressable_count = src.count("<Pressable")
-        if pressable_count > 1:
-            # deeper check: look for nested pattern
-            if re.search(r'<Pressable[\s\S]{0,500}<Pressable', src):
-                warn("FRONTEND-01", tsx.relative_to(ROOT), "possible nested Pressable — one touch target per card")
+        if src.count("<Pressable") > 1 and _has_true_nested_tag(src, "Pressable"):
+            warn("FRONTEND-01", tsx.relative_to(ROOT), "nested Pressable — one touch target per card")
 
 
 # ──────────────────────────────────────────────────────────────

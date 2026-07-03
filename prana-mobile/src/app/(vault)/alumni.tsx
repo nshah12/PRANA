@@ -258,24 +258,23 @@ export default function AlumniScreen() {
               const isExpanded = expanded === msg.outreach_id;
               const isUnread   = msg.status === 'SENT';
               return (
-                <Pressable
-                  onPress={() => handleMessageTap(msg)}
-                  style={[styles.msgCard, isUnread && styles.msgCardUnread]}
-                >
-                  <View style={styles.msgHeader}>
-                    <View style={{ flex: 1 }}>
-                      <Text style={styles.msgCompany}>{msg.company_name}</Text>
-                      <Text style={[styles.msgSubject, isUnread && styles.msgSubjectUnread]}>
-                        {msg.subject}
-                      </Text>
+                <View style={[styles.msgCard, isUnread && styles.msgCardUnread]}>
+                  <Pressable onPress={() => handleMessageTap(msg)}>
+                    <View style={styles.msgHeader}>
+                      <View style={{ flex: 1 }}>
+                        <Text style={styles.msgCompany}>{msg.company_name}</Text>
+                        <Text style={[styles.msgSubject, isUnread && styles.msgSubjectUnread]}>
+                          {msg.subject}
+                        </Text>
+                      </View>
+                      <View style={{ alignItems: 'flex-end', gap: 4 }}>
+                        <View style={[styles.statusDot, { backgroundColor: STATUS_COLOR[msg.status] ?? '#94A3B8' }]} />
+                        <Text style={styles.msgDate}>
+                          {new Date(msg.sent_at).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })}
+                        </Text>
+                      </View>
                     </View>
-                    <View style={{ alignItems: 'flex-end', gap: 4 }}>
-                      <View style={[styles.statusDot, { backgroundColor: STATUS_COLOR[msg.status] ?? '#94A3B8' }]} />
-                      <Text style={styles.msgDate}>
-                        {new Date(msg.sent_at).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })}
-                      </Text>
-                    </View>
-                  </View>
+                  </Pressable>
                   {isExpanded && (
                     <View style={styles.expandedBody}>
                       <Text style={styles.msgBody}>{msg.body_text}</Text>
@@ -320,7 +319,7 @@ export default function AlumniScreen() {
                       )}
                     </View>
                   )}
-                </Pressable>
+                </View>
               );
             }}
           />
