@@ -32,6 +32,7 @@ TDD_EXEMPT = {
     "__init__.py", "config.py", "main.py", "db.py", "versioning.py",
     "worker.py", "llm_client.py",
     "errors.py", "messages.py",   # pure constants/enum files — no logic to unit-test
+    "limiter.py",   # shared SlowAPI singleton — behavior tested at the consuming router
 }
 TDD_EXEMPT_DIRS = {
     "middleware", "kafka", "scripts", "migrations", "seeds", "prompts", "schemas",
