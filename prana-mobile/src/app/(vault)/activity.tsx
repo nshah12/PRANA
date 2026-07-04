@@ -254,7 +254,7 @@ export default function ActivityScreen() {
 
       {isLoading ? (
         <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center' }}>
-          <Text style={{ fontFamily: fonts.mono, fontSize: 12, color: colors.ink3 }}>Loading activity…</Text>
+          <Text style={{ fontFamily: fonts.mono, fontSize: 12, color: colors.ink3 }}>{tUi('ACTIVITY_LOADING')}</Text>
         </View>
       ) : isError ? (
         <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center', gap: 12 }}>

@@ -7,6 +7,7 @@ import { router } from 'expo-router';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { colors, fonts } from '@/prana-theme/tokens';
 import { api } from '@/lib/api';
+import { tUi } from '@/i18n';
 
 type AccessEvent = {
   access_id: string;
@@ -103,8 +104,8 @@ export default function PrivacyScreen() {
             <Text style={s.backText}>‹</Text>
           </Pressable>
           <View style={{ flex: 1 }}>
-            <Text style={s.headerTitle}>Privacy Cockpit</Text>
-            <Text style={s.headerSub}>See exactly who accessed your data and when</Text>
+            <Text style={s.headerTitle}>{tUi('PRIVACY_TITLE')}</Text>
+            <Text style={s.headerSub}>{tUi('PRIVACY_SUB')}</Text>
           </View>
         </View>
       </SafeAreaView>
@@ -115,56 +116,56 @@ export default function PrivacyScreen() {
         <View style={s.statsCard}>
           <View style={s.stat}>
             <Text style={s.statVal}>{accessData?.total ?? 0}</Text>
-            <Text style={s.statLabel}>Total accesses</Text>
+            <Text style={s.statLabel}>{tUi('PRIVACY_STAT_TOTAL')}</Text>
           </View>
           <View style={s.statDiv} />
           <View style={s.stat}>
             <Text style={[s.statVal, flaggedCount > 0 && { color: colors.rose }]}>{flaggedCount}</Text>
-            <Text style={s.statLabel}>Flagged</Text>
+            <Text style={s.statLabel}>{tUi('PRIVACY_STAT_FLAGGED')}</Text>
           </View>
           <View style={s.statDiv} />
           <View style={s.stat}>
             <Text style={s.statVal}>{extractEvents.length}</Text>
-            <Text style={s.statLabel}>AI processed</Text>
+            <Text style={s.statLabel}>{tUi('PRIVACY_STAT_AI_PROCESSED')}</Text>
           </View>
         </View>
 
         {/* AI processing transparency */}
         {extractEvents.length > 0 && (
           <>
-            <Text style={s.sectionLabel}>AI PROCESSING LOG</Text>
+            <Text style={s.sectionLabel}>{tUi('PRIVACY_AI_LOG_LABEL')}</Text>
             <View style={s.card}>
               {extractEvents.map((ev, i) => (
                 <View key={ev.document_id} style={[s.extractRow, i < extractEvents.length - 1 && { borderBottomWidth: 1, borderBottomColor: colors.surface3 }]}>
                   <View style={{ flex: 1 }}>
                     <Text style={s.extractType}>{ev.doc_type.replace(/_/g, ' ')}</Text>
                     <Text style={s.extractDetail}>
-                      {ev.pan_destroyed_ms != null ? `PAN destroyed in ${ev.pan_destroyed_ms}ms · ` : ''}
-                      Output: {ev.output_type}
+                      {ev.pan_destroyed_ms != null ? `${tUi('PRIVACY_PAN_DESTROYED', { ms: ev.pan_destroyed_ms })} · ` : ''}
+                      {tUi('PRIVACY_OUTPUT_LABEL')} {ev.output_type}
                     </Text>
                     <Text style={s.extractDate}>
                       {new Date(ev.processed_at).toLocaleDateString('en-IN', { day:'2-digit', month:'short', year:'numeric' })}
                     </Text>
                   </View>
                   <View style={s.rawBadge}>
-                    <Text style={s.rawText}>No ₹ stored</Text>
+                    <Text style={s.rawText}>{tUi('PRIVACY_NO_RAW_STORED')}</Text>
                   </View>
                 </View>
               ))}
               <Text style={s.privacyNote}>
-                Raw salary figures are processed in-memory and immediately discarded. Only growth indices and consistency verdicts are retained.
+                {tUi('PRIVACY_PROCESSING_NOTE')}
               </Text>
             </View>
           </>
         )}
 
         {/* Access log */}
-        <Text style={s.sectionLabel}>WHO ACCESSED YOUR VAULT</Text>
+        <Text style={s.sectionLabel}>{tUi('PRIVACY_WHO_ACCESSED_LABEL')}</Text>
         {loadingAccess ? (
           <View style={s.center}><ActivityIndicator color={colors.indigo} /></View>
         ) : accessEvents.length === 0 ? (
           <View style={s.card}>
-            <Text style={s.emptyText}>No access events recorded yet.</Text>
+            <Text style={s.emptyText}>{tUi('PRIVACY_NO_ACCESS_EVENTS')}</Text>
           </View>
         ) : (
           <View style={s.card}>
@@ -173,7 +174,7 @@ export default function PrivacyScreen() {
         )}
 
         {/* Actions */}
-        <Text style={s.sectionLabel}>ACTIONS</Text>
+        <Text style={s.sectionLabel}>{tUi('PRIVACY_ACTIONS_LABEL')}</Text>
 
         <Pressable
           style={s.actionCard}
@@ -182,8 +183,8 @@ export default function PrivacyScreen() {
         >
           <Text style={s.actionIcon}>📥</Text>
           <View style={{ flex: 1 }}>
-            <Text style={s.actionTitle}>Export privacy report</Text>
-            <Text style={s.actionSub}>Download your full access log and processing history</Text>
+            <Text style={s.actionTitle}>{tUi('PRIVACY_EXPORT_TITLE')}</Text>
+            <Text style={s.actionSub}>{tUi('PRIVACY_EXPORT_SUB')}</Text>
           </View>
           {exportMutation.isPending
             ? <ActivityIndicator size="small" color={colors.indigo} />
@@ -193,22 +194,22 @@ export default function PrivacyScreen() {
 
         {exportMutation.isSuccess && (
           <View style={s.successBanner}>
-            <Text style={s.successText}>✓ Export requested — link will be sent to your mobile number within 24 hours.</Text>
+            <Text style={s.successText}>✓ {tUi('PRIVACY_EXPORT_SUCCESS')}</Text>
           </View>
         )}
 
         <Pressable style={s.actionCard} onPress={() => setShowGrievance(true)}>
           <Text style={s.actionIcon}>📋</Text>
           <View style={{ flex: 1 }}>
-            <Text style={s.actionTitle}>File a privacy grievance</Text>
-            <Text style={s.actionSub}>Raise a concern about unauthorised access or data misuse</Text>
+            <Text style={s.actionTitle}>{tUi('PRIVACY_GRIEVANCE_TITLE')}</Text>
+            <Text style={s.actionSub}>{tUi('PRIVACY_GRIEVANCE_SUB')}</Text>
           </View>
           <Text style={s.actionArrow}>›</Text>
         </Pressable>
 
         {grievanceSent && (
           <View style={s.successBanner}>
-            <Text style={s.successText}>✓ Grievance filed — our DPDP officer will respond within 7 business days.</Text>
+            <Text style={s.successText}>✓ {tUi('PRIVACY_GRIEVANCE_SUCCESS')}</Text>
           </View>
         )}
 
@@ -220,11 +221,11 @@ export default function PrivacyScreen() {
           <Pressable style={gm.backdrop} onPress={() => setShowGrievance(false)} />
           <View style={gm.panel}>
             <View style={gm.handle} />
-            <Text style={gm.title}>File a Privacy Grievance</Text>
+            <Text style={gm.title}>{tUi('PRIVACY_GRIEVANCE_MODAL_TITLE')}</Text>
             <Text style={gm.sub}>
-              For unresolved data concerns. Our DPDP Grievance Officer will respond within 7 business days.
+              {tUi('PRIVACY_GRIEVANCE_MODAL_SUB')}
             </Text>
-            <Text style={gm.label}>Describe your concern</Text>
+            <Text style={gm.label}>{tUi('PRIVACY_GRIEVANCE_DESCRIBE_LABEL')}</Text>
             <TextInput
               style={gm.input}
               value={grievanceText}
@@ -242,7 +243,7 @@ export default function PrivacyScreen() {
             >
               {grievanceMutation.isPending
                 ? <ActivityIndicator size="small" color="#FFF" />
-                : <Text style={gm.submitText}>Submit grievance</Text>
+                : <Text style={gm.submitText}>{tUi('PRIVACY_GRIEVANCE_SUBMIT_BTN')}</Text>
               }
             </Pressable>
           </View>

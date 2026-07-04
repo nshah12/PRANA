@@ -132,7 +132,7 @@ export default function OtpVerifyScreen() {
             <View style={s.iconWrap}>
               <Text style={s.iconEmoji}>💬</Text>
             </View>
-            <Text style={s.stepTag}>STEP 2 OF 3 — VERIFY</Text>
+            <Text style={s.stepTag}>{tUi('OTP_VERIFY_STEP_TAG')}</Text>
             <Text style={s.title}>{tUi('OTP_VERIFY_CHECK_MESSAGES')}</Text>
             <Text style={s.sub}>We sent a 6-digit code to{'\n'}<Text style={s.mobile}>{maskedMobile}</Text></Text>
           </View>
@@ -186,7 +186,7 @@ export default function OtpVerifyScreen() {
             </View>
           ) : sent ? (
             <View style={s.sentBox}>
-              <Text style={s.sentText}>✓ New code sent</Text>
+              <Text style={s.sentText}>✓ {tUi('OTP_VERIFY_NEW_CODE_SENT')}</Text>
             </View>
           ) : null}
 
@@ -194,20 +194,20 @@ export default function OtpVerifyScreen() {
           {loading && (
             <View style={s.loadingRow}>
               <ActivityIndicator size="small" color={colors.emerald} />
-              <Text style={s.loadingText}>Verifying…</Text>
+              <Text style={s.loadingText}>{tUi('LOADING_VERIFYING')}</Text>
             </View>
           )}
 
           {/* Resend */}
           <View style={s.resendRow}>
-            <Text style={s.resendLabel}>Didn't receive it? </Text>
+            <Text style={s.resendLabel}>{tUi('OTP_VERIFY_DIDNT_RECEIVE')} </Text>
             {resendIn > 0 ? (
-              <Text style={s.resendTimer}>Resend in {resendIn}s</Text>
+              <Text style={s.resendTimer}>{tUi('OTP_VERIFY_RESEND_IN', { seconds: resendIn })}</Text>
             ) : resending ? (
               <ActivityIndicator size="small" color={colors.indigo} />
             ) : (
               <Pressable onPress={handleResend}>
-                <Text style={s.resendLink}>Resend code</Text>
+                <Text style={s.resendLink}>{tUi('OTP_VERIFY_RESEND_CODE')}</Text>
               </Pressable>
             )}
           </View>

@@ -21,6 +21,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { router } from 'expo-router';
 import * as DocumentPicker from 'expo-document-picker';
 import { colors, fonts, gradJourney } from '@/prana-theme/tokens';
+import { tUi } from '@/i18n';
 import { api } from '@/lib/api';
 import { tError, tUi } from '@/i18n';
 
@@ -70,10 +71,10 @@ function FilePickerArea({
   return (
     <Pressable style={fp.dropzone} onPress={onPick}>
       <Text style={fp.dropIcon}>📎</Text>
-      <Text style={fp.dropTitle}>Tap to pick a document</Text>
-      <Text style={fp.dropSub}>PDF, JPG, PNG, HEIC — up to 20 MB</Text>
+      <Text style={fp.dropTitle}>{tUi('SELF_UPLOAD_DROP_TITLE')}</Text>
+      <Text style={fp.dropSub}>{tUi('SELF_UPLOAD_DROP_SUB')}</Text>
       <View style={fp.dropButton}>
-        <Text style={fp.dropButtonText}>Browse files →</Text>
+        <Text style={fp.dropButtonText}>{tUi('SELF_UPLOAD_BROWSE_BTN')}</Text>
       </View>
     </Pressable>
   );
@@ -207,8 +208,8 @@ export default function SelfUploadScreen() {
               <Text style={s.backIcon}>←</Text>
             </Pressable>
             <View style={{ flex: 1, marginLeft: 12 }}>
-              <Text style={s.headerTitle}>Add to your vault</Text>
-              <Text style={s.headerSub}>⬆  Your upload — your chain of custody</Text>
+              <Text style={s.headerTitle}>{tUi('SELF_UPLOAD_TITLE')}</Text>
+              <Text style={s.headerSub}>⬆  {tUi('SELF_UPLOAD_SUB')}</Text>
             </View>
           </View>
         </SafeAreaView>
@@ -221,7 +222,7 @@ export default function SelfUploadScreen() {
         keyboardShouldPersistTaps="handled"
       >
         {/* File pick */}
-        <Text style={s.sectionLabel}>DOCUMENT FILE</Text>
+        <Text style={s.sectionLabel}>{tUi('SELF_UPLOAD_FILE_LABEL')}</Text>
         <FilePickerArea file={file} onPick={pickFile} />
 
         {/* Upload progress */}
@@ -232,7 +233,7 @@ export default function SelfUploadScreen() {
         )}
 
         {/* Doc type */}
-        <Text style={[s.sectionLabel, { marginTop: 20 }]}>DOCUMENT TYPE  <Text style={s.required}>*</Text></Text>
+        <Text style={[s.sectionLabel, { marginTop: 20 }]}>{tUi('SELF_UPLOAD_TYPE_LABEL')}  <Text style={s.required}>*</Text></Text>
         <View style={s.typeGrid}>
           {DOC_TYPES.map(dt => (
             <Pressable
@@ -247,21 +248,21 @@ export default function SelfUploadScreen() {
         </View>
 
         {/* Issuer */}
-        <Text style={[s.sectionLabel, { marginTop: 20 }]}>COMPANY / ISSUER  <Text style={s.optional}>(optional)</Text></Text>
+        <Text style={[s.sectionLabel, { marginTop: 20 }]}>{tUi('SELF_UPLOAD_ISSUER_LABEL')}  <Text style={s.optional}>{tUi('SELF_UPLOAD_OPTIONAL')}</Text></Text>
         <TextInput
           value={issuer}
           onChangeText={setIssuer}
-          placeholder="e.g. Infosys, SBI, HDFC Bank…"
+          placeholder={tUi('SELF_UPLOAD_ISSUER_PLACEHOLDER')}
           placeholderTextColor={colors.ink3}
           style={s.textInput}
         />
 
         {/* Label */}
-        <Text style={[s.sectionLabel, { marginTop: 14 }]}>LABEL  <Text style={s.optional}>(optional)</Text></Text>
+        <Text style={[s.sectionLabel, { marginTop: 14 }]}>{tUi('SELF_UPLOAD_LABEL_LABEL')}  <Text style={s.optional}>{tUi('SELF_UPLOAD_OPTIONAL')}</Text></Text>
         <TextInput
           value={label}
           onChangeText={setLabel}
-          placeholder="e.g. FY 2024–25, July salary…"
+          placeholder={tUi('SELF_UPLOAD_LABEL_PLACEHOLDER')}
           placeholderTextColor={colors.ink3}
           style={s.textInput}
           maxLength={60}
@@ -276,8 +277,8 @@ export default function SelfUploadScreen() {
             {isPasswordProtected && <Text style={s.pwCheck}>✓</Text>}
           </View>
           <View>
-            <Text style={s.pwLabel}>This PDF is password-protected</Text>
-            <Text style={s.pwSub}>Password used in-memory only — never stored</Text>
+            <Text style={s.pwLabel}>{tUi('SELF_UPLOAD_PASSWORD_PROTECTED')}</Text>
+            <Text style={s.pwSub}>{tUi('SELF_UPLOAD_PASSWORD_NOTE')}</Text>
           </View>
         </Pressable>
         {isPasswordProtected && (

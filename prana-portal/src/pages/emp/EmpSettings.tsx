@@ -40,8 +40,8 @@ export function EmpSettings() {
   )
   if (isError) return (
     <div className="p-6 flex flex-col items-center justify-center py-20 text-slate-400">
-      <p className="text-sm">Failed to load profile.</p>
-      <button onClick={() => refetch()} className="mt-3 text-xs text-indigo-600 hover:underline">Retry</button>
+      <p className="text-sm">{tUi('EMP_SETTINGS_LOAD_FAILED')}</p>
+      <button onClick={() => refetch()} className="mt-3 text-xs text-indigo-600 hover:underline">{tUi('CFO_ATTRITION_RETRY')}</button>
     </div>
   )
 
@@ -61,23 +61,23 @@ export function EmpSettings() {
 
   return (
     <div className="p-6 max-w-3xl">
-      <h1 className="text-xl font-semibold text-slate-800 mb-1">Profile & Settings</h1>
-      <p className="text-sm text-slate-500 mb-5">Your vault identity and preferences</p>
+      <h1 className="text-xl font-semibold text-slate-800 mb-1">{tUi('EMP_SETTINGS_TITLE')}</h1>
+      <p className="text-sm text-slate-500 mb-5">{tUi('EMP_SETTINGS_SUB')}</p>
 
       <div className="grid grid-cols-2 gap-4">
         {/* Vault Identity */}
         <div className="bg-white border border-slate-200 rounded-xl p-5 shadow-sm space-y-4">
-          <p className="text-xs font-semibold uppercase tracking-wide text-slate-400">Vault Identity</p>
+          <p className="text-xs font-semibold uppercase tracking-wide text-slate-400">{tUi('EMP_SETTINGS_VAULT_IDENTITY')}</p>
           {[
-            { label: 'Mobile (Login)', val: mobile, badge: true },
-            { label: 'NIK (PAN) — Stored Encrypted', val: 'tok:' + (data?.employee_user_id ?? '').replace(/-/g,'').slice(0,6) + '…' + (data?.employee_user_id ?? '').replace(/-/g,'').slice(-4), mono: true, sub: 'Plaintext PAN never displayed or stored' },
-            { label: 'Vault URL', val: vaultUrl, mono: true },
+            { label: tUi('EMP_SETTINGS_MOBILE_LOGIN'), val: mobile, badge: true },
+            { label: tUi('EMP_SETTINGS_NIK_LABEL'), val: 'tok:' + (data?.employee_user_id ?? '').replace(/-/g,'').slice(0,6) + '…' + (data?.employee_user_id ?? '').replace(/-/g,'').slice(-4), mono: true, sub: tUi('EMP_SETTINGS_NIK_SUB') },
+            { label: tUi('EMP_SETTINGS_VAULT_URL_LABEL'), val: vaultUrl, mono: true },
           ].map(row => (
             <div key={row.label}>
               <p className="text-[10px] font-semibold uppercase tracking-wider text-slate-400 font-mono mb-0.5">{row.label}</p>
               <div className="flex items-center gap-2">
                 <p className={`text-sm ${row.mono ? 'font-mono text-sky-600' : 'text-slate-800'}`}>{row.val}</p>
-                {row.badge && <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-emerald-50 text-emerald-700 border border-emerald-200">✓ Verified</span>}
+                {row.badge && <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-emerald-50 text-emerald-700 border border-emerald-200">{tUi('EMP_SETTINGS_VERIFIED_BADGE')}</span>}
               </div>
               {row.sub && <p className="text-[10px] text-slate-400 mt-0.5">{row.sub}</p>}
             </div>
@@ -86,16 +86,16 @@ export function EmpSettings() {
 
         {/* MFA Settings */}
         <div className="bg-white border border-slate-200 rounded-xl p-5 shadow-sm">
-          <p className="text-xs font-semibold uppercase tracking-wide text-slate-400 mb-3">MFA Settings</p>
-          <ToggleRow label="TOTP Authenticator" sub="Google Authenticator / Authy" on={mfa.totp} onChange={() => setMfa(p => ({...p, totp: !p.totp}))} />
-          <ToggleRow label="SMS OTP fallback" sub="Used when TOTP unavailable" on={mfa.sms} onChange={() => setMfa(p => ({...p, sms: !p.sms}))} />
-          <ToggleRow label="Login notifications" sub="Alert on every new login" on={mfa.loginAlert} onChange={() => setMfa(p => ({...p, loginAlert: !p.loginAlert}))} />
-          <ToggleRow label="Document access alerts" sub="Alert when shared doc is accessed" on={mfa.accessAlert} onChange={() => setMfa(p => ({...p, accessAlert: !p.accessAlert}))} />
+          <p className="text-xs font-semibold uppercase tracking-wide text-slate-400 mb-3">{tUi('EMP_SETTINGS_MFA_TITLE')}</p>
+          <ToggleRow label={tUi('EMP_SETTINGS_MFA_TOTP_LABEL')} sub={tUi('EMP_SETTINGS_MFA_TOTP_SUB')} on={mfa.totp} onChange={() => setMfa(p => ({...p, totp: !p.totp}))} />
+          <ToggleRow label={tUi('EMP_SETTINGS_MFA_SMS_LABEL')} sub={tUi('EMP_SETTINGS_MFA_SMS_SUB')} on={mfa.sms} onChange={() => setMfa(p => ({...p, sms: !p.sms}))} />
+          <ToggleRow label={tUi('EMP_SETTINGS_MFA_LOGIN_LABEL')} sub={tUi('EMP_SETTINGS_MFA_LOGIN_SUB')} on={mfa.loginAlert} onChange={() => setMfa(p => ({...p, loginAlert: !p.loginAlert}))} />
+          <ToggleRow label={tUi('EMP_SETTINGS_MFA_ACCESS_LABEL')} sub={tUi('EMP_SETTINGS_MFA_ACCESS_SUB')} on={mfa.accessAlert} onChange={() => setMfa(p => ({...p, accessAlert: !p.accessAlert}))} />
         </div>
 
         {/* Linked Employers */}
         <div className="bg-white border border-slate-200 rounded-xl p-5 shadow-sm">
-          <p className="text-xs font-semibold uppercase tracking-wide text-slate-400 mb-3">Linked Employers</p>
+          <p className="text-xs font-semibold uppercase tracking-wide text-slate-400 mb-3">{tUi('EMP_PRIVACY_LINKED_EMPLOYERS')}</p>
           {employers.length === 0 ? <p className="text-sm text-slate-400">{tUi('EMP_SETTINGS_NO_EMPLOYERS')}</p> : (
             <div className="space-y-2">
               {employers.map((e: any, i: number) => {
@@ -110,7 +110,7 @@ export function EmpSettings() {
                       </p>
                     </div>
                     <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded border ${isActive ? 'bg-emerald-50 text-emerald-700 border-emerald-200' : 'bg-slate-100 text-slate-500 border-slate-200'}`}>
-                      {isActive ? 'Active' : 'Alumni'}
+                      {isActive ? tUi('EMP_CAREER_ACTIVE') : tUi('EMP_CAREER_ALUMNI')}
                     </span>
                   </div>
                 )
@@ -121,10 +121,10 @@ export function EmpSettings() {
 
         {/* Notification Preferences */}
         <div className="bg-white border border-slate-200 rounded-xl p-5 shadow-sm">
-          <p className="text-xs font-semibold uppercase tracking-wide text-slate-400 mb-3">Notification Preferences</p>
-          <ToggleRow label="New document pushed" sub="When employer pushes a document" on={notif.newDoc} onChange={() => setNotif(p => ({...p, newDoc: !p.newDoc}))} />
-          <ToggleRow label="Share link accessed" sub="When recipient opens your link" on={notif.shareAccessed} onChange={() => setNotif(p => ({...p, shareAccessed: !p.shareAccessed}))} />
-          <ToggleRow label="Share expiry reminder" sub="24hrs before a share expires" on={notif.shareExpiry} onChange={() => setNotif(p => ({...p, shareExpiry: !p.shareExpiry}))} />
+          <p className="text-xs font-semibold uppercase tracking-wide text-slate-400 mb-3">{tUi('EMP_SETTINGS_NOTIF_TITLE')}</p>
+          <ToggleRow label={tUi('EMP_SETTINGS_NOTIF_NEWDOC_LABEL')} sub={tUi('EMP_SETTINGS_NOTIF_NEWDOC_SUB')} on={notif.newDoc} onChange={() => setNotif(p => ({...p, newDoc: !p.newDoc}))} />
+          <ToggleRow label={tUi('EMP_SETTINGS_NOTIF_SHARE_ACCESSED_LABEL')} sub={tUi('EMP_SETTINGS_NOTIF_SHARE_ACCESSED_SUB')} on={notif.shareAccessed} onChange={() => setNotif(p => ({...p, shareAccessed: !p.shareAccessed}))} />
+          <ToggleRow label={tUi('EMP_SETTINGS_NOTIF_SHARE_EXPIRY_LABEL')} sub={tUi('EMP_SETTINGS_NOTIF_SHARE_EXPIRY_SUB')} on={notif.shareExpiry} onChange={() => setNotif(p => ({...p, shareExpiry: !p.shareExpiry}))} />
         </div>
       </div>
     </div>

@@ -25,15 +25,15 @@ export function ConsentDashboard() {
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-xl font-semibold text-slate-800">Consent Dashboard</h1>
-          <p className="text-xs text-slate-400 mt-0.5">DPDP Act 2023 — employee consent status across your organisation</p>
+          <h1 className="text-xl font-semibold text-slate-800">{tUi('CONSENT_DASH_TITLE')}</h1>
+          <p className="text-xs text-slate-400 mt-0.5">{tUi('CONSENT_DASH_SUB')}</p>
         </div>
         <button
           onClick={() => exportMut.mutate()}
           disabled={exportMut.isPending}
           className="text-xs bg-indigo-600 text-white rounded-lg px-4 py-2 hover:bg-indigo-700 disabled:opacity-50"
         >
-          {exportMut.isPending ? 'Exporting…' : 'Export CSV'}
+          {exportMut.isPending ? tUi('CONSENT_DASH_EXPORTING') : tUi('CONSENT_DASH_EXPORT_CSV')}
         </button>
       </div>
 
@@ -49,7 +49,7 @@ export function ConsentDashboard() {
 
       <div className="bg-white rounded-xl border border-slate-100 shadow-sm">
         <div className="px-5 py-4 border-b border-slate-100">
-          <h2 className="font-medium text-slate-800">Recent consent events</h2>
+          <h2 className="font-medium text-slate-800">{tUi('CONSENT_DASH_RECENT_EVENTS')}</h2>
         </div>
         <div className="divide-y divide-slate-50">
           {(data?.events ?? []).map((e: any, i: number) => (

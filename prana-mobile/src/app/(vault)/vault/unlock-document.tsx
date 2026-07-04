@@ -65,7 +65,7 @@ function ProcessingView({ onDone }: { onDone: () => void }) {
       <LinearGradient colors={gradJourney.colors} locations={gradJourney.locations} start={gradJourney.start} end={gradJourney.end} style={styles.processingOrb}>
         <Text style={{ fontSize: 28 }}>🔐</Text>
       </LinearGradient>
-      <Text style={styles.processingTitle}>Processing securely</Text>
+      <Text style={styles.processingTitle}>{tUi('UNLOCK_DOC_PROCESSING_TITLE')}</Text>
       <Text style={styles.processingStep}>{STEPS[step]}</Text>
 
       <View style={styles.progressTrack}>
@@ -164,9 +164,9 @@ export default function UnlockDocumentScreen() {
         <SafeAreaView style={styles.safe}>
           <View style={styles.expiredWrap}>
             <Text style={{ fontSize: 48, marginBottom: 16 }}>⏱</Text>
-            <Text style={styles.expiredTitle}>Session expired</Text>
+            <Text style={styles.expiredTitle}>{tUi('UNLOCK_DOC_SESSION_EXPIRED_TITLE')}</Text>
             <Text style={styles.expiredSub}>
-              For your security, the unlock session has expired. Tap below to start a new session.
+              {tUi('UNLOCK_DOC_SESSION_EXPIRED_SUB')}
             </Text>
             <Pressable onPress={() => router.replace('/(vault)/vault/unlock-document')} style={styles.doneBtnWrap}>
               <LinearGradient colors={gradJourney.colors} locations={gradJourney.locations} start={gradJourney.start} end={gradJourney.end} style={styles.doneBtn}>
@@ -233,21 +233,21 @@ export default function UnlockDocumentScreen() {
             {/* Document info */}
             <Text style={styles.docTitle}>{docTitle}</Text>
             <View style={styles.employerBadge}>
-              <Text style={styles.employerText}>from {employer}</Text>
+              <Text style={styles.employerText}>{tUi('UNLOCK_DOC_EMPLOYER_PREFIX')} {employer}</Text>
             </View>
 
-            <Text style={styles.heading}>Enter document password</Text>
+            <Text style={styles.heading}>{tUi('UNLOCK_DOC_HEADING')}</Text>
             <Text style={styles.sub}>
-              This document is password-protected. Your password is used only to decrypt it in memory — it is never stored.
+              {tUi('UNLOCK_DOC_SUB')}
             </Text>
 
             {/* Password field */}
             <View style={styles.fieldCard}>
-              <Text style={styles.fieldLabel}>DOCUMENT PASSWORD</Text>
+              <Text style={styles.fieldLabel}>{tUi('UNLOCK_DOC_PASSWORD_LABEL')}</Text>
               <View style={styles.fieldRow}>
                 <TextInput
                   style={styles.passwordInput}
-                  placeholder="Enter password"
+                  placeholder={tUi('UNLOCK_DOC_PASSWORD_PLACEHOLDER')}
                   placeholderTextColor="#5C6685"
                   secureTextEntry={!show}
                   value={password}
@@ -269,10 +269,10 @@ export default function UnlockDocumentScreen() {
             {/* Privacy note */}
             <View style={styles.privacyCard}>
               {[
-                '🔒 Password used only to decrypt · Never stored',
-                '🧠 Document processed in-memory by LLM',
-                '🗑 Raw data discarded after processing',
-                `⏱ Session expires in ${display}`,
+                `🔒 ${tUi('UNLOCK_DOC_PRIVACY_1')}`,
+                `🧠 ${tUi('UNLOCK_DOC_PRIVACY_2')}`,
+                `🗑 ${tUi('UNLOCK_DOC_PRIVACY_3')}`,
+                `⏱ ${tUi('UNLOCK_DOC_PRIVACY_SESSION', { display })}`,
               ].map(line => (
                 <Text key={line} style={styles.privacyLine}>{line}</Text>
               ))}
@@ -281,12 +281,12 @@ export default function UnlockDocumentScreen() {
             {/* CTA */}
             <Pressable onPress={handleUnlock} style={styles.unlockBtnWrap}>
               <LinearGradient colors={gradJourney.colors} locations={gradJourney.locations} start={gradJourney.start} end={gradJourney.end} style={styles.unlockBtn}>
-                <Text style={styles.unlockBtnText}>Decrypt &amp; Process →</Text>
+                <Text style={styles.unlockBtnText}>{tUi('UNLOCK_DOC_DECRYPT_BTN')}</Text>
               </LinearGradient>
             </Pressable>
 
             <Pressable onPress={() => router.back()}>
-              <Text style={styles.cancelLink}>Skip for now</Text>
+              <Text style={styles.cancelLink}>{tUi('UNLOCK_DOC_SKIP_BTN')}</Text>
             </Pressable>
           </View>
         </KeyboardAvoidingView>

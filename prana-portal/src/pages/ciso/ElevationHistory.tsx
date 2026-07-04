@@ -3,6 +3,7 @@ import { useQuery } from '@tanstack/react-query'
 import { ShieldCheck } from 'lucide-react'
 import { api } from '@/lib/api'
 import { fmtDateTime } from '@/lib/utils'
+import { tUi } from '@/i18n'
 
 const STATUS_STYLE: Record<string, string> = {
   PENDING:  'bg-amber-50 text-amber-700',
@@ -28,8 +29,8 @@ export function ElevationHistory() {
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-xl font-semibold text-slate-800">Elevation History</h1>
-          <p className="text-sm text-slate-500 mt-0.5">All privileged elevation requests — who requested, who approved, and when.</p>
+          <h1 className="text-xl font-semibold text-slate-800">{tUi('CISO_ELEVATION_HIST_TITLE')}</h1>
+          <p className="text-sm text-slate-500 mt-0.5">{tUi('CISO_ELEVATION_HIST_SUB')}</p>
         </div>
         <span className="text-xs font-mono text-slate-400">{data?.total ?? 0} total</span>
       </div>
@@ -41,16 +42,16 @@ export function ElevationHistory() {
       )}
       {isError && (
         <div className="text-center py-16 text-slate-400">
-          <p className="text-sm">Failed to load elevation history.</p>
-          <button onClick={() => refetch()} className="mt-2 text-xs text-red-600 hover:underline">Retry</button>
+          <p className="text-sm">{tUi('CISO_ELEVATION_HIST_LOAD_FAILED')}</p>
+          <button onClick={() => refetch()} className="mt-2 text-xs text-red-600 hover:underline">{tUi('CFO_ATTRITION_RETRY')}</button>
         </div>
       )}
 
       {!isLoading && !isError && data?.items?.length === 0 && (
         <div className="bg-white rounded-xl border border-slate-100 p-16 text-center">
           <ShieldCheck size={32} className="text-slate-300 mx-auto mb-3" />
-          <p className="text-slate-500 font-medium">No elevation history</p>
-          <p className="text-xs text-slate-400 mt-1">No elevation requests have been made yet.</p>
+          <p className="text-slate-500 font-medium">{tUi('CISO_ELEVATION_HIST_NONE_TITLE')}</p>
+          <p className="text-xs text-slate-400 mt-1">{tUi('CISO_ELEVATION_HIST_NONE_SUB')}</p>
         </div>
       )}
 
@@ -65,7 +66,7 @@ export function ElevationHistory() {
                 <th className="text-left px-5 py-3 font-medium">Duration</th>
                 <th className="text-left px-5 py-3 font-medium">Status</th>
                 <th className="text-left px-5 py-3 font-medium">Requested</th>
-                <th className="text-left px-5 py-3 font-medium">Expires / Expired</th>
+                <th className="text-left px-5 py-3 font-medium">{tUi('CISO_ELEVATION_HIST_COL_EXPIRES')}</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-50">

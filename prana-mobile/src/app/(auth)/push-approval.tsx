@@ -202,7 +202,7 @@ export default function PushApprovalScreen() {
           {status === 'loading' && (
             <View style={s.centerState}>
               <ActivityIndicator size="large" color={colors.indigo} />
-              <Text style={s.centerText}>Loading request…</Text>
+              <Text style={s.centerText}>{tUi('PUSH_APPROVAL_LOADING')}</Text>
             </View>
           )}
 
@@ -223,9 +223,9 @@ export default function PushApprovalScreen() {
 
               {/* Framing — empowerment, not alarm */}
               <Text style={s.stepTag}>ACCESS REQUEST TO YOUR VAULT</Text>
-              <Text style={s.title}>Someone wants in.</Text>
+              <Text style={s.title}>{tUi('PUSH_APPROVAL_TITLE')}</Text>
               <Text style={s.sub}>
-                A sign-in attempt was made on a different device. Only you can approve it. If this wasn't you, deny it immediately.
+                {tUi('PUSH_APPROVAL_SUB')}
               </Text>
 
               {/* Expiry countdown */}
@@ -241,7 +241,7 @@ export default function PushApprovalScreen() {
 
               {/* Safety note */}
               <View style={s.safetyNote}>
-                <Text style={s.safetyText}>🛡️  PRANA will never send you approval requests over email or SMS. Only trust this in-app notification.</Text>
+                <Text style={s.safetyText}>🛡️  {tUi('PUSH_APPROVAL_SAFETY_NOTE')}</Text>
               </View>
 
               {error ? (
@@ -251,7 +251,7 @@ export default function PushApprovalScreen() {
               {/* Deny / Approve */}
               <View style={s.btnRow}>
                 <Pressable onPress={handleDeny} style={({ pressed }) => [s.denyBtn, pressed && { opacity: 0.8 }]}>
-                  <Text style={s.denyText}>Not me — Deny</Text>
+                  <Text style={s.denyText}>{tUi('PUSH_APPROVAL_DENY')}</Text>
                 </Pressable>
                 <Pressable onPress={handleApprove} style={({ pressed }) => [s.approveWrap, pressed && { opacity: 0.85 }]}>
                   <LinearGradient
@@ -261,7 +261,7 @@ export default function PushApprovalScreen() {
                     end={gradJourney.end}
                     style={s.approveBtn}
                   >
-                    <Text style={s.approveText}>Yes, it's me →</Text>
+                    <Text style={s.approveText}>{tUi('PUSH_APPROVAL_APPROVE')}</Text>
                   </LinearGradient>
                 </Pressable>
               </View>
@@ -274,10 +274,10 @@ export default function PushApprovalScreen() {
               <LinearGradient colors={['#34D399', '#22D3EE']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={s.outcomeCircle}>
                 <Text style={s.outcomeTick}>✓</Text>
               </LinearGradient>
-              <Text style={s.outcomeTitle}>Access approved</Text>
-              <Text style={s.outcomeSub}>The other device can now access your vault. You'll see this session in your activity log.</Text>
+              <Text style={s.outcomeTitle}>{tUi('PUSH_APPROVAL_APPROVED_TITLE')}</Text>
+              <Text style={s.outcomeSub}>{tUi('PUSH_APPROVAL_APPROVED_SUB')}</Text>
               <Pressable onPress={() => router.replace('/(vault)/vault')} style={s.outcomeBack}>
-                <Text style={s.outcomeBackText}>Back to my vault →</Text>
+                <Text style={s.outcomeBackText}>{tUi('PUSH_APPROVAL_BACK_TO_VAULT')}</Text>
               </Pressable>
             </View>
           )}
@@ -288,10 +288,10 @@ export default function PushApprovalScreen() {
               <View style={[s.outcomeCircle, { backgroundColor: 'rgba(251,113,133,0.2)' }]}>
                 <Text style={s.outcomeTick}>✕</Text>
               </View>
-              <Text style={s.outcomeTitle}>Access denied</Text>
-              <Text style={s.outcomeSub}>The request has been blocked. If you didn't initiate this, consider changing your OTP method from Settings.</Text>
+              <Text style={s.outcomeTitle}>{tUi('PUSH_APPROVAL_DENIED_TITLE')}</Text>
+              <Text style={s.outcomeSub}>{tUi('PUSH_APPROVAL_DENIED_SUB')}</Text>
               <Pressable onPress={() => router.replace('/(vault)/vault')} style={s.outcomeBack}>
-                <Text style={s.outcomeBackText}>Back to my vault →</Text>
+                <Text style={s.outcomeBackText}>{tUi('PUSH_APPROVAL_BACK_TO_VAULT')}</Text>
               </Pressable>
             </View>
           )}
@@ -302,10 +302,10 @@ export default function PushApprovalScreen() {
               <View style={[s.outcomeCircle, { backgroundColor: 'rgba(251,191,36,0.15)' }]}>
                 <Text style={[s.outcomeTick, { color: colors.amber }]}>⏱</Text>
               </View>
-              <Text style={s.outcomeTitle}>Request expired</Text>
-              <Text style={s.outcomeSub}>The login request timed out. The other device will need to try signing in again.</Text>
+              <Text style={s.outcomeTitle}>{tUi('PUSH_APPROVAL_EXPIRED_TITLE')}</Text>
+              <Text style={s.outcomeSub}>{tUi('PUSH_APPROVAL_EXPIRED_SUB')}</Text>
               <Pressable onPress={() => router.replace('/(vault)/vault')} style={s.outcomeBack}>
-                <Text style={s.outcomeBackText}>Back to my vault →</Text>
+                <Text style={s.outcomeBackText}>{tUi('PUSH_APPROVAL_BACK_TO_VAULT')}</Text>
               </Pressable>
             </View>
           )}

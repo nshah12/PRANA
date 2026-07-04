@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { AlertTriangle, Zap } from 'lucide-react'
 import { api } from '@/lib/api'
+import { tUi } from '@/i18n'
 
 export function OaEmergency() {
   const [action, setAction] = useState<'create'|'suspend'|'reset'|null>(null)
@@ -12,20 +13,20 @@ export function OaEmergency() {
     e.preventDefault(); setError(''); setResult(null)
     try {
       const res = await api.post(`/admin/oa-emergency/${action}`, form)
-      setResult(res.data.message ?? 'Done')
+      setResult(res.data.message ?? tUi('PA_OA_EMERGENCY_DONE_FALLBACK'))
     } catch (e: any) {
-      setError(e.response?.data?.detail ?? 'Failed')
+      setError(e.response?.data?.detail ?? tUi('PA_OA_EMERGENCY_FAILED_FALLBACK'))
     }
   }
 
   return (
     <div className="space-y-6 max-w-xl">
       <div>
-        <h1 className="text-xl font-semibold text-slate-800">OA Emergency Override</h1>
+        <h1 className="text-xl font-semibold text-slate-800">{tUi('PA_OA_EMERGENCY_TITLE')}</h1>
         <div className="mt-2 bg-red-50 border border-red-200 rounded-xl px-4 py-3 flex gap-2">
           <AlertTriangle size={15} className="text-red-600 mt-0.5 flex-shrink-0" />
           <p className="text-xs text-red-700">
-            Emergency actions only. Every action is tagged <span className="font-mono font-bold">PA_EMERGENCY_OVERRIDE</span> in the immutable audit log.
+            {tUi('PA_OA_EMERGENCY_WARNING_PREFIX')} <span className="font-mono font-bold">PA_EMERGENCY_OVERRIDE</span> {tUi('PA_OA_EMERGENCY_WARNING_SUFFIX')}
           </p>
         </div>
       </div>
@@ -63,7 +64,7 @@ export function OaEmergency() {
           <button type="submit"
                   className="w-full bg-red-600 hover:bg-red-700 text-white font-medium py-2.5
                              rounded-lg transition-colors">
-            Execute override
+            {tUi('PA_OA_EMERGENCY_EXECUTE_BTN')}
           </button>
         </form>
       )}

@@ -48,10 +48,9 @@ export function AlertConfig() {
   return (
     <div className="space-y-6 max-w-xl">
       <div>
-        <h1 className="text-xl font-semibold text-slate-800">Alert Configuration</h1>
+        <h1 className="text-xl font-semibold text-slate-800">{tUi('CHRO_ALERT_CONFIG_TITLE')}</h1>
         <p className="text-sm text-slate-500 mt-0.5">
-          Choose which events trigger notifications to your email, WhatsApp, and in-app inbox.
-          Preferences are saved per organisation.
+          {tUi('CHRO_ALERT_CONFIG_SUB')}
         </p>
       </div>
 

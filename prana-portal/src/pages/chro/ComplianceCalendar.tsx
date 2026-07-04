@@ -2,6 +2,7 @@ import { useQuery } from '@tanstack/react-query'
 import { AlertCircle, Bell, BookOpen } from 'lucide-react'
 import { api } from '@/lib/api'
 import { fmtDate } from '@/lib/utils'
+import { tUi } from '@/i18n'
 
 const STATUS_STYLE: Record<string, string> = {
   PENDING:     'bg-slate-100 text-slate-600',
@@ -21,8 +22,8 @@ export function ComplianceCalendar() {
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-xl font-semibold text-slate-800">Compliance Calendar</h1>
-          <p className="text-sm text-slate-500 mt-0.5">Statutory deadlines — Labour law, DPDP Act, Income Tax Act</p>
+          <h1 className="text-xl font-semibold text-slate-800">{tUi('CHRO_COMPLIANCE_CAL_TITLE')}</h1>
+          <p className="text-sm text-slate-500 mt-0.5">{tUi('CHRO_COMPLIANCE_CAL_SUB')}</p>
         </div>
         <div className="flex items-center gap-3">
           {(data?.overdue ?? 0) > 0 && (
@@ -41,7 +42,7 @@ export function ComplianceCalendar() {
       )}
       {isError && (
         <div className="text-center py-16 text-slate-400">
-          <p className="text-sm">Failed to load compliance calendar.</p>
+          <p className="text-sm">{tUi('CHRO_COMPLIANCE_CAL_LOAD_FAILED')}</p>
           <button onClick={() => refetch()} className="mt-2 text-xs text-red-600 hover:underline">Retry</button>
         </div>
       )}
@@ -51,7 +52,7 @@ export function ComplianceCalendar() {
           <table className="w-full text-sm">
             <thead className="bg-slate-50 text-xs text-slate-500 uppercase tracking-wide">
               <tr>
-                <th className="text-left px-5 py-3 font-medium">Obligation / Statutory reference</th>
+                <th className="text-left px-5 py-3 font-medium">{tUi('CHRO_COMPLIANCE_CAL_COL_OBLIGATION')}</th>
                 <th className="text-left px-5 py-3 font-medium">Period</th>
                 <th className="text-left px-5 py-3 font-medium">Deadline</th>
                 <th className="text-left px-5 py-3 font-medium">Days</th>

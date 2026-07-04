@@ -1,6 +1,7 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { Plug, ToggleLeft, ToggleRight, AlertCircle, Loader2 } from 'lucide-react'
 import { api } from '@/lib/api'
+import { tUi } from '@/i18n'
 
 interface ConnectorDef {
   connector_definition_id: string
@@ -49,7 +50,7 @@ export function HRMSCatalogue() {
     return (
       <div className="flex items-center justify-center h-48 text-slate-400">
         <Loader2 className="animate-spin mr-2" size={18} />
-        Loading connectors…
+        {tUi('HRMS_LOADING_CONNECTORS')}
       </div>
     )
   }
@@ -58,7 +59,7 @@ export function HRMSCatalogue() {
     return (
       <div className="flex items-center gap-2 text-red-600 bg-red-50 rounded-xl p-4">
         <AlertCircle size={16} />
-        Failed to load connector catalogue. Retry later.
+        {tUi('PA_HRMS_CAT_LOAD_FAILED')}
       </div>
     )
   }
@@ -69,18 +70,18 @@ export function HRMSCatalogue() {
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-xl font-semibold text-slate-800">HRMS Connectors</h1>
+          <h1 className="text-xl font-semibold text-slate-800">{tUi('PA_HRMS_CAT_TITLE')}</h1>
           <p className="text-xs text-slate-400 mt-0.5">
-            Platform catalogue — controls which connectors tenants can configure
+            {tUi('PA_HRMS_CAT_SUB')}
           </p>
         </div>
-        <span className="text-xs text-slate-500">{items.length} connectors</span>
+        <span className="text-xs text-slate-500">{tUi('PA_HRMS_CAT_COUNT', { n: items.length })}</span>
       </div>
 
       {items.length === 0 ? (
         <div className="text-center py-16 text-slate-400">
           <Plug size={32} className="mx-auto mb-3 opacity-40" />
-          <p className="text-sm">No connector definitions yet.</p>
+          <p className="text-sm">{tUi('PA_HRMS_CAT_NONE')}</p>
         </div>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
@@ -115,7 +116,7 @@ export function HRMSCatalogue() {
                     rel="noopener noreferrer"
                     className="text-xs text-indigo-600 hover:underline"
                   >
-                    Docs ↗
+                    {tUi('PA_HRMS_CAT_DOCS_LINK')}
                   </a>
                 )}
                 <button
@@ -128,9 +129,9 @@ export function HRMSCatalogue() {
                   className="ml-auto flex items-center gap-1 text-xs text-slate-600 hover:text-indigo-600 disabled:opacity-50"
                 >
                   {def.is_active ? (
-                    <><ToggleRight size={16} className="text-indigo-500" /> Active</>
+                    <><ToggleRight size={16} className="text-indigo-500" /> {tUi('EMP_CAREER_ACTIVE')}</>
                   ) : (
-                    <><ToggleLeft size={16} /> Inactive</>
+                    <><ToggleLeft size={16} /> {tUi('PA_HRMS_CAT_INACTIVE')}</>
                   )}
                 </button>
               </div>

@@ -118,7 +118,7 @@ export default function AlumniScreen() {
         <Pressable onPress={() => router.back()} style={styles.back}>
           <Text style={styles.backText}>‹</Text>
         </Pressable>
-        <Text style={styles.title}>Alumni Connect</Text>
+        <Text style={styles.title}>{tUi('ALUMNI_CONNECT_TITLE')}</Text>
       </View>
 
       {/* Tabs */}
@@ -147,10 +147,9 @@ export default function AlumniScreen() {
         <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
           {/* Explanation */}
           <View style={styles.infoBox}>
-            <Text style={styles.infoTitle}>You control who can find you</Text>
+            <Text style={styles.infoTitle}>{tUi('ALUMNI_CONTROL_TITLE')}</Text>
             <Text style={styles.infoText}>
-              Toggle on for each past employer whose CHRO you're happy to hear from.
-              They'll see your name, designation and tenure. Mobile/email only if you allow it.
+              {tUi('ALUMNI_CONTROL_SUB')}
             </Text>
           </View>
 
@@ -197,7 +196,7 @@ export default function AlumniScreen() {
               {/* Sub-options — only visible when consented */}
               {emp.granted && (
                 <View style={styles.shareOptions}>
-                  <Text style={styles.shareOptionsLabel}>What to share with their CHRO:</Text>
+                  <Text style={styles.shareOptionsLabel}>{tUi('ALUMNI_SHARE_WHAT_LABEL')}</Text>
 
                   <View style={styles.shareRow}>
                     <Text style={styles.shareRowLabel}>📱 Mobile number</Text>
@@ -282,7 +281,7 @@ export default function AlumniScreen() {
                       {msg.replied_at ? (
                         /* Already replied — show it */
                         <View style={styles.repliedBox}>
-                          <Text style={styles.repliedLabel}>Your reply</Text>
+                          <Text style={styles.repliedLabel}>{tUi('ALUMNI_REPLY_LABEL')}</Text>
                           <Text style={styles.repliedText}>{msg.reply_body}</Text>
                           <Text style={styles.repliedDate}>
                             Sent {new Date(msg.replied_at).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })}

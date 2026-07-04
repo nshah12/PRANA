@@ -3,6 +3,7 @@ import { Shield, AlertTriangle, Activity } from 'lucide-react'
 import { LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer } from 'recharts'
 import { api } from '@/lib/api'
 import { fmtDateTime } from '@/lib/utils'
+import { tUi } from '@/i18n'
 
 export function SecurityOverview() {
   const { data, isLoading, isError, refetch } = useQuery({
@@ -21,32 +22,32 @@ export function SecurityOverview() {
   )
   if (isError) return (
     <div className="flex flex-col items-center justify-center py-20 text-slate-400">
-      <p className="text-sm">Failed to load security overview.</p>
-      <button onClick={() => refetch()} className="mt-3 text-xs text-red-600 hover:underline">Retry</button>
+      <p className="text-sm">{tUi('CISO_SEC_OVERVIEW_LOAD_FAILED')}</p>
+      <button onClick={() => refetch()} className="mt-3 text-xs text-red-600 hover:underline">{tUi('CFO_ATTRITION_RETRY')}</button>
     </div>
   )
 
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
-        <h1 className="text-xl font-semibold text-slate-800">Security Overview</h1>
-        <span className="text-xs font-mono text-slate-400">Live · refreshes every 30s</span>
+        <h1 className="text-xl font-semibold text-slate-800">{tUi('CISO_SEC_OVERVIEW_TITLE')}</h1>
+        <span className="text-xs font-mono text-slate-400">{tUi('CISO_SEC_OVERVIEW_LIVE_NOTE')}</span>
       </div>
 
       {/* Posture card */}
       <div className="bg-white rounded-xl border border-slate-100 shadow-sm p-6 flex items-center gap-6">
         <Shield size={40} className={data?.posture === 'GREEN' ? 'text-emerald-500' : 'text-red-500'} />
         <div>
-          <p className="text-sm font-medium text-slate-500">Security posture</p>
+          <p className="text-sm font-medium text-slate-500">{tUi('CISO_SEC_OVERVIEW_POSTURE_LABEL')}</p>
           <p className={`text-2xl font-bold ${data?.posture === 'GREEN' ? 'text-emerald-600' : 'text-red-600'}`}>
             {data?.posture ?? '—'}
           </p>
         </div>
         <div className="ml-auto grid grid-cols-3 gap-4">
           {[
-            { label: 'Threats (24h)', value: data?.threats_24h ?? 0, color: 'text-red-600' },
-            { label: 'Anomalies', value: data?.anomalies_open ?? 0, color: 'text-amber-600' },
-            { label: 'Auth events', value: data?.auth_events_24h ?? 0, color: 'text-sky-600' },
+            { label: tUi('CISO_SEC_OVERVIEW_THREATS_24H'), value: data?.threats_24h ?? 0, color: 'text-red-600' },
+            { label: tUi('CISO_SEC_OVERVIEW_ANOMALIES'), value: data?.anomalies_open ?? 0, color: 'text-amber-600' },
+            { label: tUi('CISO_SEC_OVERVIEW_AUTH_EVENTS'), value: data?.auth_events_24h ?? 0, color: 'text-sky-600' },
           ].map(stat => (
             <div key={stat.label} className="text-center">
               <p className={`text-xl font-bold font-mono ${stat.color}`}>{stat.value}</p>
@@ -58,7 +59,7 @@ export function SecurityOverview() {
 
       {/* 7-day event timeline */}
       <div className="bg-white rounded-xl border border-slate-100 shadow-sm p-6">
-        <h2 className="font-medium text-slate-800 mb-4">7-day security events</h2>
+        <h2 className="font-medium text-slate-800 mb-4">{tUi('CISO_SEC_OVERVIEW_TIMELINE_TITLE')}</h2>
         <ResponsiveContainer width="100%" height={180}>
           <LineChart data={data?.event_timeline ?? []}>
             <XAxis dataKey="date" tick={{ fontSize: 11, fill: '#94A3B8' }} />
@@ -73,11 +74,11 @@ export function SecurityOverview() {
       <div className="bg-white rounded-xl border border-slate-100 shadow-sm">
         <div className="px-5 py-4 border-b border-slate-100 flex items-center gap-2">
           <Activity size={14} className="text-red-500 animate-pulse" />
-          <h2 className="font-medium text-slate-800">Live threat feed</h2>
+          <h2 className="font-medium text-slate-800">{tUi('CISO_SEC_OVERVIEW_THREAT_FEED_TITLE')}</h2>
         </div>
         <div className="divide-y divide-slate-50">
           {data?.threats?.length === 0 && (
-            <p className="px-5 py-8 text-sm text-slate-400 text-center">No active threats.</p>
+            <p className="px-5 py-8 text-sm text-slate-400 text-center">{tUi('CISO_SEC_OVERVIEW_NO_THREATS')}</p>
           )}
           {data?.threats?.map((t: any, i: number) => (
             <div key={i} className="px-5 py-3 flex items-center gap-4">

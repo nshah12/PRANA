@@ -1,6 +1,7 @@
 import { useQuery } from '@tanstack/react-query'
 import { api } from '@/lib/api'
 import { Building2, Users, HardDrive, AlertTriangle } from 'lucide-react'
+import { tUi } from '@/i18n'
 
 export function MetaDashboard() {
   const { data, isLoading, isError, refetch } = useQuery({
@@ -23,26 +24,26 @@ export function MetaDashboard() {
   )
   if (isError) return (
     <div className="flex flex-col items-center justify-center py-20 text-slate-400">
-      <p className="text-sm">Failed to load platform dashboard.</p>
-      <button onClick={() => refetch()} className="mt-3 text-xs text-amber-600 hover:underline">Retry</button>
+      <p className="text-sm">{tUi('PA_META_LOAD_FAILED')}</p>
+      <button onClick={() => refetch()} className="mt-3 text-xs text-amber-600 hover:underline">{tUi('CFO_ATTRITION_RETRY')}</button>
     </div>
   )
 
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-xl font-semibold text-slate-800">Platform Dashboard</h1>
+        <h1 className="text-xl font-semibold text-slate-800">{tUi('PA_META_TITLE')}</h1>
         <p className="text-xs text-amber-600 bg-amber-50 rounded-md px-2 py-1 mt-1 inline-block">
-          Portal Admin — zero access to document rows or employee PII
+          {tUi('PA_META_SUB')}
         </p>
       </div>
 
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
         {[
-          { label: 'Active tenants',    value: data?.active_tenants ?? '—',    icon: <Building2 size={18}/>,   color: 'sky' },
-          { label: 'Total employees',   value: data?.total_employees ?? '—',   icon: <Users size={18}/>,       color: 'emerald' },
-          { label: 'Storage used',      value: data?.storage_used_label ?? '—',icon: <HardDrive size={18}/>,   color: 'violet' },
-          { label: 'Open exceptions',   value: data?.open_exceptions ?? '—',   icon: <AlertTriangle size={18}/>,color: 'red' },
+          { label: tUi('PA_META_ACTIVE_TENANTS'),    value: data?.active_tenants ?? '—',    icon: <Building2 size={18}/>,   color: 'sky' },
+          { label: tUi('PA_META_TOTAL_EMPLOYEES'),   value: data?.total_employees ?? '—',   icon: <Users size={18}/>,       color: 'emerald' },
+          { label: tUi('PA_META_STORAGE_USED'),      value: data?.storage_used_label ?? '—',icon: <HardDrive size={18}/>,   color: 'violet' },
+          { label: tUi('PA_META_OPEN_EXCEPTIONS'),   value: data?.open_exceptions ?? '—',   icon: <AlertTriangle size={18}/>,color: 'red' },
         ].map(card => (
           <div key={card.label} className={`stat-card stat-card-${card.color}`}>
             <div className="flex justify-between mb-3">
@@ -56,7 +57,7 @@ export function MetaDashboard() {
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
         <div className="bg-white rounded-xl border border-slate-100 shadow-sm p-5 space-y-3">
-          <h2 className="font-medium text-slate-800">Pipeline health</h2>
+          <h2 className="font-medium text-slate-800">{tUi('PA_META_PIPELINE_HEALTH')}</h2>
           {['QUEUED','ENCRYPTING','SCANNING','EXTRACTING','RESOLVING'].map(stage => {
             const counts = data?.pipeline_counts ?? {}
             const stageCount = counts[stage] ?? 0
@@ -75,7 +76,7 @@ export function MetaDashboard() {
         </div>
 
         <div className="bg-white rounded-xl border border-slate-100 shadow-sm p-5">
-          <h2 className="font-medium text-slate-800 mb-3">Recent tenant activity</h2>
+          <h2 className="font-medium text-slate-800 mb-3">{tUi('PA_META_RECENT_ACTIVITY')}</h2>
           <div className="space-y-2">
             {data?.recent_tenant_activity?.map((ev: any, i: number) => (
               <div key={i} className="flex items-center gap-3 text-sm">
@@ -86,7 +87,7 @@ export function MetaDashboard() {
                 <span className="flex-1 text-slate-700 truncate">{ev.tenant_name}</span>
                 <span className="text-xs text-slate-400 font-mono whitespace-nowrap">{ev.type}</span>
               </div>
-            )) ?? <p className="text-sm text-slate-400">No recent activity.</p>}
+            )) ?? <p className="text-sm text-slate-400">{tUi('PA_META_NO_ACTIVITY')}</p>}
           </div>
         </div>
       </div>

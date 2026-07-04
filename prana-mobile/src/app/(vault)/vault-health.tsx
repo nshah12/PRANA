@@ -32,7 +32,7 @@ function ScoreRing({ score }: { score: number }) {
         <Text style={[ring.score, { color }]}>{score}</Text>
         <Text style={ring.label}>/ 100</Text>
       </View>
-      <Text style={ring.sub}>Vault Health Score</Text>
+      <Text style={ring.sub}>{tUi('VAULT_HEALTH_SCORE_LABEL')}</Text>
     </View>
   );
 }
@@ -117,8 +117,8 @@ export default function VaultHealthScreen() {
             <Text style={s.backText}>‹</Text>
           </Pressable>
           <View style={{ flex: 1 }}>
-            <Text style={s.headerTitle}>Vault Health</Text>
-            <Text style={s.headerSub}>Document completeness across all employers</Text>
+            <Text style={s.headerTitle}>{tUi('VAULT_HEALTH_TITLE')}</Text>
+            <Text style={s.headerSub}>{tUi('VAULT_HEALTH_SUB')}</Text>
           </View>
         </View>
       </SafeAreaView>
@@ -126,7 +126,7 @@ export default function VaultHealthScreen() {
       {loadingH ? (
         <View style={s.center}>
           <ActivityIndicator size="large" color={colors.indigo} />
-          <Text style={s.centerText}>Checking your vault…</Text>
+          <Text style={s.centerText}>{tUi('VAULT_HEALTH_CHECKING')}</Text>
         </View>
       ) : errH ? (
         <View style={s.center}>
@@ -141,23 +141,23 @@ export default function VaultHealthScreen() {
             <View style={s.statsRow}>
               <View style={s.stat}>
                 <Text style={s.statVal}>{docs.length}</Text>
-                <Text style={s.statLabel}>Documents</Text>
+                <Text style={s.statLabel}>{tUi('VAULT_HEALTH_STAT_DOCS')}</Text>
               </View>
               <View style={s.statDiv} />
               <View style={s.stat}>
                 <Text style={s.statVal}>{employers.length}</Text>
-                <Text style={s.statLabel}>Employers</Text>
+                <Text style={s.statLabel}>{tUi('VAULT_HEALTH_STAT_EMPLOYERS')}</Text>
               </View>
               <View style={s.statDiv} />
               <View style={s.stat}>
                 <Text style={[s.statVal, gaps.length > 0 && { color: colors.rose }]}>{gaps.length}</Text>
-                <Text style={s.statLabel}>Gaps</Text>
+                <Text style={s.statLabel}>{tUi('VAULT_HEALTH_STAT_GAPS')}</Text>
               </View>
             </View>
           </View>
 
           {/* Breakdown */}
-          <Text style={s.sectionLabel}>COMPLETENESS BREAKDOWN</Text>
+          <Text style={s.sectionLabel}>{tUi('VAULT_HEALTH_BREAKDOWN_LABEL')}</Text>
           <View style={s.card}>
             {breakdown.map(r => <BreakdownRow key={r.label} label={r.label} status={r.status} />)}
           </View>
@@ -165,7 +165,7 @@ export default function VaultHealthScreen() {
           {/* Gaps */}
           {gaps.length > 0 && (
             <>
-              <Text style={s.sectionLabel}>GAPS TO FILL</Text>
+              <Text style={s.sectionLabel}>{tUi('VAULT_HEALTH_GAPS_LABEL')}</Text>
               {gaps.map((g, i) => (
                 <View key={i} style={s.gapCard}>
                   <View style={s.gapLeft}>
@@ -187,8 +187,8 @@ export default function VaultHealthScreen() {
           {gaps.length === 0 && computedScore >= 80 && (
             <View style={s.allGoodCard}>
               <Text style={s.allGoodIcon}>✓</Text>
-              <Text style={s.allGoodTitle}>Vault looks complete</Text>
-              <Text style={s.allGoodSub}>No critical gaps detected across your employers.</Text>
+              <Text style={s.allGoodTitle}>{tUi('VAULT_HEALTH_ALL_GOOD_TITLE')}</Text>
+              <Text style={s.allGoodSub}>{tUi('VAULT_HEALTH_ALL_GOOD_SUB')}</Text>
             </View>
           )}
 
@@ -196,8 +196,8 @@ export default function VaultHealthScreen() {
           <Pressable style={s.ctaCard} onPress={() => router.push('/(vault)/doc-request' as any)}>
             <Text style={s.ctaIcon}>📩</Text>
             <View style={{ flex: 1 }}>
-              <Text style={s.ctaTitle}>Request missing documents</Text>
-              <Text style={s.ctaSub}>Ask your employer to upload a specific document</Text>
+              <Text style={s.ctaTitle}>{tUi('VAULT_HEALTH_REQUEST_TITLE')}</Text>
+              <Text style={s.ctaSub}>{tUi('VAULT_HEALTH_REQUEST_SUB')}</Text>
             </View>
             <Text style={s.ctaArrow}>›</Text>
           </Pressable>

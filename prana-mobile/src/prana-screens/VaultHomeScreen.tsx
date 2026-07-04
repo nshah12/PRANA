@@ -30,6 +30,7 @@ import { colors, fonts, radius, gradJourney, gradTopBg } from '../prana-theme/to
 import { StatCard } from '../prana-components/StatCard';
 import { DocumentCard } from '../prana-components/DocumentCard';
 import { VaultNav } from '../prana-components/VaultNav';
+import { tUi } from '@/i18n';
 import { ZipModal } from '../components/DownloadFeedback';
 import { useAuth } from '../context/AuthContext';
 import {
@@ -98,7 +99,7 @@ function CareerScoreWidget() {
 
       {/* Details */}
       <View style={ws.info}>
-        <Text style={ws.title}>Career Score</Text>
+        <Text style={ws.title}>{tUi('GAMIFICATION_CAREER_SCORE_LABEL')}</Text>
         <Text style={ws.sub}>{badges.length} badge{badges.length !== 1 ? 's' : ''} earned</Text>
         <Text style={ws.streak}>{flame} {streak?.current_streak_days ?? 0}-day streak</Text>
       </View>
@@ -166,7 +167,7 @@ function CompanyPicker({ visible, selected, onSelect, onClose, totalDocs, emailC
       <Pressable style={ps.overlay} onPress={onClose}>
         <Pressable style={ps.sheet} onPress={e => e.stopPropagation()}>
           <View style={ps.handle} />
-          <Text style={ps.title}>Filter by source</Text>
+          <Text style={ps.title}>{tUi('VAULT_HOME_FILTER_BY_SOURCE')}</Text>
           <ScrollView showsVerticalScrollIndicator={false}>
             {options.map((o, i) => (
               <Pressable
@@ -229,7 +230,7 @@ function DocTypePicker({ visible, selected, companyFilter, onSelect, onClose, do
       <Pressable style={ps.overlay} onPress={onClose}>
         <Pressable style={ps.sheet} onPress={e => e.stopPropagation()}>
           <View style={ps.handle} />
-          <Text style={ps.title}>Filter by document type</Text>
+          <Text style={ps.title}>{tUi('VAULT_HOME_FILTER_BY_TYPE')}</Text>
           <ScrollView showsVerticalScrollIndicator={false}>
             {types.map((t, i) => (
               <Pressable
@@ -318,7 +319,7 @@ function MenuPanel({ visible, onClose }: { visible: boolean; onClose: () => void
           <View style={mp.divider} />
           <Pressable style={mp.item} onPress={() => { onClose(); signOut(); router.replace('/(auth)/sign-in'); }}>
             <View style={[mp.itemIcon, { backgroundColor: 'rgba(251,113,133,0.12)' }]}><Text style={{ fontSize: 15 }}>🚪</Text></View>
-            <Text style={mp.dangerLabel}>Sign out</Text>
+            <Text style={mp.dangerLabel}>{tUi('MENU_SIGN_OUT')}</Text>
           </Pressable>
         </Pressable>
       </Pressable>
@@ -378,11 +379,11 @@ function EmptyVaultState() {
       <LinearGradient colors={gradJourney.colors} locations={gradJourney.locations} start={gradJourney.start} end={gradJourney.end} style={ev.icon}>
         <Text style={{ fontSize: 56 }}>🗂</Text>
       </LinearGradient>
-      <Text style={ev.title}>Your vault is empty</Text>
-      <Text style={ev.sub}>Documents pushed by your employer appear here automatically. You can also upload your own.</Text>
+      <Text style={ev.title}>{tUi('VAULT_HOME_EMPTY_TITLE')}</Text>
+      <Text style={ev.sub}>{tUi('VAULT_HOME_EMPTY_SUB')}</Text>
       <Pressable onPress={() => router.push('/(vault)/vault/self-upload')}>
         <LinearGradient colors={gradJourney.colors} locations={gradJourney.locations} start={gradJourney.start} end={gradJourney.end} style={ev.btn}>
-          <Text style={ev.btnText}>Upload your first document</Text>
+          <Text style={ev.btnText}>{tUi('VAULT_HOME_UPLOAD_FIRST_BTN')}</Text>
         </LinearGradient>
       </Pressable>
     </View>
@@ -713,7 +714,7 @@ export function VaultHomeScreen() {
       {docsLoading ? (
         <View style={s.loadingState}>
           <ActivityIndicator size="large" color={colors.indigo} />
-          <Text style={s.loadingText}>Loading your vault…</Text>
+          <Text style={s.loadingText}>{tUi('VAULT_HOME_LOADING')}</Text>
         </View>
       ) : totalDocs === 0 ? (
         <EmptyVaultState />
@@ -737,9 +738,9 @@ export function VaultHomeScreen() {
             <View style={s.benchNudge}>
               <Text style={s.benchNudgeIcon}>📈</Text>
               <View style={{ flex: 1 }}>
-                <Text style={s.benchNudgeTitle}>See how your comp compares</Text>
+                <Text style={s.benchNudgeTitle}>{tUi('VAULT_HOME_BENCH_NUDGE_TITLE')}</Text>
                 <Text style={s.benchNudgeSub}>
-                  Your salary slip is ready. Opt in to see your anonymous market percentile.
+                  {tUi('VAULT_HOME_BENCH_NUDGE_SUB')}
                 </Text>
                 <Pressable
                   style={s.benchNudgeBtn}
@@ -760,10 +761,10 @@ export function VaultHomeScreen() {
           {filteredDocs.length === 0 ? (
             <View style={s.noResults}>
               <Text style={s.noResultsIcon}>🔍</Text>
-              <Text style={s.noResultsTitle}>No documents match</Text>
-              <Text style={s.noResultsSub}>Try a different company or document type.</Text>
+              <Text style={s.noResultsTitle}>{tUi('VAULT_HOME_NO_RESULTS_TITLE')}</Text>
+              <Text style={s.noResultsSub}>{tUi('VAULT_HOME_NO_RESULTS_SUB')}</Text>
               <Pressable style={s.clearBtn} onPress={() => { setCompanyFilter('ALL'); setDocTypeFilter('ALL'); }}>
-                <Text style={s.clearBtnText}>Clear filters</Text>
+                <Text style={s.clearBtnText}>{tUi('VAULT_HOME_CLEAR_FILTERS_BTN')}</Text>
               </Pressable>
             </View>
           ) : (

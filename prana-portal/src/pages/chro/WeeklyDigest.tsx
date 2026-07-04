@@ -4,6 +4,7 @@ import { Send, Mail, TrendingUp, TrendingDown, AlertTriangle, Users, FileText, S
 import { api } from '@/lib/api'
 import { Link } from 'react-router-dom'
 import { DigestDatePicker, type DateWindow } from '@/components/digest/DigestDatePicker'
+import { tUi } from '@/i18n'
 
 function todayISO() { return new Date().toISOString().split('T')[0] }
 function daysAgoISO(n: number) {
@@ -29,9 +30,9 @@ export function WeeklyDigest() {
     <div className="space-y-4">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-xl font-semibold text-slate-800">CHRO Digest</h1>
+          <h1 className="text-xl font-semibold text-slate-800">{tUi('CHRO_WEEKLY_TITLE')}</h1>
           <p className="text-xs text-slate-400 mt-0.5">
-            {data ? `${data.from} → ${data.to}` : 'Loading…'}
+            {data ? `${data.from} → ${data.to}` : tUi('CFO_DIGEST_LOADING')}
           </p>
         </div>
         <div className="flex items-center gap-2">
@@ -73,8 +74,8 @@ export function WeeklyDigest() {
     <div className="space-y-6 max-w-2xl">
       {header}
       <div className="flex flex-col items-center justify-center py-20 text-slate-400">
-        <p className="text-sm">Failed to load digest.</p>
-        <button onClick={() => refetch()} className="mt-3 text-xs text-indigo-600 hover:underline">Retry</button>
+        <p className="text-sm">{tUi('CHRO_WEEKLY_LOAD_FAILED')}</p>
+        <button onClick={() => refetch()} className="mt-3 text-xs text-indigo-600 hover:underline">{tUi('CFO_ATTRITION_RETRY')}</button>
       </div>
     </div>
   )
@@ -107,7 +108,7 @@ export function WeeklyDigest() {
         <div className="bg-white rounded-xl border border-slate-100 shadow-sm p-5">
           <div className="flex items-center gap-2 mb-4">
             <FileText size={14} className="text-slate-400"/>
-            <h2 className="text-sm font-medium text-slate-700">Documents processed</h2>
+            <h2 className="text-sm font-medium text-slate-700">{tUi('CHRO_WEEKLY_DOCS_PROCESSED')}</h2>
           </div>
           <div className="space-y-2.5">
             {data.docs_by_type.map((row: any) => {
@@ -133,7 +134,7 @@ export function WeeklyDigest() {
         <div className="bg-white rounded-xl border border-slate-100 shadow-sm p-5">
           <div className="flex items-center gap-2 mb-4">
             <Users size={14} className="text-slate-400"/>
-            <h2 className="text-sm font-medium text-slate-700">Vault completeness by department</h2>
+            <h2 className="text-sm font-medium text-slate-700">{tUi('CHRO_MONTHLY_VAULT_BY_DEPT')}</h2>
           </div>
           <div className="space-y-2.5">
             {data.vault_by_department.map((row: any) => (
@@ -161,7 +162,7 @@ export function WeeklyDigest() {
               {data.exceptions_open} open exception{data.exceptions_open !== 1 ? 's' : ''} need attention
             </p>
             <p className="text-xs text-amber-600 mt-0.5">
-              Documents stuck in RESOLVING — OA-Admin identity match needed
+              {tUi('CHRO_WEEKLY_EXCEPTIONS_SUB')}
             </p>
           </div>
         </div>
@@ -170,12 +171,12 @@ export function WeeklyDigest() {
       <div className="border border-slate-200 rounded-xl overflow-hidden">
         <div className="bg-slate-50 px-4 py-2.5 flex items-center gap-2 border-b border-slate-200">
           <Mail size={13} className="text-slate-400"/>
-          <span className="text-xs text-slate-400 font-mono">Email preview — sent to configured recipients</span>
+          <span className="text-xs text-slate-400 font-mono">{tUi('CHRO_WEEKLY_EMAIL_PREVIEW')}</span>
         </div>
         <div className="px-4 py-3">
           <p className="text-xs text-slate-400">
-            Configure recipients and schedule in{' '}
-            <Link to="/org/digest-settings" className="text-indigo-600 hover:underline">Digest Settings</Link>.
+            {tUi('CHRO_WEEKLY_CONFIGURE_PREFIX')}{' '}
+            <Link to="/org/digest-settings" className="text-indigo-600 hover:underline">{tUi('CHRO_WEEKLY_DIGEST_SETTINGS_LINK')}</Link>.
           </p>
         </div>
       </div>

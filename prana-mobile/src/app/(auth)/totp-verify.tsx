@@ -119,10 +119,10 @@ export default function TotpVerifyScreen() {
             </LinearGradient>
           </View>
 
-          <Text style={s.stepTag}>STEP 3 OF 3 — 2-FACTOR AUTH</Text>
-          <Text style={s.title}>One more check</Text>
+          <Text style={s.stepTag}>{tUi('TOTP_VERIFY_STEP_TAG')}</Text>
+          <Text style={s.title}>{tUi('TOTP_VERIFY_TITLE')}</Text>
           <Text style={s.sub}>
-            Open your authenticator app and enter the current 6-digit code for PRANA.
+            {tUi('TOTP_VERIFY_SUB')}
           </Text>
 
           {/* Countdown bar — 30-second TOTP window visual */}

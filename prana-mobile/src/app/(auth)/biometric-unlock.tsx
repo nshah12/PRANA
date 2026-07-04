@@ -126,9 +126,9 @@ export default function BiometricUnlockScreen() {
     setError('');
     try {
       const result = await LocalAuthentication.authenticateAsync({
-        promptMessage: 'Unlock your PRANA vault',
-        fallbackLabel: 'Enter passcode',
-        cancelLabel: 'Sign in another way',
+        promptMessage: tUi('BIOMETRIC_UNLOCK_PROMPT_MESSAGE'),
+        fallbackLabel: tUi('BIOMETRIC_UNLOCK_FALLBACK_LABEL'),
+        cancelLabel: tUi('BIOMETRIC_UNLOCK_ALT_SIGNIN'),
         disableDeviceFallback: false,
       });
 
@@ -189,16 +189,16 @@ export default function BiometricUnlockScreen() {
 
           {/* Dynamic copy changes with state */}
           <Text style={s.greeting}>
-            {orbState === 'waiting'  && (name ? `Welcome back, ${name}.` : 'Welcome back.')}
-            {orbState === 'scanning' && 'Verifying…'}
-            {orbState === 'success'  && 'Vault unlocked.'}
-            {orbState === 'fail'     && 'Not recognised.'}
+            {orbState === 'waiting'  && (name ? tUi('BIOMETRIC_UNLOCK_GREETING_NAMED', { name }) : tUi('SIGN_IN_HEADLINE'))}
+            {orbState === 'scanning' && tUi('LOADING_VERIFYING')}
+            {orbState === 'success'  && tUi('BIOMETRIC_UNLOCK_GREETING_SUCCESS')}
+            {orbState === 'fail'     && tUi('BIOMETRIC_UNLOCK_GREETING_FAIL')}
           </Text>
           <Text style={s.sub}>
-            {orbState === 'waiting'  && 'Your vault is ready.\nJust look at your phone.'}
-            {orbState === 'scanning' && 'Hold still for a moment…'}
-            {orbState === 'success'  && 'Opening your vault now…'}
-            {orbState === 'fail'     && (error || 'Biometric check failed.')}
+            {orbState === 'waiting'  && tUi('BIOMETRIC_UNLOCK_SUB_WAITING')}
+            {orbState === 'scanning' && tUi('BIOMETRIC_UNLOCK_SUB_SCANNING')}
+            {orbState === 'success'  && tUi('BIOMETRIC_UNLOCK_SUB_SUCCESS')}
+            {orbState === 'fail'     && (error || tUi('BIOMETRIC_UNLOCK_FAIL_DEFAULT'))}
           </Text>
 
           {/* Security assurance — always visible */}
@@ -228,7 +228,7 @@ export default function BiometricUnlockScreen() {
             )}
 
             <Pressable onPress={() => router.replace('/(auth)/sign-in')} style={s.altBtn}>
-              <Text style={s.altText}>Sign in another way</Text>
+              <Text style={s.altText}>{tUi('BIOMETRIC_UNLOCK_ALT_SIGNIN')}</Text>
             </Pressable>
           </View>
         </Animated.View>

@@ -126,7 +126,7 @@ function ScoreDial({ score }: { score: number }) {
         <Text style={styles.dialScoreNumber}>{score}</Text>
         <Text style={styles.dialLabel}>{label}</Text>
       </LinearGradient>
-      <Text style={styles.dialSubtitle}>Career Score</Text>
+      <Text style={styles.dialSubtitle}>{tUi('GAMIFICATION_CAREER_SCORE_LABEL')}</Text>
     </View>
   );
 }
@@ -143,7 +143,7 @@ function ScoreBreakdown({ breakdown }: { breakdown: GamificationProfile['score_b
 
   return (
     <View style={styles.breakdown}>
-      <Text style={styles.sectionTitle}>Score Breakdown</Text>
+      <Text style={styles.sectionTitle}>{tUi('GAMIFICATION_SCORE_BREAKDOWN')}</Text>
       {bars.map(b => (
         <View key={b.label} style={styles.barRow}>
           <Text style={styles.barLabel}>{b.label}</Text>
@@ -194,7 +194,7 @@ function BadgeShelf({ catalog }: { catalog: CatalogBadge[] }) {
     <View style={styles.badgeSection}>
       {earned.length > 0 && (
         <>
-          <Text style={styles.sectionTitle}>Earned Badges</Text>
+          <Text style={styles.sectionTitle}>{tUi('GAMIFICATION_EARNED_BADGES')}</Text>
           <View style={styles.badgeGrid}>
             {earned.map(b => (
               <View key={b.badge_key} style={[styles.badgeCard, styles.badgeEarned]}>
@@ -208,7 +208,7 @@ function BadgeShelf({ catalog }: { catalog: CatalogBadge[] }) {
 
       {locked.length > 0 && (
         <>
-          <Text style={[styles.sectionTitle, { marginTop: 20 }]}>Locked Badges</Text>
+          <Text style={[styles.sectionTitle, { marginTop: 20 }]}>{tUi('GAMIFICATION_LOCKED_BADGES')}</Text>
           <View style={styles.badgeGrid}>
             {locked.map(b => (
               <View key={b.badge_key} style={[styles.badgeCard, styles.badgeLocked]}>
@@ -296,7 +296,7 @@ export default function GamificationScreen() {
     return (
       <SafeAreaView style={styles.center}>
         <ActivityIndicator size="large" color={colors.primary} />
-        <Text style={styles.loadingText}>Loading your career score…</Text>
+        <Text style={styles.loadingText}>{tUi('GAMIFICATION_LOADING')}</Text>
       </SafeAreaView>
     );
   }
@@ -314,8 +314,8 @@ export default function GamificationScreen() {
     <SafeAreaView style={styles.root}>
       <ScrollView contentContainerStyle={styles.scroll} showsVerticalScrollIndicator={false}>
         {/* Header */}
-        <Text style={styles.header}>Career Score</Text>
-        <Text style={styles.subheader}>Based on vault completeness, freshness, and engagement</Text>
+        <Text style={styles.header}>{tUi('GAMIFICATION_CAREER_SCORE_LABEL')}</Text>
+        <Text style={styles.subheader}>{tUi('GAMIFICATION_SUBHEADER')}</Text>
 
         {/* Score Dial */}
         <ScoreDial score={profile.score} />

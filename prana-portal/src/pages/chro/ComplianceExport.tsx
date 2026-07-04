@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { FileDown, Plus } from 'lucide-react'
 import { api } from '@/lib/api'
+import { tUi } from '@/i18n'
 
 const QUICK_REPORTS = [
   { id: 'vault_completeness', label: 'Vault Completeness Summary' },
@@ -25,10 +26,10 @@ export function ComplianceExport() {
 
   return (
     <div className="space-y-6 max-w-xl">
-      <h1 className="text-xl font-semibold text-slate-800">Compliance Export</h1>
+      <h1 className="text-xl font-semibold text-slate-800">{tUi('CHRO_COMPLIANCE_EXPORT_TITLE')}</h1>
 
       <div className="bg-white rounded-xl border border-slate-100 shadow-sm p-6 space-y-3">
-        <h2 className="font-medium text-slate-700 text-sm">Quick reports</h2>
+        <h2 className="font-medium text-slate-700 text-sm">{tUi('CHRO_COMPLIANCE_EXPORT_QUICK_REPORTS')}</h2>
         {QUICK_REPORTS.map(r => (
           <div key={r.id} className="flex items-center justify-between p-4 bg-canvas2 rounded-xl">
             <p className="text-sm font-medium text-slate-700">{r.label}</p>
@@ -38,15 +39,15 @@ export function ComplianceExport() {
                                border border-violet-200 px-3 py-1.5 rounded-lg hover:bg-violet-50
                                disabled:opacity-40">
               <FileDown size={12}/>
-              {generating === r.id ? 'Generating…' : 'Download PDF'}
+              {generating === r.id ? tUi('CHRO_COMPLIANCE_EXPORT_GENERATING') : tUi('CHRO_COMPLIANCE_EXPORT_DOWNLOAD_PDF')}
             </button>
           </div>
         ))}
       </div>
 
       <div className="bg-white rounded-xl border border-slate-100 shadow-sm p-6 space-y-4">
-        <h2 className="font-medium text-slate-700 text-sm">Custom report</h2>
-        <p className="text-sm text-slate-500">Select date range and categories for a custom compliance export.</p>
+        <h2 className="font-medium text-slate-700 text-sm">{tUi('CHRO_COMPLIANCE_EXPORT_CUSTOM_REPORT')}</h2>
+        <p className="text-sm text-slate-500">{tUi('CHRO_COMPLIANCE_EXPORT_CUSTOM_SUB')}</p>
         <div className="flex gap-3">
           <input type="date" className="border border-slate-200 rounded-lg px-3 py-2 text-sm
                                        focus:outline-none focus:ring-2 focus:ring-violet-500" />

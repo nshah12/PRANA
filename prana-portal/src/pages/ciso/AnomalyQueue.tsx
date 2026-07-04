@@ -3,6 +3,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { ShieldAlert, CheckCircle } from 'lucide-react'
 import { api } from '@/lib/api'
 import { fmtDateTime } from '@/lib/utils'
+import { tUi } from '@/i18n'
 
 const SEVERITIES = ['ALL', 'P0', 'P1', 'P2', 'P3']
 const STATUSES   = ['OPEN', 'INVESTIGATING', 'RESOLVED', 'FALSE_POSITIVE']
@@ -49,8 +50,8 @@ export function AnomalyQueue() {
     <div className="space-y-6">
       <div className="flex items-center justify-between flex-wrap gap-3">
         <div>
-          <h1 className="text-xl font-semibold text-slate-800">Anomaly Triage Queue</h1>
-          <p className="text-sm text-slate-500 mt-0.5">Automated security detections. Triage each to INVESTIGATING, RESOLVED, or FALSE_POSITIVE.</p>
+          <h1 className="text-xl font-semibold text-slate-800">{tUi('CISO_ANOMALY_QUEUE_TITLE')}</h1>
+          <p className="text-sm text-slate-500 mt-0.5">{tUi('CISO_ANOMALY_QUEUE_SUB')}</p>
         </div>
         <span className="text-xs font-mono text-slate-400">{data?.total ?? 0} matching</span>
       </div>
@@ -80,16 +81,16 @@ export function AnomalyQueue() {
       )}
       {isError && (
         <div className="text-center py-16 text-slate-400">
-          <p className="text-sm">Failed to load anomaly queue.</p>
-          <button onClick={() => refetch()} className="mt-2 text-xs text-red-600 hover:underline">Retry</button>
+          <p className="text-sm">{tUi('CISO_ANOMALY_QUEUE_LOAD_FAILED')}</p>
+          <button onClick={() => refetch()} className="mt-2 text-xs text-red-600 hover:underline">{tUi('CFO_ATTRITION_RETRY')}</button>
         </div>
       )}
 
       {!isLoading && !isError && data?.items?.length === 0 && (
         <div className="bg-white rounded-xl border border-slate-100 p-16 text-center">
           <CheckCircle size={32} className="text-emerald-400 mx-auto mb-3" />
-          <p className="text-slate-500 font-medium">Queue clear</p>
-          <p className="text-xs text-slate-400 mt-1">No anomalies matching the current filter.</p>
+          <p className="text-slate-500 font-medium">{tUi('CISO_ANOMALY_QUEUE_CLEAR_TITLE')}</p>
+          <p className="text-xs text-slate-400 mt-1">{tUi('CISO_ANOMALY_QUEUE_CLEAR_SUB')}</p>
         </div>
       )}
 

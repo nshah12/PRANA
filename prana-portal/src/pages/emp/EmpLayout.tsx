@@ -12,18 +12,21 @@ import { FolderOpen, TrendingUp, Heart, Share2, ClipboardList, Scale, Eye, FileQ
 import { useState, useEffect } from 'react'
 import { api } from '@/lib/api'
 import { useEmpAuthStore } from '@/store/empAuth'
+import { tUi } from '@/i18n'
 
-const NAV = [
-  { to: '/emp/vault',        icon: FolderOpen,    label: 'My Vault',          color: '#0EA5E9', bg: 'rgba(14,165,233,0.15)' },
-  { to: '/emp/career',       icon: TrendingUp,    label: 'Career Timeline',   color: '#10B981', bg: 'rgba(16,185,129,0.15)' },
-  { to: '/emp/vault-health', icon: Heart,         label: 'Vault Health',      color: '#EF4444', bg: 'rgba(239,68,68,0.15)'  },
-  { to: '/emp/shares',       icon: Share2,        label: 'Shared Documents',  color: '#8B5CF6', bg: 'rgba(139,92,246,0.15)' },
-  { to: '/emp/activity',     icon: ClipboardList, label: 'Activity Log',      color: '#F59E0B', bg: 'rgba(245,158,11,0.15)' },
-  { to: '/emp/data-rights',  icon: Scale,         label: 'DPDP Rights',       color: '#06B6D4', bg: 'rgba(6,182,212,0.15)'  },
-  { to: '/emp/privacy',      icon: Eye,           label: 'Privacy Cockpit',   color: '#EC4899', bg: 'rgba(236,72,153,0.15)' },
-  { to: '/emp/doc-request',  icon: FileQuestion,  label: 'Request Documents', color: '#F97316', bg: 'rgba(249,115,22,0.15)' },
-  { to: '/emp/settings',     icon: Settings,      label: 'Settings',          color: '#94A3B8', bg: 'rgba(148,163,184,0.15)'},
-]
+function getNav() {
+  return [
+    { to: '/emp/vault',        icon: FolderOpen,    label: tUi('EMP_LAYOUT_NAV_MY_VAULT'),          color: '#0EA5E9', bg: 'rgba(14,165,233,0.15)' },
+    { to: '/emp/career',       icon: TrendingUp,    label: tUi('EMP_CAREER_TITLE'),   color: '#10B981', bg: 'rgba(16,185,129,0.15)' },
+    { to: '/emp/vault-health', icon: Heart,         label: tUi('EMP_LAYOUT_NAV_VAULT_HEALTH'),      color: '#EF4444', bg: 'rgba(239,68,68,0.15)'  },
+    { to: '/emp/shares',       icon: Share2,        label: tUi('EMP_LAYOUT_NAV_SHARES'),  color: '#8B5CF6', bg: 'rgba(139,92,246,0.15)' },
+    { to: '/emp/activity',     icon: ClipboardList, label: tUi('EMP_ACTIVITY_TITLE'),      color: '#F59E0B', bg: 'rgba(245,158,11,0.15)' },
+    { to: '/emp/data-rights',  icon: Scale,         label: tUi('EMP_DATA_RIGHTS_TITLE'),       color: '#06B6D4', bg: 'rgba(6,182,212,0.15)'  },
+    { to: '/emp/privacy',      icon: Eye,           label: tUi('EMP_LAYOUT_NAV_PRIVACY'),   color: '#EC4899', bg: 'rgba(236,72,153,0.15)' },
+    { to: '/emp/doc-request',  icon: FileQuestion,  label: tUi('EMP_DOC_REQUEST_TITLE'), color: '#F97316', bg: 'rgba(249,115,22,0.15)' },
+    { to: '/emp/settings',     icon: Settings,      label: tUi('EMP_LAYOUT_NAV_SETTINGS'),          color: '#94A3B8', bg: 'rgba(148,163,184,0.15)'},
+  ]
+}
 
 export function EmpLayout() {
   const navigate = useNavigate()
@@ -31,6 +34,7 @@ export function EmpLayout() {
   const { user, logout } = useEmpAuthStore()
   const [signingOut, setSigningOut] = useState(false)
   const [drawerOpen, setDrawerOpen] = useState(false)
+  const NAV = getNav()
 
   // Close drawer on route change (nav tap resolved)
   useEffect(() => {
@@ -65,7 +69,7 @@ export function EmpLayout() {
         </div>
         <button
           onClick={() => setDrawerOpen(o => !o)}
-          aria-label={drawerOpen ? 'Close navigation' : 'Open navigation'}
+          aria-label={drawerOpen ? tUi('EMP_LAYOUT_CLOSE_NAV') : tUi('EMP_LAYOUT_OPEN_NAV')}
           aria-expanded={drawerOpen}
           aria-controls="emp-sidebar"
           className="w-10 h-10 flex items-center justify-center rounded-lg text-slate-400 hover:text-white hover:bg-white/10 active:bg-white/15 transition-colors"
@@ -102,12 +106,12 @@ export function EmpLayout() {
           </div>
           <div>
             <p className="text-white font-bold text-sm leading-none">PRANA</p>
-            <p className="text-slate-500 text-[10px] mt-0.5">Employee vault</p>
+            <p className="text-slate-500 text-[10px] mt-0.5">{tUi('EMP_LAYOUT_EMPLOYEE_VAULT')}</p>
           </div>
         </div>
 
         {/* Nav */}
-        <nav className="flex-1 py-3 px-3 space-y-0.5 overflow-y-auto" aria-label="Employee navigation">
+        <nav className="flex-1 py-3 px-3 space-y-0.5 overflow-y-auto" aria-label={tUi('EMP_LAYOUT_NAV_ARIA')}>
           {NAV.map(({ to, icon: Icon, label, color, bg }) => (
             <NavLink key={to} to={to}>
               {({ isActive }) => (
@@ -139,7 +143,7 @@ export function EmpLayout() {
               <span className="text-emerald-950 text-xs font-bold">{user?.name?.charAt(0) ?? 'E'}</span>
             </div>
             <div className="flex-1 min-w-0">
-              <p className="text-white text-xs font-medium truncate">{user?.name ?? 'Employee'}</p>
+              <p className="text-white text-xs font-medium truncate">{user?.name ?? tUi('EMP_LAYOUT_DEFAULT_NAME')}</p>
               <p className="text-slate-500 text-[10px] truncate">{user?.mobile}</p>
             </div>
           </div>
@@ -149,7 +153,7 @@ export function EmpLayout() {
             className="mt-2 w-full flex items-center gap-2 px-3 min-h-[40px] rounded-lg text-slate-400 hover:text-red-400 hover:bg-red-500/5 text-xs transition-colors disabled:opacity-50"
           >
             <LogOut size={13} />
-            Sign out
+            {tUi('EMP_LAYOUT_SIGN_OUT')}
           </button>
         </div>
       </aside>

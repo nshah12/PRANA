@@ -56,9 +56,9 @@ function RevokeSheet({
           <View style={rs.warningIcon}>
             <Text style={rs.warningEmoji}>⚠</Text>
           </View>
-          <Text style={rs.title}>Revoke access?</Text>
+          <Text style={rs.title}>{tUi('SHARES_REVOKE_TITLE')}</Text>
           <Text style={rs.sub}>
-            The link for <Text style={rs.bold}>{share.label || 'this document'}</Text> will stop working immediately. Anyone who has it will lose access.
+            {tUi('SHARES_REVOKE_SUB_PREFIX')} <Text style={rs.bold}>{share.label || tUi('SHARES_REVOKE_DEFAULT_LABEL')}</Text> {tUi('SHARES_REVOKE_SUB_SUFFIX')}
           </Text>
           <View style={rs.usageRow}>
             <Text style={rs.usageText}>
@@ -73,11 +73,11 @@ function RevokeSheet({
           >
             {loading
               ? <ActivityIndicator size="small" color="#FFFFFF" />
-              : <Text style={rs.revokeBtnText}>Yes, revoke access</Text>
+              : <Text style={rs.revokeBtnText}>{tUi('SHARES_REVOKE_CONFIRM_BTN')}</Text>
             }
           </Pressable>
           <Pressable style={rs.cancelBtn} onPress={onCancel}>
-            <Text style={rs.cancelText}>Keep it active</Text>
+            <Text style={rs.cancelText}>{tUi('SHARES_REVOKE_CANCEL_BTN')}</Text>
           </Pressable>
           </View>
         </View>
@@ -201,11 +201,11 @@ function EmptyShares() {
       <View style={em.icon}><Text style={em.iconText}>↗</Text></View>
       <Text style={em.title}>{tUi('NO_SHARE_LINKS_YET')}</Text>
       <Text style={em.sub}>
-        When you share a document with a bank, recruiter, or anyone else, the link appears here — with a one-tap revoke.
+        {tUi('SHARES_EMPTY_SUB')}
       </Text>
       <Pressable onPress={() => router.push('/(vault)/vault/create-share')}>
         <LinearGradient colors={gradJourney.colors} locations={gradJourney.locations} start={gradJourney.start} end={gradJourney.end} style={em.btn}>
-          <Text style={em.btnText}>Share a document</Text>
+          <Text style={em.btnText}>{tUi('SHARES_SHARE_DOC_BTN')}</Text>
         </LinearGradient>
       </Pressable>
     </View>
@@ -265,8 +265,8 @@ export default function SharesScreen() {
               <Text style={s.backIcon}>←</Text>
             </Pressable>
             <View style={{ flex: 1, marginLeft: 12 }}>
-              <Text style={s.headerTitle}>Share links</Text>
-              <Text style={s.headerSub}>You control every door out of your vault</Text>
+              <Text style={s.headerTitle}>{tUi('SHARES_TITLE')}</Text>
+              <Text style={s.headerSub}>{tUi('SHARES_SUB')}</Text>
             </View>
             <Pressable
               style={s.newBtn}
@@ -284,7 +284,7 @@ export default function SharesScreen() {
       {loading ? (
         <View style={s.center}>
           <ActivityIndicator size="large" color={colors.indigo} />
-          <Text style={s.centerText}>Loading shares…</Text>
+          <Text style={s.centerText}>{tUi('SHARES_LOADING')}</Text>
         </View>
       ) : shares.length === 0 ? (
         <EmptyShares />
@@ -294,12 +294,12 @@ export default function SharesScreen() {
           <View style={s.summaryCard}>
             <View style={s.summaryItem}>
               <Text style={s.summaryValue}>{active.length}</Text>
-              <Text style={s.summaryLabel}>Active links</Text>
+              <Text style={s.summaryLabel}>{tUi('SHARES_ACTIVE_LINKS_LABEL')}</Text>
             </View>
             <View style={s.summaryDivider} />
             <View style={s.summaryItem}>
               <Text style={s.summaryValue}>{shares.reduce((n, s) => n + s.usage_count, 0)}</Text>
-              <Text style={s.summaryLabel}>Total views</Text>
+              <Text style={s.summaryLabel}>{tUi('SHARES_TOTAL_VIEWS_LABEL')}</Text>
             </View>
             <View style={s.summaryDivider} />
             <View style={s.summaryItem}>

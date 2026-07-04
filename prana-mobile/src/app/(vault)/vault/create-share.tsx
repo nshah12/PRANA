@@ -92,11 +92,11 @@ function CreatedLinkSheet({
               <Text style={cl.successTick}>↗</Text>
             </LinearGradient>
           </View>
-          <Text style={cl.title}>Link created</Text>
+          <Text style={cl.title}>{tUi('CREATE_SHARE_LINK_CREATED')}</Text>
           <Text style={cl.sub}>
             {count} document{count > 1 ? 's' : ''} · expires {new Date(expiresAt).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })}
           </Text>
-          <Text style={cl.sub}>Revocable from Shares at any time.</Text>
+          <Text style={cl.sub}>{tUi('CREATE_SHARE_REVOCABLE_NOTE')}</Text>
 
           <View style={cl.linkBox}>
             <Text style={cl.linkText} numberOfLines={1} selectable>{shareUrl}</Text>
@@ -207,8 +207,8 @@ export default function CreateShareScreen() {
               <Text style={s.backIcon}>←</Text>
             </Pressable>
             <View style={{ flex: 1, marginLeft: 12 }}>
-              <Text style={s.headerTitle}>Create share link</Text>
-              <Text style={s.headerSub}>You control what they see and for how long</Text>
+              <Text style={s.headerTitle}>{tUi('CREATE_SHARE_TITLE')}</Text>
+              <Text style={s.headerSub}>{tUi('CREATE_SHARE_SUB')}</Text>
             </View>
           </View>
         </SafeAreaView>
@@ -217,7 +217,7 @@ export default function CreateShareScreen() {
       <ScrollView style={s.body} contentContainerStyle={s.bodyContent} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
 
         {/* ── Document selection ── */}
-        <Text style={s.sectionLabel}>SELECT DOCUMENTS  ({selectedIds.size} selected)</Text>
+        <Text style={s.sectionLabel}>{tUi('CREATE_SHARE_SELECT_DOCS_LABEL', { count: selectedIds.size })}</Text>
 
         {/* Search */}
         <View style={s.searchWrap}>
@@ -225,7 +225,7 @@ export default function CreateShareScreen() {
           <TextInput
             value={search}
             onChangeText={setSearch}
-            placeholder="Search by title or company…"
+            placeholder={tUi('CREATE_SHARE_SEARCH_PLACEHOLDER')}
             placeholderTextColor={colors.ink3}
             style={s.searchInput}
           />
@@ -239,8 +239,8 @@ export default function CreateShareScreen() {
           ) : allDocs.length === 0 ? (
             <View style={s.emptyDocs}>
               <Text style={s.emptyDocsEmoji}>📂</Text>
-              <Text style={s.emptyDocsText}>No documents in your vault yet</Text>
-              <Text style={s.emptyDocsSub}>Documents pushed by your employer will appear here</Text>
+              <Text style={s.emptyDocsText}>{tUi('CREATE_SHARE_NO_DOCS_TITLE')}</Text>
+              <Text style={s.emptyDocsSub}>{tUi('CREATE_SHARE_NO_DOCS_SUB')}</Text>
             </View>
           ) : (
             filteredDocs.map(doc => (

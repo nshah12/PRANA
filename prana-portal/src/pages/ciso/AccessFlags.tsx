@@ -3,6 +3,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { FlagOff } from 'lucide-react'
 import { api } from '@/lib/api'
 import { fmtDateTime } from '@/lib/utils'
+import { tUi } from '@/i18n'
 
 export function AccessFlags() {
   const qc = useQueryClient()
@@ -26,8 +27,8 @@ export function AccessFlags() {
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-xl font-semibold text-slate-800">Flagged Access Log</h1>
-          <p className="text-sm text-slate-500 mt-0.5">Document accesses flagged for review. Full IP visible to CISO only.</p>
+          <h1 className="text-xl font-semibold text-slate-800">{tUi('CISO_ACCESS_FLAGS_TITLE')}</h1>
+          <p className="text-sm text-slate-500 mt-0.5">{tUi('CISO_ACCESS_FLAGS_SUB')}</p>
         </div>
         <span className="text-xs font-mono text-slate-400">{data?.total ?? 0} flagged entries</span>
       </div>
@@ -39,8 +40,8 @@ export function AccessFlags() {
       )}
       {isError && (
         <div className="text-center py-16 text-slate-400">
-          <p className="text-sm">Failed to load flagged access log.</p>
-          <button onClick={() => refetch()} className="mt-2 text-xs text-red-600 hover:underline">Retry</button>
+          <p className="text-sm">{tUi('CISO_ACCESS_FLAGS_LOAD_FAILED')}</p>
+          <button onClick={() => refetch()} className="mt-2 text-xs text-red-600 hover:underline">{tUi('CFO_ATTRITION_RETRY')}</button>
         </div>
       )}
 
@@ -49,10 +50,10 @@ export function AccessFlags() {
           <table className="w-full text-sm">
             <thead className="bg-slate-50 text-xs text-slate-500 uppercase tracking-wide">
               <tr>
-                <th className="text-left px-5 py-3 font-medium">Doc type / Period</th>
+                <th className="text-left px-5 py-3 font-medium">{tUi('CISO_ACCESS_FLAGS_COL_DOC_PERIOD')}</th>
                 <th className="text-left px-5 py-3 font-medium">Channel</th>
-                <th className="text-left px-5 py-3 font-medium">IP address</th>
-                <th className="text-left px-5 py-3 font-medium">Flag reason</th>
+                <th className="text-left px-5 py-3 font-medium">{tUi('CISO_ACCESS_FLAGS_COL_IP')}</th>
+                <th className="text-left px-5 py-3 font-medium">{tUi('CISO_ACCESS_FLAGS_COL_REASON')}</th>
                 <th className="text-left px-5 py-3 font-medium">Accessed</th>
                 <th className="px-5 py-3 font-medium" />
               </tr>
@@ -60,7 +61,7 @@ export function AccessFlags() {
             <tbody className="divide-y divide-slate-50">
               {data?.items?.length === 0 && (
                 <tr>
-                  <td colSpan={6} className="px-5 py-12 text-center text-slate-400">No flagged access entries.</td>
+                  <td colSpan={6} className="px-5 py-12 text-center text-slate-400">{tUi('CISO_ACCESS_FLAGS_NO_ENTRIES')}</td>
                 </tr>
               )}
               {data?.items?.map((row: any) => (

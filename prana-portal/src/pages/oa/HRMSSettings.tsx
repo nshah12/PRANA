@@ -46,7 +46,7 @@ function SyncHistory({ connectorId }: { connectorId: string }) {
     staleTime: 30_000,
   })
 
-  if (isLoading) return <p className="text-xs text-slate-400">Loading history…</p>
+  if (isLoading) return <p className="text-xs text-slate-400">{tUi('HRMS_LOADING_HISTORY')}</p>
 
   const logs = data?.items ?? []
   if (!logs.length) return <p className="text-xs text-slate-400">{tUi('HRMS_NO_SYNC_HISTORY')}</p>
@@ -58,7 +58,7 @@ function SyncHistory({ connectorId }: { connectorId: string }) {
           <span className={l.status === 'SUCCESS' ? 'text-emerald-600' : l.status === 'PARTIAL' ? 'text-amber-600' : 'text-red-500'}>
             {l.status}
           </span>
-          <span className="text-slate-400">{l.docs_pushed} pushed · {l.docs_failed} failed</span>
+          <span className="text-slate-400">{tUi('HRMS_SYNC_PUSHED_FAILED', { pushed: l.docs_pushed, failed: l.docs_failed })}</span>
           <span className="text-slate-400">{l.started_at ? new Date(l.started_at).toLocaleString() : '—'}</span>
         </div>
       ))}
@@ -108,14 +108,14 @@ function ConnectorCard({ cfg, defs }: { cfg: ConnectorConfig; defs: ConnectorDef
       {/* Last sync */}
       {cfg.last_pulled_at && (
         <p className="text-xs text-slate-400">
-          Last synced: {new Date(cfg.last_pulled_at).toLocaleString()}
+          {tUi('HRMS_LAST_SYNCED_PREFIX')} {new Date(cfg.last_pulled_at).toLocaleString()}
         </p>
       )}
 
       {/* Auth method badge from definition */}
       {def && (
         <p className="text-xs text-slate-500">
-          Auth: <span className="font-medium text-slate-700">{def.auth_method}</span>
+          {tUi('HRMS_AUTH_PREFIX')} <span className="font-medium text-slate-700">{def.auth_method}</span>
         </p>
       )}
 
@@ -125,7 +125,7 @@ function ConnectorCard({ cfg, defs }: { cfg: ConnectorConfig; defs: ConnectorDef
           testResult ? 'bg-emerald-50 text-emerald-700' : 'bg-red-50 text-red-600'
         }`}>
           {testResult ? <CheckCircle2 size={13} /> : <XCircle size={13} />}
-          {testResult ? 'Connection successful' : 'Connection failed — check credentials'}
+          {testResult ? tUi('HRMS_CONN_SUCCESS') : tUi('HRMS_CONN_FAILED')}
         </div>
       )}
 
@@ -137,7 +137,7 @@ function ConnectorCard({ cfg, defs }: { cfg: ConnectorConfig; defs: ConnectorDef
           className="flex items-center gap-1 text-xs border border-slate-200 rounded-lg px-3 py-1.5 text-slate-600 hover:bg-slate-50 disabled:opacity-50"
         >
           {testMut.isPending ? <Loader2 size={12} className="animate-spin" /> : <TestTube2 size={12} />}
-          Test connection
+          {tUi('HRMS_TEST_CONNECTION_BTN')}
         </button>
 
         {cfg.status === 'ACTIVE' ? (
@@ -148,7 +148,7 @@ function ConnectorCard({ cfg, defs }: { cfg: ConnectorConfig; defs: ConnectorDef
               className="flex items-center gap-1 text-xs bg-indigo-600 text-white rounded-lg px-3 py-1.5 hover:bg-indigo-700 disabled:opacity-50"
             >
               {syncMut.isPending ? <Loader2 size={12} className="animate-spin" /> : <RefreshCw size={12} />}
-              Sync now
+              {tUi('HRMS_SYNC_NOW_BTN')}
             </button>
             <button
               onClick={() => pauseMut.mutate()}
@@ -156,7 +156,7 @@ function ConnectorCard({ cfg, defs }: { cfg: ConnectorConfig; defs: ConnectorDef
               className="flex items-center gap-1 text-xs border border-amber-200 rounded-lg px-3 py-1.5 text-amber-700 hover:bg-amber-50 disabled:opacity-50"
             >
               <Pause size={12} />
-              Pause
+              {tUi('HRMS_PAUSE_BTN')}
             </button>
           </>
         ) : cfg.status === 'PAUSED' ? (
@@ -166,7 +166,7 @@ function ConnectorCard({ cfg, defs }: { cfg: ConnectorConfig; defs: ConnectorDef
             className="flex items-center gap-1 text-xs bg-emerald-600 text-white rounded-lg px-3 py-1.5 hover:bg-emerald-700 disabled:opacity-50"
           >
             <Play size={12} />
-            Resume
+            {tUi('HRMS_RESUME_BTN')}
           </button>
         ) : null}
 
@@ -174,7 +174,7 @@ function ConnectorCard({ cfg, defs }: { cfg: ConnectorConfig; defs: ConnectorDef
           onClick={() => setShowHistory(v => !v)}
           className="flex items-center gap-1 text-xs text-slate-500 hover:text-slate-700 ml-auto"
         >
-          Sync history <ChevronDown size={12} className={showHistory ? 'rotate-180' : ''} />
+          {tUi('HRMS_SYNC_HISTORY_BTN')} <ChevronDown size={12} className={showHistory ? 'rotate-180' : ''} />
         </button>
       </div>
 
@@ -212,11 +212,11 @@ function AddConnectorForm({ defs, onClose }: { defs: ConnectorDef[]; onClose: ()
 
   return (
     <div className="bg-white rounded-xl border border-indigo-100 shadow-sm p-6 space-y-4">
-      <h2 className="font-semibold text-slate-800 text-sm">Connect an HRMS</h2>
+      <h2 className="font-semibold text-slate-800 text-sm">{tUi('HRMS_CONNECT_TITLE')}</h2>
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         <div>
-          <label className="block text-xs text-slate-500 mb-1">HRMS System</label>
+          <label className="block text-xs text-slate-500 mb-1">{tUi('HRMS_SYSTEM_LABEL')}</label>
           <select
             value={form.connector_definition_id}
             onChange={e => {
@@ -230,7 +230,7 @@ function AddConnectorForm({ defs, onClose }: { defs: ConnectorDef[]; onClose: ()
             }}
             className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm text-slate-700 focus:outline-none focus:ring-2 focus:ring-indigo-300"
           >
-            <option value="">Select HRMS…</option>
+            <option value="">{tUi('HRMS_SELECT_PLACEHOLDER')}</option>
             {defs.map(d => (
               <option key={d.connector_definition_id} value={d.connector_definition_id}>
                 {d.display_name}
@@ -240,18 +240,18 @@ function AddConnectorForm({ defs, onClose }: { defs: ConnectorDef[]; onClose: ()
         </div>
 
         <div>
-          <label className="block text-xs text-slate-500 mb-1">Display name</label>
+          <label className="block text-xs text-slate-500 mb-1">{tUi('HRMS_DISPLAY_NAME_LABEL')}</label>
           <input
             value={form.display_name}
             onChange={e => setForm(f => ({ ...f, display_name: e.target.value }))}
-            placeholder="e.g. Acme Darwinbox"
+            placeholder={tUi('HRMS_DISPLAY_NAME_PLACEHOLDER')}
             className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm text-slate-700 focus:outline-none focus:ring-2 focus:ring-indigo-300"
           />
         </div>
 
         {selectedDef && selectedDef.supported_modes.length > 1 && (
           <div>
-            <label className="block text-xs text-slate-500 mb-1">Integration mode</label>
+            <label className="block text-xs text-slate-500 mb-1">{tUi('HRMS_INTEGRATION_MODE_LABEL')}</label>
             <select
               value={form.integration_mode}
               onChange={e => setForm(f => ({ ...f, integration_mode: e.target.value }))}
@@ -266,20 +266,20 @@ function AddConnectorForm({ defs, onClose }: { defs: ConnectorDef[]; onClose: ()
 
         {form.integration_mode === 'PULL' && (
           <div>
-            <label className="block text-xs text-slate-500 mb-1">Pull schedule (cron)</label>
+            <label className="block text-xs text-slate-500 mb-1">{tUi('HRMS_PULL_SCHEDULE_LABEL')}</label>
             <input
               value={form.pull_schedule}
               onChange={e => setForm(f => ({ ...f, pull_schedule: e.target.value }))}
               className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm font-mono text-slate-700 focus:outline-none focus:ring-2 focus:ring-indigo-300"
             />
-            <p className="text-xs text-slate-400 mt-0.5">Default: every 6 hours</p>
+            <p className="text-xs text-slate-400 mt-0.5">{tUi('HRMS_PULL_SCHEDULE_DEFAULT')}</p>
           </div>
         )}
       </div>
 
       <div>
         <label className="block text-xs text-slate-500 mb-1">
-          Credentials (JSON) — encrypted with your tenant KEK before storage
+          {tUi('HRMS_CREDENTIALS_LABEL')}
         </label>
         <textarea
           value={form.credentials}
@@ -291,7 +291,7 @@ function AddConnectorForm({ defs, onClose }: { defs: ConnectorDef[]; onClose: ()
             : '{"api_key":"...","base_url":"https://..."}'}
         />
         <p className="text-xs text-slate-400 mt-0.5">
-          Never stored in plaintext — KMS-encrypted at write time.
+          {tUi('HRMS_CREDENTIALS_NEVER_PLAINTEXT')}
         </p>
       </div>
 
@@ -304,7 +304,7 @@ function AddConnectorForm({ defs, onClose }: { defs: ConnectorDef[]; onClose: ()
           onClick={onClose}
           className="text-xs border border-slate-200 rounded-lg px-4 py-2 text-slate-600 hover:bg-slate-50"
         >
-          Cancel
+          {tUi('HRMS_CANCEL_BTN')}
         </button>
         <button
           onClick={() => createMut.mutate()}
@@ -312,7 +312,7 @@ function AddConnectorForm({ defs, onClose }: { defs: ConnectorDef[]; onClose: ()
           className="flex items-center gap-1 text-xs bg-indigo-600 text-white rounded-lg px-4 py-2 hover:bg-indigo-700 disabled:opacity-50"
         >
           {createMut.isPending ? <Loader2 size={12} className="animate-spin" /> : <Plug size={12} />}
-          Save connector
+          {tUi('HRMS_SAVE_CONNECTOR_BTN')}
         </button>
       </div>
     </div>
@@ -341,9 +341,9 @@ export function HRMSSettings() {
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-xl font-semibold text-slate-800">HRMS Integration</h1>
+          <h1 className="text-xl font-semibold text-slate-800">{tUi('HRMS_TITLE')}</h1>
           <p className="text-xs text-slate-400 mt-0.5">
-            Connect your HRMS to automatically sync employee records
+            {tUi('HRMS_SUB')}
           </p>
         </div>
         <button
@@ -351,7 +351,7 @@ export function HRMSSettings() {
           className="flex items-center gap-1.5 text-xs bg-indigo-600 text-white rounded-lg px-3 py-2 hover:bg-indigo-700"
         >
           <Plug size={13} />
-          Add connector
+          {tUi('HRMS_ADD_CONNECTOR_BTN')}
         </button>
       </div>
 
@@ -362,14 +362,14 @@ export function HRMSSettings() {
       {configLoading && (
         <div className="flex items-center justify-center h-36 text-slate-400">
           <Loader2 className="animate-spin mr-2" size={18} />
-          Loading connectors…
+          {tUi('HRMS_LOADING_CONNECTORS')}
         </div>
       )}
 
       {configError && (
         <div className="flex items-center gap-2 text-red-600 bg-red-50 rounded-xl p-4">
           <AlertCircle size={16} />
-          Failed to load HRMS configuration.
+          {tUi('HRMS_LOAD_FAILED')}
         </div>
       )}
 
@@ -377,7 +377,7 @@ export function HRMSSettings() {
         <div className="text-center py-16 text-slate-400">
           <Plug size={32} className="mx-auto mb-3 opacity-40" />
           <p className="text-sm font-medium text-slate-600">{tUi('HRMS_NONE_CONNECTED')}</p>
-          <p className="text-xs mt-1">Click "Add connector" to sync employee records automatically.</p>
+          <p className="text-xs mt-1">{tUi('HRMS_NONE_HINT')}</p>
         </div>
       )}
 

@@ -160,7 +160,7 @@ export function OrgProfile() {
     (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) =>
       setForm(f => ({ ...f, [obj]: { ...(f[obj] ?? {}), [field]: e.target.value } }))
 
-  if (isLoading) return <p className="text-sm text-slate-400 p-6">Loading profile…</p>
+  if (isLoading) return <p className="text-sm text-slate-400 p-6">{tUi('OA_ORG_PROFILE_LOADING')}</p>
 
   const p = profile ?? {}
 
@@ -168,11 +168,11 @@ export function OrgProfile() {
     <div className="space-y-4 max-w-3xl">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-xl font-semibold text-slate-800">Org Profile</h1>
+          <h1 className="text-xl font-semibold text-slate-800">{tUi('OA_ORG_PROFILE_TITLE')}</h1>
           <p className="text-xs text-slate-400 mt-0.5">
-            View and update your organisation's profile.
+            {tUi('OA_ORG_PROFILE_SUB')}
             <span className="inline-flex items-center gap-1 ml-2 text-slate-300">
-              <Lock size={10}/> fields are managed by PRANA Platform Admin.
+              <Lock size={10}/> {tUi('OA_ORG_PROFILE_LOCKED_NOTE')}
             </span>
           </p>
         </div>
@@ -182,61 +182,61 @@ export function OrgProfile() {
           className="flex items-center gap-2 px-5 py-2 bg-violet-600 text-white text-sm
                      font-medium rounded-lg hover:bg-violet-700 disabled:opacity-50">
           <Save size={13}/>
-          {saved ? <><Check size={13}/>Saved</> : saveMutation.isPending ? 'Saving…' : 'Save changes'}
+          {saved ? <><Check size={13}/>{tUi('OA_ORG_PROFILE_SAVED')}</> : saveMutation.isPending ? tUi('OA_ORG_PROFILE_SAVING') : tUi('OA_ORG_PROFILE_SAVE_CHANGES')}
         </button>
       </div>
 
       {/* ── Locked: Legal & Platform ─────────────────────────────────────── */}
-      <Section icon={Building2} title="Legal Identity" subtitle="Managed by Platform Admin" defaultOpen={true}>
+      <Section icon={Building2} title={tUi('OA_ORG_PROFILE_LEGAL_IDENTITY_TITLE')} subtitle={tUi('OA_ORG_PROFILE_MANAGED_BY_PA')} defaultOpen={true}>
         <div className="grid grid-cols-2 gap-x-8 gap-y-4 mt-2">
-          <ReadOnly label="Organisation Legal Name" value={p.tenant_name} />
-          <Field label="Brand / Trade Name">
+          <ReadOnly label={tUi('OA_ORG_PROFILE_LEGAL_NAME')} value={p.tenant_name} />
+          <Field label={tUi('OA_ORG_PROFILE_BRAND_NAME_LABEL')}>
             <input className={inp} value={form.brand_name ?? ''} onChange={sf('brand_name')}
               placeholder={tUi('ORG_PROFILE_BRAND_NAME_PLACEHOLDER')} />
           </Field>
-          <ReadOnly label="CIN" value={p.cin} />
-          <ReadOnly label="GSTIN" value={p.gstin} />
-          <ReadOnly label="Entity Type" value={p.entity_type} />
-          <ReadOnly label="Date of Incorporation" value={p.incorporation_date} />
-          <ReadOnly label="ROC Jurisdiction" value={p.roc_jurisdiction} />
-          <ReadOnly label="Company PAN" value={p.pan_entity} />
-          <ReadOnly label="TAN" value={p.tan} />
-          <ReadOnly label="Status" value={p.status} />
-          <ReadOnly label="Data Region (IMMUTABLE)" value={p.home_region} />
-          <ReadOnly label="Domain" value={p.domain} />
+          <ReadOnly label={tUi('OA_ORG_PROFILE_CIN')} value={p.cin} />
+          <ReadOnly label={tUi('OA_ORG_PROFILE_GSTIN')} value={p.gstin} />
+          <ReadOnly label={tUi('OA_ORG_PROFILE_ENTITY_TYPE')} value={p.entity_type} />
+          <ReadOnly label={tUi('OA_ORG_PROFILE_INCORPORATION_DATE')} value={p.incorporation_date} />
+          <ReadOnly label={tUi('OA_ORG_PROFILE_ROC')} value={p.roc_jurisdiction} />
+          <ReadOnly label={tUi('OA_ORG_PROFILE_COMPANY_PAN')} value={p.pan_entity} />
+          <ReadOnly label={tUi('OA_ORG_PROFILE_TAN')} value={p.tan} />
+          <ReadOnly label={tUi('OA_ORG_PROFILE_STATUS')} value={p.status} />
+          <ReadOnly label={tUi('OA_ORG_PROFILE_DATA_REGION')} value={p.home_region} />
+          <ReadOnly label={tUi('OA_ORG_PROFILE_DOMAIN')} value={p.domain} />
         </div>
       </Section>
 
       {/* ── Addresses ────────────────────────────────────────────────────── */}
-      <Section icon={MapPin} title="Addresses" subtitle="Registered office and corporate head office">
+      <Section icon={MapPin} title={tUi('OA_ORG_PROFILE_ADDRESSES_TITLE')} subtitle={tUi('OA_ORG_PROFILE_ADDRESSES_SUB')}>
         <div className="space-y-6 mt-2">
           <div>
             <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-3">
-              Registered Office Address
+              {tUi('OA_ORG_PROFILE_REG_OFFICE')}
             </p>
             <div className="grid grid-cols-2 gap-3">
               <div className="col-span-2">
-                <Field label="Address Line 1">
+                <Field label={tUi('OA_ORG_PROFILE_ADDR_LINE1')}>
                   <input className={inp} value={form.reg_address?.line1 ?? ''}
                     onChange={nested('reg_address','line1')} placeholder="Building / Flat, Street" />
                 </Field>
               </div>
-              <Field label="Address Line 2">
+              <Field label={tUi('OA_ORG_PROFILE_ADDR_LINE2')}>
                 <input className={inp} value={form.reg_address?.line2 ?? ''}
                   onChange={nested('reg_address','line2')} placeholder="Area / Locality" />
               </Field>
-              <Field label="City">
+              <Field label={tUi('OA_ORG_PROFILE_CITY')}>
                 <input className={inp} value={form.reg_address?.city ?? ''}
                   onChange={nested('reg_address','city')} placeholder="Mumbai" />
               </Field>
-              <Field label="State">
+              <Field label={tUi('OA_ORG_PROFILE_STATE')}>
                 <select className={sel} value={form.reg_address?.state ?? ''}
                   onChange={nested('reg_address','state')}>
-                  <option value="">Select state</option>
+                  <option value="">{tUi('OA_ORG_PROFILE_SELECT_STATE')}</option>
                   {STATES.map(s => <option key={s} value={s}>{s}</option>)}
                 </select>
               </Field>
-              <Field label="PIN Code">
+              <Field label={tUi('OA_ORG_PROFILE_PINCODE')}>
                 <input className={inp} value={form.reg_address?.pincode ?? ''}
                   onChange={nested('reg_address','pincode')} placeholder="400001" maxLength={6} />
               </Field>
@@ -245,27 +245,27 @@ export function OrgProfile() {
 
           <div>
             <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-3">
-              Corporate / Head Office Address <span className="font-normal normal-case">(if different)</span>
+              {tUi('OA_ORG_PROFILE_CORP_OFFICE')} <span className="font-normal normal-case">{tUi('OA_ORG_PROFILE_IF_DIFFERENT')}</span>
             </p>
             <div className="grid grid-cols-2 gap-3">
               <div className="col-span-2">
-                <Field label="Address Line 1">
+                <Field label={tUi('OA_ORG_PROFILE_ADDR_LINE1')}>
                   <input className={inp} value={form.corp_address?.line1 ?? ''}
                     onChange={nested('corp_address','line1')} placeholder="Building / Flat, Street" />
                 </Field>
               </div>
-              <Field label="City">
+              <Field label={tUi('OA_ORG_PROFILE_CITY')}>
                 <input className={inp} value={form.corp_address?.city ?? ''}
                   onChange={nested('corp_address','city')} placeholder="Bangalore" />
               </Field>
-              <Field label="State">
+              <Field label={tUi('OA_ORG_PROFILE_STATE')}>
                 <select className={sel} value={form.corp_address?.state ?? ''}
                   onChange={nested('corp_address','state')}>
-                  <option value="">Select state</option>
+                  <option value="">{tUi('OA_ORG_PROFILE_SELECT_STATE')}</option>
                   {STATES.map(s => <option key={s} value={s}>{s}</option>)}
                 </select>
               </Field>
-              <Field label="PIN Code">
+              <Field label={tUi('OA_ORG_PROFILE_PINCODE')}>
                 <input className={inp} value={form.corp_address?.pincode ?? ''}
                   onChange={nested('corp_address','pincode')} placeholder="560001" maxLength={6} />
               </Field>
@@ -275,21 +275,21 @@ export function OrgProfile() {
       </Section>
 
       {/* ── Primary Contact ───────────────────────────────────────────────── */}
-      <Section icon={Users} title="Primary Contact" subtitle="Authorised SPOC for PRANA communications">
+      <Section icon={Users} title={tUi('OA_ORG_PROFILE_PRIMARY_CONTACT_TITLE')} subtitle={tUi('OA_ORG_PROFILE_PRIMARY_CONTACT_SUB')}>
         <div className="grid grid-cols-2 gap-4 mt-2">
-          <Field label="Full Name">
+          <Field label={tUi('OA_ORG_PROFILE_FULL_NAME')}>
             <input className={inp} value={form.primary_contact?.name ?? ''}
               onChange={nested('primary_contact','name')} placeholder="Priya Sharma" />
           </Field>
-          <Field label="Designation">
+          <Field label={tUi('OA_ORG_PROFILE_DESIGNATION')}>
             <input className={inp} value={form.primary_contact?.designation ?? ''}
               onChange={nested('primary_contact','designation')} placeholder="CHRO / HR Head" />
           </Field>
-          <Field label="Work Email">
+          <Field label={tUi('OA_ORG_PROFILE_WORK_EMAIL')}>
             <input type="email" className={inp} value={form.primary_contact?.email ?? ''}
               onChange={nested('primary_contact','email')} placeholder="priya@company.in" />
           </Field>
-          <Field label="Mobile">
+          <Field label={tUi('OA_ORG_PROFILE_MOBILE')}>
             <input className={inp} value={form.primary_contact?.mobile ?? ''}
               onChange={nested('primary_contact','mobile')} placeholder="+91 98765 43210" />
           </Field>
@@ -297,93 +297,93 @@ export function OrgProfile() {
       </Section>
 
       {/* ── DPDP Officers ─────────────────────────────────────────────────── */}
-      <Section icon={Shield} title="Data Protection Officers (DPDP Act 2023)"
-        subtitle="DPO and Grievance Officer are displayed to employees in the PRANA app">
+      <Section icon={Shield} title={tUi('OA_ORG_PROFILE_DPO_TITLE')}
+        subtitle={tUi('OA_ORG_PROFILE_DPO_SUB')}>
         <div className="grid grid-cols-2 gap-4 mt-2">
-          <Field label="DPO Name">
+          <Field label={tUi('OA_ORG_PROFILE_DPO_NAME')}>
             <input className={inp} value={form.dpo_name ?? ''} onChange={sf('dpo_name')}
-              placeholder="Full name" />
+              placeholder={tUi('OA_ORG_PROFILE_FULL_NAME_PLACEHOLDER')} />
           </Field>
-          <Field label="DPO Email">
+          <Field label={tUi('OA_ORG_PROFILE_DPO_EMAIL')}>
             <input type="email" className={inp} value={form.dpo_email ?? ''} onChange={sf('dpo_email')}
               placeholder="dpo@company.in" />
           </Field>
-          <Field label="Grievance Officer Name">
+          <Field label={tUi('OA_ORG_PROFILE_GRIEVANCE_NAME')}>
             <input className={inp} value={form.grievance_officer_name ?? ''}
-              onChange={sf('grievance_officer_name')} placeholder="Full name" />
+              onChange={sf('grievance_officer_name')} placeholder={tUi('OA_ORG_PROFILE_FULL_NAME_PLACEHOLDER')} />
           </Field>
-          <Field label="Grievance Officer Email">
+          <Field label={tUi('OA_ORG_PROFILE_GRIEVANCE_EMAIL')}>
             <input type="email" className={inp} value={form.grievance_officer_email ?? ''}
               onChange={sf('grievance_officer_email')} placeholder="grievance@company.in" />
           </Field>
         </div>
         {profile?.dpa_accepted_at && (
           <div className="mt-4 flex items-center gap-2 text-xs text-emerald-700 bg-emerald-50 rounded-lg px-3 py-2">
-            <Check size={12}/> DPA v{profile.dpa_version} accepted on {new Date(profile.dpa_accepted_at).toLocaleDateString('en-IN', { day:'2-digit', month:'long', year:'numeric' })}
+            <Check size={12}/> {tUi('OA_ORG_PROFILE_DPA_ACCEPTED', { version: profile.dpa_version, date: new Date(profile.dpa_accepted_at).toLocaleDateString('en-IN', { day:'2-digit', month:'long', year:'numeric' }) })}
           </div>
         )}
       </Section>
 
       {/* ── Workforce Profile ─────────────────────────────────────────────── */}
-      <Section icon={Briefcase} title="Workforce Profile"
-        subtitle="HR configuration used for analytics and PRANA AI pipeline tuning">
+      <Section icon={Briefcase} title={tUi('OA_ORG_PROFILE_WORKFORCE_TITLE')}
+        subtitle={tUi('OA_ORG_PROFILE_WORKFORCE_SUB')}>
         <div className="grid grid-cols-2 gap-4 mt-2">
-          <Field label="Industry / Sector">
+          <Field label={tUi('OA_ORG_PROFILE_INDUSTRY_LABEL')}>
             <select className={sel} value={form.industry ?? ''} onChange={sf('industry')}>
-              <option value="">Select industry</option>
+              <option value="">{tUi('OA_ORG_PROFILE_SELECT_INDUSTRY')}</option>
               {INDUSTRIES.map(i => <option key={i} value={i}>{i}</option>)}
             </select>
           </Field>
-          <Field label="Employee Headcount Band">
+          <Field label={tUi('OA_ORG_PROFILE_HEADCOUNT_LABEL')}>
             <select className={sel} value={form.employee_headcount_band ?? ''}
               onChange={sf('employee_headcount_band')}>
-              <option value="">Select band</option>
+              <option value="">{tUi('OA_ORG_PROFILE_SELECT_BAND')}</option>
               {['1-50','51-200','201-500','501-2000','2001-10000','10000+'].map(b =>
-                <option key={b} value={b}>{b} employees</option>
+                <option key={b} value={b}>{b} {tUi('OA_ORG_PROFILE_EMPLOYEES_SUFFIX')}</option>
               )}
             </select>
           </Field>
-          <Field label="Payroll Frequency">
+          <Field label={tUi('OA_ORG_PROFILE_PAYROLL_FREQ_LABEL')}>
             <select className={sel} value={form.payroll_frequency ?? 'MONTHLY'}
               onChange={sf('payroll_frequency')}>
-              <option value="MONTHLY">Monthly</option>
-              <option value="BI_MONTHLY">Bi-monthly</option>
-              <option value="WEEKLY">Weekly</option>
+              <option value="MONTHLY">{tUi('OA_ORG_PROFILE_MONTHLY')}</option>
+              <option value="BI_MONTHLY">{tUi('OA_ORG_PROFILE_BI_MONTHLY')}</option>
+              <option value="WEEKLY">{tUi('OA_ORG_PROFILE_WEEKLY')}</option>
             </select>
           </Field>
-          <Field label="Fiscal Year Start">
+          <Field label={tUi('OA_ORG_PROFILE_FISCAL_YEAR_LABEL')}>
             <select className={sel} value={form.fiscal_year_start ?? 'APRIL'}
               onChange={sf('fiscal_year_start')}>
-              <option value="APRIL">April (India standard)</option>
-              <option value="JANUARY">January (MNC / foreign subsidiary)</option>
-              <option value="OTHER">Other</option>
+              <option value="APRIL">{tUi('OA_ORG_PROFILE_APRIL_STANDARD')}</option>
+              <option value="JANUARY">{tUi('OA_ORG_PROFILE_JANUARY_MNC')}</option>
+              <option value="OTHER">{tUi('OA_ORG_PROFILE_OTHER')}</option>
             </select>
           </Field>
-          <Field label="HRMS / Payroll Platform">
+          <Field label={tUi('OA_ORG_PROFILE_HRMS_PLATFORM_LABEL')}>
             <select className={sel} value={form.hrms_system ?? ''} onChange={sf('hrms_system')}>
-              <option value="">Select platform</option>
+              <option value="">{tUi('OA_ORG_PROFILE_SELECT_PLATFORM')}</option>
               {HRMS_OPTIONS.map(h => <option key={h} value={h}>{h}</option>)}
             </select>
           </Field>
-          <Field label="Document Ingestion Method">
+          <Field label={tUi('OA_ORG_PROFILE_INGESTION_METHOD_LABEL')}>
             <select className={sel} value={form.document_ingestion_method ?? 'PORTAL_UPLOAD'}
               onChange={sf('document_ingestion_method')}>
-              <option value="PORTAL_UPLOAD">Portal Upload</option>
-              <option value="HRMS_API">HRMS API Push</option>
-              <option value="BOTH">Both (portal + API)</option>
+              <option value="PORTAL_UPLOAD">{tUi('OA_ORG_PROFILE_PORTAL_UPLOAD')}</option>
+              <option value="HRMS_API">{tUi('OA_ORG_PROFILE_HRMS_API_PUSH')}</option>
+              <option value="BOTH">{tUi('OA_ORG_PROFILE_BOTH_PORTAL_API')}</option>
             </select>
           </Field>
-          <Field label="Push Window (months)"
-            hint="How many months back employer can push historical documents">
+          <Field label={tUi('OA_ORG_PROFILE_PUSH_WINDOW_LABEL')}
+            hint={tUi('OA_ORG_PROFILE_PUSH_WINDOW_HINT')}>
             <select className={sel} value={String(form.push_window_months ?? 6)}
               onChange={e => setForm(f => ({ ...f, push_window_months: Number(e.target.value) }))}>
-              <option value="3">3 months</option>
-              <option value="6">6 months (default)</option>
-              <option value="9">9 months</option>
-              <option value="12">12 months</option>
+              <option value="3">{tUi('OA_ORG_PROFILE_MONTHS_3')}</option>
+              <option value="6">{tUi('OA_ORG_PROFILE_MONTHS_6_DEFAULT')}</option>
+              <option value="9">{tUi('OA_ORG_PROFILE_MONTHS_9')}</option>
+              <option value="12">{tUi('OA_ORG_PROFILE_MONTHS_12')}</option>
             </select>
           </Field>
-          <Field label="Default Language">
+          <Field label={tUi('OA_ORG_PROFILE_DEFAULT_LANG_LABEL')}>
             <select className={sel} value={form.default_language ?? 'en'}
               onChange={sf('default_language')}>
               {[['en','English'],['hi','Hindi'],['mr','Marathi'],['ta','Tamil'],
@@ -395,16 +395,16 @@ export function OrgProfile() {
       </Section>
 
       {/* ── Statutory Registrations ───────────────────────────────────────── */}
-      <Section icon={Shield} title="Statutory Registrations"
-        subtitle="PF, ESIC, and other statutory details used for document validation">
+      <Section icon={Shield} title={tUi('OA_ORG_PROFILE_STATUTORY_TITLE')}
+        subtitle={tUi('OA_ORG_PROFILE_STATUTORY_SUB')}>
         <div className="grid grid-cols-2 gap-4 mt-2">
-          <Field label="PF Registration Number"
-            hint="Provident Fund establishment code (format: XX/XXX/XXXXXXX)">
+          <Field label={tUi('OA_ORG_PROFILE_PF_REG_LABEL')}
+            hint={tUi('OA_ORG_PROFILE_PF_REG_HINT')}>
             <input className={inp} value={form.pf_registration ?? ''} onChange={sf('pf_registration')}
               placeholder="MH/MUM/0012345" />
           </Field>
-          <Field label="ESIC Registration Number"
-            hint="Employees' State Insurance Corporation code (if applicable)">
+          <Field label={tUi('OA_ORG_PROFILE_ESIC_REG_LABEL')}
+            hint={tUi('OA_ORG_PROFILE_ESIC_REG_HINT')}>
             <input className={inp} value={form.esic_registration ?? ''} onChange={sf('esic_registration')}
               placeholder="31-00-123456-000-0000" />
           </Field>
@@ -412,17 +412,17 @@ export function OrgProfile() {
       </Section>
 
       {/* ── Branding ─────────────────────────────────────────────────────── */}
-      <Section icon={Settings} title="Branding & Employee Support"
-        subtitle="Shown on employee-facing employer card in the PRANA mobile app">
+      <Section icon={Settings} title={tUi('OA_ORG_PROFILE_BRANDING_TITLE')}
+        subtitle={tUi('OA_ORG_PROFILE_BRANDING_SUB')}>
         <div className="grid grid-cols-2 gap-4 mt-2">
           <div className="col-span-2">
-            <Field label="Organisation Logo URL"
-              hint="HTTPS URL to logo image (PNG/SVG, minimum 200×200px)">
+            <Field label={tUi('OA_ORG_PROFILE_LOGO_LABEL')}
+              hint={tUi('OA_ORG_PROFILE_LOGO_HINT')}>
               <input className={inp} value={form.logo_url ?? ''} onChange={sf('logo_url')}
                 placeholder="https://cdn.company.in/logo.png" />
             </Field>
           </div>
-          <Field label="Brand Colour (Hex)" hint="Primary brand colour for employer card">
+          <Field label={tUi('OA_ORG_PROFILE_BRAND_COLOUR_LABEL')} hint={tUi('OA_ORG_PROFILE_BRAND_COLOUR_HINT')}>
             <div className="flex gap-2 items-center">
               <input type="color" value={form.brand_colour || '#6366f1'}
                 onChange={sf('brand_colour')}
@@ -431,8 +431,8 @@ export function OrgProfile() {
                 onChange={sf('brand_colour')} placeholder="#6366f1" maxLength={7} />
             </div>
           </Field>
-          <Field label="Employee Support Email"
-            hint="Where employees write for HR queries — shown in PRANA app">
+          <Field label={tUi('OA_ORG_PROFILE_SUPPORT_EMAIL_LABEL')}
+            hint={tUi('OA_ORG_PROFILE_SUPPORT_EMAIL_HINT')}>
             <input type="email" className={inp} value={form.support_email ?? ''}
               onChange={sf('support_email')} placeholder="hr-support@company.in" />
           </Field>
@@ -440,20 +440,20 @@ export function OrgProfile() {
       </Section>
 
       {/* ── Platform-locked ──────────────────────────────────────────────── */}
-      <Section icon={Lock} title="Platform Configuration"
-        subtitle="Managed by PRANA Platform Admin — contact support to change">
+      <Section icon={Lock} title={tUi('OA_ORG_PROFILE_PLATFORM_CONFIG_TITLE')}
+        subtitle={tUi('OA_ORG_PROFILE_PLATFORM_CONFIG_SUB')}>
         <div className="grid grid-cols-2 gap-x-8 gap-y-4 mt-2 opacity-70">
-          <ReadOnly label="SLA Tier" value={p.sla_tier} />
-          <ReadOnly label="Storage Quota" value={p.storage_quota_gb ? `${p.storage_quota_gb} GB` : undefined} />
-          <ReadOnly label="Contract Type" value={p.contract_type} />
-          <ReadOnly label="Onboarding Tier" value={p.onboarding_tier} />
-          <ReadOnly label="NIK (Employee Identifier Type)" value={p.nik_type} />
-          <ReadOnly label="Self-Upload Policy" value={p.self_upload_policy} />
-          <ReadOnly label="Account Manager" value={p.account_manager} />
-          <ReadOnly label="Member Since" value={p.created_at ? new Date(p.created_at).toLocaleDateString('en-IN', { day:'2-digit', month:'long', year:'numeric' }) : undefined} />
+          <ReadOnly label={tUi('OA_ORG_PROFILE_SLA_TIER')} value={p.sla_tier} />
+          <ReadOnly label={tUi('OA_ORG_PROFILE_STORAGE_QUOTA')} value={p.storage_quota_gb ? `${p.storage_quota_gb} GB` : undefined} />
+          <ReadOnly label={tUi('OA_ORG_PROFILE_CONTRACT_TYPE')} value={p.contract_type} />
+          <ReadOnly label={tUi('OA_ORG_PROFILE_ONBOARDING_TIER')} value={p.onboarding_tier} />
+          <ReadOnly label={tUi('OA_ORG_PROFILE_NIK_TYPE')} value={p.nik_type} />
+          <ReadOnly label={tUi('OA_ORG_PROFILE_SELF_UPLOAD_POLICY')} value={p.self_upload_policy} />
+          <ReadOnly label={tUi('OA_ORG_PROFILE_ACCOUNT_MANAGER')} value={p.account_manager} />
+          <ReadOnly label={tUi('OA_ORG_PROFILE_MEMBER_SINCE')} value={p.created_at ? new Date(p.created_at).toLocaleDateString('en-IN', { day:'2-digit', month:'long', year:'numeric' }) : undefined} />
         </div>
         <p className="text-xs text-slate-400 mt-4 flex items-center gap-1">
-          <AlertTriangle size={11}/> To request changes to locked fields, raise a support ticket with PRANA.
+          <AlertTriangle size={11}/> {tUi('OA_ORG_PROFILE_LOCKED_FIELDS_NOTE')}
         </p>
       </Section>
 
@@ -465,7 +465,7 @@ export function OrgProfile() {
           className="flex items-center gap-2 px-6 py-2.5 bg-violet-600 text-white text-sm
                      font-semibold rounded-lg hover:bg-violet-700 disabled:opacity-50">
           <Save size={13}/>
-          {saved ? <><Check size={13}/>Saved</> : saveMutation.isPending ? 'Saving…' : 'Save all changes'}
+          {saved ? <><Check size={13}/>{tUi('OA_ORG_PROFILE_SAVED')}</> : saveMutation.isPending ? tUi('OA_ORG_PROFILE_SAVING') : tUi('OA_ORG_PROFILE_SAVE_ALL_CHANGES')}
         </button>
       </div>
     </div>

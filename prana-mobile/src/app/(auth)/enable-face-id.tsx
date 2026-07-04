@@ -254,19 +254,19 @@ export default function EnableFaceIdScreen() {
                 </LinearGradient>
               </Pressable>
               <Pressable onPress={handleSkip} style={s.skipBtn}>
-                <Text style={s.skipText}>Skip for now — I'll enable it later</Text>
+                <Text style={s.skipText}>{tUi('ENABLE_FACE_ID_SKIP')}</Text>
               </Pressable>
             </>
           ) : status === 'enrolling' ? (
             <View style={s.enrollingRow}>
-              <Text style={s.enrollingText}>Hold still…</Text>
+              <Text style={s.enrollingText}>{tUi('ENABLE_FACE_ID_HOLD_STILL')}</Text>
             </View>
           ) : (
             <View style={s.successRow}>
               <LinearGradient colors={['#34D399', '#22D3EE']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={s.successCircle}>
                 <Text style={s.successTick}>✓</Text>
               </LinearGradient>
-              <Text style={s.successText}>Opening your vault…</Text>
+              <Text style={s.successText}>{tUi('ENABLE_FACE_ID_OPENING_VAULT')}</Text>
             </View>
           )}
         </Animated.View>

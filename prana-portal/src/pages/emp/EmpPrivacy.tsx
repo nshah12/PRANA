@@ -47,18 +47,18 @@ export function EmpPrivacy() {
     <div className="p-6 max-w-3xl">
       <div className="flex items-start justify-between mb-5">
         <div>
-          <h1 className="text-xl font-semibold text-slate-800">Privacy Cockpit</h1>
-          <p className="text-sm text-slate-500 mt-0.5">Complete transparency over how your data has moved — ever</p>
+          <h1 className="text-xl font-semibold text-slate-800">{tUi('EMP_LAYOUT_NAV_PRIVACY')}</h1>
+          <p className="text-sm text-slate-500 mt-0.5">{tUi('EMP_PRIVACY_SUB')}</p>
         </div>
-        <button className="px-3 py-2 text-sm border border-slate-200 rounded-lg text-slate-600 hover:bg-slate-50">Export Report</button>
+        <button className="px-3 py-2 text-sm border border-slate-200 rounded-lg text-slate-600 hover:bg-slate-50">{tUi('EMP_PRIVACY_EXPORT_REPORT')}</button>
       </div>
 
       {/* Stats */}
       <div className="grid grid-cols-3 gap-3 mb-5">
         {[
-          { val: profileData?.employer_count ?? 0, label: 'Linked Employers', color: 'text-sky-600' },
-          { val: docsData?.count ?? docs.length,   label: 'Docs in Vault',    color: 'text-emerald-600' },
-          { val: shares.length,                    label: 'Active Shares',    color: 'text-violet-600' },
+          { val: profileData?.employer_count ?? 0, label: tUi('EMP_PRIVACY_LINKED_EMPLOYERS'), color: 'text-sky-600' },
+          { val: docsData?.count ?? docs.length,   label: tUi('EMP_PRIVACY_DOCS_IN_VAULT'),    color: 'text-emerald-600' },
+          { val: shares.length,                    label: tUi('EMP_PRIVACY_ACTIVE_SHARES'),    color: 'text-violet-600' },
         ].map(s => (
           <div key={s.label} className="bg-white border border-slate-200 rounded-xl p-4 text-center shadow-sm">
             <p className={`text-3xl font-bold ${s.color}`}>{s.val}</p>
@@ -71,13 +71,13 @@ export function EmpPrivacy() {
       <div className="grid grid-cols-2 gap-4">
         {/* Who Has Accessed */}
         <div className="bg-white border border-slate-200 rounded-xl shadow-sm">
-          <p className="text-xs font-semibold text-slate-400 uppercase tracking-wide px-4 pt-4 pb-2">Who Has Accessed Your Documents</p>
+          <p className="text-xs font-semibold text-slate-400 uppercase tracking-wide px-4 pt-4 pb-2">{tUi('EMP_PRIVACY_WHO_ACCESSED')}</p>
           {accessLog.length === 0 ? (
             <p className="px-4 pb-4 text-sm text-slate-400">{tUi('EMP_PRIVACY_NO_ACCESS_EVENTS')}</p>
           ) : accessLog.slice(0, 6).map((e, i) => (
             <div key={i} className={`px-4 py-2.5 ${i < Math.min(accessLog.length, 6) - 1 ? 'border-b border-slate-100' : ''}`}>
               <p className="text-xs font-medium text-slate-700">
-                {e.via_share ? `C-Share: ${e.employer_name ?? 'Recipient'}` : `OA · ${e.employer_name}`}
+                {e.via_share ? `C-Share: ${e.employer_name ?? tUi('EMP_PRIVACY_RECIPIENT_FALLBACK')}` : `OA · ${e.employer_name}`}
               </p>
               <p className="text-[11px] text-slate-400 mt-0.5 truncate">
                 {e.access_type} · {e.doc_type?.replace(/_/g,' ')}
@@ -89,7 +89,7 @@ export function EmpPrivacy() {
 
         {/* AI Extraction Log */}
         <div className="bg-white border border-slate-200 rounded-xl shadow-sm">
-          <p className="text-xs font-semibold text-slate-400 uppercase tracking-wide px-4 pt-4 pb-2">AI Extraction Log</p>
+          <p className="text-xs font-semibold text-slate-400 uppercase tracking-wide px-4 pt-4 pb-2">{tUi('EMP_PRIVACY_AI_EXTRACTION_LOG')}</p>
           {docs.length === 0 ? (
             <p className="px-4 pb-4 text-sm text-slate-400">{tUi('EMP_PRIVACY_NO_DOCS_EXTRACTED')}</p>
           ) : docs.slice(0, 5).map((d, i) => (
@@ -97,11 +97,11 @@ export function EmpPrivacy() {
               <p className="text-[11px] font-medium text-slate-700 truncate">
                 {d.doc_type?.replace(/_/g,' ')} {d.doc_period ? '— ' + d.doc_period : ''}
               </p>
-              <p className="text-[10px] text-slate-400 mt-0.5">Fields extracted · PAN destroyed in 2ms</p>
+              <p className="text-[10px] text-slate-400 mt-0.5">{tUi('EMP_PRIVACY_FIELDS_EXTRACTED')}</p>
             </div>
           ))}
           <p className="px-4 py-2 text-[10px] text-slate-400 border-t border-slate-100">
-            Your PAN is never stored. Every extraction confirms destruction within 2ms.
+            {tUi('EMP_PRIVACY_PAN_NEVER_STORED')}
           </p>
         </div>
       </div>

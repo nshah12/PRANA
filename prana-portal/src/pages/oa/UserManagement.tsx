@@ -3,6 +3,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { UserPlus, Shield, UserX } from 'lucide-react'
 import { api } from '@/lib/api'
 import { fmtDate } from '@/lib/utils'
+import { tUi } from '@/i18n'
 
 const ROLES = ['oa_operator', 'oa_admin', 'chro', 'cfo', 'ciso'] as const
 
@@ -20,7 +21,7 @@ export function UserManagement() {
     onSuccess: () => qc.invalidateQueries({ queryKey: ['oa-users'] }),
     onError: (e: any) => {
       if (e.response?.data?.detail === 'MIN_ADMIN_CONSTRAINT') {
-        alert('Cannot deactivate — this would leave no OA-Admin in the organisation.')
+        alert(tUi('OA_USER_MGMT_CANNOT_DEACTIVATE'))
       }
     },
   })
@@ -31,7 +32,7 @@ export function UserManagement() {
     onSuccess: () => qc.invalidateQueries({ queryKey: ['oa-users'] }),
     onError: (e: any) => {
       if (e.response?.data?.detail === 'MIN_ADMIN_CONSTRAINT') {
-        alert('Cannot demote — this would leave no OA-Admin in the organisation.')
+        alert(tUi('OA_USER_MGMT_CANNOT_DEMOTE'))
       }
     },
   })
@@ -39,19 +40,18 @@ export function UserManagement() {
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
-        <h1 className="text-xl font-semibold text-slate-800">User Management</h1>
+        <h1 className="text-xl font-semibold text-slate-800">{tUi('OA_USER_MGMT_TITLE')}</h1>
         <button onClick={() => setShowCreate(true)}
                 className="flex items-center gap-2 px-4 py-2 bg-violet-600 text-white
                            rounded-lg text-sm font-medium hover:bg-violet-700">
-          <UserPlus size={14}/> Invite user
+          <UserPlus size={14}/> {tUi('OA_USER_MGMT_INVITE_USER')}
         </button>
       </div>
 
       <div className="bg-amber-50 border border-amber-200 rounded-xl px-4 py-3 flex gap-2">
         <Shield size={15} className="text-amber-600 mt-0.5 flex-shrink-0" />
         <p className="text-xs text-amber-700">
-          At least one OA-Admin must remain active at all times. Demotion or deactivation that would
-          violate this is blocked automatically.
+          {tUi('OA_USER_MGMT_MIN_ADMIN_NOTE')}
         </p>
       </div>
 
@@ -68,7 +68,7 @@ export function UserManagement() {
           </thead>
           <tbody className="divide-y divide-slate-50">
             {isLoading && (
-              <tr><td colSpan={5} className="px-5 py-8 text-center text-slate-400">Loading…</td></tr>
+              <tr><td colSpan={5} className="px-5 py-8 text-center text-slate-400">{tUi('CFO_DIGEST_LOADING')}</td></tr>
             )}
             {data?.users?.map((u: any) => (
               <tr key={u.oa_user_id} className="hover:bg-canvas2">
@@ -95,12 +95,12 @@ export function UserManagement() {
                 <td className="px-5 py-3">
                   {u.status === 'ACTIVE' && (
                     <button onClick={() => {
-                      if (confirm(`Deactivate ${u.display_name}?`)) {
+                      if (confirm(tUi('OA_USER_MGMT_DEACTIVATE_CONFIRM', { name: u.display_name }))) {
                         deactivateMutation.mutate(u.oa_user_id)
                       }
                     }}
                     className="flex items-center gap-1 text-xs text-red-500 hover:underline">
-                      <UserX size={13}/> Deactivate
+                      <UserX size={13}/> {tUi('OA_USER_MGMT_DEACTIVATE_BTN')}
                     </button>
                   )}
                 </td>
@@ -136,7 +136,7 @@ function CreateUserModal({ onClose }: { onClose: () => void }) {
       qc.invalidateQueries({ queryKey: ['oa-users'] })
       onClose()
     } catch (e: any) {
-      setError(e.response?.data?.detail ?? 'Failed to create user')
+      setError(e.response?.data?.detail ?? tUi('OA_USER_MGMT_CREATE_FAILED'))
     }
   }
 
@@ -144,20 +144,20 @@ function CreateUserModal({ onClose }: { onClose: () => void }) {
     <div className="fixed inset-0 bg-black/50 flex items-end md:items-center justify-center z-50 p-4">
       <div className="bg-white rounded-2xl w-full max-w-[520px] shadow-2xl">
         <div className="flex items-center justify-between px-6 py-5 border-b border-slate-100">
-          <h2 className="font-semibold text-slate-800">Invite user</h2>
+          <h2 className="font-semibold text-slate-800">{tUi('OA_USER_MGMT_INVITE_USER')}</h2>
           <button onClick={onClose} className="text-slate-400 hover:text-slate-600">✕</button>
         </div>
         <form onSubmit={submit} className="p-6 space-y-4">
-          <Field label="Full name">
+          <Field label={tUi('OA_USER_MGMT_FULL_NAME_LABEL')}>
             <input value={form.display_name} onChange={e => setForm(f => ({...f, display_name: e.target.value}))}
                    required className="input" />
           </Field>
-          <Field label="Work email">
+          <Field label={tUi('OA_USER_MGMT_WORK_EMAIL_LABEL')}>
             <input type="email" value={form.email}
                    onChange={e => setForm(f => ({...f, email: e.target.value}))}
                    required className="input" />
           </Field>
-          <Field label="Role">
+          <Field label={tUi('OA_USER_MGMT_ROLE_LABEL')}>
             <select value={form.role} onChange={e => setForm(f => ({...f, role: e.target.value}))}
                     className="input bg-white">
               {['oa_operator','oa_admin','chro','cfo','ciso'].map(r => (
@@ -169,11 +169,11 @@ function CreateUserModal({ onClose }: { onClose: () => void }) {
           <div className="flex gap-3 pt-2 justify-end">
             <button type="button" onClick={onClose}
                     className="px-4 py-2 text-sm border border-slate-200 rounded-lg hover:bg-canvas2">
-              Cancel
+              {tUi('EMP_SHARES_CANCEL')}
             </button>
             <button type="submit"
                     className="px-4 py-2 text-sm bg-violet-600 text-white rounded-lg hover:bg-violet-700">
-              Invite
+              {tUi('OA_USER_MGMT_INVITE_BTN')}
             </button>
           </div>
         </form>

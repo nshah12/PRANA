@@ -26,15 +26,15 @@ export function EmployeeMaster() {
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between flex-wrap gap-3">
-        <h1 className="text-xl font-semibold text-slate-800">Employee Master</h1>
+        <h1 className="text-xl font-semibold text-slate-800">{tUi('OA_EMP_MASTER_TITLE')}</h1>
         <div className="flex gap-2">
           <button className="flex items-center gap-2 px-4 py-2 border border-slate-200
                              rounded-lg text-sm font-medium text-slate-600 hover:bg-canvas2">
-            <Upload size={14}/> Bulk upload CSV
+            <Upload size={14}/> {tUi('OA_EMP_MASTER_BULK_UPLOAD')}
           </button>
           <button className="flex items-center gap-2 px-4 py-2 bg-violet-600 text-white
                              rounded-lg text-sm font-medium hover:bg-violet-700">
-            <UserPlus size={14}/> Add employee
+            <UserPlus size={14}/> {tUi('OA_EMP_MASTER_ADD_EMPLOYEE')}
           </button>
         </div>
       </div>
@@ -42,7 +42,7 @@ export function EmployeeMaster() {
       <div className="relative">
         <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
         <input value={search} onChange={e => { setSearch(e.target.value); setPage(0) }}
-               placeholder="Search by name, emp ID, or department…"
+               placeholder={tUi('OA_EMP_MASTER_SEARCH_PLACEHOLDER')}
                className="w-full pl-9 pr-4 py-2.5 border border-slate-200 rounded-lg text-sm
                           focus:outline-none focus:ring-2 focus:ring-violet-500" />
       </div>
@@ -61,7 +61,7 @@ export function EmployeeMaster() {
           </thead>
           <tbody className="divide-y divide-slate-50">
             {isLoading && (
-              <tr><td colSpan={6} className="px-5 py-8 text-center text-slate-400">Loading…</td></tr>
+              <tr><td colSpan={6} className="px-5 py-8 text-center text-slate-400">{tUi('CFO_DIGEST_LOADING')}</td></tr>
             )}
             {!isLoading && data?.employees?.length === 0 && (
               <tr><td colSpan={6} className="px-5 py-8 text-center text-slate-400">{tUi('EMPLOYEE_MASTER_NONE_FOUND')}</td></tr>
@@ -85,16 +85,16 @@ export function EmployeeMaster() {
         {(data?.count ?? 0) > limit && (
           <div className="flex items-center justify-between px-5 py-3 border-t border-slate-100">
             <span className="text-xs text-slate-400">
-              Showing {page * limit + 1}–{Math.min((page + 1) * limit, data?.count ?? 0)} of {data?.count}
+              {tUi('OA_EMP_MASTER_SHOWING', { from: page * limit + 1, to: Math.min((page + 1) * limit, data?.count ?? 0), total: data?.count ?? 0 })}
             </span>
             <div className="flex gap-2">
               <button onClick={() => setPage(p => p - 1)} disabled={page === 0}
                       className="text-xs px-3 py-1 border border-slate-200 rounded disabled:opacity-40
-                                 hover:bg-canvas2">← Prev</button>
+                                 hover:bg-canvas2">{tUi('OA_EMP_MASTER_PREV')}</button>
               <button onClick={() => setPage(p => p + 1)}
                       disabled={(page + 1) * limit >= (data?.count ?? 0)}
                       className="text-xs px-3 py-1 border border-slate-200 rounded disabled:opacity-40
-                                 hover:bg-canvas2">Next →</button>
+                                 hover:bg-canvas2">{tUi('OA_EMP_MASTER_NEXT')}</button>
             </div>
           </div>
         )}

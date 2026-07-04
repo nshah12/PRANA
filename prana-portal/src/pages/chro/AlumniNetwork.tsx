@@ -112,9 +112,9 @@ export function AlumniNetwork() {
       {/* Header */}
       <div className="flex items-center justify-between flex-wrap gap-3">
         <div>
-          <h1 className="text-xl font-semibold text-slate-800">Alumni Network</h1>
+          <h1 className="text-xl font-semibold text-slate-800">{tUi('CHRO_ALUMNI_TITLE')}</h1>
           <p className="text-sm text-slate-500 mt-0.5">
-            Former employees who have opted in to stay connected with your org
+            {tUi('CHRO_ALUMNI_SUB')}
           </p>
         </div>
         <button
@@ -179,7 +179,7 @@ export function AlumniNetwork() {
           )}
 
           {error && (
-            <p className="text-center py-16 text-slate-400">Failed to load alumni</p>
+            <p className="text-center py-16 text-slate-400">{tUi('CHRO_ALUMNI_LOAD_FAILED')}</p>
           )}
 
           {!isLoading && !error && alumni.length === 0 && (
@@ -319,7 +319,7 @@ export function AlumniNetwork() {
         <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4">
           <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md p-6 space-y-4">
             <div>
-              <h2 className="font-semibold text-slate-800 text-lg">Send in-app message</h2>
+              <h2 className="font-semibold text-slate-800 text-lg">{tUi('CHRO_ALUMNI_SEND_MSG_TITLE')}</h2>
               <p className="text-sm text-slate-500 mt-0.5">
                 To: <span className="font-medium text-slate-700">{compose.full_name}</span>
                 {' · '}{compose.designation}

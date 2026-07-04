@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import { useForm } from 'react-hook-form'
 import { api } from '@/lib/api'
 import { useAuthStore } from '@/store/auth'
+import { tUi } from '@/i18n'
 
 interface LoginForm { email: string; password: string }
 
@@ -55,7 +56,7 @@ export function AdminLogin() {
               prana.<span className="text-amber-400">in</span>
             </span>
           </div>
-          <p className="text-slate-500 text-xs pl-12">Platform Admin Console</p>
+          <p className="text-slate-500 text-xs pl-12">{tUi('ADMIN_LOGIN_CONSOLE_LABEL')}</p>
         </div>
 
         {/* Warning notice */}
@@ -63,7 +64,7 @@ export function AdminLogin() {
           <div className="bg-amber-500/10 border border-amber-500/20 rounded-2xl p-5 mb-8">
             <div className="flex items-center gap-2 mb-2">
               <span className="text-amber-400 text-lg">⚠</span>
-              <span className="text-amber-400 text-xs font-bold uppercase tracking-wider">Restricted access</span>
+              <span className="text-amber-400 text-xs font-bold uppercase tracking-wider">{tUi('ADMIN_LOGIN_RESTRICTED')}</span>
             </div>
             <p className="text-slate-400 text-xs leading-relaxed">
               This console is for PRANA platform staff only. Access requires a
@@ -112,9 +113,9 @@ export function AdminLogin() {
               <div className="inline-flex items-center gap-2 bg-amber-50 border border-amber-100
                               rounded-full px-3 py-1 mb-4">
                 <div className="w-1.5 h-1.5 rounded-full bg-amber-500" />
-                <span className="text-[10px] font-bold text-amber-600 uppercase tracking-widest">Platform Admin only</span>
+                <span className="text-[10px] font-bold text-amber-600 uppercase tracking-widest">{tUi('ADMIN_LOGIN_ONLY_BADGE')}</span>
               </div>
-              <h1 className="text-2xl font-extrabold text-slate-900">Admin sign in</h1>
+              <h1 className="text-2xl font-extrabold text-slate-900">{tUi('ADMIN_LOGIN_TITLE')}</h1>
               <p className="text-slate-400 text-sm mt-1">
                 Your <span className="font-mono text-amber-600">@prana.in</span> email is required
               </p>

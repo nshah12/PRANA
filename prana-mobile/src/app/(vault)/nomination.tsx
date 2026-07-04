@@ -89,7 +89,7 @@ export default function NominationScreen() {
           <View style={s.emptyCard}>
             <Text style={s.emptyIcon}>👤</Text>
             <Text style={s.emptyTitle}>{tUi('NO_NOMINEES_YET')}</Text>
-            <Text style={s.emptySub}>Add a trusted person to manage your vault.</Text>
+            <Text style={s.emptySub}>{tUi('NOMINATION_ADD_TRUSTED')}</Text>
           </View>
         ) : (
           nominees.map(n => (
@@ -107,7 +107,7 @@ export default function NominationScreen() {
                 onPress={() => removeMutation.mutate(n.nominee_id)}
                 disabled={removeMutation.isPending}
               >
-                <Text style={s.removeText}>Remove</Text>
+                <Text style={s.removeText}>{tUi('NOMINATION_REMOVE_BTN')}</Text>
               </Pressable>
             </View>
           ))
@@ -115,12 +115,12 @@ export default function NominationScreen() {
 
         {showForm && (
           <View style={s.formCard}>
-            <Text style={s.formTitle}>Add nominee</Text>
+            <Text style={s.formTitle}>{tUi('NOMINATION_ADD_NOMINEE')}</Text>
 
-            <Text style={s.label}>Full name</Text>
+            <Text style={s.label}>{tUi('NOMINATION_FULL_NAME_LABEL')}</Text>
             <TextInput style={s.input} value={name} onChangeText={setName} placeholder={tUi('NOMINEE_NAME_PLACEHOLDER')} placeholderTextColor={colors.ink3} />
 
-            <Text style={s.label}>Relationship</Text>
+            <Text style={s.label}>{tUi('NOMINATION_RELATIONSHIP_LABEL')}</Text>
             <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom: 14 }}>
               <View style={{ flexDirection: 'row', gap: 8 }}>
                 {RELATIONSHIPS.map(r => (
@@ -131,10 +131,10 @@ export default function NominationScreen() {
               </View>
             </ScrollView>
 
-            <Text style={s.label}>Mobile number</Text>
+            <Text style={s.label}>{tUi('NOMINATION_MOBILE_LABEL')}</Text>
             <TextInput style={s.input} value={mobile} onChangeText={setMobile} placeholder="+91 9000000000" placeholderTextColor={colors.ink3} keyboardType="phone-pad" />
 
-            <Text style={s.label}>Email (optional)</Text>
+            <Text style={s.label}>{tUi('NOMINATION_EMAIL_LABEL')}</Text>
             <TextInput style={s.input} value={email} onChangeText={setEmail} placeholder="nominee@email.com" placeholderTextColor={colors.ink3} keyboardType="email-address" autoCapitalize="none" />
 
             <View style={{ flexDirection: 'row', gap: 10 }}>
@@ -148,7 +148,7 @@ export default function NominationScreen() {
               >
                 {addMutation.isPending
                   ? <ActivityIndicator size="small" color="#FFF" />
-                  : <Text style={s.btnSubmitText}>Add nominee</Text>
+                  : <Text style={s.btnSubmitText}>{tUi('NOMINATION_ADD_NOMINEE')}</Text>
                 }
               </Pressable>
             </View>

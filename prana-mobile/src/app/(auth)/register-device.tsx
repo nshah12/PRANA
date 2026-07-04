@@ -209,15 +209,15 @@ export default function RegisterDeviceScreen() {
           <DeviceCard name={deviceName} accepted={accepted} />
 
           {/* Step context */}
-          <Text style={s.stepTag}>ADDING TO YOUR TRUSTED DEVICES</Text>
-          <Text style={s.title}>Name this phone</Text>
+          <Text style={s.stepTag}>{tUi('REGISTER_DEVICE_STEP_TAG')}</Text>
+          <Text style={s.title}>{tUi('REGISTER_DEVICE_TITLE')}</Text>
           <Text style={s.sub}>
-            Your vault will recognise this device from now on. Give it a name you'll remember if you ever manage your trusted devices.
+            {tUi('REGISTER_DEVICE_SUB')}
           </Text>
 
           {/* Device name input */}
           <Pressable onPress={() => inputRef.current?.focus()} style={s.inputWrap}>
-            <Text style={s.inputLabel}>Device name</Text>
+            <Text style={s.inputLabel}>{tUi('REGISTER_DEVICE_INPUT_LABEL')}</Text>
             <TextInput
               ref={inputRef}
               value={deviceName}

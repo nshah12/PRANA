@@ -110,8 +110,8 @@ export default function DocRequestScreen() {
             <Text style={s.backText}>‹</Text>
           </Pressable>
           <View style={{ flex: 1 }}>
-            <Text style={s.headerTitle}>Document Requests</Text>
-            <Text style={s.headerSub}>Ask your employer to upload a missing document</Text>
+            <Text style={s.headerTitle}>{tUi('DOC_REQUEST_TITLE')}</Text>
+            <Text style={s.headerSub}>{tUi('DOC_REQUEST_SUB')}</Text>
           </View>
           <Pressable style={s.newBtn} onPress={() => setShowForm(true)}>
             <Text style={s.newBtnText}>＋ New</Text>
@@ -131,7 +131,7 @@ export default function DocRequestScreen() {
         <View style={s.center}>
           <Text style={s.emptyIcon}>📩</Text>
           <Text style={s.emptyTitle}>{tUi('NO_REQUESTS_YET')}</Text>
-          <Text style={s.emptySub}>Tap "+ New" to ask your employer for a missing document.</Text>
+          <Text style={s.emptySub}>{tUi('DOC_REQUEST_EMPTY_HINT')}</Text>
         </View>
       ) : (
         <ScrollView style={s.body} contentContainerStyle={s.bodyContent} showsVerticalScrollIndicator={false}>
@@ -155,9 +155,9 @@ export default function DocRequestScreen() {
           <Pressable style={m.backdrop} onPress={() => setShowForm(false)} />
           <View style={m.panel}>
             <View style={m.handle} />
-            <Text style={m.title}>Request a document</Text>
+            <Text style={m.title}>{tUi('DOC_REQUEST_MODAL_TITLE')}</Text>
 
-            <Text style={m.label}>Document type</Text>
+            <Text style={m.label}>{tUi('DOC_REQUEST_TYPE_LABEL')}</Text>
             <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom: 14 }}>
               <View style={{ flexDirection: 'row', gap: 8 }}>
                 {DOC_TYPES.map(dt => (
@@ -176,7 +176,7 @@ export default function DocRequestScreen() {
 
             {employers.length > 0 && (
               <>
-                <Text style={m.label}>Employer (optional)</Text>
+                <Text style={m.label}>{tUi('DOC_REQUEST_EMPLOYER_LABEL')}</Text>
                 <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom: 14 }}>
                   <View style={{ flexDirection: 'row', gap: 8 }}>
                     {employers.map(e => (
@@ -195,7 +195,7 @@ export default function DocRequestScreen() {
               </>
             )}
 
-            <Text style={m.label}>Period (optional, e.g. 2024-03)</Text>
+            <Text style={m.label}>{tUi('DOC_REQUEST_PERIOD_LABEL')}</Text>
             <TextInput
               style={m.input}
               value={period}
@@ -205,7 +205,7 @@ export default function DocRequestScreen() {
               keyboardType="numbers-and-punctuation"
             />
 
-            <Text style={m.label}>Note (optional)</Text>
+            <Text style={m.label}>{tUi('DOC_REQUEST_NOTE_LABEL')}</Text>
             <TextInput
               style={[m.input, m.textarea]}
               value={note}
@@ -223,7 +223,7 @@ export default function DocRequestScreen() {
             >
               {submit.isPending
                 ? <ActivityIndicator size="small" color="#FFF" />
-                : <Text style={m.submitText}>Send request</Text>
+                : <Text style={m.submitText}>{tUi('DOC_REQUEST_SEND_BTN')}</Text>
               }
             </Pressable>
           </View>
@@ -235,10 +235,10 @@ export default function DocRequestScreen() {
         <View style={m.overlay}>
           <View style={m.successCard}>
             <Text style={{ fontSize: 40, marginBottom: 12 }}>✓</Text>
-            <Text style={m.title}>Request sent</Text>
-            <Text style={m.successSub}>Your employer has been notified. Requests are typically fulfilled within 3 business days.</Text>
+            <Text style={m.title}>{tUi('DOC_REQUEST_SENT_TITLE')}</Text>
+            <Text style={m.successSub}>{tUi('DOC_REQUEST_SENT_SUB')}</Text>
             <Pressable style={m.submitBtn} onPress={() => setSuccess(false)}>
-              <Text style={m.submitText}>Done</Text>
+              <Text style={m.submitText}>{tUi('DOC_REQUEST_DONE_BTN')}</Text>
             </Pressable>
           </View>
         </View>

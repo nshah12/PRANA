@@ -25,15 +25,15 @@ interface ShareLink {
 
 function formatExpiry(expiresAt: string): string {
   const diff = new Date(expiresAt).getTime() - Date.now()
-  if (diff <= 0) return 'Expired'
+  if (diff <= 0) return tUi('EMP_SHARES_EXPIRED')
   const h = Math.floor(diff / 3600000)
-  if (h < 24) return `Expires in ${h}h`
-  return `Expires ${new Date(expiresAt).toLocaleDateString('en-IN', { day:'2-digit', month:'short' })}`
+  if (h < 24) return tUi('EMP_SHARES_EXPIRES_IN', { h })
+  return tUi('EMP_SHARES_EXPIRES_ON', { date: new Date(expiresAt).toLocaleDateString('en-IN', { day:'2-digit', month:'short' }) })
 }
 
 function ExpiryBadge({ expiresAt, isActive }: { expiresAt: string; isActive: boolean }) {
   const expired = new Date(expiresAt) < new Date()
-  if (!isActive || expired) return <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-slate-100 text-slate-500 text-xs">Revoked / expired</span>
+  if (!isActive || expired) return <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-slate-100 text-slate-500 text-xs">{tUi('EMP_SHARES_REVOKED_EXPIRED_BADGE')}</span>
   const h = (new Date(expiresAt).getTime() - Date.now()) / 3600000
   const color = h < 6 ? 'bg-red-50 text-red-600' : h < 24 ? 'bg-amber-50 text-amber-600' : 'bg-emerald-50 text-emerald-600'
   return <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs ${color}`}><Clock size={10} />{formatExpiry(expiresAt)}</span>
@@ -68,18 +68,18 @@ export function EmpShares() {
       {revokeTarget && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
           <div className="bg-white rounded-2xl shadow-xl w-full max-w-sm p-6 space-y-4">
-            <h3 className="font-semibold text-slate-800">Revoke this link?</h3>
+            <h3 className="font-semibold text-slate-800">{tUi('EMP_SHARES_REVOKE_CONFIRM_TITLE')}</h3>
             <p className="text-sm text-slate-500">
-              {revokeTarget.label || 'This share link'} will stop working immediately. This cannot be undone.
+              {revokeTarget.label || tUi('EMP_SHARES_REVOKE_CONFIRM_LINK_FALLBACK')} {tUi('EMP_SHARES_REVOKE_CONFIRM_BODY_SUFFIX')}
             </p>
             <div className="flex gap-2">
-              <button onClick={() => setRevokeTarget(null)} className="flex-1 border border-slate-200 text-slate-700 rounded-xl py-2 text-sm hover:bg-slate-50">Cancel</button>
+              <button onClick={() => setRevokeTarget(null)} className="flex-1 border border-slate-200 text-slate-700 rounded-xl py-2 text-sm hover:bg-slate-50">{tUi('EMP_SHARES_CANCEL')}</button>
               <button
                 onClick={() => revokeMut.mutate(revokeTarget.token_id)}
                 disabled={revokeMut.isPending}
                 className="flex-1 bg-red-600 text-white rounded-xl py-2 text-sm flex items-center justify-center gap-2 hover:bg-red-700 disabled:opacity-50">
                 {revokeMut.isPending ? <Loader2 size={14} className="animate-spin" /> : <Trash2 size={14} />}
-                Revoke
+                {tUi('EMP_SHARES_REVOKE_BTN')}
               </button>
             </div>
           </div>
@@ -88,16 +88,16 @@ export function EmpShares() {
 
       {/* Header */}
       <div>
-        <h1 className="text-xl font-semibold text-slate-800">Shares</h1>
-        <p className="text-sm text-slate-500 mt-0.5">{active.length} active · {totalViews} total views · {inactive.length} expired / revoked</p>
+        <h1 className="text-xl font-semibold text-slate-800">{tUi('EMP_SHARES_TITLE')}</h1>
+        <p className="text-sm text-slate-500 mt-0.5">{tUi('EMP_SHARES_SUMMARY', { active: active.length, views: totalViews, inactive: inactive.length })}</p>
       </div>
 
       {/* Summary cards */}
       <div className="grid grid-cols-3 gap-3">
         {[
-          { label: 'Active links', value: active.length, color: 'text-emerald-600' },
-          { label: 'Total views', value: totalViews, color: 'text-indigo-600' },
-          { label: 'Expired/Revoked', value: inactive.length, color: 'text-slate-400' },
+          { label: tUi('EMP_SHARES_ACTIVE_LINKS'), value: active.length, color: 'text-emerald-600' },
+          { label: tUi('EMP_SHARES_TOTAL_VIEWS'), value: totalViews, color: 'text-indigo-600' },
+          { label: tUi('EMP_SHARES_EXPIRED_REVOKED'), value: inactive.length, color: 'text-slate-400' },
         ].map(c => (
           <div key={c.label} className="bg-white border border-slate-200 rounded-xl p-4">
             <p className={`text-2xl font-bold ${c.color}`}>{c.value}</p>
@@ -114,14 +114,14 @@ export function EmpShares() {
         <div className="text-center py-16 text-slate-400">
           <Share2 size={40} className="mx-auto mb-3 opacity-30" />
           <p className="text-sm">{tUi('EMP_SHARES_NONE')}</p>
-          <p className="text-xs mt-1">Create one from your Vault to share documents securely.</p>
+          <p className="text-xs mt-1">{tUi('EMP_SHARES_CREATE_HINT')}</p>
         </div>
       ) : (
         <div className="space-y-5">
           {/* Active */}
           {active.length > 0 && (
             <div>
-              <p className="text-xs font-semibold text-slate-400 uppercase tracking-wide mb-2">Active</p>
+              <p className="text-xs font-semibold text-slate-400 uppercase tracking-wide mb-2">{tUi('EMP_CAREER_ACTIVE')}</p>
               <div className="space-y-2">
                 {active.map(s => <ShareCard key={s.token_id} share={s} onRevoke={() => setRevokeTarget(s)} />)}
               </div>
@@ -131,7 +131,7 @@ export function EmpShares() {
           {/* Inactive */}
           {inactive.length > 0 && (
             <div>
-              <p className="text-xs font-semibold text-slate-400 uppercase tracking-wide mb-2">Expired / Revoked</p>
+              <p className="text-xs font-semibold text-slate-400 uppercase tracking-wide mb-2">{tUi('EMP_SHARES_EXPIRED_REVOKED_SECTION')}</p>
               <div className="space-y-2 opacity-60">
                 {inactive.map(s => <ShareCard key={s.token_id} share={s} />)}
               </div>
@@ -157,11 +157,11 @@ function ShareCard({ share, onRevoke }: { share: ShareLink; onRevoke?: () => voi
         <div className="flex items-center gap-3 mt-1">
           <span className="text-xs text-slate-400">{share.view_count} view{share.view_count !== 1 ? 's' : ''}</span>
           {share.usage_limit && (
-            <span className="text-xs text-slate-400">limit {share.usage_limit}</span>
+            <span className="text-xs text-slate-400">{tUi('EMP_SHARES_LIMIT_PREFIX')} {share.usage_limit}</span>
           )}
           <a href={share.share_url} target="_blank" rel="noreferrer"
             className="text-xs text-indigo-500 hover:underline flex items-center gap-0.5">
-            Open <ExternalLink size={10} />
+            {tUi('EMP_SHARES_OPEN')} <ExternalLink size={10} />
           </a>
         </div>
       </div>

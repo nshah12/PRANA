@@ -5,6 +5,7 @@ import {
 import { LinearGradient } from 'expo-linear-gradient';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { router } from 'expo-router';
+import { tUi } from '@/i18n';
 import { colors, fonts, gradJourney } from '@/prana-theme/tokens';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { api } from '@/lib/api';
@@ -202,8 +203,8 @@ export default function DataRightsScreen() {
             <Text style={styles.backText}>‹</Text>
           </Pressable>
           <View style={{ flex: 1 }}>
-            <Text style={styles.headerTitle}>My Data Rights</Text>
-            <Text style={styles.headerSub}>DPDP Act 2023 · Your rights over your data</Text>
+            <Text style={styles.headerTitle}>{tUi('DATA_RIGHTS_TITLE')}</Text>
+            <Text style={styles.headerSub}>{tUi('DATA_RIGHTS_SUB')}</Text>
           </View>
           <View style={styles.dpdpBadge}>
             <Text style={styles.dpdpText}>⚖️ DPDP</Text>
@@ -215,7 +216,7 @@ export default function DataRightsScreen() {
 
         {/* Data snapshot */}
         <View style={styles.snapshotCard}>
-          <Text style={styles.snapshotTitle}>What PRANA stores for you</Text>
+          <Text style={styles.snapshotTitle}>{tUi('DATA_RIGHTS_SNAPSHOT_TITLE')}</Text>
           <View style={styles.snapshotGrid}>
             {[
               ['Documents', `${docCount}`],

@@ -3,6 +3,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { Building2, CheckCircle, XCircle, Globe } from 'lucide-react'
 import { api } from '@/lib/api'
 import { fmtDateTime } from '@/lib/utils'
+import { tUi } from '@/i18n'
 
 export function OnboardingQueue() {
   const qc = useQueryClient()
@@ -37,15 +38,15 @@ export function OnboardingQueue() {
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
-        <h1 className="text-xl font-semibold text-slate-800">Onboarding Queue</h1>
-        <span className="badge badge-amber">{tenants.length} pending</span>
+        <h1 className="text-xl font-semibold text-slate-800">{tUi('PA_ONBOARD_TITLE')}</h1>
+        <span className="badge badge-amber">{tUi('PA_ONBOARD_PENDING_COUNT', { n: tenants.length })}</span>
       </div>
 
-      {isLoading && <p className="text-sm text-slate-400">Loading…</p>}
+      {isLoading && <p className="text-sm text-slate-400">{tUi('CFO_DIGEST_LOADING')}</p>}
       {!isLoading && tenants.length === 0 && (
         <div className="bg-white rounded-xl border border-slate-100 p-12 text-center">
           <CheckCircle size={40} className="mx-auto text-emerald-400 mb-3" />
-          <p className="text-slate-600 font-medium">No pending applications</p>
+          <p className="text-slate-600 font-medium">{tUi('PA_ONBOARD_NONE')}</p>
         </div>
       )}
 
@@ -61,11 +62,11 @@ export function OnboardingQueue() {
                   <span className="badge badge-amber">{t.tier}</span>
                 </div>
                 <div className="grid grid-cols-2 gap-x-8 gap-y-1 mt-3 text-xs text-slate-500">
-                  <span>Domain: <span className="font-mono text-slate-700">{t.domain}</span></span>
-                  <span>CIN: <span className="font-mono text-slate-700">{t.cin ?? '—'}</span></span>
-                  <span>Size: <span className="font-mono text-slate-700">{t.employee_size_band}</span></span>
-                  <span>Region: <span className="font-mono text-slate-700">{t.home_region ?? 'Auto'}</span></span>
-                  <span>Applied: <span className="font-mono text-slate-700">{fmtDateTime(t.created_at)}</span></span>
+                  <span>{tUi('PA_ONBOARD_DOMAIN_LABEL')} <span className="font-mono text-slate-700">{t.domain}</span></span>
+                  <span>{tUi('PA_ONBOARD_CIN_LABEL')} <span className="font-mono text-slate-700">{t.cin ?? '—'}</span></span>
+                  <span>{tUi('PA_ONBOARD_SIZE_LABEL')} <span className="font-mono text-slate-700">{t.employee_size_band}</span></span>
+                  <span>{tUi('PA_ONBOARD_REGION_LABEL')} <span className="font-mono text-slate-700">{t.home_region ?? tUi('PA_ONBOARD_AUTO_FALLBACK')}</span></span>
+                  <span>{tUi('PA_ONBOARD_APPLIED_LABEL')} <span className="font-mono text-slate-700">{fmtDateTime(t.created_at)}</span></span>
                 </div>
               </div>
             </div>
@@ -74,19 +75,19 @@ export function OnboardingQueue() {
             {approvingId === t.tenant_id && (
               <div className="px-6 py-4 bg-amber-50 border-t border-amber-100 space-y-3">
                 <p className="text-xs font-medium text-amber-700 flex items-center gap-1">
-                  <Globe size={12}/> Override home region (optional — leave blank for auto)
+                  <Globe size={12}/> {tUi('PA_ONBOARD_OVERRIDE_REGION_NOTE')}
                 </p>
                 <div className="flex gap-2">
                   <select value={overrideRegion} onChange={e => setOverrideRegion(e.target.value)}
                           className="border border-amber-200 rounded-lg px-3 py-2 text-sm bg-white
                                      focus:outline-none focus:ring-2 focus:ring-amber-400">
-                    <option value="">Auto (recommended)</option>
-                    <option value="ap-south-1">ap-south-1 (Mumbai)</option>
-                    <option value="ap-south-2">ap-south-2 (Hyderabad)</option>
+                    <option value="">{tUi('PA_ONBOARD_AUTO_RECOMMENDED')}</option>
+                    <option value="ap-south-1">{tUi('PA_ONBOARD_MUMBAI_OPTION')}</option>
+                    <option value="ap-south-2">{tUi('PA_ONBOARD_HYDERABAD_OPTION')}</option>
                   </select>
                   {overrideRegion && (
                     <input value={overrideReason} onChange={e => setOverrideReason(e.target.value)}
-                           placeholder="Reason for override (required)"
+                           placeholder={tUi('PA_ONBOARD_OVERRIDE_REASON_PLACEHOLDER')}
                            className="flex-1 border border-amber-200 rounded-lg px-3 py-2 text-sm
                                       focus:outline-none focus:ring-2 focus:ring-amber-400" />
                   )}
@@ -101,11 +102,11 @@ export function OnboardingQueue() {
                     disabled={approveMutation.isPending || (!!overrideRegion && !overrideReason)}
                     className="flex items-center gap-1 text-sm font-medium text-white bg-emerald-600
                                px-4 py-2 rounded-lg hover:bg-emerald-700 disabled:opacity-40">
-                    <CheckCircle size={14}/> Confirm approval
+                    <CheckCircle size={14}/> {tUi('PA_ONBOARD_CONFIRM_APPROVAL')}
                   </button>
                   <button onClick={() => setApprovingId(null)}
                           className="text-sm text-slate-500 hover:text-slate-700 px-3">
-                    Cancel
+                    {tUi('EMP_SHARES_CANCEL')}
                   </button>
                 </div>
               </div>
@@ -116,13 +117,13 @@ export function OnboardingQueue() {
                 <button onClick={() => setApprovingId(t.tenant_id)}
                         className="flex items-center gap-1 text-sm font-medium text-emerald-600
                                    border border-emerald-200 px-4 py-1.5 rounded-lg hover:bg-emerald-50">
-                  <CheckCircle size={13}/> Approve
+                  <CheckCircle size={13}/> {tUi('PA_ONBOARD_APPROVE')}
                 </button>
               )}
               <button onClick={() => rejectMutation.mutate(t.tenant_id)}
                       className="flex items-center gap-1 text-sm font-medium text-red-500
                                  border border-red-200 px-4 py-1.5 rounded-lg hover:bg-red-50">
-                <XCircle size={13}/> Reject
+                <XCircle size={13}/> {tUi('PA_ONBOARD_REJECT')}
               </button>
             </div>
           </div>

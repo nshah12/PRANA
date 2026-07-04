@@ -93,8 +93,8 @@ export default function SettingsScreen() {
             <Text style={{ fontSize: 15 }}>⚖️</Text>
           </View>
           <View style={{ flex: 1 }}>
-            <Text style={styles.rowTitle}>My Data Rights</Text>
-            <Text style={styles.rowSub}>DPDP Act 2023 · Access, correct, erase</Text>
+            <Text style={styles.rowTitle}>{tUi('DATA_RIGHTS_TITLE')}</Text>
+            <Text style={styles.rowSub}>{tUi('SETTINGS_DATA_RIGHTS_SUB')}</Text>
           </View>
           <Text style={{ fontSize: 18, color: colors.ink3 }}>›</Text>
         </Pressable>
@@ -106,7 +106,7 @@ export default function SettingsScreen() {
           <View style={[styles.rowIcon, { backgroundColor: 'rgba(251,113,133,0.15)' }]}>
             <Text style={{ fontSize: 15 }}>🚪</Text>
           </View>
-          <Text style={styles.dangerText}>Sign out</Text>
+          <Text style={styles.dangerText}>{tUi('MENU_SIGN_OUT')}</Text>
         </Pressable>
       </View>
     </PageScreen>

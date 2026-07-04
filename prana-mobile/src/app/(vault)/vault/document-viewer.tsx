@@ -75,8 +75,8 @@ function CareerPassportModal({
             <View style={cp.panel}>
               <View style={cp.handle} />
 
-              <Text style={cp.title}>Career Passport</Text>
-              <Text style={cp.sub}>Share this QR with a recruiter or bank to verify {docTitle}</Text>
+              <Text style={cp.title}>{tUi('DOC_VIEWER_PASSPORT_TITLE')}</Text>
+              <Text style={cp.sub}>{tUi('DOC_VIEWER_PASSPORT_SUB', { docTitle })}</Text>
 
               {loading ? (
                 <View style={cp.center}>
@@ -86,8 +86,8 @@ function CareerPassportModal({
                 <View style={cp.center}>
                   <Text style={cp.errorText}>
                     {error === 'CREDENTIAL_UNAVAILABLE'
-                      ? 'Credential not available yet — document is still processing.'
-                      : 'Could not load credential.'}
+                      ? tUi('DOC_VIEWER_CREDENTIAL_PROCESSING')
+                      : tUi('DOC_VIEWER_CREDENTIAL_LOAD_FAILED')}
                   </Text>
                 </View>
               ) : (
@@ -103,24 +103,24 @@ function CareerPassportModal({
 
                   {/* Verification code */}
                   <View style={cp.codeRow}>
-                    <Text style={cp.codeLabel}>VERIFICATION CODE</Text>
+                    <Text style={cp.codeLabel}>{tUi('DOC_VIEWER_VERIFICATION_CODE_LABEL')}</Text>
                     <Text style={cp.code}>{credential.verification_code}</Text>
                   </View>
 
                   {/* Metadata strip */}
                   <View style={cp.metaStrip}>
                     <View style={cp.metaItem}>
-                      <Text style={cp.metaKey}>Document</Text>
+                      <Text style={cp.metaKey}>{tUi('DOC_VIEWER_META_DOCUMENT')}</Text>
                       <Text style={cp.metaVal}>{credential.doc_type.replace(/_/g, ' ')}</Text>
                     </View>
                     {credential.doc_period ? (
                       <View style={cp.metaItem}>
-                        <Text style={cp.metaKey}>Period</Text>
+                        <Text style={cp.metaKey}>{tUi('DOC_VIEWER_META_PERIOD')}</Text>
                         <Text style={cp.metaVal}>{credential.doc_period}</Text>
                       </View>
                     ) : null}
                     <View style={cp.metaItem}>
-                      <Text style={cp.metaKey}>Issued by</Text>
+                      <Text style={cp.metaKey}>{tUi('DOC_VIEWER_META_ISSUED_BY')}</Text>
                       <Text style={cp.metaVal}>{credential.pushed_by}</Text>
                     </View>
                   </View>
@@ -240,7 +240,7 @@ function ShareSheet({
           <View style={ss.panel}>
           <View style={ss.handle} />
 
-          <Text style={ss.title}>Share document</Text>
+          <Text style={ss.title}>{tUi('DOC_VIEWER_SHARE_TITLE')}</Text>
           <View style={ss.docPill}>
             <Text style={ss.docPillText} numberOfLines={1}>{docTitle}</Text>
           </View>
@@ -248,7 +248,7 @@ function ShareSheet({
           {!shareUrl ? (
             <>
               {/* Expiry picker */}
-              <Text style={ss.sectionLabel}>LINK EXPIRES IN</Text>
+              <Text style={ss.sectionLabel}>{tUi('DOC_VIEWER_EXPIRY_LABEL')}</Text>
               <View style={ss.expiryRow}>
                 {EXPIRY_OPTIONS.map(opt => (
                   <Pressable
@@ -263,11 +263,11 @@ function ShareSheet({
               </View>
 
               {/* Optional label */}
-              <Text style={ss.sectionLabel}>LABEL (optional)</Text>
+              <Text style={ss.sectionLabel}>{tUi('DOC_VIEWER_LABEL_OPTIONAL')}</Text>
               <TextInput
                 value={label}
                 onChangeText={setLabel}
-                placeholder="e.g. For loan application"
+                placeholder={tUi('DOC_VIEWER_LABEL_PLACEHOLDER')}
                 placeholderTextColor="#8B93A7"
                 style={ss.labelInput}
                 maxLength={60}
@@ -275,7 +275,7 @@ function ShareSheet({
 
               {/* Privacy note */}
               <View style={ss.privacyNote}>
-                <Text style={ss.privacyText}>🔒  Recipient sees document content only. No salary figures — only role, dates, and issuer details.</Text>
+                <Text style={ss.privacyText}>🔒  {tUi('DOC_VIEWER_PRIVACY_NOTE')}</Text>
               </View>
 
               {error ? <Text style={ss.error}>{error}</Text> : null}
@@ -290,7 +290,7 @@ function ShareSheet({
                 >
                   {loading
                     ? <ActivityIndicator size="small" color="#04261C" />
-                    : <Text style={ss.createBtnText}>Create share link →</Text>
+                    : <Text style={ss.createBtnText}>{tUi('DOC_VIEWER_CREATE_LINK_BTN')}</Text>
                   }
                 </LinearGradient>
               </Pressable>
@@ -301,10 +301,10 @@ function ShareSheet({
               <View style={ss.successIcon}>
                 <Text style={ss.successEmoji}>✓</Text>
               </View>
-              <Text style={ss.successTitle}>Link created</Text>
+              <Text style={ss.successTitle}>{tUi('CREATE_SHARE_LINK_CREATED')}</Text>
               <Text style={ss.successSub}>
-                Expires in {EXPIRY_OPTIONS.find(o => o.hours === expiryHours)?.label}.{'\n'}
-                Revokable from Shares at any time.
+                {tUi('DOC_VIEWER_EXPIRES_IN', { label: EXPIRY_OPTIONS.find(o => o.hours === expiryHours)?.label ?? '' })}{'\n'}
+                {tUi('DOC_VIEWER_REVOKABLE_NOTE')}
               </Text>
 
               <View style={ss.linkBox}>
@@ -447,7 +447,7 @@ export default function DocumentViewerScreen() {
     return (
       <View style={s.loadScreen}>
         <ActivityIndicator size="large" color={colors.indigo} />
-        <Text style={s.loadText}>Loading document…</Text>
+        <Text style={s.loadText}>{tUi('DOC_VIEWER_LOADING')}</Text>
       </View>
     );
   }

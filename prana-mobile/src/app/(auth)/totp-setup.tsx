@@ -40,7 +40,7 @@ function QrDisplay({ secretKey }: { uri: string; secretKey: string }) {
         <Text style={qr.iconEmoji}>🔐</Text>
       </View>
 
-      <Text style={qr.title}>Add to Authenticator</Text>
+      <Text style={qr.title}>{tUi('TOTP_SETUP_ADD_AUTHENTICATOR')}</Text>
       <Text style={qr.hint}>
         Open <Text style={qr.bold}>Google Authenticator</Text> or <Text style={qr.bold}>Authy</Text>{'\n'}
         Tap  <Text style={qr.bold}>+  →  Enter a setup key</Text>{'\n'}
@@ -52,11 +52,11 @@ function QrDisplay({ secretKey }: { uri: string; secretKey: string }) {
         <Text style={qr.keyLabel}>YOUR SETUP KEY</Text>
         <Text style={qr.keyValue} selectable>{formatted || '—'}</Text>
         <Pressable onPress={copyKey} style={qr.copyBtn}>
-          <Text style={qr.copyText}>{copied ? '✓  Copied!' : 'Copy key'}</Text>
+          <Text style={qr.copyText}>{copied ? `✓  ${tUi('TOTP_SETUP_COPIED')}` : tUi('TOTP_SETUP_COPY_KEY')}</Text>
         </Pressable>
       </View>
 
-      <Text style={qr.footer}>After adding, enter the 6-digit code below to confirm.</Text>
+      <Text style={qr.footer}>{tUi('TOTP_SETUP_FOOTER')}</Text>
     </View>
   );
 }
@@ -178,30 +178,29 @@ export default function TotpSetupScreen() {
               <LinearGradient colors={['#6366F1', '#22D3EE', '#34D399']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={s.brandMark}>
                 <Text style={s.brandIcon}>P</Text>
               </LinearGradient>
-              <Text style={s.stepTag}>STEP 3 OF 3 — SECURE YOUR VAULT</Text>
+              <Text style={s.stepTag}>{tUi('TOTP_SETUP_STEP_TAG')}</Text>
             </View>
 
-            <Text style={s.title}>Set up authenticator</Text>
+            <Text style={s.title}>{tUi('TOTP_SETUP_TITLE')}</Text>
             <Text style={s.sub}>
-              2-factor authentication adds a second lock to your vault.{'\n'}
-              Even if someone knows your mobile number, they can't get in.
+              {tUi('TOTP_SETUP_SUB')}
             </Text>
 
             {/* Why it matters strip */}
             <View style={s.whyStrip}>
               <View style={s.whyItem}>
                 <Text style={s.whyIcon}>🛡️</Text>
-                <Text style={s.whyText}>Blocks SIM-swap attacks</Text>
+                <Text style={s.whyText}>{tUi('TOTP_SETUP_WHY_SIMSWAP')}</Text>
               </View>
               <View style={s.whyDivider} />
               <View style={s.whyItem}>
                 <Text style={s.whyIcon}>⚡</Text>
-                <Text style={s.whyText}>30-second rotating codes</Text>
+                <Text style={s.whyText}>{tUi('TOTP_SETUP_WHY_ROTATING')}</Text>
               </View>
               <View style={s.whyDivider} />
               <View style={s.whyItem}>
                 <Text style={s.whyIcon}>📴</Text>
-                <Text style={s.whyText}>Works offline</Text>
+                <Text style={s.whyText}>{tUi('TOTP_SETUP_WHY_OFFLINE')}</Text>
               </View>
             </View>
 
@@ -209,7 +208,7 @@ export default function TotpSetupScreen() {
             {phase === 'loading' && (
               <View style={s.loadingWrap}>
                 <ActivityIndicator color={colors.emerald} size="large" />
-                <Text style={s.loadingText}>Generating your secure key…</Text>
+                <Text style={s.loadingText}>{tUi('TOTP_SETUP_GENERATING')}</Text>
               </View>
             )}
 
@@ -217,7 +216,7 @@ export default function TotpSetupScreen() {
               <View style={s.errorWrap}>
                 <Text style={s.errorWrapText}>{tUi('SOMETHING_WENT_WRONG')}</Text>
                 <Pressable onPress={loadTotpSetup} style={s.retryBtn}>
-                  <Text style={s.retryText}>Try again</Text>
+                  <Text style={s.retryText}>{tUi('TOTP_SETUP_RETRY')}</Text>
                 </Pressable>
               </View>
             )}
@@ -232,19 +231,19 @@ export default function TotpSetupScreen() {
                     onPress={() => setPhase('scan')}
                     style={[s.phaseTab, phase === 'scan' && s.phaseTabActive]}
                   >
-                    <Text style={[s.phaseTabText, phase === 'scan' && s.phaseTabTextActive]}>1. Scan QR</Text>
+                    <Text style={[s.phaseTabText, phase === 'scan' && s.phaseTabTextActive]}>{tUi('TOTP_SETUP_SCAN_TAB')}</Text>
                   </Pressable>
                   <Pressable
                     onPress={() => { setPhase('verify'); setTimeout(() => inputRef.current?.focus(), 100); }}
                     style={[s.phaseTab, phase === 'verify' && s.phaseTabActive]}
                   >
-                    <Text style={[s.phaseTabText, phase === 'verify' && s.phaseTabTextActive]}>2. Enter code</Text>
+                    <Text style={[s.phaseTabText, phase === 'verify' && s.phaseTabTextActive]}>{tUi('TOTP_SETUP_ENTER_CODE_TAB')}</Text>
                   </Pressable>
                 </View>
 
                 {phase === 'verify' && (
                   <View style={s.verifySection}>
-                    <Text style={s.verifyLabel}>Enter the 6-digit code from your authenticator app</Text>
+                    <Text style={s.verifyLabel}>{tUi('TOTP_SETUP_VERIFY_LABEL')}</Text>
 
                     <TextInput
                       ref={inputRef}

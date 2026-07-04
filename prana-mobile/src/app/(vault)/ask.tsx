@@ -9,6 +9,7 @@ import { colors, fonts, gradJourney } from '@/prana-theme/tokens';
 import { api } from '@/lib/api';
 import { useAuth } from '@/context/AuthContext';
 import { useDocuments } from '@/hooks/useVault';
+import { tUi } from '@/i18n';
 
 interface Message { id: string; role: 'user' | 'assistant'; text: string; }
 
@@ -136,8 +137,8 @@ export default function AskScreen() {
               <Text style={{ fontSize: 16, color: '#04261C', fontWeight: '700' }}>✦</Text>
             </LinearGradient>
             <View style={{ flex: 1 }}>
-              <Text style={styles.headerTitle}>Ask PRANA</Text>
-              <Text style={styles.headerSub}>insights only · figures stay private</Text>
+              <Text style={styles.headerTitle}>{tUi('ASK_TITLE')}</Text>
+              <Text style={styles.headerSub}>{tUi('ASK_SUBTITLE')}</Text>
             </View>
           </View>
           {/* Privacy note */}
@@ -176,7 +177,7 @@ export default function AskScreen() {
             </LinearGradient>
             <View style={[styles.bubbleInnerAsst, styles.thinkingBubble]}>
               <ActivityIndicator size="small" color={colors.indigo} />
-              <Text style={styles.thinkingText}>Analysing documents…</Text>
+              <Text style={styles.thinkingText}>{tUi('ASK_ANALYSING')}</Text>
             </View>
           </View>
         )}

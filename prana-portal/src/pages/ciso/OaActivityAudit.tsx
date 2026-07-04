@@ -3,6 +3,7 @@ import { useQuery } from '@tanstack/react-query'
 import { Search, Download } from 'lucide-react'
 import { api } from '@/lib/api'
 import { fmtDateTime } from '@/lib/utils'
+import { tUi } from '@/i18n'
 
 const ACTION_TYPES = ['ALL','DOC_OPEN','DOC_DELETE','DOC_PUSH','USER_CREATE','ELEVATION','EXCEPTION_RESOLVE']
 
@@ -29,11 +30,11 @@ export function OaActivityAudit() {
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between flex-wrap gap-3">
-        <h1 className="text-xl font-semibold text-slate-800">OA Activity Audit</h1>
+        <h1 className="text-xl font-semibold text-slate-800">{tUi('CISO_OA_AUDIT_TITLE')}</h1>
         <button onClick={exportPdf}
                 className="flex items-center gap-2 px-4 py-2 border border-slate-200
                            rounded-lg text-sm font-medium text-slate-600 hover:bg-canvas2">
-          <Download size={14}/> Export signed PDF
+          <Download size={14}/> {tUi('CISO_OA_AUDIT_EXPORT')}
         </button>
       </div>
 
@@ -41,7 +42,7 @@ export function OaActivityAudit() {
         <div className="relative flex-1 min-w-[200px]">
           <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
           <input value={search} onChange={e => setSearch(e.target.value)}
-                 placeholder="Search by user or action…"
+                 placeholder={tUi('CISO_OA_AUDIT_SEARCH_PLACEHOLDER')}
                  className="w-full pl-9 pr-4 py-2.5 border border-slate-200 rounded-lg text-sm
                             focus:outline-none focus:ring-2 focus:ring-red-400" />
         </div>
@@ -65,7 +66,7 @@ export function OaActivityAudit() {
           </thead>
           <tbody className="divide-y divide-slate-50">
             {isLoading && (
-              <tr><td colSpan={5} className="px-5 py-8 text-center text-slate-400">Loading…</td></tr>
+              <tr><td colSpan={5} className="px-5 py-8 text-center text-slate-400">{tUi('CFO_DIGEST_LOADING')}</td></tr>
             )}
             {data?.events?.map((e: any, i: number) => (
               <tr key={i} className="hover:bg-canvas2">

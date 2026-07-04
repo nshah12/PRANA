@@ -8,6 +8,7 @@ import { router } from 'expo-router';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { colors, fonts, radius } from '@/prana-theme/tokens';
 import { api } from '@/lib/api';
+import { tUi } from '@/i18n';
 
 type BenchmarkItem = {
   cohort_key:      string;
@@ -70,17 +71,16 @@ export default function BenchmarkingScreen() {
         <Pressable onPress={() => router.back()} style={styles.back}>
           <Text style={styles.backText}>‹</Text>
         </Pressable>
-        <Text style={styles.title}>Comp Benchmarking</Text>
+        <Text style={styles.title}>{tUi('BENCHMARKING_TITLE')}</Text>
       </View>
 
       <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
         {/* Consent card */}
         <View style={styles.consentCard}>
           <View style={{ flex: 1, marginRight: 12 }}>
-            <Text style={styles.consentTitle}>Contribute anonymously</Text>
+            <Text style={styles.consentTitle}>{tUi('BENCHMARKING_CONTRIBUTE_TITLE')}</Text>
             <Text style={styles.consentSub}>
-              Your compensation data helps build industry benchmarks.
-              All data is k-anonymous — your individual figures are never shared.
+              {tUi('BENCHMARKING_CONTRIBUTE_SUB')}
             </Text>
           </View>
           {consentLoading
@@ -99,7 +99,7 @@ export default function BenchmarkingScreen() {
         {opted && (
           <View style={styles.privacyNote}>
             <Text style={styles.privacyNoteText}>
-              ✓ You're contributing. Your specific figures are never visible to anyone — only aggregated bands with 50+ contributors are published.
+              ✓ {tUi('BENCHMARKING_OPTED_IN_NOTE')}
             </Text>
           </View>
         )}
@@ -107,22 +107,21 @@ export default function BenchmarkingScreen() {
         {/* Position cards */}
         {opted && (
           <>
-            <Text style={styles.sectionLabel}>YOUR MARKET POSITION</Text>
+            <Text style={styles.sectionLabel}>{tUi('BENCHMARKING_SECTION_LABEL')}</Text>
 
             {positionLoading && (
               <View style={styles.loadingBox}>
                 <ActivityIndicator size="large" color={colors.sky ?? '#0EA5E9'} />
-                <Text style={styles.loadingText}>Computing your position…</Text>
+                <Text style={styles.loadingText}>{tUi('BENCHMARKING_COMPUTING')}</Text>
               </View>
             )}
 
             {!positionLoading && items.length === 0 && (
               <View style={styles.emptyBox}>
                 <Text style={styles.emptyIcon}>📊</Text>
-                <Text style={styles.emptyTitle}>Building your benchmark</Text>
+                <Text style={styles.emptyTitle}>{tUi('BENCHMARKING_BUILDING_TITLE')}</Text>
                 <Text style={styles.emptySub}>
-                  Your percentile will appear once your cohort has enough contributors.
-                  Check back after your next salary cycle.
+                  {tUi('BENCHMARKING_BUILDING_SUB')}
                 </Text>
               </View>
             )}
@@ -136,7 +135,7 @@ export default function BenchmarkingScreen() {
                     <View style={styles.suppressedRow}>
                       <Text style={styles.suppressedIcon}>🔒</Text>
                       <View style={{ flex: 1 }}>
-                        <Text style={styles.suppressedTitle}>Building your benchmark</Text>
+                        <Text style={styles.suppressedTitle}>{tUi('BENCHMARKING_BUILDING_TITLE')}</Text>
                         <Text style={styles.suppressedSub}>{item.label_text}</Text>
                       </View>
                     </View>
@@ -168,10 +167,9 @@ export default function BenchmarkingScreen() {
         {!opted && !consentLoading && (
           <View style={styles.emptyBox}>
             <Text style={styles.emptyIcon}>🏦</Text>
-            <Text style={styles.emptyTitle}>See where you stand</Text>
+            <Text style={styles.emptyTitle}>{tUi('BENCHMARKING_SEE_WHERE_TITLE')}</Text>
             <Text style={styles.emptySub}>
-              Enable contribution above to unlock your market percentile.
-              Your data is always anonymised — no one can see your individual figures.
+              {tUi('BENCHMARKING_SEE_WHERE_SUB')}
             </Text>
           </View>
         )}

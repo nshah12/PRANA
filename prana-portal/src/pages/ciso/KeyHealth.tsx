@@ -2,6 +2,7 @@ import { useQuery } from '@tanstack/react-query'
 import { Key, CheckCircle, AlertTriangle } from 'lucide-react'
 import { api } from '@/lib/api'
 import { fmtDateTime } from '@/lib/utils'
+import { tUi } from '@/i18n'
 
 export function KeyHealth() {
   const { data } = useQuery({
@@ -13,7 +14,7 @@ export function KeyHealth() {
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
-        <h1 className="text-xl font-semibold text-slate-800">Key Health</h1>
+        <h1 className="text-xl font-semibold text-slate-800">{tUi('CISO_KEY_HEALTH_TITLE')}</h1>
         <span className="text-xs font-mono text-slate-400">AWS KMS · ap-south-1</span>
       </div>
 
@@ -21,7 +22,7 @@ export function KeyHealth() {
       <div className="bg-white rounded-xl border border-slate-100 shadow-sm p-6">
         <div className="flex items-center gap-3 mb-4">
           <Key size={18} className="text-indigo-500" />
-          <h2 className="font-medium text-slate-800">Tenant KEK</h2>
+          <h2 className="font-medium text-slate-800">{tUi('CISO_KEY_HEALTH_TENANT_KEK')}</h2>
           <StatusPill status={data?.kek_status} />
         </div>
         <div className="grid grid-cols-2 lg:grid-cols-3 gap-4 text-sm">
@@ -38,7 +39,7 @@ export function KeyHealth() {
       <div className="bg-white rounded-xl border border-slate-100 shadow-sm p-6">
         <div className="flex items-center gap-3 mb-4">
           <Key size={18} className="text-sky-500" />
-          <h2 className="font-medium text-slate-800">TOTP Secret Encryption</h2>
+          <h2 className="font-medium text-slate-800">{tUi('CISO_KEY_HEALTH_TOTP_ENC_TITLE')}</h2>
           <StatusPill status={data?.totp_enc_status} />
         </div>
         <div className="grid grid-cols-2 gap-4 text-sm">
@@ -50,7 +51,7 @@ export function KeyHealth() {
       {/* Recent key events */}
       <div className="bg-white rounded-xl border border-slate-100 shadow-sm">
         <div className="px-5 py-4 border-b border-slate-100">
-          <h2 className="font-medium text-slate-800">Recent KMS events</h2>
+          <h2 className="font-medium text-slate-800">{tUi('CISO_KEY_HEALTH_RECENT_EVENTS')}</h2>
         </div>
         <div className="divide-y divide-slate-50">
           {(data?.events ?? []).map((e: any, i: number) => (
@@ -63,7 +64,7 @@ export function KeyHealth() {
             </div>
           ))}
           {!data?.events?.length && (
-            <p className="px-5 py-8 text-sm text-slate-400 text-center">No KMS events recorded.</p>
+            <p className="px-5 py-8 text-sm text-slate-400 text-center">{tUi('CISO_KEY_HEALTH_NO_EVENTS')}</p>
           )}
         </div>
       </div>

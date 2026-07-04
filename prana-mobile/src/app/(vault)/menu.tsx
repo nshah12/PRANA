@@ -5,6 +5,7 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { router } from 'expo-router';
 import { useAuth } from '@/context/AuthContext';
 import { colors, fonts, gradJourney, radius } from '@/prana-theme/tokens';
+import { tUi } from '@/i18n';
 
 const MENU_ITEMS = [
   { icon: '🗂', label: 'My Vault',      sub: 'Documents & history',      onPress: () => router.push('/(vault)/vault') },
@@ -62,7 +63,7 @@ export default function MenuModal() {
           <View style={[styles.itemIcon, { backgroundColor: 'rgba(251,113,133,0.15)' }]}>
             <Text style={{ fontSize: 15 }}>🚪</Text>
           </View>
-          <Text style={styles.dangerLabel}>Sign out</Text>
+          <Text style={styles.dangerLabel}>{tUi('MENU_SIGN_OUT')}</Text>
         </Pressable>
       </View>
     </View>

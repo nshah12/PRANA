@@ -2,6 +2,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { AlertTriangle, CheckCircle } from 'lucide-react'
 import { api } from '@/lib/api'
 import { fmtDateTime } from '@/lib/utils'
+import { tUi } from '@/i18n'
 
 export function AnomalyAlerts() {
   const qc = useQueryClient()
@@ -20,8 +21,8 @@ export function AnomalyAlerts() {
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-xl font-semibold text-slate-800">Anomaly Alerts</h1>
-          <p className="text-xs text-slate-400 mt-0.5">No employee identity shown — CFO sees financial pattern only</p>
+          <h1 className="text-xl font-semibold text-slate-800">{tUi('CFO_ANOMALY_ALERTS_TITLE')}</h1>
+          <p className="text-xs text-slate-400 mt-0.5">{tUi('CFO_ANOMALY_ALERTS_SUB')}</p>
         </div>
         {data?.length > 0 && <span className="badge badge-red">{data.length} active</span>}
       </div>
@@ -29,7 +30,7 @@ export function AnomalyAlerts() {
       {!isLoading && data?.length === 0 && (
         <div className="bg-white rounded-xl border border-slate-100 p-12 text-center">
           <CheckCircle size={40} className="mx-auto text-emerald-400 mb-3" />
-          <p className="text-slate-600 font-medium">No active anomalies</p>
+          <p className="text-slate-600 font-medium">{tUi('CFO_ANOMALY_NO_ACTIVE')}</p>
         </div>
       )}
 

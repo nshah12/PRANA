@@ -14,13 +14,13 @@ export function CryptoHealth() {
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
-        <h1 className="text-xl font-semibold text-slate-800">Cryptographic Health</h1>
+        <h1 className="text-xl font-semibold text-slate-800">{tUi('PA_CRYPTO_TITLE')}</h1>
         <button
           onClick={() => refetch()}
           disabled={isFetching}
           className="flex items-center gap-1.5 text-xs text-slate-500 hover:text-slate-700"
         >
-          <RefreshCw size={13} className={isFetching ? 'animate-spin' : ''} /> Refresh
+          <RefreshCw size={13} className={isFetching ? 'animate-spin' : ''} /> {tUi('CISO_NOTIF_LOG_REFRESH')}
         </button>
       </div>
 
@@ -38,11 +38,11 @@ export function CryptoHealth() {
             </div>
             <div className="space-y-1.5 text-sm">
               <div className="flex justify-between">
-                <span className="text-slate-400">Algorithm</span>
+                <span className="text-slate-400">{tUi('PA_CRYPTO_ALGORITHM_LABEL')}</span>
                 <span className="font-mono text-xs text-slate-600">{k.algo}</span>
               </div>
               <div className="flex justify-between">
-                <span className="text-slate-400">Status</span>
+                <span className="text-slate-400">{tUi('OA_ORG_PROFILE_STATUS')}</span>
                 <StatusChip status={k.status} />
               </div>
               <p className="text-xs text-slate-400 mt-2">{k.note}</p>
@@ -54,8 +54,8 @@ export function CryptoHealth() {
       {/* Tenant KEK table */}
       <div className="bg-white rounded-xl border border-slate-100 shadow-sm">
         <div className="px-5 py-4 border-b border-slate-100">
-          <h2 className="font-medium text-slate-800">Tenant KEK status</h2>
-          <p className="text-xs text-slate-400 mt-0.5">AWS KMS customer-managed keys · ap-south-1</p>
+          <h2 className="font-medium text-slate-800">{tUi('PA_CRYPTO_TENANT_KEK_TITLE')}</h2>
+          <p className="text-xs text-slate-400 mt-0.5">{tUi('PA_CRYPTO_TENANT_KEK_SUB')}</p>
         </div>
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
@@ -76,7 +76,7 @@ export function CryptoHealth() {
                   <td className="px-5 py-3 text-center"><StatusChip status={t.key_state} /></td>
                   <td className="px-5 py-3 text-right font-mono text-slate-700">{t.dek_count ?? '—'}</td>
                   <td className="px-5 py-3 text-right text-xs text-slate-400 font-mono">
-                    {t.last_rotated_at ? fmtDateTime(t.last_rotated_at) : 'Never'}
+                    {t.last_rotated_at ? fmtDateTime(t.last_rotated_at) : tUi('PA_API_KEYS_NEVER')}
                   </td>
                 </tr>
               ))}
@@ -92,7 +92,7 @@ export function CryptoHealth() {
 
       {/* Algorithm inventory */}
       <div className="bg-white rounded-xl border border-slate-100 shadow-sm p-6">
-        <h2 className="font-medium text-slate-800 mb-4">Algorithm inventory</h2>
+        <h2 className="font-medium text-slate-800 mb-4">{tUi('PA_CRYPTO_ALGO_INVENTORY_TITLE')}</h2>
         <div className="space-y-2">
           {[
             { use: 'PAN dedup token',         algo: 'HMAC-SHA256',    standard: 'NIST FIPS 198-1' },

@@ -313,7 +313,7 @@ export default function CareerScreen() {
         {isLoading ? (
           <View style={styles.loadingWrap}>
             <ActivityIndicator color={colors.indigo} />
-            <Text style={styles.loadingText}>Loading your career journey…</Text>
+            <Text style={styles.loadingText}>{tUi('CAREER_LOADING')}</Text>
           </View>
         ) : isError ? (
           <View style={styles.loadingWrap}>
@@ -346,7 +346,7 @@ export default function CareerScreen() {
               </>
             ) : (
               <View style={styles.emptyCard}>
-                <Text style={styles.emptyText}>Upload salary slips or increment letters to see your growth chart.</Text>
+                <Text style={styles.emptyText}>{tUi('CAREER_EMPTY_CHART')}</Text>
               </View>
             )}
 

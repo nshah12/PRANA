@@ -2,6 +2,7 @@ import { useQuery } from '@tanstack/react-query'
 import { ShieldAlert, Activity, Lock, Globe } from 'lucide-react'
 import { api } from '@/lib/api'
 import { fmtDateTime } from '@/lib/utils'
+import { tUi } from '@/i18n'
 
 export function SecOpsDashboard() {
   const { data, isLoading, isError, refetch } = useQuery({
@@ -22,23 +23,23 @@ export function SecOpsDashboard() {
   )
   if (isError) return (
     <div className="flex flex-col items-center justify-center py-20 text-slate-400">
-      <p className="text-sm">Failed to load SecOps dashboard.</p>
-      <button onClick={() => refetch()} className="mt-3 text-xs text-red-600 hover:underline">Retry</button>
+      <p className="text-sm">{tUi('PA_SECOPS_LOAD_FAILED')}</p>
+      <button onClick={() => refetch()} className="mt-3 text-xs text-red-600 hover:underline">{tUi('CFO_ATTRITION_RETRY')}</button>
     </div>
   )
 
   const stats = [
-    { label: 'Active threats',    value: data?.active_threats ?? 0,   color: 'text-red-600',    icon: ShieldAlert },
-    { label: 'Locked accounts',   value: data?.locked_accounts ?? 0,  color: 'text-amber-600',  icon: Lock },
-    { label: 'Auth events (1h)',  value: data?.auth_events_1h ?? 0,   color: 'text-sky-600',    icon: Activity },
-    { label: 'Foreign IPs (24h)', value: data?.foreign_ips_24h ?? 0,  color: 'text-purple-600', icon: Globe },
+    { label: tUi('PA_SECOPS_ACTIVE_THREATS'),    value: data?.active_threats ?? 0,   color: 'text-red-600',    icon: ShieldAlert },
+    { label: tUi('PA_SECOPS_LOCKED_ACCOUNTS'),   value: data?.locked_accounts ?? 0,  color: 'text-amber-600',  icon: Lock },
+    { label: tUi('PA_SECOPS_AUTH_EVENTS_1H'),  value: data?.auth_events_1h ?? 0,   color: 'text-sky-600',    icon: Activity },
+    { label: tUi('PA_SECOPS_FOREIGN_IPS_24H'), value: data?.foreign_ips_24h ?? 0,  color: 'text-purple-600', icon: Globe },
   ]
 
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
-        <h1 className="text-xl font-semibold text-slate-800">SecOps Dashboard</h1>
-        <span className="text-xs font-mono text-slate-400">Platform Admin · refreshes every 30s</span>
+        <h1 className="text-xl font-semibold text-slate-800">{tUi('PA_SECOPS_TITLE')}</h1>
+        <span className="text-xs font-mono text-slate-400">{tUi('PA_EXC_OVERVIEW_REFRESH_NOTE')}</span>
       </div>
 
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
@@ -54,7 +55,7 @@ export function SecOpsDashboard() {
       {/* Tenant posture table */}
       <div className="bg-white rounded-xl border border-slate-100 shadow-sm">
         <div className="px-5 py-4 border-b border-slate-100">
-          <h2 className="font-medium text-slate-800">Tenant security posture</h2>
+          <h2 className="font-medium text-slate-800">{tUi('PA_SECOPS_TENANT_POSTURE_TITLE')}</h2>
         </div>
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
@@ -81,13 +82,13 @@ export function SecOpsDashboard() {
                   <td className="px-5 py-3 text-right font-mono text-slate-700">{t.locked_count ?? 0}</td>
                   <td className="px-5 py-3 text-right font-mono text-slate-700">{t.anomaly_count ?? 0}</td>
                   <td className="px-5 py-3 text-right text-xs text-slate-400 font-mono">
-                    {t.last_threat_at ? fmtDateTime(t.last_threat_at) : 'None'}
+                    {t.last_threat_at ? fmtDateTime(t.last_threat_at) : tUi('PA_SECOPS_NONE_FALLBACK')}
                   </td>
                 </tr>
               ))}
               {!data?.tenants?.length && (
                 <tr>
-                  <td colSpan={5} className="px-5 py-8 text-center text-sm text-slate-400">No tenant data.</td>
+                  <td colSpan={5} className="px-5 py-8 text-center text-sm text-slate-400">{tUi('PA_SECOPS_NO_TENANT_DATA')}</td>
                 </tr>
               )}
             </tbody>
@@ -99,7 +100,7 @@ export function SecOpsDashboard() {
       <div className="bg-white rounded-xl border border-slate-100 shadow-sm">
         <div className="px-5 py-4 border-b border-slate-100 flex items-center gap-2">
           <Activity size={14} className="text-red-500 animate-pulse" />
-          <h2 className="font-medium text-slate-800">Live alert feed</h2>
+          <h2 className="font-medium text-slate-800">{tUi('PA_SECOPS_LIVE_ALERT_FEED')}</h2>
         </div>
         <div className="divide-y divide-slate-50">
           {(data?.alerts ?? []).map((a: any, i: number) => (
@@ -111,7 +112,7 @@ export function SecOpsDashboard() {
             </div>
           ))}
           {!data?.alerts?.length && (
-            <p className="px-5 py-8 text-sm text-slate-400 text-center">No active alerts.</p>
+            <p className="px-5 py-8 text-sm text-slate-400 text-center">{tUi('PA_SECOPS_NO_ALERTS')}</p>
           )}
         </div>
       </div>

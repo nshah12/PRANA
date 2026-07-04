@@ -92,14 +92,14 @@ export function CompBenchmarking() {
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-xl font-semibold text-slate-800">Comp Benchmarking</h1>
+          <h1 className="text-xl font-semibold text-slate-800">{tUi('CHRO_COMP_BENCH_TITLE')}</h1>
           <p className="text-sm text-slate-500 mt-0.5">
-            Your org's compensation bands vs. verified market data
+            {tUi('CHRO_COMP_BENCH_SUB')}
           </p>
         </div>
         <div className="flex items-center gap-2 text-xs text-slate-500 bg-sky-50 border border-sky-100 rounded-lg px-3 py-2">
           <Info size={13} className="text-sky-500 shrink-0" />
-          Bands require ≥ 50 employee contributions (k-anonymity). Below threshold → suppressed.
+          {tUi('CHRO_COMP_BENCH_THRESHOLD_NOTE')}
         </div>
       </div>
 
@@ -132,7 +132,7 @@ export function CompBenchmarking() {
 
       {error && (
         <div className="text-center py-16 text-slate-400">
-          <p className="font-medium">Failed to load comp bands</p>
+          <p className="font-medium">{tUi('CHRO_COMP_BENCH_LOAD_FAILED')}</p>
         </div>
       )}
 
@@ -142,17 +142,17 @@ export function CompBenchmarking() {
           <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
             <div className="stat-card stat-card-sky">
               <p className="text-2xl font-bold font-mono text-slate-800">{published.length}</p>
-              <p className="text-xs text-slate-500 mt-1">Published bands</p>
+              <p className="text-xs text-slate-500 mt-1">{tUi('CHRO_COMP_BENCH_PUBLISHED')}</p>
             </div>
             <div className="stat-card stat-card-amber">
               <p className="text-2xl font-bold font-mono text-slate-800">{suppressed.length}</p>
-              <p className="text-xs text-slate-500 mt-1">Suppressed (growing)</p>
+              <p className="text-xs text-slate-500 mt-1">{tUi('CHRO_COMP_BENCH_SUPPRESSED')}</p>
             </div>
             <div className="stat-card stat-card-emerald">
               <p className="text-2xl font-bold font-mono text-slate-800">
                 {published.reduce((s, b) => s + b.sample_count, 0).toLocaleString('en-IN')}
               </p>
-              <p className="text-xs text-slate-500 mt-1">Total contributors</p>
+              <p className="text-xs text-slate-500 mt-1">{tUi('COMP_BENCHMARK_TOTAL_CONTRIBUTORS')}</p>
             </div>
             <div className="stat-card stat-card-violet">
               <p className="text-2xl font-bold font-mono text-slate-800">
@@ -167,10 +167,10 @@ export function CompBenchmarking() {
             <div className="bg-white rounded-xl border border-slate-100 shadow-sm p-6">
               <div className="flex items-center gap-2 mb-1">
                 <TrendingUp size={16} className="text-sky-500" />
-                <h2 className="font-medium text-slate-800">Compensation range by grade</h2>
+                <h2 className="font-medium text-slate-800">{tUi('CHRO_COMP_BENCH_RANGE_TITLE')}</h2>
               </div>
               <p className="text-xs text-slate-400 mb-5">
-                Bars show P25→P75 spread. Hover for details. Values in lakhs (annualised CTC equivalent).
+                {tUi('CHRO_COMP_BENCH_RANGE_NOTE')}
               </p>
               <ResponsiveContainer width="100%" height={280}>
                 <BarChart data={chartData} margin={{ top: 8, right: 8, bottom: 8, left: 8 }}>
@@ -193,8 +193,8 @@ export function CompBenchmarking() {
                 </BarChart>
               </ResponsiveContainer>
               <div className="flex items-center gap-6 mt-3 justify-center text-xs text-slate-500">
-                <span className="flex items-center gap-1.5"><span className="w-3 h-3 rounded bg-sky-200 inline-block" /> P25–P75 spread</span>
-                <span className="flex items-center gap-1.5"><span className="w-3 h-0.5 bg-sky-600 inline-block" /> Median</span>
+                <span className="flex items-center gap-1.5"><span className="w-3 h-3 rounded bg-sky-200 inline-block" /> {tUi('CHRO_COMP_BENCH_SPREAD_LEGEND')}</span>
+                <span className="flex items-center gap-1.5"><span className="w-3 h-0.5 bg-sky-600 inline-block" /> {tUi('CHRO_COMP_BENCH_MEDIAN_LEGEND')}</span>
               </div>
             </div>
           )}
@@ -245,23 +245,23 @@ export function CompBenchmarking() {
             <div className="bg-white rounded-xl border border-slate-100 shadow-sm p-5">
               <div className="flex items-center justify-between flex-wrap gap-4">
                 <div>
-                  <p className="text-sm font-medium text-slate-700">Employee opt-in status</p>
+                  <p className="text-sm font-medium text-slate-700">{tUi('CHRO_COMP_BENCH_OPT_IN_STATUS')}</p>
                   <p className="text-xs text-slate-400 mt-0.5">
-                    Bands publish automatically once a cohort reaches {data?.k_min ?? 50} contributors
+                    {tUi('CHRO_COMP_BENCH_OPT_IN_SUB', { kmin: data?.k_min ?? 50 })}
                   </p>
                 </div>
                 <div className="flex items-center gap-6">
                   <div className="text-center">
                     <p className="text-2xl font-bold font-mono text-emerald-600">{optInStats.opted_in}</p>
-                    <p className="text-xs text-slate-400">Opted in</p>
+                    <p className="text-xs text-slate-400">{tUi('CHRO_COMP_BENCH_OPTED_IN')}</p>
                   </div>
                   <div className="text-center">
                     <p className="text-2xl font-bold font-mono text-amber-500">{optInStats.not_opted_in}</p>
-                    <p className="text-xs text-slate-400">Haven't opted in</p>
+                    <p className="text-xs text-slate-400">{tUi('CHRO_COMP_BENCH_NOT_OPTED_IN')}</p>
                   </div>
                   <div className="text-center">
                     <p className="text-2xl font-bold font-mono text-slate-700">{optInStats.opt_in_rate_pct}%</p>
-                    <p className="text-xs text-slate-400">Opt-in rate</p>
+                    <p className="text-xs text-slate-400">{tUi('CHRO_COMP_BENCH_OPT_IN_RATE')}</p>
                   </div>
                 </div>
               </div>

@@ -179,10 +179,9 @@ export default function SignInScreen() {
             <PulsingVault />
 
             {/* Headline */}
-            <Text style={s.headline}>Welcome back.</Text>
+            <Text style={s.headline}>{tUi('SIGN_IN_HEADLINE')}</Text>
             <Text style={s.subhead}>
-              Your vault has been keeping everything safe.{'\n'}
-              Let's confirm it's you.
+              {tUi('SIGN_IN_SUBHEAD')}
             </Text>
 
             {/* Form card */}
@@ -194,7 +193,7 @@ export default function SignInScreen() {
                 <View style={s.stepLine} />
                 <View style={s.stepDot} />
               </View>
-              <Text style={s.stepHint}>Step 1 of 2 — Sign in</Text>
+              <Text style={s.stepHint}>{tUi('SIGN_IN_STEP_HINT')}</Text>
 
               {/* Mobile field */}
               <View style={[s.fieldGroup, { marginBottom: 14 }]}>
@@ -233,7 +232,7 @@ export default function SignInScreen() {
                   <TextInput
                     ref={pwdRef}
                     style={s.input}
-                    placeholder="Your password"
+                    placeholder={tUi('SIGN_IN_PASSWORD_PLACEHOLDER')}
                     placeholderTextColor="#3D4A6B"
                     secureTextEntry={!showPwd}
                     value={password}
@@ -261,7 +260,7 @@ export default function SignInScreen() {
             {loading ? (
               <View style={s.loadingRow}>
                 <ActivityIndicator color={colors.emerald} />
-                <Text style={s.loadingText}>Verifying…</Text>
+                <Text style={s.loadingText}>{tUi('LOADING_VERIFYING')}</Text>
               </View>
             ) : (
               <Pressable
@@ -276,14 +275,14 @@ export default function SignInScreen() {
                   end={gradJourney.end}
                   style={s.cta}
                 >
-                  <Text style={s.ctaText}>Open my vault  →</Text>
+                  <Text style={s.ctaText}>{tUi('SIGN_IN_CTA')}</Text>
                 </LinearGradient>
               </Pressable>
             )}
 
             {/* Push approval alt */}
             <Pressable onPress={() => router.push('/(auth)/push-approval')} style={s.altRow}>
-              <Text style={s.altText}>Approve on a trusted device instead</Text>
+              <Text style={s.altText}>{tUi('SIGN_IN_ALT_PUSH')}</Text>
             </Pressable>
 
             {/* Trust trinity — NOT a footer, part of the experience */}

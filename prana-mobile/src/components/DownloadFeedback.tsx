@@ -2,6 +2,7 @@ import React, { useEffect, useRef, useState } from 'react';
 import { View, Text, StyleSheet, Animated, Modal, Pressable } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { colors, fonts, gradJourney } from '@/prana-theme/tokens';
+import { tUi } from '@/i18n';
 
 // ── Single-doc download toast ─────────────────────────────────────
 export function useDownloadToast() {
@@ -80,7 +81,7 @@ export function ZipModal({ visible, count, onDone }: ZipModalProps) {
             <>
               <Text style={zip.emoji}>📦</Text>
               <Text style={zip.title}>Packing {count} document{count !== 1 ? 's' : ''}…</Text>
-              <Text style={zip.sub}>Encrypting and bundling into a ZIP file</Text>
+              <Text style={zip.sub}>{tUi('DOWNLOAD_FEEDBACK_ENCRYPTING')}</Text>
               <View style={zip.trackWrap}>
                 <Animated.View style={[zip.track]}>
                   <Animated.View style={{ width: barWidth }}>
@@ -94,11 +95,11 @@ export function ZipModal({ visible, count, onDone }: ZipModalProps) {
               <LinearGradient colors={gradJourney.colors} locations={gradJourney.locations} start={gradJourney.start} end={gradJourney.end} style={zip.doneCircle}>
                 <Text style={zip.doneIcon}>✓</Text>
               </LinearGradient>
-              <Text style={zip.title}>Ready to download</Text>
+              <Text style={zip.title}>{tUi('DOWNLOAD_FEEDBACK_READY')}</Text>
               <Text style={zip.sub}>prana-vault-{count}docs.zip · {(count * 0.3).toFixed(1)} MB</Text>
               <Pressable onPress={onDone}>
                 <LinearGradient colors={gradJourney.colors} locations={gradJourney.locations} start={gradJourney.start} end={gradJourney.end} style={zip.doneBtn}>
-                  <Text style={zip.doneBtnText}>⬇  Download ZIP</Text>
+                  <Text style={zip.doneBtnText}>⬇  {tUi('DOWNLOAD_FEEDBACK_DOWNLOAD_BTN')}</Text>
                 </LinearGradient>
               </Pressable>
               <Pressable style={zip.cancelBtn} onPress={onDone}>
