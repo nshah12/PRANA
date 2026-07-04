@@ -60,10 +60,14 @@ def check_tdd(service_root: Path):
         if not matches:
             err("TDD-01", src.relative_to(ROOT), f"no test file matching tests/test_{stem}*.py")
         else:
-            # TDD-02: test file must have at least one test_ function
+            # TDD-02: test file must have at least one test_ function —
+            # OR be a deliberate re-export shim (`from tests.X import *`)
+            # that inherits real tests defined in another test file.
             for t in matches:
                 content = t.read_text(encoding="utf-8")
-                if not re.search(r"def test_\w+", content):
+                has_own_tests = re.search(r"def test_\w+", content)
+                is_reexport_shim = re.search(r"from\s+tests\.\w+\s+import\s+\*", content)
+                if not has_own_tests and not is_reexport_shim:
                     warn("TDD-02", t.relative_to(ROOT), "no def test_*() found")
 
 
