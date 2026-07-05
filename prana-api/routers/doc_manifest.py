@@ -44,6 +44,7 @@ class ManifestUpsertRequest(BaseModel):
     identity_fields:        list[str]        = Field(default_factory=list)
     optional_fields:        list[str]        = Field(default_factory=list)
     classification_signals: list[list[str]]  = Field(default_factory=list)
+    signal_weights:         list[float]      = Field(default_factory=list)
     confidence_threshold:   float            = Field(default=0.75, ge=0.0, le=1.0)
     supported_formats:      list[str]        = Field(
         default=["pdf", "docx", "jpeg", "jpg", "png", "tiff"]
@@ -134,8 +135,10 @@ async def get_manifest(doc_type: str, request: Request):
             "identity_fields":         manifest.identity_fields,
             "optional_fields":         manifest.optional_fields,
             "classification_signals":  manifest.classification_signals,
+            "signal_weights":          manifest.signal_weights,
             "confidence_threshold":    manifest.confidence_threshold,
             "supported_formats":       manifest.supported_formats,
+            "usage_count":             manifest.usage_count,
             "is_tenant_override":      manifest.is_tenant_override,
         }
     }
@@ -311,8 +314,10 @@ async def internal_get_manifest(tenant_id: str, doc_type: str, request: Request)
             "identity_fields":         manifest.identity_fields,
             "optional_fields":         manifest.optional_fields,
             "classification_signals":  manifest.classification_signals,
+            "signal_weights":          manifest.signal_weights,
             "confidence_threshold":    manifest.confidence_threshold,
             "supported_formats":       manifest.supported_formats,
+            "usage_count":             manifest.usage_count,
             "is_tenant_override":      manifest.is_tenant_override,
         }
     }
@@ -362,28 +367,31 @@ async def pa_upsert_platform_manifest(
         """
         INSERT INTO doc_type_field_manifest
           (tenant_id, doc_type, required_fields, identity_fields, optional_fields,
-           classification_signals, confidence_threshold, supported_formats, is_active,
-           created_by, updated_by)
-        VALUES (NULL,$1,$2,$3,$4,$5,$6,$7,$8,$9,$9)
+           classification_signals, signal_weights, confidence_threshold, supported_formats,
+           is_active, created_by, updated_by)
+        VALUES (NULL,$1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$10)
         ON CONFLICT (doc_type) WHERE tenant_id IS NULL DO UPDATE SET
           required_fields        = EXCLUDED.required_fields,
           identity_fields        = EXCLUDED.identity_fields,
           optional_fields        = EXCLUDED.optional_fields,
           classification_signals = EXCLUDED.classification_signals,
+          signal_weights         = EXCLUDED.signal_weights,
           confidence_threshold   = EXCLUDED.confidence_threshold,
           supported_formats      = EXCLUDED.supported_formats,
           is_active              = EXCLUDED.is_active,
           updated_by             = EXCLUDED.updated_by,
           updated_at             = NOW()
         RETURNING manifest_id, tenant_id, doc_type, required_fields, identity_fields,
-                  optional_fields, classification_signals, confidence_threshold,
-                  supported_formats, is_active, created_at, updated_at
+                  optional_fields, classification_signals, signal_weights,
+                  confidence_threshold, supported_formats, usage_count,
+                  is_active, created_at, updated_at
         """,
         dt,
         json.dumps(body.required_fields),
         json.dumps(body.identity_fields),
         json.dumps(body.optional_fields),
         json.dumps(body.classification_signals),
+        json.dumps(body.signal_weights),
         body.confidence_threshold,
         json.dumps(body.supported_formats),
         body.is_active,

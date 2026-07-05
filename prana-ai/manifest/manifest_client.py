@@ -33,6 +33,8 @@ class ManifestData:
     confidence_threshold:    float
     supported_formats:       list[str]
     is_tenant_override:      bool = False
+    signal_weights:          list[float] = field(default_factory=list)
+    usage_count:             int = 0
 
     def all_fields(self) -> list[str]:
         seen = set()
@@ -48,16 +50,31 @@ class ManifestData:
         return ext.lower() in lower_formats or "auto" in lower_formats
 
     def score_against(self, partial_fields: dict) -> float:
+        """
+        Score against partial fields. classification_signals fire independently;
+        signal_weights (parallel array) weights each signal's contribution, falling
+        back to equal weighting when empty or length-mismatched (legacy manifests).
+        Mirrors prana-api's ManifestRecord.score_against — keep both in sync.
+        """
         if not self.classification_signals:
             return 0.0
-        fired = sum(
-            1 for signal in self.classification_signals
+
+        weights = self.signal_weights
+        if not weights or len(weights) != len(self.classification_signals):
+            weights = [1.0] * len(self.classification_signals)
+
+        total_weight = sum(weights)
+        if total_weight <= 0:
+            return 0.0
+
+        fired_weight = sum(
+            weight for signal, weight in zip(self.classification_signals, weights)
             if all(
                 partial_fields.get(f) not in (None, "", {})
                 for f in signal
             )
         )
-        return fired / len(self.classification_signals)
+        return fired_weight / total_weight
 
 
 @dataclass
@@ -157,4 +174,6 @@ def _parse_manifest(data: dict) -> ManifestData:
         confidence_threshold=data.get("confidence_threshold", 0.75),
         supported_formats=data.get("supported_formats", ["pdf", "docx", "jpeg", "jpg", "png", "tiff"]),
         is_tenant_override=data.get("is_tenant_override", False),
+        signal_weights=data.get("signal_weights", []),
+        usage_count=data.get("usage_count", 0),
     )

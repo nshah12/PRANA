@@ -11,10 +11,12 @@ import logging
 import random
 import string
 from typing import Optional
+from uuid import UUID
 
 from fastapi import APIRouter, Depends, Header, HTTPException, Request
 from pydantic import BaseModel
 from errors import PranaError
+from services.manifest_service import ManifestService
 
 
 log = logging.getLogger(__name__)
@@ -127,6 +129,16 @@ async def pipeline_routed(payload: RoutedPayload, request: Request):
             payload.tenant_id,
             vcode,
         )
+
+        try:
+            await ManifestService(conn).record_usage(
+                UUID(payload.tenant_id), payload.doc_type,
+            )
+        except Exception:
+            log.exception(
+                "manifest usage_count bump failed doc=%s doc_type=%s",
+                payload.document_id, payload.doc_type,
+            )
 
     if kafka:
         try:

@@ -132,24 +132,26 @@ def _nsfw_score(image_bytes: bytes) -> float:
     NSFW classification via NudeNet v3 (NudeDetector API).
     Returns probability score 0.0–1.0.  Above 0.7 → FLAGGED for human review.
 
-    NudeNet v3 labels and their NSFW mapping:
-      EXPOSED_*  → nsfw (summed as signal)
-      COVERED_*  → borderline (ignored)
-      SAFE       → clean
+    NudeNet v3 labels are SUFFIX-based, e.g. "FEMALE_GENITALIA_EXPOSED",
+    "BUTTOCKS_EXPOSED" (not the v2 prefix style "EXPOSED_GENITALIA_F"):
+      *_EXPOSED  → nsfw (summed as signal)
+      *_COVERED  → borderline (ignored)
+      FACE_*     → clean
+
+    detect() accepts str path / bytes / np.ndarray / BufferedReader —
+    NOT a PIL.Image object — so raw bytes are passed straight through.
 
     Falls back to 0.0 (safe) on any import / inference error so a missing
     model never blocks document ingestion — ops alert is raised separately.
     """
     try:
         from nudenet import NudeDetector
-        from PIL import Image
         detector = NudeDetector()
-        img = Image.open(io.BytesIO(image_bytes))
         # v3 API: detect() returns list of {class, score, box}
-        detections = detector.detect(img)
+        detections = detector.detect(image_bytes)
         nsfw = sum(
             d["score"] for d in detections
-            if d.get("class", "").startswith("EXPOSED_")
+            if d.get("class", "").endswith("_EXPOSED")
         )
         return min(nsfw, 1.0)
     except ImportError:

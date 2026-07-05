@@ -34,7 +34,6 @@ def _make_manifest(
 ) -> ManifestData:
     return ManifestData(
         manifest_id="test-manifest-id",
-        tenant_id=None,
         doc_type=doc_type,
         required_fields=required_fields or ["employee_name", "net_pay", "pay_period_month"],
         identity_fields=identity_fields or ["pan_number", "employee_id", "employee_name"],
@@ -197,10 +196,16 @@ def test_auto_detect_prompt_embeds_document_text():
     assert doc in user
 
 
-def test_auto_detect_prompt_is_lighter_than_full_prompt():
-    """Probe prompt user section should be shorter than a full manifest extraction prompt."""
+def test_auto_detect_prompt_has_no_manifest_specific_labels():
+    """
+    Probe prompt uses a fixed cross-doc-type field list (AUTO_DETECT_FIELDS) since
+    the doc type isn't known yet — it never carries the per-manifest required/
+    optional/identity labeling that build_prompt() produces for a specific doc type.
+    (Not a length comparison: AUTO_DETECT_FIELDS covers ~14-20 doc types' indicator
+    fields, so the probe prompt is often textually longer than a single doc type's
+    full prompt — it's "lighter" in that it skips full extraction, not text volume.)
+    """
     _, probe_user = build_auto_detect_prompt("doc text")
-    full_manifest = _make_manifest()
-    _, full_user = build_prompt(full_manifest, "doc text")
-    # The probe doesn't list required/optional per-manifest fields
-    assert len(probe_user) <= len(full_user)
+    assert "REQUIRED FIELDS" not in probe_user
+    assert "IDENTITY FIELDS" not in probe_user
+    assert "OPTIONAL FIELDS" not in probe_user

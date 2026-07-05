@@ -153,9 +153,12 @@ class Stage04Extract:
         all_manifests = await self._manifests.list_all(tenant_id)
         format_compatible = [m for m in all_manifests if m.format_supported(ext)]
 
+        # Tie-break on usage_count — prefer the doc_type this tenant classifies
+        # most often when scores are equal (mirrors prana-api's
+        # ManifestService.auto_detect so both scoring paths agree).
         scored = sorted(
             [(m.score_against(flat_partial), m) for m in format_compatible],
-            key=lambda x: x[0],
+            key=lambda x: (x[0], x[1].usage_count),
             reverse=True,
         )
 

@@ -65,6 +65,25 @@ async def test_resolve_returns_manifest_data():
 
 
 @pytest.mark.asyncio
+async def test_resolve_parses_signal_weights_and_usage_count():
+    """resolve() must surface signal_weights/usage_count from prana-api's response."""
+    client = _make_client()
+    payload = {**MANIFEST_PAYLOAD, "signal_weights": [1.0, 3.0], "usage_count": 42}
+
+    mock_resp = _mock_http_response({"manifest": payload})
+    mock_http = AsyncMock()
+    mock_http.__aenter__ = AsyncMock(return_value=mock_http)
+    mock_http.__aexit__ = AsyncMock(return_value=False)
+    mock_http.get = AsyncMock(return_value=mock_resp)
+
+    with patch("manifest.manifest_client.httpx.AsyncClient", return_value=mock_http):
+        result = await client.resolve("tenant-1", "SALARY_SLIP")
+
+    assert result.signal_weights == [1.0, 3.0]
+    assert result.usage_count == 42
+
+
+@pytest.mark.asyncio
 async def test_resolve_calls_correct_url():
     """resolve() constructs the correct internal URL with tenant_id and doc_type."""
     client = _make_client()
@@ -227,6 +246,51 @@ def test_score_against_no_signals_returns_zero():
         supported_formats=["pdf"],
     )
     assert m.score_against({"employee_name": "test"}) == 0.0
+
+
+def test_score_against_with_weights_prioritizes_higher_weight_signal():
+    """
+    signal_weights parallels classification_signals — a highly discriminative
+    signal (e.g. uan_number+pf_number) should score higher than a generic one
+    when only that signal fires. Mirrors prana-api's ManifestRecord.score_against.
+    """
+    m = ManifestData(
+        manifest_id="x", doc_type="PF_ACKNOWLEDGEMENT",
+        required_fields=[], identity_fields=[], optional_fields=[],
+        confidence_threshold=0.75,
+        classification_signals=[["employee_name", "employer_name"], ["uan_number", "pf_number"]],
+        signal_weights=[1.0, 4.0],
+        supported_formats=["pdf"],
+    )
+    # Only the highly-weighted signal fires
+    fields = {"uan_number": "UAN123", "pf_number": "PF456"}
+    assert m.score_against(fields) == pytest.approx(4.0 / 5.0)
+
+
+def test_score_against_no_weights_falls_back_to_equal():
+    """Empty signal_weights (legacy rows) must fall back to equal weighting."""
+    m = ManifestData(
+        manifest_id="x", doc_type="SALARY_SLIP",
+        required_fields=[], identity_fields=[], optional_fields=[],
+        confidence_threshold=0.75,
+        classification_signals=[["employee_name"], ["gross_salary"]],
+        signal_weights=[],
+        supported_formats=["pdf"],
+    )
+    assert m.score_against({"employee_name": "Nilesh"}) == pytest.approx(0.5)
+
+
+def test_score_against_mismatched_weight_length_falls_back_to_equal():
+    """signal_weights length must match classification_signals — else fall back to equal."""
+    m = ManifestData(
+        manifest_id="x", doc_type="SALARY_SLIP",
+        required_fields=[], identity_fields=[], optional_fields=[],
+        confidence_threshold=0.75,
+        classification_signals=[["employee_name"], ["gross_salary"]],
+        signal_weights=[1.0],
+        supported_formats=["pdf"],
+    )
+    assert m.score_against({"employee_name": "Nilesh"}) == pytest.approx(0.5)
 
 
 def test_format_supported_case_insensitive():
