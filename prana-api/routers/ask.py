@@ -8,11 +8,12 @@ Rate limit: ask_rate_limit_per_hour from platform_config (default 20/hr/employee
 """
 
 import httpx
-from fastapi import APIRouter, Depends, HTTPException, Request, status
+from fastapi import APIRouter, Depends, Request, status
 from pydantic import BaseModel
 
 from dependencies import DbConn, require_employee, AuthUser
 from config import get_settings
+from errors import PranaError, prana_error
 
 router = APIRouter()
 RATE_LIMIT_KEY = "ask_rate:{employee_id}:{hour}"
@@ -55,9 +56,10 @@ async def ask(
     rate_limit = int(limit_row or 20)
 
     if count > rate_limit:
-        raise HTTPException(
+        raise prana_error(
+            PranaError.ASK_RATE_LIMITED,
             status_code=status.HTTP_429_TOO_MANY_REQUESTS,
-            detail=f"RATE_LIMITED — {rate_limit} queries per hour allowed",
+            message=f"{rate_limit} queries per hour allowed",
         )
 
     # Proxy to prana-ask
@@ -78,6 +80,6 @@ async def ask(
             return AskResponse(answer=data["answer"])
 
     except httpx.TimeoutException:
-        raise HTTPException(status_code=status.HTTP_504_GATEWAY_TIMEOUT, detail="ASK_SERVICE_TIMEOUT")
-    except httpx.HTTPStatusError as e:
-        raise HTTPException(status_code=status.HTTP_502_BAD_GATEWAY, detail="ASK_SERVICE_ERROR")
+        raise prana_error(PranaError.ASK_SERVICE_TIMEOUT, status_code=status.HTTP_504_GATEWAY_TIMEOUT)
+    except httpx.HTTPStatusError:
+        raise prana_error(PranaError.ASK_SERVICE_ERROR, status_code=status.HTTP_502_BAD_GATEWAY)

@@ -3,8 +3,17 @@
 # PRANA Workflows — Temporal Architecture
 
 ## Overview
-53 named Temporal workflows replace ALL cron jobs, Celery tasks, and scheduled polling.
+57 named Temporal workflows replace ALL cron jobs, Celery tasks, and scheduled polling.
 **Zero cron anywhere in the system.**
+
+Reconciled 2026-07-05 against the actual `@workflow.defn` classes in this directory —
+previous count (53) undercounted real workflows and double-counted
+`BatchTimeoutMonitorWorkflow` across two domains. `prana-docs/PRANA_WorkflowArchitecture_v1.html`
+is an early design doc that predates several renames (e.g. `DPDPErasureWorkflow` →
+`ErasureConfirmationWorkflow`) and the removal of `ConsentWithdrawalWorkflow` from the
+design (consent withdrawal is immediate — no grace period — so it never needed a durable
+workflow; see `kafka/consumers/compliance_consumer.py`). **This file is the source of truth
+for what's actually implemented — the HTML doc was not updated to match.**
 
 ## Infrastructure
 | Property | Value |
@@ -23,7 +32,7 @@ vault-queue           → VaultService (ShareExpiryWorkflow, WatermarkWorkflow)
 admin-queue           → AdminService (EmployeeExitWorkflow, PushWindowExpiryWorkflow, ElevationWorkflow)
 analytics-queue       → AnalyticsService (VaultHealthWorkflow, DigestWorkflow)
 insight-queue         → InsightService (InsightRefreshWorkflow, AnomalyAcknowledgementWorkflow)
-secops-queue          → SecurityService (AnomalyDetectionWorkflow, KMSKeyRotationWorkflow)
+secops-queue          → SecurityService (AnomalyDetectionWorkflow, KMSKeyRotationWorkflow, SystemHealthWorkflow)
 safety-queue          → SafetyService (CSAMReportingWorkflow)
 resolution-queue      → ResolutionService (EmbeddingUpdateWorkflow)
 resolution-low-priority-queue → ResolutionService (low-priority embedding updates — yields to pipeline)
@@ -135,18 +144,32 @@ class HumanSignalWorkflow:
 ```
 **Used by:** ElevationWorkflow, StorageExpansionWorkflow, OnboardingReviewSLAWorkflow, TenantMigrationWorkflow
 
-## Workflow Domains (53 total)
+## Workflow Domains (57 total, verified against `@workflow.defn` classes 2026-07-05)
 
 | Domain | Count | Key workflows |
 |--------|-------|---------------|
 | Document Pipeline | 4 | DocumentPipelineWorkflow, BatchProgressWorkflow, BatchTimeoutMonitorWorkflow, EmbeddingUpdateWorkflow |
 | Employee Lifecycle | 7 | EmployeeExitWorkflow, PushWindowExpiryWorkflow, VaultActivationWorkflow, VaultHealthWorkflow, NomineeAccessWorkflow, RejoiningWorkflow, AccountDormancyWorkflow |
-| Security & Access Control | 9 | PolicyLockWorkflow, TOTPLockoutWorkflow, ElevationWorkflow, SessionExpiryWorkflow, SessionForceRevokeWorkflow, AnomalyDetectionWorkflow, KMSKeyRotationWorkflow, HMACSecretRotationWorkflow, CSAMReportingWorkflow |
-| DPDP & Legal Compliance | 8 | ErasureConfirmationWorkflow, DataExportWorkflow, ConsentRebumpWorkflow, GrievanceWorkflow, DataCorrectionWorkflow, RetentionWorkflow, AuditArchivalWorkflow, LegalHoldWorkflow |
+| Security & Access Control | 10 | PolicyLockWorkflow, TOTPLockoutWorkflow, ElevationWorkflow, SessionExpiryWorkflow, SessionForceRevokeWorkflow, AnomalyDetectionWorkflow, KMSKeyRotationWorkflow, HMACSecretRotationWorkflow, CSAMReportingWorkflow, SystemHealthWorkflow |
+| DPDP & Legal Compliance | 9 | ErasureConfirmationWorkflow, DataExportWorkflow, ConsentRebumpWorkflow, GrievanceWorkflow, DataCorrectionWorkflow, RetentionWorkflow, AuditArchivalWorkflow, LegalHoldWorkflow, StatutoryComplianceWorkflow |
 | Intelligence Layer | 8 | InsightRefreshWorkflow, CareerInsightWorkflow, VaultCompletenessWorkflow, AnomalyAcknowledgementWorkflow, DigestWorkflow, PeerBenchmarkWorkflow, SkillGapWorkflow, MarketCompWorkflow |
-| Platform Operations | 9 | PlatformSummaryWorkflow, ClamAVUpdateWorkflow, KMSHealthCheckWorkflow, StorageQuotaCheckWorkflow, StagingCleanupWorkflow, BatchTimeoutMonitorWorkflow, WebhookDeliveryWorkflow, NotificationDeliveryWorkflow, SystemHealthWorkflow |
+| Platform Operations | 9 | PlatformSummaryWorkflow, ClamAVUpdateWorkflow, KMSHealthCheckWorkflow, StorageQuotaCheckWorkflow, StagingCleanupWorkflow, WebhookDeliveryWorkflow, NotificationDeliveryWorkflow, StorageExpansionWorkflow, OnboardingReviewSLAWorkflow |
 | Onboarding & Tenant Management | 4 | DomainVerificationWorkflow, TenantProvisioningWorkflow, TenantOffboardingWorkflow, TenantMigrationWorkflow |
 | Vault & Shares | 3 | ShareExpiryWorkflow, ShareRevocationWorkflow, DocumentShareWorkflow |
+| Gamification & HRMS Integration | 3 | GamificationRefreshWorkflow, HRMSSyncWorkflow, HRMSSyncScheduleWorkflow — **⚠ none of these three are registered in `worker.py` on any task queue.** Real, working classes with no worker polling for them — same class of bug as the SystemHealthWorkflow duplicate fixed above, not yet investigated further. |
+
+Corrections from the previous (53-count) version of this table:
+- `BatchTimeoutMonitorWorkflow` was listed under both Document Pipeline and Platform
+  Operations — it only exists once, in `batch_progress.py`. Kept under Document Pipeline.
+- `SystemHealthWorkflow` was duplicate-defined in `platform_ops.py` (stub activities,
+  wired to `worker.py`) and `system_health.py` (real implementation, never registered).
+  Consolidated to the `system_health.py` version, now correctly registered on
+  `secops-queue` and moved to the Security & Access Control domain.
+- `StatutoryComplianceWorkflow` (compliance.py) existed in code but wasn't in this table.
+- `StorageExpansionWorkflow` and `OnboardingReviewSLAWorkflow` were named in the Pattern 5
+  usage example below but never counted in any domain row.
+- `GamificationRefreshWorkflow`, `HRMSSyncWorkflow`, `HRMSSyncScheduleWorkflow` existed in
+  code but weren't in this table at all — built after this doc was last reconciled.
 
 ## Configuration Model (critical rule)
 Every duration and schedule is read at workflow **trigger time** from `get_config(key, tenant_id)`.

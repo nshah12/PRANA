@@ -69,7 +69,7 @@ api.interceptors.response.use(
       } else {
         const refreshPath = role === 'portal_admin' ? '/auth/admin/refresh' : '/auth/org/refresh'
         try {
-          const { data } = await axios.post(refreshPath, {}, { withCredentials: true })
+          const { data } = await api.post(refreshPath, {}, { withCredentials: true })
           useAuthStore.getState().setAccessToken(data.access_token)
           original.headers.Authorization = `Bearer ${data.access_token}`
           return api(original)

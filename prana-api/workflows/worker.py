@@ -88,10 +88,10 @@ from workflows.platform_ops import (
     StagingCleanupWorkflow,
     WebhookDeliveryWorkflow,
     NotificationDeliveryWorkflow,
-    SystemHealthWorkflow,
     StorageExpansionWorkflow,
     OnboardingReviewSLAWorkflow,
 )
+from workflows.system_health import SystemHealthWorkflow
 from workflows.vault_shares import (
     ShareExpiryWorkflow,
     ShareRevocationWorkflow,
@@ -159,11 +159,12 @@ from workflows.platform_ops import (
     pull_clamav_signatures, verify_kms_key_health, alert_kms_key_issue,
     check_tenant_storage_quotas, alert_storage_quota, purge_stale_staging_objects,
     deliver_webhook, mark_webhook_failed, deliver_notification,
-    deliver_notification_fallback, run_system_healthcheck, emit_health_metrics,
+    deliver_notification_fallback,
     get_ops_config,
     notify_storage_expansion_request, apply_storage_expansion, reject_storage_expansion,
     escalate_onboarding_review,
 )
+from workflows.system_health import run_health_checks
 from workflows.vault_shares import (
     expire_share_token, revoke_share_token, create_share_token,
     send_share_otp, notify_share_accessed, get_share_config,
@@ -204,7 +205,7 @@ WORKERS: dict[str, dict] = {
             EmployeeExitWorkflow, PushWindowExpiryWorkflow,
             VaultActivationWorkflow, RejoiningWorkflow, AccountDormancyWorkflow,
             WebhookDeliveryWorkflow, NotificationDeliveryWorkflow,
-            SystemHealthWorkflow, StorageExpansionWorkflow,
+            StorageExpansionWorkflow,
             OnboardingReviewSLAWorkflow,
         ],
         "activities": [
@@ -215,7 +216,7 @@ WORKERS: dict[str, dict] = {
             close_push_window, provision_vault, send_vault_welcome,
             reconcile_rejoining_employee, flag_dormant_account, get_lifecycle_config,
             deliver_webhook, mark_webhook_failed, deliver_notification,
-            deliver_notification_fallback, run_system_healthcheck, emit_health_metrics,
+            deliver_notification_fallback,
             get_ops_config, notify_storage_expansion_request,
             apply_storage_expansion, reject_storage_expansion,
             escalate_onboarding_review,
@@ -247,11 +248,12 @@ WORKERS: dict[str, dict] = {
         "workflows": [
             PolicyLockWorkflow, AnomalyDetectionWorkflow,
             KMSKeyRotationWorkflow, HMACSecretRotationWorkflow,
-            KMSHealthCheckWorkflow,
+            KMSHealthCheckWorkflow, SystemHealthWorkflow,
         ],
         "activities": [
             apply_policy_lock, release_policy_lock, notify_policy_lock,
             run_anomaly_detection_batch, rotate_tenant_kek, rotate_hmac_secret,
+            run_health_checks,
             get_next_tenant_for_rotation, verify_kms_key_health, alert_kms_key_issue,
             get_security_config,
         ],

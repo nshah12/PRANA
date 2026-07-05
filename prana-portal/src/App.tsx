@@ -117,7 +117,7 @@ import { ContactInquiries }  from '@/pages/pa/ContactInquiries'
 import { HRMSCatalogue }    from '@/pages/pa/HRMSCatalogue'
 import { HRMSSettings }     from '@/pages/oa/HRMSSettings'
 
-function RequireEmpAuth({ children }: { children: React.ReactNode }) {
+export function RequireEmpAuth({ children }: { children: React.ReactNode }) {
   const user        = useEmpAuthStore(s => s.user)
   const accessToken = useEmpAuthStore(s => s.accessToken)
   const location    = useLocation()
@@ -126,7 +126,7 @@ function RequireEmpAuth({ children }: { children: React.ReactNode }) {
   return <>{children}</>
 }
 
-function RequireAuth({ children }: { children: React.ReactNode }) {
+export function RequireAuth({ children }: { children: React.ReactNode }) {
   const user = useAuthStore(s => s.user)
   const location = useLocation()
   if (!user) {

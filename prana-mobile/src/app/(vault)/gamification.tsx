@@ -65,7 +65,7 @@ interface CoachingAction {
 function useProfile() {
   return useQuery<GamificationProfile>({
     queryKey: ['gamification', 'profile'],
-    queryFn: () => api.get('/v1/gamification/profile').then(r => r.data),
+    queryFn: () => api.get<GamificationProfile>('/v1/gamification/profile'),
     staleTime: 60_000,
   });
 }
@@ -73,7 +73,7 @@ function useProfile() {
 function useCatalog() {
   return useQuery<{ catalog: CatalogBadge[] }>({
     queryKey: ['gamification', 'catalog'],
-    queryFn: () => api.get('/v1/gamification/catalog').then(r => r.data),
+    queryFn: () => api.get<{ catalog: CatalogBadge[] }>('/v1/gamification/catalog'),
     staleTime: 5 * 60_000,
   });
 }
@@ -81,7 +81,7 @@ function useCatalog() {
 function useCoaching() {
   return useQuery<{ coaching: CoachingAction[]; total: number }>({
     queryKey: ['gamification', 'coaching'],
-    queryFn: () => api.get('/v1/gamification/coaching').then(r => r.data),
+    queryFn: () => api.get<{ coaching: CoachingAction[]; total: number }>('/v1/gamification/coaching'),
     staleTime: 5 * 60_000,
   });
 }
@@ -89,7 +89,7 @@ function useCoaching() {
 function useCheckin() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: () => api.post('/v1/gamification/checkin').then(r => r.data),
+    mutationFn: () => api.post('/v1/gamification/checkin'),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['gamification'] });
     },
@@ -111,15 +111,15 @@ function ScoreDial({ score }: { score: number }) {
   }, [score]);
 
   const label =
-    score >= 80 ? 'Excellent' :
-    score >= 60 ? 'Strong' :
-    score >= 40 ? 'Growing' :
-    score >= 20 ? 'Getting Started' :
-    'Start Your Journey';
+    score >= 80 ? tUi('GAMIFICATION_SCORE_LABEL_EXCELLENT') :
+    score >= 60 ? tUi('GAMIFICATION_SCORE_LABEL_STRONG') :
+    score >= 40 ? tUi('GAMIFICATION_SCORE_LABEL_GROWING') :
+    score >= 20 ? tUi('GAMIFICATION_SCORE_LABEL_GETTING_STARTED') :
+    tUi('GAMIFICATION_SCORE_LABEL_START_JOURNEY');
 
   return (
     <View style={styles.dialContainer}>
-      <LinearGradient colors={gradJourney} style={styles.dialGradient} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }}>
+      <LinearGradient colors={gradJourney.colors} locations={gradJourney.locations} style={styles.dialGradient} start={gradJourney.start} end={gradJourney.end}>
         <Animated.Text style={styles.dialScore}>
           {anim.interpolate({ inputRange: [0, 100], outputRange: ['0', '100'] }).toString()}
         </Animated.Text>
@@ -135,10 +135,10 @@ function ScoreDial({ score }: { score: number }) {
 
 function ScoreBreakdown({ breakdown }: { breakdown: GamificationProfile['score_breakdown'] }) {
   const bars = [
-    { label: 'Vault Coverage',  pts: breakdown.completeness_pts, max: 40, color: '#6366f1' },
-    { label: 'Doc Freshness',   pts: breakdown.freshness_pts,    max: 30, color: '#059669' },
-    { label: 'Doc Diversity',   pts: breakdown.diversity_pts,    max: 20, color: '#d97706' },
-    { label: 'Engagement',      pts: breakdown.engagement_pts,   max: 10, color: '#dc2626' },
+    { label: tUi('GAMIFICATION_BAR_VAULT_COVERAGE'),  pts: breakdown.completeness_pts, max: 40, color: '#6366f1' },
+    { label: tUi('GAMIFICATION_BAR_DOC_FRESHNESS'),   pts: breakdown.freshness_pts,    max: 30, color: '#059669' },
+    { label: tUi('GAMIFICATION_BAR_DOC_DIVERSITY'),   pts: breakdown.diversity_pts,    max: 20, color: '#d97706' },
+    { label: tUi('GAMIFICATION_BAR_ENGAGEMENT'),      pts: breakdown.engagement_pts,   max: 10, color: '#dc2626' },
   ];
 
   return (
@@ -173,12 +173,12 @@ function StreakCard({ streak, onCheckin, loading }: {
       <View style={styles.streakLeft}>
         <Text style={styles.streakEmoji}>{flame}</Text>
         <View>
-          <Text style={styles.streakDays}>{streak.current_streak_days} day streak</Text>
-          <Text style={styles.streakBest}>Best: {streak.longest_streak_days} days</Text>
+          <Text style={styles.streakDays}>{tUi('GAMIFICATION_STREAK_DAYS', { days: streak.current_streak_days })}</Text>
+          <Text style={styles.streakBest}>{tUi('GAMIFICATION_STREAK_BEST', { days: streak.longest_streak_days })}</Text>
         </View>
       </View>
       <Pressable onPress={onCheckin} disabled={loading} style={styles.checkinBtn}>
-        <Text style={styles.checkinBtnText}>{loading ? '…' : "Check In"}</Text>
+        <Text style={styles.checkinBtnText}>{loading ? '…' : tUi('GAMIFICATION_CHECKIN_BUTTON')}</Text>
       </Pressable>
     </View>
   );
@@ -213,7 +213,7 @@ function BadgeShelf({ catalog }: { catalog: CatalogBadge[] }) {
             {locked.map(b => (
               <View key={b.badge_key} style={[styles.badgeCard, styles.badgeLocked]}>
                 <Text style={[styles.badgeIcon, { opacity: 0.35 }]}>{b.badge_icon}</Text>
-                <Text style={[styles.badgeName, { color: colors.textSecondary }]}>{b.badge_name}</Text>
+                <Text style={[styles.badgeName, { color: colors.ink3 }]}>{b.badge_name}</Text>
                 <Text style={styles.badgeHint}>{b.badge_description}</Text>
               </View>
             ))}
@@ -246,7 +246,7 @@ function CoachingSection({ actions }: { actions: CoachingAction[] }) {
     <View style={styles.coachingCard}>
       <Text style={styles.sectionTitle}>{tUi('YOUR_NEXT_STEPS')}</Text>
       {actions.map((action) => {
-        const accentColor = PILLAR_COLOR[action.pillar] ?? colors.primary;
+        const accentColor = PILLAR_COLOR[action.pillar] ?? colors.indigo;
         const ctaLabel =
           action.cta === 'UPLOAD'  ? tUi('COACHING_CTA_UPLOAD') :
           action.cta === 'CHECKIN' ? tUi('COACHING_CTA_CHECKIN') :
@@ -257,14 +257,14 @@ function CoachingSection({ actions }: { actions: CoachingAction[] }) {
             <View style={[styles.coachingAccent, { backgroundColor: accentColor }]} />
             <View style={styles.coachingBody}>
               <Text style={styles.coachingDocType}>
-                {action.doc_type?.replace(/_/g, ' ') ?? 'Daily check-in'}
+                {action.doc_type?.replace(/_/g, ' ') ?? tUi('GAMIFICATION_DAILY_CHECKIN_LABEL')}
                 {action.doc_period ? `  ·  ${action.doc_period}` : ''}
               </Text>
               {action.employer_name ? (
                 <Text style={styles.coachingEmployer}>{action.employer_name}</Text>
               ) : null}
               <Text style={[styles.coachingImpact, { color: accentColor }]}>
-                +{action.score_impact} pts
+                {tUi('COACHING_SCORE_IMPACT', { pts: action.score_impact })}
               </Text>
             </View>
             <Pressable
@@ -295,7 +295,7 @@ export default function GamificationScreen() {
   if (profileLoading) {
     return (
       <SafeAreaView style={styles.center}>
-        <ActivityIndicator size="large" color={colors.primary} />
+        <ActivityIndicator size="large" color={colors.indigo} />
         <Text style={styles.loadingText}>{tUi('GAMIFICATION_LOADING')}</Text>
       </SafeAreaView>
     );
@@ -335,7 +335,7 @@ export default function GamificationScreen() {
 
         {/* Badge catalog */}
         {catalogLoading ? (
-          <ActivityIndicator style={{ marginTop: 24 }} color={colors.primary} />
+          <ActivityIndicator style={{ marginTop: 24 }} color={colors.indigo} />
         ) : catalog ? (
           <BadgeShelf catalog={catalog.catalog} />
         ) : null}
@@ -347,62 +347,62 @@ export default function GamificationScreen() {
 // ── Styles ────────────────────────────────────────────────────────────────────
 
 const styles = StyleSheet.create({
-  root:          { flex: 1, backgroundColor: colors.background },
-  center:        { flex: 1, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.background },
+  root:          { flex: 1, backgroundColor: colors.surface },
+  center:        { flex: 1, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.surface },
   scroll:        { padding: 20, paddingBottom: 48 },
-  header:        { fontSize: 24, fontFamily: fonts.bold, color: colors.text, marginBottom: 4 },
-  subheader:     { fontSize: 13, color: colors.textSecondary, marginBottom: 24 },
-  loadingText:   { marginTop: 12, color: colors.textSecondary, fontFamily: fonts.regular },
-  errorText:     { fontSize: 16, color: colors.text, fontFamily: fonts.semibold },
-  errorSub:      { marginTop: 8, color: colors.textSecondary, fontFamily: fonts.regular },
+  header:        { fontSize: 24, fontFamily: fonts.displayBold, color: colors.ink, marginBottom: 4 },
+  subheader:     { fontSize: 13, color: colors.ink3, marginBottom: 24 },
+  loadingText:   { marginTop: 12, color: colors.ink3, fontFamily: fonts.bodyRegular },
+  errorText:     { fontSize: 16, color: colors.ink, fontFamily: fonts.bodySemiBold },
+  errorSub:      { marginTop: 8, color: colors.ink3, fontFamily: fonts.bodyRegular },
 
   // Dial
   dialContainer: { alignItems: 'center', marginBottom: 24 },
   dialGradient:  { width: 140, height: 140, borderRadius: 70, alignItems: 'center', justifyContent: 'center' },
   dialScore:     { display: 'none' },
-  dialScoreNumber: { fontSize: 48, fontFamily: fonts.bold, color: '#fff' },
-  dialLabel:     { fontSize: 13, color: 'rgba(255,255,255,0.85)', fontFamily: fonts.medium, marginTop: 2 },
-  dialSubtitle:  { marginTop: 10, fontSize: 13, color: colors.textSecondary, fontFamily: fonts.regular },
+  dialScoreNumber: { fontSize: 48, fontFamily: fonts.displayBold, color: '#fff' },
+  dialLabel:     { fontSize: 13, color: 'rgba(255,255,255,0.85)', fontFamily: fonts.bodyMedium, marginTop: 2 },
+  dialSubtitle:  { marginTop: 10, fontSize: 13, color: colors.ink3, fontFamily: fonts.bodyRegular },
 
   // Streak
   streakCard:    { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
-                   backgroundColor: colors.card, borderRadius: radius.card,
+                   backgroundColor: colors.surface3, borderRadius: radius.lg,
                    padding: 16, marginBottom: 20 },
   streakLeft:    { flexDirection: 'row', alignItems: 'center', gap: 12 },
   streakEmoji:   { fontSize: 32 },
-  streakDays:    { fontSize: 16, fontFamily: fonts.semibold, color: colors.text },
-  streakBest:    { fontSize: 12, color: colors.textSecondary, marginTop: 2 },
-  checkinBtn:    { backgroundColor: colors.primary, paddingHorizontal: 16, paddingVertical: 8, borderRadius: 20 },
-  checkinBtnText: { color: '#fff', fontFamily: fonts.semibold, fontSize: 13 },
+  streakDays:    { fontSize: 16, fontFamily: fonts.bodySemiBold, color: colors.ink },
+  streakBest:    { fontSize: 12, color: colors.ink3, marginTop: 2 },
+  checkinBtn:    { backgroundColor: colors.indigo, paddingHorizontal: 16, paddingVertical: 8, borderRadius: 20 },
+  checkinBtnText: { color: '#fff', fontFamily: fonts.bodySemiBold, fontSize: 13 },
 
   // Breakdown
-  breakdown:     { backgroundColor: colors.card, borderRadius: radius.card, padding: 16, marginBottom: 20 },
-  sectionTitle:  { fontSize: 15, fontFamily: fonts.semibold, color: colors.text, marginBottom: 14 },
+  breakdown:     { backgroundColor: colors.surface3, borderRadius: radius.lg, padding: 16, marginBottom: 20 },
+  sectionTitle:  { fontSize: 15, fontFamily: fonts.bodySemiBold, color: colors.ink, marginBottom: 14 },
   barRow:        { flexDirection: 'row', alignItems: 'center', marginBottom: 10 },
-  barLabel:      { width: 110, fontSize: 12, color: colors.textSecondary },
-  barTrack:      { flex: 1, height: 8, backgroundColor: colors.border, borderRadius: 4, overflow: 'hidden', marginHorizontal: 8 },
+  barLabel:      { width: 110, fontSize: 12, color: colors.ink3 },
+  barTrack:      { flex: 1, height: 8, backgroundColor: 'rgba(20,23,31,0.08)', borderRadius: 4, overflow: 'hidden', marginHorizontal: 8 },
   barFill:       { height: '100%', borderRadius: 4 },
-  barPts:        { width: 36, fontSize: 11, color: colors.textSecondary, textAlign: 'right' },
+  barPts:        { width: 36, fontSize: 11, color: colors.ink3, textAlign: 'right' },
 
   // Coaching
-  coachingCard:     { backgroundColor: colors.card, borderRadius: radius.card, padding: 16, marginBottom: 20 },
-  coachingEmpty:    { fontSize: 13, color: colors.textSecondary, fontFamily: fonts.regular, lineHeight: 20 },
+  coachingCard:     { backgroundColor: colors.surface3, borderRadius: radius.lg, padding: 16, marginBottom: 20 },
+  coachingEmpty:    { fontSize: 13, color: colors.ink3, fontFamily: fonts.bodyRegular, lineHeight: 20 },
   coachingRow:      { flexDirection: 'row', alignItems: 'center', marginBottom: 14, gap: 10 },
   coachingAccent:   { width: 3, height: 44, borderRadius: 2 },
   coachingBody:     { flex: 1 },
-  coachingDocType:  { fontSize: 13, fontFamily: fonts.semibold, color: colors.text },
-  coachingEmployer: { fontSize: 11, color: colors.textSecondary, marginTop: 1 },
-  coachingImpact:   { fontSize: 11, fontFamily: fonts.semibold, marginTop: 2 },
+  coachingDocType:  { fontSize: 13, fontFamily: fonts.bodySemiBold, color: colors.ink },
+  coachingEmployer: { fontSize: 11, color: colors.ink3, marginTop: 1 },
+  coachingImpact:   { fontSize: 11, fontFamily: fonts.bodySemiBold, marginTop: 2 },
   coachingCta:      { borderWidth: 1.5, borderRadius: 16, paddingHorizontal: 12, paddingVertical: 5 },
-  coachingCtaText:  { fontSize: 12, fontFamily: fonts.semibold },
+  coachingCtaText:  { fontSize: 12, fontFamily: fonts.bodySemiBold },
 
   // Badges
   badgeSection:  { marginBottom: 20 },
   badgeGrid:     { flexDirection: 'row', flexWrap: 'wrap', gap: 10 },
-  badgeCard:     { width: '30%', borderRadius: radius.card, padding: 12, alignItems: 'center' },
-  badgeEarned:   { backgroundColor: colors.card, borderWidth: 1.5, borderColor: colors.primary },
-  badgeLocked:   { backgroundColor: colors.card, borderWidth: 1, borderColor: colors.border },
+  badgeCard:     { width: '30%', borderRadius: radius.lg, padding: 12, alignItems: 'center' },
+  badgeEarned:   { backgroundColor: colors.surface3, borderWidth: 1.5, borderColor: colors.indigo },
+  badgeLocked:   { backgroundColor: colors.surface3, borderWidth: 1, borderColor: 'rgba(20,23,31,0.08)' },
   badgeIcon:     { fontSize: 26, marginBottom: 6 },
-  badgeName:     { fontSize: 11, fontFamily: fonts.semibold, color: colors.text, textAlign: 'center' },
-  badgeHint:     { fontSize: 10, color: colors.textSecondary, textAlign: 'center', marginTop: 4, lineHeight: 13 },
+  badgeName:     { fontSize: 11, fontFamily: fonts.bodySemiBold, color: colors.ink, textAlign: 'center' },
+  badgeHint:     { fontSize: 10, color: colors.ink3, textAlign: 'center', marginTop: 4, lineHeight: 13 },
 });

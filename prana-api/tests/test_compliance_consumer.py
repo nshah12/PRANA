@@ -64,6 +64,31 @@ async def test_consent_withdrawn_notifies_whatsapp(consumer, temporal):
 
 
 @pytest.mark.asyncio
+async def test_consent_withdrawn_does_not_start_a_temporal_workflow(consumer, temporal):
+    """
+    Consent withdrawal is a DPDP-mandated IMMEDIATE action (no grace period) —
+    the consent_status DB write already happens synchronously in the HTTP handler
+    (routers/compliance.py::withdraw_consent, routers/dpdp.py::withdraw_consent_purpose)
+    before this Kafka event is even published. There is no durable-timer/signal
+    need here (unlike ErasureConfirmationWorkflow's 30-day cooling-off), so no
+    Temporal workflow should be started for this event — only the notification.
+
+    Regression test for a bug where the consumer called
+    self._temporal.start_workflow("ConsentWithdrawalWorkflow", ...) — a workflow
+    name never defined anywhere in workflows/compliance.py nor documented in
+    workflows/CLAUDE.md's DPDP & Legal Compliance domain. Against a real Temporal
+    server this raises (unregistered workflow type) the first time a
+    CONSENT_WITHDRAWN event fires; against the mocked client in the other test
+    above it silently "passes", which is exactly why it shipped unnoticed.
+    """
+    event = {"event_type": "CONSENT_WITHDRAWN", "employee_user_id": "eu-7",
+             "tenant_id": "t-1", "purpose": "notifications"}
+    with patch("kafka.consumers.compliance_consumer.get_kafka_producer", new=AsyncMock(return_value=AsyncMock())):
+        await consumer._dispatch("CONSENT_WITHDRAWN", event)
+    temporal.start_workflow.assert_not_awaited()
+
+
+@pytest.mark.asyncio
 async def test_erasure_notifies_email_and_sms(consumer, temporal):
     event = {"event_type": "ERASURE_REQUESTED", "employee_user_id": "eu-5", "tenant_id": "t-1"}
     mock_kafka = AsyncMock()

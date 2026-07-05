@@ -6,7 +6,9 @@ Previously DPDP events were incorrectly routed through prana.ingest.events;
 this consumer owns the compliance topic exclusively.
 
 Events handled:
-  CONSENT_WITHDRAWN         → ConsentWithdrawalWorkflow
+  CONSENT_WITHDRAWN         → no workflow (immediate action, no grace period —
+                              consent_status is already written synchronously by
+                              the HTTP handler; this consumer only notifies)
   ERASURE_REQUESTED         → ErasureConfirmationWorkflow
   DATA_EXPORT_REQUESTED     → DataExportWorkflow
   DATA_CORRECTION_REQUESTED → CorrectionWorkflow
@@ -59,14 +61,11 @@ class ComplianceConsumer:
         tid = event.get("tenant_id")
 
         if etype == "CONSENT_WITHDRAWN":
-            if self._temporal:
-                await self._start(
-                    workflow="ConsentWithdrawalWorkflow",
-                    wf_id=f"consent-withdrawal-{uid}-{event.get('purpose','all')}",
-                    args=[event],
-                    task_queue="prana-compliance",
-                )
-            # WhatsApp confirmation — immediate channel for consent actions
+            # DPDP: withdrawal is immediate, no grace period — consent_status is
+            # already updated synchronously by the HTTP handler before this event
+            # is published (routers/compliance.py, routers/dpdp.py). No durable
+            # timer/signal semantics needed, so no Temporal workflow here —
+            # just the confirmation notification.
             await self._notify("whatsapp", uid, tid, "CONSENT_WITHDRAWN",
                                {"purpose": event.get("purpose")})
 

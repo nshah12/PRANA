@@ -79,6 +79,21 @@ async def lifespan(app: FastAPI):
     except Exception:
         app.state.temporal_client = None   # dev: Temporal not running
 
+    # Temporal Schedules (Pattern 3 — idempotent, safe to call on every startup)
+    if app.state.temporal_client:
+        try:
+            from workflows.system_health import ensure_health_schedule
+            interval_row = await app.state.db_pool.fetchval(
+                "SELECT config_value FROM platform_config WHERE config_key=$1",
+                "system_health_check_interval_minutes",
+            )
+            await ensure_health_schedule(
+                app.state.temporal_client,
+                interval_minutes=int(interval_row or 2),
+            )
+        except Exception:
+            pass  # Non-fatal — health-check schedule creation must not block startup
+
     # Kafka producer
     kafka = KafkaPub(settings)
     try:

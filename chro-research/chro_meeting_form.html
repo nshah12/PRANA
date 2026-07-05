@@ -1,0 +1,515 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>CHRO Meeting: Discovery &amp; Qualification</title>
+<style>
+  :root {
+    --ink: #1a2233;
+    --muted: #5b6472;
+    --line: #d8dde4;
+    --accent: #1f6feb;
+    --accent-dark: #0b4fbb;
+    --bg-soft: #f6f8fa;
+    --warn-bg: #fff8e6;
+    --warn-border: #e8c46a;
+  }
+  * { box-sizing: border-box; }
+  body {
+    font-family: -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif;
+    max-width: 880px;
+    margin: 0 auto;
+    padding: 32px 20px 80px;
+    color: var(--ink);
+    background: #fff;
+    line-height: 1.5;
+  }
+  /* Type scale: 1.5rem (h1) / 1.1rem (section legends) / 0.875rem (body) / 0.7rem (meta) */
+  h1 { font-size: 1.5rem; margin-bottom: 4px; }
+  .subtitle { color: var(--muted); margin-top: 0; margin-bottom: 24px; font-size: 0.875rem; }
+  fieldset {
+    border: 1px solid var(--line);
+    border-radius: 10px;
+    padding: 18px 20px 20px;
+    margin-bottom: 20px;
+    background: var(--bg-soft);
+  }
+  legend {
+    font-weight: 600;
+    padding: 0 8px;
+    font-size: 1.1rem;
+  }
+  .field { margin-bottom: 14px; }
+  .field label.q { display: block; font-size: 0.875rem; margin-bottom: 5px; color: var(--ink); }
+  .field input[type=text], .field input[type=number], .field textarea {
+    width: 100%;
+    padding: 8px 10px;
+    border: 1px solid var(--line);
+    border-radius: 6px;
+    font-size: 0.875rem;
+    font-family: inherit;
+    background: #fff;
+  }
+  .field textarea { min-height: 56px; resize: vertical; }
+  .row2 { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+  .row3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 14px; }
+  .scale, .choice-row { display: flex; gap: 14px; flex-wrap: wrap; align-items: center; }
+  .scale label, .choice-row label {
+    font-size: 0.875rem; display: flex; align-items: center; gap: 4px; font-weight: 400;
+  }
+  .checklist label { display: flex; align-items: flex-start; gap: 8px; font-size: 0.875rem; margin-bottom: 8px; }
+  .meddic-row { margin-bottom: 12px; }
+  .meddic-row .dim { font-weight: 600; font-size: 0.875rem; margin-bottom: 3px; }
+  .meddic-row .hint { color: var(--muted); font-size: 0.7rem; margin-bottom: 4px; }
+
+  #qualToggleWrap { text-align: center; margin: 6px 0 20px; }
+  #qualToggle {
+    background: #fff; border: 1px dashed var(--accent); color: var(--accent-dark);
+    padding: 10px 18px; border-radius: 8px; font-size: 0.875rem; cursor: pointer;
+  }
+  #qualToggle:hover { background: #eef4ff; }
+  #qualSection { display: none; }
+  #qualSection.open { display: block; }
+
+  .trigger-note {
+    background: var(--warn-bg); border: 1px solid var(--warn-border);
+    padding: 10px 14px; border-radius: 8px; font-size: 0.7rem; margin-bottom: 16px;
+  }
+
+  .actions {
+    position: sticky; bottom: 0; background: #fff;
+    border-top: 1px solid var(--line); padding: 16px 0; margin-top: 10px;
+    display: flex; gap: 12px; flex-wrap: wrap; align-items: center;
+  }
+  button.primary {
+    background: var(--accent); color: #fff; border: none;
+    padding: 12px 22px; border-radius: 8px; font-size: 0.875rem; font-weight: 600; cursor: pointer;
+  }
+  button.primary:hover { background: var(--accent-dark); }
+  button.secondary {
+    background: #fff; color: var(--ink); border: 1px solid var(--line);
+    padding: 12px 18px; border-radius: 8px; font-size: 0.875rem; cursor: pointer;
+  }
+  button.secondary:hover { background: var(--bg-soft); }
+  #copyStatus { font-size: 0.7rem; color: #1a7f37; }
+
+  details#preview { margin-top: 18px; }
+  details#preview summary { cursor: pointer; font-size: 0.875rem; color: var(--muted); }
+  #previewBody {
+    width: 100%; min-height: 240px; font-family: ui-monospace, Consolas, monospace;
+    font-size: 0.7rem; margin-top: 8px; border: 1px solid var(--line); border-radius: 6px; padding: 10px;
+  }
+  .mailto-warning {
+    font-size: 0.7rem; color: var(--muted); margin-top: 6px;
+  }
+</style>
+</head>
+<body>
+
+<h1>CHRO Meeting: Discovery &amp; Qualification</h1>
+<p class="subtitle">
+  Fill in what came up in the meeting. Only answered fields are included in the email.
+  Skip anything that didn't come up. Sends to <strong>n.shah12@gmail.com</strong>
+  (cc <strong>admin@9va.in</strong>) via your default mail app.
+</p>
+
+<form id="chroForm">
+
+  <fieldset>
+    <legend>Meeting Info</legend>
+    <div class="row3">
+      <div class="field">
+        <label class="q" for="m_date">Meeting date</label>
+        <input type="text" id="m_date" data-label="Meeting date" placeholder="YYYY-MM-DD">
+      </div>
+      <div class="field">
+        <label class="q" for="m_name">CHRO name</label>
+        <input type="text" id="m_name" data-label="CHRO name">
+      </div>
+      <div class="field">
+        <label class="q" for="m_company">Company</label>
+        <input type="text" id="m_company" data-label="Company">
+      </div>
+    </div>
+  </fieldset>
+
+  <!-- ══════════════════════════ SECTION A ══════════════════════════ -->
+  <fieldset>
+    <legend>A: Firmographic Context</legend>
+    <div class="row2">
+      <div class="field">
+        <label class="q" for="a1">Total headcount</label>
+        <input type="text" id="a1" data-label="A1. Total headcount">
+      </div>
+      <div class="field">
+        <label class="q">Headcount trend (12 mo)</label>
+        <div class="choice-row" data-label="A2. Headcount trend" data-radiogroup="a2">
+          <label><input type="radio" name="a2" value="Growing">Growing</label>
+          <label><input type="radio" name="a2" value="Flat">Flat</label>
+          <label><input type="radio" name="a2" value="Shrinking">Shrinking</label>
+        </div>
+      </div>
+    </div>
+    <div class="row2">
+      <div class="field">
+        <label class="q">Geographic footprint</label>
+        <div class="choice-row" data-label="A3. Geographic footprint" data-radiogroup="a3">
+          <label><input type="radio" name="a3" value="Single city">Single city</label>
+          <label><input type="radio" name="a3" value="Multi-city">Multi-city</label>
+          <label><input type="radio" name="a3" value="Multi-country">Multi-country</label>
+        </div>
+      </div>
+      <div class="field">
+        <label class="q" for="a4">HR team size</label>
+        <input type="text" id="a4" data-label="A4. HR team size">
+      </div>
+    </div>
+    <div class="field">
+      <label class="q">HR org model</label>
+      <div class="choice-row" data-label="A5. HR org model" data-radiogroup="a5">
+        <label><input type="radio" name="a5" value="Centralized">Centralized</label>
+        <label><input type="radio" name="a5" value="Business-partner">Business-partner</label>
+        <label><input type="radio" name="a5" value="Hybrid">Hybrid</label>
+      </div>
+    </div>
+  </fieldset>
+
+  <!-- ══════════════════════════ SECTION B ══════════════════════════ -->
+  <fieldset>
+    <legend>B: What They Are Doing (Current State)</legend>
+    <div class="field">
+      <label class="q">Top 3 active HR initiatives</label>
+      <div class="row3">
+        <input type="text" data-label="B1a. Initiative 1" placeholder="Initiative 1">
+        <input type="text" data-label="B1b. Initiative 2" placeholder="Initiative 2">
+        <input type="text" data-label="B1c. Initiative 3" placeholder="Initiative 3">
+      </div>
+    </div>
+    <div class="row2">
+      <div class="field">
+        <label class="q" for="b2">Current HRMS/HRIS</label>
+        <input type="text" id="b2" data-label="B2. Current HRMS/HRIS">
+      </div>
+      <div class="field">
+        <label class="q" for="b3">Current ATS</label>
+        <input type="text" id="b3" data-label="B3. Current ATS">
+      </div>
+    </div>
+    <div class="field">
+      <label class="q" for="b4">How employees access their own documents today</label>
+      <input type="text" id="b4" data-label="B4. Document access method">
+    </div>
+    <div class="field">
+      <label class="q" for="b5">Document handling after an employee exits</label>
+      <input type="text" id="b5" data-label="B5. Offboarding document process">
+    </div>
+    <div class="field">
+      <label class="q">DPDP/data-privacy compliance program status</label>
+      <div class="choice-row" data-label="B6. DPDP program status" data-radiogroup="b6">
+        <label><input type="radio" name="b6" value="Mature">Yes, mature</label>
+        <label><input type="radio" name="b6" value="In progress">In progress</label>
+        <label><input type="radio" name="b6" value="Planned">Planned</label>
+        <label><input type="radio" name="b6" value="Not yet">Not yet</label>
+      </div>
+    </div>
+    <div class="field">
+      <label class="q" for="b7">Employee grievance / data-correction request handling</label>
+      <input type="text" id="b7" data-label="B7. Grievance process">
+    </div>
+  </fieldset>
+
+  <!-- ══════════════════════════ SECTION C ══════════════════════════ -->
+  <fieldset>
+    <legend>C: How They Are Doing (Performance / Effectiveness)</legend>
+    <div class="field">
+      <label class="q">Satisfaction with current HRMS/HRIS (1 = very dissatisfied, 5 = very satisfied)</label>
+      <div class="scale" data-label="C1. HRMS satisfaction (1-5)" data-radiogroup="c1">
+        <label><input type="radio" name="c1" value="1">1</label>
+        <label><input type="radio" name="c1" value="2">2</label>
+        <label><input type="radio" name="c1" value="3">3</label>
+        <label><input type="radio" name="c1" value="4">4</label>
+        <label><input type="radio" name="c1" value="5">5</label>
+      </div>
+    </div>
+    <div class="field">
+      <label class="q">Satisfaction with document/records management</label>
+      <div class="scale" data-label="C2. Document mgmt satisfaction (1-5)" data-radiogroup="c2">
+        <label><input type="radio" name="c2" value="1">1</label>
+        <label><input type="radio" name="c2" value="2">2</label>
+        <label><input type="radio" name="c2" value="3">3</label>
+        <label><input type="radio" name="c2" value="4">4</label>
+        <label><input type="radio" name="c2" value="5">5</label>
+      </div>
+    </div>
+    <div class="field">
+      <label class="q">Confidence in DPDP/compliance readiness</label>
+      <div class="scale" data-label="C3. DPDP confidence (1-5)" data-radiogroup="c3">
+        <label><input type="radio" name="c3" value="1">1</label>
+        <label><input type="radio" name="c3" value="2">2</label>
+        <label><input type="radio" name="c3" value="3">3</label>
+        <label><input type="radio" name="c3" value="4">4</label>
+        <label><input type="radio" name="c3" value="5">5</label>
+      </div>
+    </div>
+    <div class="row2">
+      <div class="field">
+        <label class="q" for="c4">Current attrition rate (%)</label>
+        <input type="text" id="c4" data-label="C4. Attrition rate">
+      </div>
+      <div class="field">
+        <label class="q" for="c5">Avg. time to resolve a document request</label>
+        <input type="text" id="c5" data-label="C5. Doc request resolution time">
+      </div>
+    </div>
+    <div class="field">
+      <label class="q" for="c6">Metric this CHRO is personally measured on</label>
+      <input type="text" id="c6" data-label="C6. Personal KPI">
+    </div>
+    <div class="field">
+      <label class="q" for="c7">Biggest recurring HR-ops headache (verbatim if possible)</label>
+      <textarea id="c7" data-label="C7. Biggest headache"></textarea>
+    </div>
+  </fieldset>
+
+  <!-- ══════════════════════════ SECTION D ══════════════════════════ -->
+  <fieldset>
+    <legend>D: Forward-Looking Priorities</legend>
+    <div class="field">
+      <label class="q">Top 3 priorities, next 12 months</label>
+      <div class="row3">
+        <input type="text" data-label="D1a. Priority 1" placeholder="Priority 1">
+        <input type="text" data-label="D1b. Priority 2" placeholder="Priority 2">
+        <input type="text" data-label="D1c. Priority 3" placeholder="Priority 3">
+      </div>
+    </div>
+    <div class="row2">
+      <div class="field">
+        <label class="q">Planned HR-tech investment/RFP (12 mo)?</label>
+        <div class="choice-row" data-label="D2. Planned tech investment" data-radiogroup="d2">
+          <label><input type="radio" name="d2" value="Yes">Yes</label>
+          <label><input type="radio" name="d2" value="No">No</label>
+          <label><input type="radio" name="d2" value="Unsure">Unsure</label>
+        </div>
+      </div>
+      <div class="field">
+        <label class="q" for="d2area">If yes, in what area?</label>
+        <input type="text" id="d2area" data-label="D2b. Investment area">
+      </div>
+    </div>
+    <div class="row2">
+      <div class="field">
+        <label class="q" for="d3">Budget cycle reset</label>
+        <input type="text" id="d3" data-label="D3. Budget cycle reset">
+      </div>
+      <div class="field">
+        <label class="q" for="d4">Other decision-makers on HR-tech purchases</label>
+        <input type="text" id="d4" data-label="D4. Other decision-makers">
+      </div>
+    </div>
+  </fieldset>
+
+  <!-- ══════════════════════════ SECTION E ══════════════════════════ -->
+  <fieldset>
+    <legend>E: Open Capture</legend>
+    <div class="field">
+      <label class="q" for="e1">Unprompted pain point that doesn't fit above</label>
+      <textarea id="e1" data-label="E1. Unprompted pain point"></textarea>
+    </div>
+    <div class="field">
+      <label class="q" for="e2">Notable verbatim quotes</label>
+      <textarea id="e2" data-label="E2. Verbatim quotes"></textarea>
+    </div>
+    <div class="field">
+      <label class="q" for="e3">Referrals/introductions offered</label>
+      <input type="text" id="e3" data-label="E3. Referrals offered">
+    </div>
+  </fieldset>
+
+  <div id="qualToggleWrap">
+    <button type="button" id="qualToggle" onclick="toggleQual()">▸ Open Sales Qualification (only if a genuine signal surfaced)</button>
+  </div>
+
+  <!-- ══════════════════════════ SALES QUALIFICATION (hidden by default) ══════════════════════════ -->
+  <div id="qualSection">
+    <div class="trigger-note">
+      Only fill this in if the CHRO unprompted mentioned pain in document access/management,
+      offboarding document requests, DPDP/compliance readiness, or grievance handling during
+      Sections B/C/E above. Otherwise leave blank; skipping this is a valid outcome.
+    </div>
+
+    <fieldset>
+      <legend>MEDDIC-lite Qualification</legend>
+      <div class="meddic-row">
+        <div class="dim">Metrics</div>
+        <div class="hint">Quantifiable pain named (time-to-resolve, attrition tied to friction, compliance risk exposure)</div>
+        <textarea data-label="MEDDIC: Metrics"></textarea>
+      </div>
+      <div class="meddic-row">
+        <div class="dim">Economic buyer</div>
+        <div class="hint">Who actually signs off (this CHRO, or CFO/CISO/CEO)?</div>
+        <textarea data-label="MEDDIC: Economic buyer"></textarea>
+      </div>
+      <div class="meddic-row">
+        <div class="dim">Decision criteria</div>
+        <div class="hint">Security cert, DPDP compliance proof, HRMS integration, cost, implementation speed</div>
+        <textarea data-label="MEDDIC: Decision criteria"></textarea>
+      </div>
+      <div class="meddic-row">
+        <div class="dim">Decision process</div>
+        <div class="hint">RFP required? Procurement/legal review? Typical vendor eval timeline?</div>
+        <textarea data-label="MEDDIC: Decision process"></textarea>
+      </div>
+      <div class="meddic-row">
+        <div class="dim">Identify pain</div>
+        <div class="hint">Acknowledged and prioritized, or just a passing complaint?</div>
+        <textarea data-label="MEDDIC: Identify pain"></textarea>
+      </div>
+      <div class="meddic-row">
+        <div class="dim">Champion</div>
+        <div class="hint">Would they actively advocate internally, or just "interested"?</div>
+        <textarea data-label="MEDDIC: Champion"></textarea>
+      </div>
+    </fieldset>
+
+    <fieldset>
+      <legend>PRANA-Specific Signal Checklist</legend>
+      <div class="checklist">
+        <label><input type="checkbox" data-label="Signal: Employees lose document access after exit" value="Employees lose document access after exit">Pain around employees losing access to salary slips/Form 16/offer letters after exit</label>
+        <label><input type="checkbox" data-label="Signal: Manual/email-based document requests" value="Manual/email-based document requests">Manual/email-based document requests creating HR-ops overhead</label>
+        <label><input type="checkbox" data-label="Signal: DPDP Act 2023 compliance gap" value="DPDP Act 2023 compliance gap">DPDP Act 2023 compliance gap (erasure, export, consent, grievance)</label>
+        <label><input type="checkbox" data-label="Signal: Concern about raw salary data exposure" value="Concern about raw salary data exposure">Concern about raw salary data exposure/security in current storage</label>
+        <label><input type="checkbox" data-label="Signal: Interest in employee self-service documents" value="Interest in employee self-service documents">Interest in employee self-service for career documents</label>
+        <label><input type="checkbox" data-label="Signal: Current HRMS lacks document vault" value="Current HRMS lacks document vault">Current HRMS lacking a dedicated employee document vault</label>
+        <label><input type="checkbox" data-label="Signal: Multi-employer / gig workforce need" value="Multi-employer / gig workforce need">Multi-employer/gig-economy workforce needing portable career documents</label>
+      </div>
+    </fieldset>
+
+    <fieldset>
+      <legend>Qualification Verdict &amp; Next Steps</legend>
+      <div class="field">
+        <div class="choice-row" data-label="Qualification verdict" data-radiogroup="verdict">
+          <label><input type="radio" name="verdict" value="Hot">Hot</label>
+          <label><input type="radio" name="verdict" value="Warm">Warm</label>
+          <label><input type="radio" name="verdict" value="Cold">Cold</label>
+          <label><input type="radio" name="verdict" value="Not qualified">Not qualified</label>
+        </div>
+      </div>
+      <div class="row3">
+        <div class="field">
+          <label class="q" for="ns_owner">Follow-up owner</label>
+          <input type="text" id="ns_owner" data-label="Follow-up owner">
+        </div>
+        <div class="field">
+          <label class="q" for="ns_action">Follow-up action</label>
+          <input type="text" id="ns_action" data-label="Follow-up action">
+        </div>
+        <div class="field">
+          <label class="q" for="ns_date">Target date</label>
+          <input type="text" id="ns_date" data-label="Target date">
+        </div>
+      </div>
+    </fieldset>
+  </div>
+
+  <div class="actions">
+    <button type="button" class="primary" onclick="sendEmail()">Submit &amp; Send Email</button>
+    <button type="button" class="secondary" onclick="copyToClipboard()">Copy summary to clipboard</button>
+    <span id="copyStatus"></span>
+  </div>
+  <div class="mailto-warning">
+    Submit opens your default mail app with everything pre-filled; you still click Send there.
+    If your mail client truncates long drafts, use "Copy summary to clipboard" and paste into a
+    fresh email manually as a fallback.
+  </div>
+
+  <details id="preview">
+    <summary>Preview compiled email body</summary>
+    <textarea id="previewBody" readonly></textarea>
+  </details>
+
+</form>
+
+<script>
+function buildBody() {
+  const lines = [];
+
+  function addLine(label, value) {
+    if (value === null || value === undefined) return;
+    value = String(value).trim();
+    if (!value) return;
+    lines.push(label + ": " + value);
+  }
+
+  // Plain text/number/textarea inputs with data-label, not part of a radio group
+  document.querySelectorAll('[data-label]').forEach(el => {
+    if (el.hasAttribute('data-radiogroup')) return; // handled separately below
+    const tag = el.tagName.toLowerCase();
+    if (tag === 'input' && (el.type === 'text' || el.type === 'number')) {
+      addLine(el.getAttribute('data-label'), el.value);
+    } else if (tag === 'textarea') {
+      addLine(el.getAttribute('data-label'), el.value);
+    }
+  });
+
+  // Radio groups (wrapped in a container with data-label + data-radiogroup)
+  document.querySelectorAll('[data-radiogroup]').forEach(container => {
+    const groupName = container.getAttribute('data-radiogroup');
+    const checked = document.querySelector('input[name="' + groupName + '"]:checked');
+    addLine(container.getAttribute('data-label'), checked ? checked.value : null);
+  });
+
+  // Checkboxes (checklist): collect all checked into one line
+  const checkedBoxes = Array.from(document.querySelectorAll('input[type=checkbox][data-label]:checked'))
+    .map(cb => cb.value);
+  if (checkedBoxes.length) {
+    lines.push('PRANA-relevant signals noted: ' + checkedBoxes.join('; '));
+  }
+
+  return lines.join('\n');
+}
+
+function buildSubject() {
+  const name = document.getElementById('m_name').value.trim() || 'CHRO';
+  const company = document.getElementById('m_company').value.trim() || 'Unknown Company';
+  const date = document.getElementById('m_date').value.trim() || new Date().toISOString().slice(0,10);
+  return 'CHRO Meeting Notes: ' + name + ' / ' + company + ' / ' + date;
+}
+
+function refreshPreview() {
+  document.getElementById('previewBody').value = buildBody();
+}
+
+function sendEmail() {
+  refreshPreview();
+  const subject = encodeURIComponent(buildSubject());
+  const body = encodeURIComponent(buildBody());
+  const mailto = 'mailto:n.shah12@gmail.com?cc=admin@9va.in&subject=' + subject + '&body=' + body;
+  window.location.href = mailto;
+}
+
+async function copyToClipboard() {
+  refreshPreview();
+  const text = 'Subject: ' + buildSubject() + '\n\n' + buildBody();
+  try {
+    await navigator.clipboard.writeText(text);
+    document.getElementById('copyStatus').textContent = 'Copied ✓';
+  } catch (e) {
+    document.getElementById('copyStatus').textContent = 'Copy failed. Select the preview text manually.';
+  }
+  setTimeout(() => { document.getElementById('copyStatus').textContent = ''; }, 4000);
+}
+
+function toggleQual() {
+  const section = document.getElementById('qualSection');
+  const btn = document.getElementById('qualToggle');
+  const isOpen = section.classList.toggle('open');
+  btn.textContent = (isOpen ? '▾ Close' : '▸ Open') + ' Sales Qualification (only if a genuine signal surfaced)';
+}
+
+document.getElementById('chroForm').addEventListener('input', refreshPreview);
+refreshPreview();
+</script>
+
+</body>
+</html>

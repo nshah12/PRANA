@@ -105,7 +105,10 @@
     "PUSH_REQUEST_STATUS_INVALID": "Unexpected login request status. Please try again.",
     "PUSH_APPROVAL_FAILED": "Approval failed. Try again or deny the request.",
     "CONSENT_RECORD_FAILED": "Could not record your consent. Check your connection and try again.",
-    "UPLOAD_FAILED": "Upload failed. Check your connection and try again."
+    "UPLOAD_FAILED": "Upload failed. Check your connection and try again.",
+    "ASK_RATE_LIMITED": "You've reached the Ask PRANA limit for this hour. Try again later.",
+    "ASK_SERVICE_TIMEOUT": "The AI is taking longer than expected. Please try again in a moment.",
+    "ASK_SERVICE_ERROR": "Something went wrong reaching Ask PRANA. Please try again."
   },
   "success": {
     "LOGIN_SUCCESS": "Signed in successfully.",

@@ -14,7 +14,7 @@ import { tUi } from '@/i18n';
 interface Message { id: string; role: 'user' | 'assistant'; text: string; }
 
 // ── Insight engine (offline / dev fallback) ───────────────────────
-// Used only when api.post('/ask') fails (network down, dev mode).
+// Used only when api.post('/v1/ask') fails (network down, dev mode).
 // LLM output contract: → Never surface raw ₹ figures, only % / verdicts.
 
 function deriveInsight(q: string, docCount: number, userName: string): string {
@@ -106,7 +106,7 @@ export default function AskScreen() {
     setMessages(prev => [...prev, userMsg]);
     setThinking(true);
     try {
-      const data = await api.post<{ answer: string }>('/ask', { query: q });
+      const data = await api.post<{ answer: string }>('/v1/ask', { query: q });
       const reply: Message = { id: (Date.now() + 1).toString(), role: 'assistant', text: data.answer };
       setMessages(prev => [...prev, reply]);
     } catch (err: any) {

@@ -153,6 +153,11 @@ class PranaError(StrEnum):
     INVALID_STATUS            = "INVALID_STATUS"
     NO_FIELDS_TO_UPDATE       = "NO_FIELDS_TO_UPDATE"
 
+    # ── ASK PRANA ─────────────────────────────────────────────────────────────
+    ASK_RATE_LIMITED          = "ASK_RATE_LIMITED"
+    ASK_SERVICE_TIMEOUT       = "ASK_SERVICE_TIMEOUT"
+    ASK_SERVICE_ERROR         = "ASK_SERVICE_ERROR"
+
 
 def prana_error(
     code: PranaError,

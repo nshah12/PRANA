@@ -66,12 +66,6 @@ async def deliver_notification(params: dict) -> dict: ...
 @activity.defn(name="deliver_notification_fallback")
 async def deliver_notification_fallback(params: dict) -> None: ...
 
-@activity.defn(name="run_system_healthcheck")
-async def run_system_healthcheck(params: dict) -> dict: ...
-
-@activity.defn(name="emit_health_metrics")
-async def emit_health_metrics(params: dict) -> None: ...
-
 @activity.defn(name="get_ops_config")
 async def get_ops_config(params: dict) -> str: ...
 
@@ -249,28 +243,10 @@ class NotificationDeliveryWorkflow:
             )
 
 
-# ── SystemHealthWorkflow (Pattern 3 — Temporal Schedule) ─────────────────────
-
-@workflow.defn(name="SystemHealthWorkflow")
-class SystemHealthWorkflow:
-    """
-    End-to-end healthcheck: verifies DB connectivity, Kafka broker availability,
-    Redis cluster reachability, and S3 bucket access. Emits metrics to OpenTelemetry.
-    Runs every system_health_check_minutes (default: 1).
-    """
-
-    @workflow.run
-    async def run(self, params: dict) -> None:
-        result = await workflow.execute_activity(
-            run_system_healthcheck, params,
-            start_to_close_timeout=timedelta(minutes=3),
-            retry_policy=RetryPolicy(maximum_attempts=1),  # no retry — alerting on first fail
-        )
-        await workflow.execute_activity(
-            emit_health_metrics, {**params, **result},
-            start_to_close_timeout=timedelta(minutes=2),
-            retry_policy=_RETRY,
-        )
+# SystemHealthWorkflow lives in workflows/system_health.py — this was a duplicate
+# stub (unimplemented activities) that was accidentally the one wired into
+# worker.py's admin-queue while the real implementation sat unregistered.
+# See workflows/system_health.py for the real workflow + activity.
 
 
 # ── StorageExpansionWorkflow (Pattern 5 — Human Signal) ──────────────────────
