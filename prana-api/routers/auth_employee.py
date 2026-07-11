@@ -32,6 +32,7 @@ from services.session_service import SessionService
 from services.encryption_service import aes_encrypt, aes_decrypt
 from errors import PranaError
 from messages import SuccessCode, success_response
+from limiter import limiter
 
 router = APIRouter()
 
@@ -78,8 +79,9 @@ class RefreshIn(BaseModel):
 # ── Helpers ───────────────────────────────────────────────────────────────────
 
 def _get_client_ip(request: Request) -> str:
-    forwarded = request.headers.get("X-Forwarded-For")
-    return forwarded.split(",")[0].strip() if forwarded else request.client.host
+    # Spoof-resistant (H3): trust only the hop our proxy appended, not the leftmost.
+    from lib.client_ip import get_client_ip
+    return get_client_ip(request, request.app.state.settings.trusted_proxy_count)
 
 
 def _set_refresh_cookie(response: Response, refresh_token: str, max_age: int) -> None:
@@ -186,6 +188,7 @@ async def _get_totp_lock_threshold(db) -> int:
 # ── Step 1: Password login ────────────────────────────────────────────────────
 
 @router.post("/login", status_code=status.HTTP_200_OK)
+@limiter.limit("10/minute")   # H1: throttle password/OTP spraying per client IP
 async def login(body: LoginIn, request: Request, db: DbConn):
     """
     Factor 1: identifier + password.
@@ -284,6 +287,7 @@ async def login(body: LoginIn, request: Request, db: DbConn):
 # ── Step 2a: TOTP verification ────────────────────────────────────────────────
 
 @router.post("/totp", status_code=status.HTTP_200_OK)
+@limiter.limit("10/minute")   # H1: throttle TOTP brute-force per client IP
 async def verify_totp(body: TOTPVerifyIn, request: Request, response: Response, db: DbConn):
     """Factor 2: TOTP code. Issues JWT on success."""
     redis = request.app.state.redis
@@ -299,18 +303,23 @@ async def verify_totp(body: TOTPVerifyIn, request: Request, response: Response, 
     if row["status"] == "LOCKED":
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=PranaError.ACCOUNT_LOCKED)
 
+    from services.encryption_service import resolve_auth_dek
     totp_svc = TOTPService()
-    dev_dek = b"\x00" * 32  # DEV: placeholder. Prod: unwrap from KMS.
-    valid = totp_svc.verify(body.code, row["totp_secret_enc"], dev_dek)
+    auth_dek = resolve_auth_dek(request.app.state.settings)
+    valid = totp_svc.verify(body.code, row["totp_secret_enc"], auth_dek)
 
     lock_threshold = await _get_totp_lock_threshold(db)
 
     if not valid:
-        new_count = row["failed_totp_count"] + 1
+        # Atomic increment (H5) — avoids read-modify-write races on concurrent attempts.
+        new_count = await db.fetchval(
+            "UPDATE employee_user SET failed_totp_count = failed_totp_count + 1 "
+            "WHERE employee_user_id=$1 RETURNING failed_totp_count",
+            user_id,
+        )
         if new_count >= lock_threshold:
             await db.execute(
-                "UPDATE employee_user SET status='LOCKED', failed_totp_count=$2 WHERE employee_user_id=$1",
-                user_id, new_count,
+                "UPDATE employee_user SET status='LOCKED' WHERE employee_user_id=$1", user_id,
             )
             kafka = getattr(request.app.state, "kafka_producer", None)
             if kafka:
@@ -323,10 +332,6 @@ async def verify_totp(body: TOTPVerifyIn, request: Request, response: Response, 
                     "ip_address": _get_client_ip(request),
                 })
             raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=PranaError.ACCOUNT_LOCKED)
-        await db.execute(
-            "UPDATE employee_user SET failed_totp_count=$2 WHERE employee_user_id=$1",
-            user_id, new_count,
-        )
         kafka = getattr(request.app.state, "kafka_producer", None)
         if kafka:
             await kafka.auth_event({
@@ -337,6 +342,11 @@ async def verify_totp(body: TOTPVerifyIn, request: Request, response: Response, 
                 "locked":     False,
                 "ip_address": _get_client_ip(request),
             })
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail=PranaError.INVALID_TOTP)
+
+    # Replay protection: a valid code may be presented only once within its window.
+    from services.totp_service import consume_totp_code
+    if not await consume_totp_code(request.app.state.redis, "employee", user_id, body.code):
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail=PranaError.INVALID_TOTP)
 
     await db.execute(
@@ -432,8 +442,9 @@ async def setup_totp_init(body: TOTPInitIn, request: Request, db: DbConn):
     if data.get("next") != "totp_setup":
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=PranaError.INVALID_STEP)
 
+    from services.encryption_service import resolve_auth_dek
     totp_svc = TOTPService()
-    dev_dek = b"\x00" * 32  # DEV placeholder
+    auth_dek = resolve_auth_dek(request.app.state.settings)
 
     # Generate new secret only if not already staged in a previous init call
     existing = await db.fetchval(
@@ -447,10 +458,10 @@ async def setup_totp_init(body: TOTPInitIn, request: Request, db: DbConn):
     if existing and existing.startswith("STAGED:"):
         # Re-use the previously staged secret (idempotent re-init)
         encrypted = existing[7:]
-        secret_b32 = aes_decrypt(encrypted, dev_dek)
+        secret_b32 = aes_decrypt(encrypted, auth_dek)
     else:
         secret_b32 = totp_svc.generate_secret()
-        encrypted = aes_encrypt(secret_b32, dev_dek)
+        encrypted = aes_encrypt(secret_b32, auth_dek)
         # Stage the encrypted secret temporarily (not yet confirmed)
         await db.execute(
             "UPDATE employee_user SET totp_secret_enc=$2 WHERE employee_user_id=$1",
@@ -477,11 +488,12 @@ async def setup_totp_confirm(body: TOTPConfirmIn, request: Request, db: DbConn):
     if not row or not row["totp_secret_enc"] or not row["totp_secret_enc"].startswith("STAGED:"):
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=PranaError.TOTP_INIT_REQUIRED)
 
+    from services.encryption_service import resolve_auth_dek
     encrypted = row["totp_secret_enc"][7:]
     totp_svc = TOTPService()
-    dev_dek = b"\x00" * 32
+    auth_dek = resolve_auth_dek(request.app.state.settings)
 
-    valid = totp_svc.verify(body.code, encrypted, dev_dek)
+    valid = totp_svc.verify(body.code, encrypted, auth_dek)
     if not valid:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail=PranaError.INVALID_TOTP_CODE)
 

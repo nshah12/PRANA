@@ -98,14 +98,15 @@ def encrypt_nik_fpe(nik: str, dek: bytes, tweak: bytes = b"\x00" * 7) -> str:
     """
     try:
         import ff3
-        cipher = ff3.FF3Cipher.withCustomAlphabet(
-            dek.hex(), tweak.hex(),
-            alphabet="ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"
-        )
-        return cipher.encrypt(nik.upper())
-    except ImportError:
-        # ff3 package not installed — return placeholder for dev
-        return f"ENC_{nik[:4]}XXXXX{nik[-1]}"
+    except ImportError as e:
+        # NEVER degrade to a plaintext-derived placeholder (finding H2) — that would
+        # leak the PAN. A missing crypto primitive is a hard failure.
+        raise RuntimeError("ff3 package is required for FPE encryption of NIK/PAN") from e
+    cipher = ff3.FF3Cipher.withCustomAlphabet(
+        dek.hex(), tweak.hex(),
+        alphabet="ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"
+    )
+    return cipher.encrypt(nik.upper())
 
 
 def decrypt_nik_fpe(enc_nik: str, dek: bytes, tweak: bytes = b"\x00" * 7) -> str:
@@ -116,13 +117,13 @@ def decrypt_nik_fpe(enc_nik: str, dek: bytes, tweak: bytes = b"\x00" * 7) -> str
     """
     try:
         import ff3
-        cipher = ff3.FF3Cipher.withCustomAlphabet(
-            dek.hex(), tweak.hex(),
-            alphabet="ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"
-        )
-        return cipher.decrypt(enc_nik.upper())
-    except ImportError:
-        return enc_nik  # dev fallback
+    except ImportError as e:
+        raise RuntimeError("ff3 package is required for FPE decryption of NIK/PAN") from e
+    cipher = ff3.FF3Cipher.withCustomAlphabet(
+        dek.hex(), tweak.hex(),
+        alphabet="ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"
+    )
+    return cipher.decrypt(enc_nik.upper())
 
 
 # ── AES-256-GCM ───────────────────────────────────────────────────────────────
@@ -151,6 +152,41 @@ def aes_decrypt(token: str, key: bytes) -> str:
 def generate_dek() -> bytes:
     """Generate a 256-bit Data Encryption Key. Must be wrapped via KMS before storing."""
     return os.urandom(32)
+
+
+# ── Auth encryption key (TOTP secrets + HRMS signing secrets) ──────────────────
+
+_ZERO_KEY = b"\x00" * 32
+
+
+def resolve_auth_dek(settings) -> bytes:
+    """
+    Return the 32-byte AES-256 key used to encrypt/decrypt TOTP secrets and HRMS
+    signing secrets. Replaces the former hardcoded all-zero `dev_dek` (finding C1).
+
+    - If settings.auth_encryption_key is set: use it (64 hex chars or base64 → 32 bytes).
+      Rejects wrong length and the all-zero key.
+    - Else in production: raise (a real key is mandatory; assert_production_ready also guards this).
+    - Else (dev/test): derive a stable, NON-ZERO key from platform_hmac_secret so local
+      dev works without AWS while never falling back to an all-zero key.
+    """
+    raw = getattr(settings, "auth_encryption_key", "") or ""
+    if raw:
+        try:
+            key = bytes.fromhex(raw)
+        except ValueError:
+            key = b64decode(raw)
+        if len(key) != 32:
+            raise ValueError("auth_encryption_key must decode to exactly 32 bytes")
+        if key == _ZERO_KEY:
+            raise ValueError("auth_encryption_key must not be all-zero")
+        return key
+
+    if getattr(settings, "is_production", False):
+        raise RuntimeError("auth_encryption_key is required in production")
+
+    # Dev/test only: deterministic, non-zero derivation. NOT for production.
+    return hashlib.sha256(b"prana-auth-dek-v1:" + settings.platform_hmac_secret.encode()).digest()
 
 
 # ── AWS KMS envelope encryption ───────────────────────────────────────────────

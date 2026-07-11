@@ -41,7 +41,11 @@ OAOperator = Depends(require_oa("oa_operator", "oa_admin"))
 OAAdmin    = Depends(require_oa("oa_admin"))
 
 _ALLOWED_EXTENSIONS = {"pdf"}
-_MAX_BATCH_BYTES    = 500 * 1024 * 1024   # 500 MB per batch (spec §4 Upload)
+_MAX_BATCH_BYTES    = 500 * 1024 * 1024   # 500 MB compressed archive (spec §4 Upload)
+# Zip-bomb defences (H4): a small archive must not inflate without bound.
+_MAX_UNCOMPRESSED_TOTAL_BYTES = 2 * 1024 * 1024 * 1024   # 2 GB total decompressed
+_MAX_ENTRY_UNCOMPRESSED_BYTES = 200 * 1024 * 1024        # 200 MB per file
+_MAX_COMPRESSION_RATIO        = 200                       # entry uncompressed / compressed
 
 
 # ── Multi-file upload (1–N PDFs) ──────────────────────────────────────────────
@@ -155,15 +159,23 @@ async def batch_upload(
     if not archive.filename.lower().endswith(".zip"):
         raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=PranaError.ARCHIVE_MUST_BE_ZIP)
 
+    # H4: reject an oversized compressed archive before touching it.
+    if len(archive_bytes) > _MAX_BATCH_BYTES:
+        raise HTTPException(status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE, detail=PranaError.ARCHIVE_TOO_LARGE)
+
     batch_id = str(uuid.uuid4())
     results: list  = []
     errors: list   = []
     total_bytes    = 0
+    uncompressed_total = 0
 
     try:
         zf = zipfile.ZipFile(io.BytesIO(archive_bytes))
     except zipfile.BadZipFile:
         raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=PranaError.INVALID_ZIP)
+
+    # H4: pre-flight the central directory (declared sizes, no decompression yet).
+    _assert_not_zip_bomb(zf)
 
     all_filenames = [e.filename for e in zf.infolist() if not e.is_dir()]
 
@@ -176,6 +188,10 @@ async def batch_upload(
             continue
 
         file_bytes = zf.read(entry.filename)
+        # Content sniff (not just extension) — reject non-PDFs renamed to .pdf.
+        if not file_bytes.startswith(b"%PDF-"):
+            errors.append({"filename": entry.filename, "error": "UNSUPPORTED_FILE_TYPE"})
+            continue
         total_bytes += len(file_bytes)
 
         doc_id, event = await _ingest_one(
@@ -505,12 +521,35 @@ async def dismiss_exception(
 
 # ── Helpers ───────────────────────────────────────────────────────────────────
 
+def _assert_not_zip_bomb(zf: zipfile.ZipFile) -> None:
+    """
+    Reject decompression bombs (H4) using declared central-directory sizes — no
+    decompression happens here. Trips on: an entry too large uncompressed, an absurd
+    per-entry compression ratio, or an oversized decompressed total across the archive.
+    """
+    uncompressed_total = 0
+    for entry in zf.infolist():
+        if entry.is_dir():
+            continue
+        if entry.file_size > _MAX_ENTRY_UNCOMPRESSED_BYTES:
+            raise HTTPException(status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE, detail=PranaError.ZIP_BOMB_DETECTED)
+        if entry.compress_size > 0 and (entry.file_size / entry.compress_size) > _MAX_COMPRESSION_RATIO:
+            raise HTTPException(status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE, detail=PranaError.ZIP_BOMB_DETECTED)
+        uncompressed_total += entry.file_size
+        if uncompressed_total > _MAX_UNCOMPRESSED_TOTAL_BYTES:
+            raise HTTPException(status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE, detail=PranaError.ZIP_BOMB_DETECTED)
+
+
 def _validate_file(filename: str, file_bytes: bytes) -> None:
     ext = filename.rsplit(".", 1)[-1].lower() if filename and "." in filename else ""
     if ext not in _ALLOWED_EXTENSIONS:
         raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=PranaError.UNSUPPORTED_FILE_TYPE)
     if len(file_bytes) == 0:
         raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=PranaError.EMPTY_FILE)
+    # Content sniff (not just extension): a real PDF begins with the %PDF- magic bytes.
+    # Rejects a malicious/other file renamed to .pdf before it reaches the pipeline.
+    if not file_bytes.startswith(b"%PDF-"):
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=PranaError.UNSUPPORTED_FILE_TYPE)
 
 
 async def _ingest_one(
@@ -638,10 +677,9 @@ def _sse(data: dict) -> str:
 
 
 def _client_ip(request: Request) -> str:
-    xff = request.headers.get("x-forwarded-for")
-    if xff:
-        return xff.split(",")[0].strip()
-    return str(request.client.host) if request.client else "unknown"
+    # Spoof-resistant (H3): trust only the hop our proxy appended, not the leftmost.
+    from lib.client_ip import get_client_ip
+    return get_client_ip(request, request.app.state.settings.trusted_proxy_count)
 
 
 def _actor_type(role: str, is_elevated: bool = False) -> str:

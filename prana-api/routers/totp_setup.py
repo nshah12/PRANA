@@ -88,9 +88,10 @@ async def confirm_totp(body: TOTPConfirmIn, request: Request, db: DbConn):
 
     await request.app.state.redis.delete(f"totp_setup:{body.setup_token}")
 
-    # Encrypt secret with DEK before storing
-    dev_dek = b"\x00" * 32   # prod: unwrap DEK from KMS
-    enc_secret = aes_encrypt(secret, dev_dek)
+    # Encrypt secret with the resolved auth key before storing
+    from services.encryption_service import resolve_auth_dek
+    auth_dek = resolve_auth_dek(request.app.state.settings)
+    enc_secret = aes_encrypt(secret, auth_dek)
     now = datetime.now(tz=timezone.utc)
 
     async with db.transaction():

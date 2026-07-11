@@ -22,19 +22,69 @@ class Settings(BaseSettings):
     def db_dsn(self) -> str:
         return f"postgresql://{self.db_user}:{self.db_password}@{self.db_host}:{self.db_port}/{self.db_name}"
 
+    @property
+    def is_production(self) -> bool:
+        return self.app_env == "production"
+
+    def assert_production_ready(self) -> None:
+        """
+        Fail-closed secret guard (findings C2/C3).
+
+        In production, refuse to start if any secret is still a known dev/test
+        placeholder or a required prod-only secret is missing. No-op outside
+        production so local dev and CI keep working on throwaway defaults.
+        """
+        if not self.is_production:
+            return
+
+        # field name -> values that are forbidden in production
+        forbidden = {
+            "platform_hmac_secret": {"dev_secret", ""},
+            "db_password":          {"yugabyte", ""},
+            "ai_service_secret":    {"dev-secret", ""},
+            "ask_service_secret":   {"dev-secret", ""},
+        }
+        violations = [f for f, bad in forbidden.items() if getattr(self, f) in bad]
+
+        # Required prod-only secrets (no safe default exists)
+        if not self.auth_encryption_key:
+            violations.append("auth_encryption_key")
+        if not self.jwt_kms_key_id:
+            violations.append("jwt_kms_key_id")
+
+        if violations:
+            raise RuntimeError(
+                "Refusing to start in production with placeholder/missing secrets: "
+                + ", ".join(sorted(violations))
+                + ". Inject real values via AWS Secrets Manager / KMS."
+            )
+
     # AWS KMS (ap-south-1 only — no cross-region KMS calls)
     aws_region: str = "ap-south-1"
     aws_access_key_id: str = ""           # Empty = use IAM role in production
     aws_secret_access_key: str = ""
 
-    # Platform HMAC secret (loaded from KMS at startup, never from env in production)
-    platform_hmac_secret: str = "dev_secret"   # DEV ONLY — overridden by KMS in prod
+    # Platform HMAC secret — PAN/NIK tokenization key.
+    # Prod: injected from AWS Secrets Manager / KMS via env; MUST NOT be the dev default.
+    # assert_production_ready() refuses to boot if this is still "dev_secret" in prod.
+    platform_hmac_secret: str = "dev_secret"   # DEV ONLY
 
-    # JWT — RS256, KMS-signed in production
+    # Auth encryption key — 32-byte AES-256 key (64 hex chars or base64) used to encrypt
+    # TOTP secrets and HRMS signing secrets. Prod: injected from Secrets Manager/KMS.
+    # Empty in dev/test → resolve_auth_dek() derives a non-zero key from platform_hmac_secret.
+    auth_encryption_key: str = ""
+
+    # JWT — RS256. Dev/test: local PEM. Prod: KMS-signed (jwt_kms_key_id = CMK ARN).
     jwt_public_key_path: str = "keys/jwt_public.pem"
-    jwt_private_key_path: str = "keys/jwt_private.pem"   # Dev only; prod uses KMS signing
+    jwt_private_key_path: str = "keys/jwt_private.pem"   # Dev/test only; prod signs via KMS
+    jwt_kms_key_id: str = ""                             # KMS CMK ARN for RS256 signing in prod
     jwt_algorithm: str = "RS256"
     jwt_issuer: str = "prana.in"
+
+    # Reverse-proxy hops we control (Kong, and optionally ALB). The real client IP is
+    # this many entries from the RIGHT of X-Forwarded-For; anything further left is
+    # attacker-controllable and must be ignored (finding H3).
+    trusted_proxy_count: int = 1
 
     # Redis (session blocklist + config cache)
     redis_url: str = "redis://localhost:6379/0"
@@ -94,6 +144,18 @@ class Settings(BaseSettings):
         "http://localhost:5173",
         "https://nshah12.github.io",
     ]
+
+    @property
+    def effective_cors_origins(self) -> list[str]:
+        """
+        CORS origins actually applied. In production, drop localhost and the
+        github.io demo origin (finding: a third-party-controlled origin must never
+        be allowed with credentials). Operators supply real origins via CORS_ORIGINS.
+        """
+        if self.is_production:
+            return [o for o in self.cors_origins
+                    if "localhost" not in o and "github.io" not in o]
+        return self.cors_origins
 
 
 @lru_cache

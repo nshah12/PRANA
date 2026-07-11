@@ -192,6 +192,7 @@ async def test_totp_verify_wrong_code_returns_401(client, mock_db, mock_redis):
         {"totp_secret_enc": "ENC_TOTP", "failed_totp_count": 0, "status": "ACTIVE"},
         {"config_value": "5"},
     ]
+    mock_db.fetchval.return_value = 1  # atomic increment → below lock threshold
     with patch("routers.auth_employee.TOTPService") as MockTOTP:
         MockTOTP.return_value.verify.return_value = False
         resp = await client.post("/auth/employee/totp", json={
@@ -210,6 +211,7 @@ async def test_totp_5_failures_locks_account(client, mock_db, mock_redis):
         {"totp_secret_enc": "ENC_TOTP", "failed_totp_count": 4, "status": "ACTIVE"},
         {"config_value": "5"},
     ]
+    mock_db.fetchval.return_value = 5  # atomic increment → hits lock threshold
     with patch("routers.auth_employee.TOTPService") as MockTOTP:
         MockTOTP.return_value.verify.return_value = False
         resp = await client.post("/auth/employee/totp", json={

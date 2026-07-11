@@ -132,3 +132,26 @@ def test_raw_pan_never_stored_only_enc_pan_and_token():
     token = compute_pan_token(nik, "platform_secret_32chars_padding1")
     assert nik not in token
     assert len(token) == 64, "HMAC-SHA256 output is 64 hex chars"
+
+
+# ── H2: FPE must never degrade to plaintext ───────────────────────────────────
+
+def test_fpe_raises_when_ff3_missing_never_leaks_plaintext(monkeypatch):
+    """If the ff3 primitive is unavailable, encryption must RAISE — never return a
+    plaintext-derived placeholder that leaks characters of the PAN (finding H2)."""
+    import sys
+    nik = "ABCDE1234F"
+    dek = b"K" * 32
+    # Force `import ff3` to fail inside the function.
+    monkeypatch.setitem(sys.modules, "ff3", None)
+    with pytest.raises(RuntimeError):
+        out = encrypt_nik_fpe(nik, dek)
+        # Guard the impossible-pass case: the old bug returned "ENC_ABCD..." leaking the PAN.
+        assert "ABCD" not in out
+
+
+def test_fpe_source_has_no_plaintext_fallback():
+    import inspect
+    import services.encryption_service as enc_mod
+    src = inspect.getsource(enc_mod)
+    assert 'f"ENC_{nik' not in src, "plaintext-leaking FPE fallback must be gone"

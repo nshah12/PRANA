@@ -20,6 +20,7 @@ from services.totp_service import TOTPService
 from services.session_service import SessionService
 from errors import PranaError
 from messages import SuccessCode, success_response
+from limiter import limiter
 
 router = APIRouter()
 
@@ -34,8 +35,9 @@ class PATOTPIn(BaseModel):
 
 
 def _get_client_ip(request: Request) -> str:
-    forwarded = request.headers.get("X-Forwarded-For")
-    return forwarded.split(",")[0].strip() if forwarded else request.client.host
+    # Spoof-resistant (H3): trust only the hop our proxy appended, not the leftmost.
+    from lib.client_ip import get_client_ip
+    return get_client_ip(request, request.app.state.settings.trusted_proxy_count)
 
 
 def _set_refresh_cookie(response: Response, refresh_token: str) -> None:
@@ -51,6 +53,7 @@ def _set_refresh_cookie(response: Response, refresh_token: str) -> None:
 
 
 @router.post("/login", status_code=status.HTTP_200_OK)
+@limiter.limit("10/minute")   # H1: throttle password spraying per client IP
 async def login(body: PALoginIn, request: Request, db: DbConn):
     """Step 1: PA email + password. Domain enforced: must be @prana.in."""
     if not body.email.endswith("@prana.in"):
@@ -91,6 +94,7 @@ async def login(body: PALoginIn, request: Request, db: DbConn):
 
 
 @router.post("/totp", status_code=status.HTTP_200_OK)
+@limiter.limit("10/minute")   # H1: throttle TOTP brute-force per client IP
 async def verify_totp(body: PATOTPIn, request: Request, response: Response, db: DbConn):
     """Step 2: PA TOTP verify. Locks after 3 failures (stricter than OA's 5)."""
     redis_client = request.app.state.redis
@@ -111,30 +115,37 @@ async def verify_totp(body: PATOTPIn, request: Request, response: Response, db: 
     if row["status"] == "LOCKED":
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=PranaError.ACCOUNT_LOCKED)
 
+    from services.encryption_service import resolve_auth_dek
     totp_svc = TOTPService()
-    dev_dek = b"\x00" * 32
-    valid = totp_svc.verify(body.code, row["totp_secret_enc"], dev_dek)
+    auth_dek = resolve_auth_dek(request.app.state.settings)
+    valid = totp_svc.verify(body.code, row["totp_secret_enc"], auth_dek)
 
     # PA lock threshold = 3 (from platform_config pa_totp_lock_threshold)
     lock_threshold = await _get_pa_lock_threshold(db)
     ip = _get_client_ip(request)
 
     if not valid:
-        new_count = row["failed_totp_count"] + 1
+        # Atomic increment (H5) — avoids read-modify-write races on concurrent attempts.
+        new_count = await db.fetchval(
+            "UPDATE portal_admin SET failed_totp_count = failed_totp_count + 1 "
+            "WHERE pa_id=$1 RETURNING failed_totp_count",
+            pa_id,
+        )
         if new_count >= lock_threshold:
             await db.execute(
-                "UPDATE portal_admin SET status='LOCKED', failed_totp_count=$2 WHERE pa_id=$1",
-                pa_id, new_count,
+                "UPDATE portal_admin SET status='LOCKED' WHERE pa_id=$1", pa_id,
             )
             await _log(db, pa_id, "TOTP", "FAILED", "TOTP_LOCKOUT", ip)
             # PA lockout is not auto-unlocked — requires another PA to unlock
             raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=PranaError.ACCOUNT_LOCKED)
 
-        await db.execute(
-            "UPDATE portal_admin SET failed_totp_count=$2 WHERE pa_id=$1",
-            pa_id, new_count,
-        )
         await _log(db, pa_id, "TOTP", "FAILED", "WRONG_TOTP", ip)
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail=PranaError.INVALID_TOTP)
+
+    # Replay protection: a valid code may be presented only once within its window.
+    from services.totp_service import consume_totp_code
+    if not await consume_totp_code(request.app.state.redis, "portal_admin", pa_id, body.code):
+        await _log(db, pa_id, "TOTP", "FAILED", "TOTP_REPLAY", ip)
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail=PranaError.INVALID_TOTP)
 
     await db.execute(
@@ -226,9 +237,9 @@ async def totp_setup_confirm(request: Request, response: Response, db: DbConn):
 
     await request.app.state.redis.delete(f"pa_totp_setup:{setup_token}")
 
-    dev_dek = b"\x00" * 32
-    from services.encryption_service import aes_encrypt
-    enc_secret = aes_encrypt(secret, dev_dek)
+    from services.encryption_service import aes_encrypt, resolve_auth_dek
+    auth_dek = resolve_auth_dek(request.app.state.settings)
+    enc_secret = aes_encrypt(secret, auth_dek)
     now = _dt.datetime.now(tz=_dt.timezone.utc)
 
     async with db.transaction():

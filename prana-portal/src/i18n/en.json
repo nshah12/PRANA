@@ -49,6 +49,8 @@
     "EMPTY_FILE": "The file appears to be empty.",
     "ARCHIVE_MUST_BE_ZIP": "Batch uploads must be a .zip file.",
     "INVALID_ZIP": "The zip file is corrupted or invalid.",
+    "ARCHIVE_TOO_LARGE": "This archive is too large. Please split it into smaller batches.",
+    "ZIP_BOMB_DETECTED": "This archive was rejected for safety — its contents expand far beyond the allowed size.",
     "REPORT_NOT_FOUND": "Report not found.",
     "ANOMALY_NOT_FOUND": "Anomaly record not found.",
     "ACCESS_LOG_NOT_FOUND": "Access log entry not found.",

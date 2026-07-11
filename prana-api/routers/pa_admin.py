@@ -166,10 +166,16 @@ async def activate_tenant(
     if body.home_region_override and not body.override_reason:
         raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=PranaError.OVERRIDE_REASON_REQUIRED)
 
-    update_region = f", home_region='{body.home_region_override}'" if body.home_region_override else ""
-    await db.execute(
-        f"UPDATE tenant SET status='ACTIVE'{update_region} WHERE tenant_id=$1", tenant_id
-    )
+    # Parameterized — never interpolate body values into SQL (DB-01 / SQL injection).
+    if body.home_region_override:
+        await db.execute(
+            "UPDATE tenant SET status='ACTIVE', home_region=$2 WHERE tenant_id=$1",
+            tenant_id, body.home_region_override,
+        )
+    else:
+        await db.execute(
+            "UPDATE tenant SET status='ACTIVE' WHERE tenant_id=$1", tenant_id
+        )
     kafka = getattr(request.app.state, "kafka_producer", None)
     if kafka:
         await kafka.tenant_event({
@@ -637,9 +643,10 @@ async def create_api_key(request: Request, db: DbConn, current=PA):
     raw_key = f"prana_{_s.token_urlsafe(32)}"
     key_hash = hashlib.sha256(raw_key.encode()).hexdigest()
     key_prefix = raw_key[:12]
+    from services.encryption_service import resolve_auth_dek
     signing_secret = _s.token_hex(32)
-    dev_dek = b"\x00" * 32
-    signing_secret_enc = aes_encrypt(signing_secret, dev_dek)
+    auth_dek = resolve_auth_dek(request.app.state.settings)
+    signing_secret_enc = aes_encrypt(signing_secret, auth_dek)
 
     await db.execute(
         """INSERT INTO api_key (tenant_id, key_prefix, key_hash, signing_secret_enc,

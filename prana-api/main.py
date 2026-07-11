@@ -41,6 +41,10 @@ from services.cache_service import CacheService
 async def lifespan(app: FastAPI):
     settings = get_settings()
 
+    # Fail-closed: refuse to start in production on placeholder/missing secrets (C2/C3).
+    # No-op in dev/test. Raises before any pool/connection is opened.
+    settings.assert_production_ready()
+
     # DB pool
     app.state.db_pool = await create_pool(
         dsn=settings.db_dsn,
@@ -54,13 +58,13 @@ async def lifespan(app: FastAPI):
     # Cache service (Redis wrapper — available to all routers via request.app.state)
     app.state.cache = CacheService(app.state.redis)
 
-    # Services
-    app.state.jwt_service = JWTService(settings, app.state.redis)
+    # Services — KMS first so JWTService can use it for production signing (C4).
     app.state.kms_service = KMSService(
         region=settings.aws_region,
         access_key_id=settings.aws_access_key_id,
         secret_access_key=settings.aws_secret_access_key,
     )
+    app.state.jwt_service = JWTService(settings, app.state.redis, kms_service=app.state.kms_service)
     app.state.settings = settings
 
     # S3 / MinIO
@@ -178,7 +182,7 @@ def create_app() -> FastAPI:
 
     app.add_middleware(
         CORSMiddleware,
-        allow_origins=settings.cors_origins,
+        allow_origins=settings.effective_cors_origins,   # prod drops localhost/github.io
         allow_credentials=True,
         allow_methods=["GET", "POST", "PUT", "DELETE", "PATCH"],
         allow_headers=["Authorization", "Content-Type", "X-Request-ID"],
@@ -186,6 +190,22 @@ def create_app() -> FastAPI:
     # Adds Deprecation/Sunset headers to deprecated versions/endpoints automatically
     # Blocks sunset versions with 410 Gone — no router changes needed
     app.add_middleware(DeprecationMiddleware)
+
+    # ── Security headers (defence-in-depth) ─────────────────────────────────────
+    @app.middleware("http")
+    async def security_headers(request: Request, call_next):
+        response = await call_next(request)
+        response.headers["X-Content-Type-Options"] = "nosniff"
+        response.headers["X-Frame-Options"] = "DENY"
+        response.headers["Referrer-Policy"] = "no-referrer"
+        # Strict CSP for the JSON API; skip the interactive docs (dev-only) so Swagger works.
+        path = request.url.path
+        if not path.startswith("/docs") and not path.startswith("/openapi"):
+            response.headers["Content-Security-Policy"] = "default-src 'none'; frame-ancestors 'none'"
+        # HSTS only in production (served over HTTPS behind Kong/ALB).
+        if settings.is_production:
+            response.headers["Strict-Transport-Security"] = "max-age=63072000; includeSubDomains; preload"
+        return response
 
     # ── Rate limiter (SlowAPI) ─────────────────────────────────────────────────
     from limiter import limiter as _limiter
@@ -290,7 +310,29 @@ def create_app() -> FastAPI:
 
     @app.get("/health", include_in_schema=False)
     async def health():
+        # Liveness only: is the process up? (Does not gate traffic on dependencies.)
         return {"status": "ok"}
+
+    @app.get("/health/ready", include_in_schema=False)
+    async def readiness():
+        # Readiness: probe critical dependencies so the load balancer stops routing
+        # to a pod that can't actually serve (DB/Redis down) instead of always "ok".
+        checks: dict[str, str] = {}
+        try:
+            await app.state.db_pool.fetchval("SELECT 1")
+            checks["db"] = "ok"
+        except Exception:
+            checks["db"] = "down"
+        try:
+            await app.state.redis.ping()
+            checks["redis"] = "ok"
+        except Exception:
+            checks["redis"] = "down"
+        ready = all(v == "ok" for v in checks.values())
+        return JSONResponse(
+            status_code=status.HTTP_200_OK if ready else status.HTTP_503_SERVICE_UNAVAILABLE,
+            content={"ready": ready, "checks": checks},
+        )
 
     # ── Routers ────────────────────────────────────────────────────────────────
     from routers import (
