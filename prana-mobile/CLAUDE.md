@@ -49,3 +49,19 @@ import { colors, fonts, gradJourney, radius } from '@/prana-theme/tokens';
 - Preview profile → APK (internal distribution)
 - Production profile → AAB (Play Store)
 - Command: `npx eas-cli build --profile preview --platform android`
+
+## Testing (Jest + jest-expo + React Native Testing Library)
+- **Run:** `npm test` (or `npm run test:watch`). Config: `jest.config.js`, setup: `jest.setup.js`.
+- **Stack:** `jest-expo` preset (RN/Expo transforms) + `@testing-library/react-native` (RTL).
+- **Naming:** co-locate as `*.test.ts` / `*.test.tsx` next to the file under test.
+- **Path aliases:** `jest.config.js` `moduleNameMapper` mirrors tsconfig `@/* → src/*`,
+  plus an explicit `@/i18n → i18n/` (the locale module lives at repo root, not `src/`).
+- **Native mocks:** `jest.setup.js` mocks `expo-secure-store` and AsyncStorage (its official
+  Jest mock). Add project-specific native-module mocks there.
+- **⚠ RTL v14 gotcha (React 19):** `render`, `rerender`, and `unmount` are **async** — you
+  MUST `await render(<C />)`. Destructuring `render(...)` synchronously yields a Promise with
+  no query methods (`getByText is not a function`). Use the `screen` API after awaiting.
+- **Pattern:** wrap components that use React Query in a `QueryClientProvider`
+  (`new QueryClient({ defaultOptions: { queries: { retry: false } } })`), same as prana-portal.
+- First reference tests: `i18n/index.test.ts` (pure logic) and
+  `src/prana-components/StatCard.test.tsx` (RTL render).
