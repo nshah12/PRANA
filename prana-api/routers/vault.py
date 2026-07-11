@@ -83,10 +83,11 @@ async def view_document(
     """
     svc = _vault(request, db, current)
     try:
+        from lib.client_ip import get_client_ip
         plaintext, doc_type = await svc.get_document_bytes(
             document_id=document_id,
             employee_user_id=current.user_id,
-            actor_ip=request.client.host if request.client else "0.0.0.0",
+            actor_ip=get_client_ip(request, request.app.state.settings.trusted_proxy_count),
             session_id=current.session_id,
             access_type="DOWNLOAD" if download else "VIEW",
         )

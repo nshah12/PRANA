@@ -62,7 +62,8 @@ class OAUserService:
             await self._check_min_admin(tenant_id, exclude_id=oa_user_id)
 
         await self._db.execute(
-            "UPDATE oa_user SET status='DEACTIVATED' WHERE oa_user_id=$1", oa_user_id,
+            "UPDATE oa_user SET status='DEACTIVATED' WHERE oa_user_id=$1 AND tenant_id=$2",
+            oa_user_id, tenant_id,
         )
         # Revoke all active sessions
         sessions = await self._db.fetch(
@@ -88,7 +89,8 @@ class OAUserService:
             await self._check_min_admin(tenant_id, exclude_id=oa_user_id)
 
         await self._db.execute(
-            "UPDATE oa_user SET role=$2 WHERE oa_user_id=$1", oa_user_id, new_role,
+            "UPDATE oa_user SET role=$2 WHERE oa_user_id=$1 AND tenant_id=$3",
+            oa_user_id, new_role, tenant_id,
         )
 
     async def unlock(self, oa_user_id: str, tenant_id: str, actor_id: str) -> None:
