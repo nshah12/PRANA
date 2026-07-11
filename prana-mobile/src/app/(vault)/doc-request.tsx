@@ -74,19 +74,19 @@ export default function DocRequestScreen() {
 
   const { data, isLoading, error } = useQuery<{ items: DocRequest[]; total: number }>({
     queryKey: ['doc-requests'],
-    queryFn:  () => api.get('/vault/requests').then(r => r.data),
+    queryFn:  () => api.get('/v1/vault/requests'),
   });
 
   const { data: profileData } = useQuery<{ employers: { name: string; tenant_id: string }[] }>({
     queryKey: ['vault-profile'],
-    queryFn:  () => api.get('/vault/profile').then(r => r.data),
+    queryFn:  () => api.get('/v1/vault/profile'),
   });
 
   const [selectedEmployer, setSelectedEmployer] = useState('');
   const employers = profileData?.employers ?? [];
 
   const submit = useMutation({
-    mutationFn: () => api.post('/vault/requests', {
+    mutationFn: () => api.post('/v1/vault/requests', {
       doc_type:    docType,
       tenant_id:   selectedEmployer || undefined,
       doc_period:  period || undefined,

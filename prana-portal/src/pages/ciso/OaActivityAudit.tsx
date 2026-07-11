@@ -12,7 +12,7 @@ export function OaActivityAudit() {
   const [search, setSearch] = useState('')
   const [page, setPage] = useState(0)
 
-  const { data, isLoading } = useQuery({
+  const { data, isLoading, isError } = useQuery({
     queryKey: ['ciso-oa-audit', actionType, page],
     queryFn: () => api.get('/v1/ciso/oa-audit', {
       params: { action_type: actionType === 'ALL' ? undefined : actionType, offset: page * 50, limit: 50 },
@@ -67,6 +67,12 @@ export function OaActivityAudit() {
           <tbody className="divide-y divide-slate-50">
             {isLoading && (
               <tr><td colSpan={5} className="px-5 py-8 text-center text-slate-400">{tUi('CFO_DIGEST_LOADING')}</td></tr>
+            )}
+            {isError && (
+              <tr><td colSpan={5} className="px-5 py-8 text-center text-red-500">{tUi('CISO_OA_AUDIT_LOAD_FAILED')}</td></tr>
+            )}
+            {!isLoading && !isError && data?.events?.length === 0 && (
+              <tr><td colSpan={5} className="px-5 py-8 text-center text-slate-400">{tUi('CISO_OA_AUDIT_NONE')}</td></tr>
             )}
             {data?.events?.map((e: any, i: number) => (
               <tr key={i} className="hover:bg-canvas2">

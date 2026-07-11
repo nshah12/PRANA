@@ -41,6 +41,12 @@ describe('AuthAnomalyFeed', () => {
     expect(await screen.findByText('No auth anomalies detected.')).toBeInTheDocument()
   })
 
+  it('shows an error state when the query fails (3-state rule)', async () => {
+    vi.mocked(api.get).mockRejectedValue(new Error('boom'))
+    render(<AuthAnomalyFeed />, { wrapper })
+    expect(await screen.findByText('Failed to load auth anomalies. Try again.')).toBeInTheDocument()
+  })
+
   it('renders anomaly cards with the full raw IP address visible (CISO-privileged shape)', async () => {
     vi.mocked(api.get).mockResolvedValue({
       data: {

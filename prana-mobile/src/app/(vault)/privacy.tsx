@@ -73,14 +73,19 @@ export default function PrivacyScreen() {
   const [grievanceText, setGrievanceText] = useState('');
   const [grievanceSent, setGrievanceSent] = useState(false);
 
+  // TODO(backend): no `/vault/access-log` endpoint exists. The closest real endpoint is
+  // GET /v1/vault/activity (routers/vault.py get_activity) — confirm its response shape
+  // matches AccessEvent before repointing. Left as-is to avoid guessing the contract.
   const { data: accessData, isLoading: loadingAccess } = useQuery<{ items: AccessEvent[]; total: number }>({
     queryKey: ['privacy-access-log'],
-    queryFn:  () => api.get('/vault/access-log', { params: { limit: 20 } }).then(r => r.data),
+    queryFn:  () => api.get('/vault/access-log', { params: { limit: 20 } }),
   });
 
+  // TODO(backend): no `/vault/extraction-log` endpoint exists yet — needs to be built
+  // (privacy "AI extraction log" view). Path/shape unknown, so not repointed here.
   const { data: extractData } = useQuery<{ items: ExtractionLog[] }>({
     queryKey: ['privacy-extraction-log'],
-    queryFn:  () => api.get('/vault/extraction-log', { params: { limit: 10 } }).then(r => r.data),
+    queryFn:  () => api.get('/vault/extraction-log', { params: { limit: 10 } }),
   });
 
   const grievanceMutation = useMutation({

@@ -156,7 +156,7 @@ class HumanSignalWorkflow:
 | Platform Operations | 9 | PlatformSummaryWorkflow, ClamAVUpdateWorkflow, KMSHealthCheckWorkflow, StorageQuotaCheckWorkflow, StagingCleanupWorkflow, WebhookDeliveryWorkflow, NotificationDeliveryWorkflow, StorageExpansionWorkflow, OnboardingReviewSLAWorkflow |
 | Onboarding & Tenant Management | 4 | DomainVerificationWorkflow, TenantProvisioningWorkflow, TenantOffboardingWorkflow, TenantMigrationWorkflow |
 | Vault & Shares | 3 | ShareExpiryWorkflow, ShareRevocationWorkflow, DocumentShareWorkflow |
-| Gamification & HRMS Integration | 3 | GamificationRefreshWorkflow, HRMSSyncWorkflow, HRMSSyncScheduleWorkflow — **⚠ none of these three are registered in `worker.py` on any task queue.** Real, working classes with no worker polling for them — same class of bug as the SystemHealthWorkflow duplicate fixed above, not yet investigated further. |
+| Gamification & HRMS Integration | 3 | GamificationRefreshWorkflow (registered on `insight-queue`), HRMSSyncWorkflow + HRMSSyncScheduleWorkflow (registered on `hrms-queue`). Fixed 2026-07-09: previously none were registered, and `WorkflowConsumer` started `GamificationRefreshWorkflow` on `"prana-analytics"` — a queue no worker polled, so it silently never ran. Consumer now targets `insight-queue`. NOTE: `HRMSSyncScheduleWorkflow`'s Temporal-Schedule creation (`hrms_sync_schedule.py`) is still a placeholder dict, not a real `client.create_schedule(...)` call — the schedule-driven trigger path is not yet functional even though the workers now exist. |
 
 Corrections from the previous (53-count) version of this table:
 - `BatchTimeoutMonitorWorkflow` was listed under both Document Pipeline and Platform

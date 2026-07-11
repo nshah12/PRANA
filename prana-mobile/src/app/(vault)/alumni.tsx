@@ -52,30 +52,30 @@ export default function AlumniScreen() {
 
   const { data: employersData, isLoading: empLoading } = useQuery({
     queryKey: ['alumni-employers'],
-    queryFn:  () => api.get('/v1/alumni/employers').then(r => r.data),
+    queryFn:  () => api.get('/v1/alumni/employers'),
   });
 
   const { data: outreachData, isLoading: inboxLoading } = useQuery({
     queryKey: ['alumni-outreach'],
-    queryFn:  () => api.get('/v1/alumni/outreach').then(r => r.data),
+    queryFn:  () => api.get('/v1/alumni/outreach'),
     enabled:  tab === 'inbox',
   });
 
   const consentMutation = useMutation({
     mutationFn: (body: { tenant_id: string; granted: boolean; share_mobile: boolean; share_email: boolean }) =>
-      api.post('/v1/alumni/consent', body).then(r => r.data),
+      api.post('/v1/alumni/consent', body),
     onSuccess: () => qc.invalidateQueries({ queryKey: ['alumni-employers'] }),
   });
 
   const readMutation = useMutation({
     mutationFn: (outreach_id: string) =>
-      api.post(`/v1/alumni/outreach/${outreach_id}/read`).then(r => r.data),
+      api.post(`/v1/alumni/outreach/${outreach_id}/read`),
     onSuccess: () => qc.invalidateQueries({ queryKey: ['alumni-outreach'] }),
   });
 
   const replyMutation = useMutation({
     mutationFn: ({ outreach_id, body }: { outreach_id: string; body: string }) =>
-      api.post(`/v1/alumni/outreach/${outreach_id}/reply`, { body }).then(r => r.data),
+      api.post(`/v1/alumni/outreach/${outreach_id}/reply`, { body }),
     onSuccess: (_data, vars) => {
       setReplyText(prev => { const next = { ...prev }; delete next[vars.outreach_id]; return next; });
       qc.invalidateQueries({ queryKey: ['alumni-outreach'] });

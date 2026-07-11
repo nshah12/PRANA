@@ -66,17 +66,17 @@ const br = StyleSheet.create({
 export default function VaultHealthScreen() {
   const { data: health, isLoading: loadingH, error: errH } = useQuery<HealthData>({
     queryKey: ['vault-health'],
-    queryFn:  () => api.get('/vault/health').then(r => r.data),
+    queryFn:  () => api.get('/v1/vault/health'),
   });
 
   const { data: profile } = useQuery<ProfileData>({
     queryKey: ['vault-profile'],
-    queryFn:  () => api.get('/vault/profile').then(r => r.data),
+    queryFn:  () => api.get('/v1/vault/profile'),
   });
 
   const { data: docsData } = useQuery<DocsData>({
     queryKey: ['vault-docs-health'],
-    queryFn:  () => api.get('/vault/documents', { params: { limit: 200 } }).then(r => r.data),
+    queryFn:  () => api.get('/v1/vault/documents', { params: { limit: 200 } }),
   });
 
   const score    = health?.overall_score ?? 0;

@@ -145,7 +145,7 @@ describe('EmpLogin — TOTP step', () => {
     await screen.findByPlaceholderText(/6-digit|code/i)
   }
 
-  it('on success: writes emp-auth to localStorage first and navigates to /emp/vault', async () => {
+  it('on success: persists the user (not the token) and navigates to /emp/vault', async () => {
     const token = fakeJwt({ sub: 'eu-1' })
     const user = userEvent.setup()
     renderPage()
@@ -156,8 +156,10 @@ describe('EmpLogin — TOTP step', () => {
     await user.click(screen.getByText(/sign in to vault/i))
 
     await waitFor(() => expect(window.location.href).toBe('/emp/vault'))
+    // Access token is held in memory only — never persisted to localStorage (security).
+    expect(useEmpAuthStore.getState().accessToken).toBe(token)
     const stored = JSON.parse(localStorage.getItem('prana-emp-auth') as string)
-    expect(stored.state.accessToken).toBe(token)
+    expect(stored.state.accessToken).toBeUndefined()
     expect(stored.state.user.userId).toBe('eu-1')
   })
 

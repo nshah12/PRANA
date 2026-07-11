@@ -13,26 +13,15 @@ export const api = axios.create({
   withCredentials: true,
 })
 
-// Read employee token from Zustand store with localStorage fallback (handles hydration timing)
-// Zustand persist wraps stored data as { state: { accessToken, user }, version: 0 }
-function getEmpToken(): string | null {
-  const t = useEmpAuthStore.getState().accessToken
-  if (t) return t
-  try {
-    const raw = localStorage.getItem('prana-emp-auth')
-    if (raw) return JSON.parse(raw).state?.accessToken ?? null
-  } catch {}
-  return null
-}
-
-// Attach access token — use employee token on /emp/* pages; org token on /org|/admin pages
+// Access tokens live in memory only (never localStorage). On reload the store starts with
+// a null token; the first request 401s and the response interceptor silently refreshes via
+// the httpOnly refresh cookie, so no persisted token is needed.
 api.interceptors.request.use((config) => {
-  const empToken = getEmpToken()
+  const empToken = useEmpAuthStore.getState().accessToken
   const orgToken = useAuthStore.getState().accessToken
   const onEmpPage = typeof window !== 'undefined' && window.location.pathname.startsWith('/emp/')
   const token = onEmpPage ? (empToken ?? orgToken) : (orgToken ?? empToken)
   if (token) config.headers.Authorization = `Bearer ${token}`
-  console.warn('[API REQ]', config.method?.toUpperCase(), config.url, token ? 'TOKEN:' + token.slice(-8) : 'NO TOKEN')
   return config
 })
 

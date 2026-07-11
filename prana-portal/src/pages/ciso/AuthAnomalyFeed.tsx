@@ -6,7 +6,7 @@ import { tUi } from '@/i18n'
 
 export function AuthAnomalyFeed() {
   const qc = useQueryClient()
-  const { data, isLoading } = useQuery({
+  const { data, isLoading, isError } = useQuery({
     queryKey: ['ciso-auth-anomalies'],
     queryFn: () => api.get('/v1/ciso/auth-anomalies').then(r => r.data),
     refetchInterval: 20_000,
@@ -29,7 +29,12 @@ export function AuthAnomalyFeed() {
 
       <div className="space-y-3">
         {isLoading && <p className="text-sm text-slate-400">{tUi('CFO_DIGEST_LOADING')}</p>}
-        {data?.anomalies?.length === 0 && (
+        {isError && (
+          <div className="bg-white rounded-xl border border-red-100 p-12 text-center">
+            <p className="text-red-500">{tUi('CISO_AUTH_ANOMALY_LOAD_FAILED')}</p>
+          </div>
+        )}
+        {!isLoading && !isError && data?.anomalies?.length === 0 && (
           <div className="bg-white rounded-xl border border-slate-100 p-12 text-center">
             <p className="text-slate-500">{tUi('CISO_AUTH_ANOMALY_NONE')}</p>
           </div>

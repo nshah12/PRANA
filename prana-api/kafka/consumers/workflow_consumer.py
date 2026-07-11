@@ -24,7 +24,9 @@ from workflows.compliance import (
 )
 from workflows.gamification import GamificationRefreshWorkflow
 
-GAMIFICATION_TASK_QUEUE = "prana-analytics"
+# Must match the queue GamificationRefreshWorkflow is registered on in workflows/worker.py.
+# Previously "prana-analytics" — a queue no worker polls, so the workflow never ran.
+GAMIFICATION_TASK_QUEUE = "insight-queue"
 
 log = logging.getLogger(__name__)
 

@@ -50,10 +50,12 @@ All in `prana-docs/`:
 ## Event Streaming — Apache Kafka (DECIDED, NOT optional)
 - **AWS MSK · KRaft mode · Both regions · MirrorMaker 2 bidirectional sync**
 - Dev: `confluentinc/cp-kafka:7.6.1` container on `localhost:9092`
-- **5 topics** (12 partitions each): `prana.ingest.events`, `prana.pipeline.events`, `prana.audit.events`, `prana.notifications`, `prana.analytics.events`
+- **21 topics** (12 partitions each) and **20 consumers** in `prana-api/kafka/consumers/`.
+  The core five remain `AuditConsumer`, `WorkflowConsumer`, `SSEFanoutConsumer`,
+  `NotifConsumer`, `AnalyticsConsumer`; the rest are per-domain (auth/tenant/employee/
+  security/statutory/integration/platform) and per-channel (email/sms/push/whatsapp/bell).
 - **HTTP handler contract:** validate → S3 put → 1 DB write → 1 Kafka publish → return 202. No audit writes, no workflow starts, no notifications in HTTP path.
-- **5 consumers** in `prana-api/kafka/consumers/`: `AuditConsumer`, `WorkflowConsumer`, `SSEFanoutConsumer`, `NotifConsumer`, `AnalyticsConsumer`
-- Full reference: `prana-docs/KAFKA_REDIS_ARCHITECTURE.md`
+- **Authoritative topic/consumer list:** `prana-api/CLAUDE.md`. Full design: `prana-docs/KAFKA_REDIS_ARCHITECTURE.md`
 
 ## Cache — Redis Enterprise (DECIDED, NOT optional)
 - **ElastiCache Global Datastore · CRDT active-active · Both regions · sub-10ms cross-region sync**
@@ -64,7 +66,7 @@ All in `prana-docs/`:
 
 ## Workflow Engine
 - Temporal Python SDK v1.x
-- 53 named workflows, zero cron/Celery/polling
+- 57 named workflows (see `prana-api/workflows/CLAUDE.md` for the authoritative list), zero cron/Celery/polling
 - Business logic in plain service classes (zero Temporal imports)
 - Temporal workflows are thin adapter shells (<20 lines)
 - **Temporal + Kafka are complementary:** Kafka = async fan-out event bus; Temporal = durable process with signals, timers, human-in-the-loop. WorkflowConsumer bridges them.

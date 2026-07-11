@@ -64,7 +64,7 @@ function CareerScoreWidget() {
   const anim = useRef(new Animated.Value(0)).current;
   const { data, isLoading } = useQuery<{ score: number; badges: any[]; streak: { current_streak_days: number } }>({
     queryKey: ['gamification', 'profile'],
-    queryFn: () => api.get('/v1/gamification/profile').then(r => r.data),
+    queryFn: () => api.get('/v1/gamification/profile'),
     staleTime: 60_000,
   });
 
@@ -164,8 +164,10 @@ function CompanyPicker({ visible, selected, onSelect, onClose, totalDocs, emailC
 
   return (
     <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
-      <Pressable style={ps.overlay} onPress={onClose}>
-        <Pressable style={ps.sheet} onPress={e => e.stopPropagation()}>
+      <View style={ps.overlay}>
+        {/* Sibling backdrop (tap-outside-to-close) — avoids nesting Pressables (FRONTEND-01) */}
+        <Pressable style={StyleSheet.absoluteFill} onPress={onClose} />
+        <View style={ps.sheet}>
           <View style={ps.handle} />
           <Text style={ps.title}>{tUi('VAULT_HOME_FILTER_BY_SOURCE')}</Text>
           <ScrollView showsVerticalScrollIndicator={false}>
@@ -189,8 +191,8 @@ function CompanyPicker({ visible, selected, onSelect, onClose, totalDocs, emailC
               </Pressable>
             ))}
           </ScrollView>
-        </Pressable>
-      </Pressable>
+        </View>
+      </View>
     </Modal>
   );
 }
@@ -227,8 +229,10 @@ function DocTypePicker({ visible, selected, companyFilter, onSelect, onClose, do
 
   return (
     <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
-      <Pressable style={ps.overlay} onPress={onClose}>
-        <Pressable style={ps.sheet} onPress={e => e.stopPropagation()}>
+      <View style={ps.overlay}>
+        {/* Sibling backdrop (tap-outside-to-close) — avoids nesting Pressables (FRONTEND-01) */}
+        <Pressable style={StyleSheet.absoluteFill} onPress={onClose} />
+        <View style={ps.sheet}>
           <View style={ps.handle} />
           <Text style={ps.title}>{tUi('VAULT_HOME_FILTER_BY_TYPE')}</Text>
           <ScrollView showsVerticalScrollIndicator={false}>
@@ -246,8 +250,8 @@ function DocTypePicker({ visible, selected, companyFilter, onSelect, onClose, do
               </Pressable>
             ))}
           </ScrollView>
-        </Pressable>
-      </Pressable>
+        </View>
+      </View>
     </Modal>
   );
 }
@@ -295,8 +299,10 @@ function MenuPanel({ visible, onClose }: { visible: boolean; onClose: () => void
   ];
   return (
     <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
-      <Pressable style={mp.overlay} onPress={onClose}>
-        <Pressable style={mp.panel} onPress={e => e.stopPropagation()}>
+      <View style={mp.overlay}>
+        {/* Sibling backdrop (tap-outside-to-close) — avoids nesting Pressables (FRONTEND-01) */}
+        <Pressable style={StyleSheet.absoluteFill} onPress={onClose} />
+        <View style={mp.panel}>
           <View style={mp.profile}>
             <LinearGradient colors={gradJourney.colors} locations={gradJourney.locations} start={gradJourney.start} end={gradJourney.end} style={mp.avatar}>
               <Text style={mp.avatarText}>{(profile?.name ?? '?').charAt(0)}</Text>
@@ -321,8 +327,8 @@ function MenuPanel({ visible, onClose }: { visible: boolean; onClose: () => void
             <View style={[mp.itemIcon, { backgroundColor: 'rgba(251,113,133,0.12)' }]}><Text style={{ fontSize: 15 }}>🚪</Text></View>
             <Text style={mp.dangerLabel}>{tUi('MENU_SIGN_OUT')}</Text>
           </Pressable>
-        </Pressable>
-      </Pressable>
+        </View>
+      </View>
     </Modal>
   );
 }
@@ -347,24 +353,30 @@ const mp = StyleSheet.create({
 function BellPopup({ onClose, onTap }: { onClose: () => void; onTap: () => void }) {
   return (
     <Modal visible transparent animationType="fade" onRequestClose={onClose}>
-      <Pressable style={bp.overlay} onPress={onClose}>
-        <Pressable style={bp.card} onPress={onTap}>
-          <LinearGradient colors={gradJourney.colors} locations={gradJourney.locations} start={gradJourney.start} end={gradJourney.end} style={bp.icon}>
-            <Text style={{ fontSize: 18 }}>📄</Text>
-          </LinearGradient>
-          <View style={{ flex: 1 }}>
-            <Text style={bp.title}>{NOTIFICATION.title}</Text>
-            <Text style={bp.sub}>{NOTIFICATION.subtitle}</Text>
-          </View>
+      <View style={bp.overlay}>
+        {/* Sibling backdrop — avoids nesting Pressables (FRONTEND-01) */}
+        <Pressable style={StyleSheet.absoluteFill} onPress={onClose} />
+        {/* Card body and the ✕ are two distinct touch targets, not nested Pressables */}
+        <View style={bp.card}>
+          <Pressable style={bp.cardTap} onPress={onTap}>
+            <LinearGradient colors={gradJourney.colors} locations={gradJourney.locations} start={gradJourney.start} end={gradJourney.end} style={bp.icon}>
+              <Text style={{ fontSize: 18 }}>📄</Text>
+            </LinearGradient>
+            <View style={{ flex: 1 }}>
+              <Text style={bp.title}>{NOTIFICATION.title}</Text>
+              <Text style={bp.sub}>{NOTIFICATION.subtitle}</Text>
+            </View>
+          </Pressable>
           <Pressable onPress={onClose}><Text style={bp.close}>✕</Text></Pressable>
-        </Pressable>
-      </Pressable>
+        </View>
+      </View>
     </Modal>
   );
 }
 const bp = StyleSheet.create({
   overlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.3)', justifyContent: 'flex-start', paddingTop: 86, paddingHorizontal: 16 },
   card: { backgroundColor: '#1C2747', borderRadius: 16, padding: 14, flexDirection: 'row', alignItems: 'center', gap: 12, borderWidth: 1, borderColor: 'rgba(255,255,255,0.12)' },
+  cardTap: { flexDirection: 'row', alignItems: 'center', gap: 12, flex: 1 },
   icon: { width: 40, height: 40, borderRadius: 12, alignItems: 'center', justifyContent: 'center' },
   title: { fontFamily: fonts.bodySemiBold, fontSize: 13, color: '#FFFFFF', marginBottom: 2 },
   sub: { fontSize: 11, color: '#9CA8C9', lineHeight: 16 },
@@ -498,7 +510,7 @@ export function VaultHomeScreen() {
 
   const { data: benchConsentData } = useQuery({
     queryKey: ['benchmark-consent'],
-    queryFn: () => api.get('/v1/benchmarking/consent').then(r => r.data),
+    queryFn: () => api.get('/v1/benchmarking/consent'),
     staleTime: 5 * 60 * 1000,
   });
 

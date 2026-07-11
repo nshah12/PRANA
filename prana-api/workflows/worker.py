@@ -169,6 +169,9 @@ from workflows.vault_shares import (
     expire_share_token, revoke_share_token, create_share_token,
     send_share_otp, notify_share_accessed, get_share_config,
 )
+from workflows.gamification import GamificationRefreshWorkflow, recalculate_and_persist
+from workflows.hrms_sync import HRMSSyncWorkflow, run_hrms_pull
+from workflows.hrms_sync_schedule import HRMSSyncScheduleWorkflow, run_ensure_hrms_schedules
 
 log = logging.getLogger(__name__)
 
@@ -296,6 +299,7 @@ WORKERS: dict[str, dict] = {
             InsightRefreshWorkflow,
             CareerInsightWorkflow, AnomalyAcknowledgementWorkflow,
             DigestWorkflow, PeerBenchmarkWorkflow, SkillGapWorkflow, MarketCompWorkflow,
+            GamificationRefreshWorkflow,
         ],
         "activities": [
             refresh_document_insight,
@@ -304,11 +308,17 @@ WORKERS: dict[str, dict] = {
             send_digest_email, build_peer_benchmark, write_peer_benchmark,
             build_skill_gap_analysis, write_skill_gap,
             build_market_comp, write_market_comp,
+            recalculate_and_persist,   # GamificationRefreshWorkflow
         ],
     },
     "resolution-queue-analytics": {
         "workflows": [VaultCompletenessWorkflow],
         "activities": [score_vault_completeness, write_vault_completeness],
+    },
+    # HRMS pull sync (schedule-driven) + the schedule-ensurer workflow.
+    "hrms-queue": {
+        "workflows": [HRMSSyncWorkflow, HRMSSyncScheduleWorkflow],
+        "activities": [run_hrms_pull, run_ensure_hrms_schedules],
     },
 }
 

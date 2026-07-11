@@ -97,14 +97,15 @@ describe('request interceptor — token attachment', () => {
     expect(config.headers.Authorization).toBeUndefined()
   })
 
-  it('reads the employee token via the localStorage fallback during the hydration-timing window', () => {
-    // getEmpToken() falls back to reading "prana-emp-auth" directly when the
-    // Zustand store hasn't hydrated its in-memory state yet.
-    localStorage.setItem('prana-emp-auth', JSON.stringify({ state: { accessToken: 'hydrating-token' }, version: 0 }))
+  it('never reads the access token from localStorage — token lives in memory only', () => {
+    // The old hydration-timing localStorage fallback was removed: access tokens are no
+    // longer persisted (security), so a token sitting in localStorage must be ignored.
+    // On reload the store starts null and the 401→silent-refresh flow rehydrates it.
+    localStorage.setItem('prana-emp-auth', JSON.stringify({ state: { accessToken: 'stale-persisted-token' }, version: 0 }))
     restoreLocation()
     restoreLocation = setLocation('/emp/vault')
     const config = requestFulfilled({ headers: {} })
-    expect(config.headers.Authorization).toBe('Bearer hydrating-token')
+    expect(config.headers.Authorization).toBeUndefined()
     localStorage.removeItem('prana-emp-auth')
   })
 })

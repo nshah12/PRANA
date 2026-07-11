@@ -82,15 +82,14 @@ describe('useEmpAuthStore — persistence (zustand persist, key "prana-emp-auth"
   })
 
   it(
-    'FLAG: same accessToken-in-localStorage behavior as store/auth.ts — see the matching ' +
-    'FLAG test there for the full explanation. lib/api.ts getEmpToken() actively reads this ' +
-    'value back via localStorage.getItem("prana-emp-auth") as a hydration-timing fallback, so ' +
-    'this is load-bearing for current behavior, not an accident — flagged for a deliberate call.',
+    'never persists accessToken (the JWT) to localStorage — rehydrated via silent refresh',
     () => {
+      useEmpAuthStore.getState().setUser(MOCK_EMP)
       useEmpAuthStore.getState().setAccessToken('emp-jwt-abc123')
       const raw = localStorage.getItem('prana-emp-auth')
       const parsed = JSON.parse(raw as string)
-      expect(parsed.state.accessToken).toBe('emp-jwt-abc123')
+      expect(parsed.state.accessToken).toBeUndefined()
+      expect(parsed.state.user).toBeTruthy()   // user IS persisted
     },
   )
 })

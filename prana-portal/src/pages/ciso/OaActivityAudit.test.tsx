@@ -82,6 +82,12 @@ describe('OaActivityAudit', () => {
     expect(search).toHaveValue('priya')
   })
 
+  it('shows an error state when the query fails (3-state rule)', async () => {
+    vi.mocked(api.get).mockRejectedValue(new Error('boom'))
+    render(<OaActivityAudit />, { wrapper })
+    expect(await screen.findByText('Failed to load the activity audit. Try again.')).toBeInTheDocument()
+  })
+
   it('exports a signed PDF via blob download on click', async () => {
     const user = userEvent.setup()
     vi.mocked(api.get).mockImplementation((url: string) => {

@@ -44,18 +44,18 @@ export default function BenchmarkingScreen() {
 
   const { data: consentData, isLoading: consentLoading } = useQuery({
     queryKey: ['benchmark-consent'],
-    queryFn: () => api.get('/v1/benchmarking/consent').then(r => r.data),
+    queryFn: () => api.get('/v1/benchmarking/consent'),
   });
 
   const { data: positionData, isLoading: positionLoading } = useQuery({
     queryKey: ['benchmark-position'],
-    queryFn: () => api.get('/v1/benchmarking/my-position').then(r => r.data),
+    queryFn: () => api.get('/v1/benchmarking/my-position'),
     enabled: consentData?.peer_benchmark_consent === true,
   });
 
   const consentMutation = useMutation({
     mutationFn: (grant: boolean) =>
-      api.post('/v1/benchmarking/consent', { grant }).then(r => r.data),
+      api.post('/v1/benchmarking/consent', { grant }),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['benchmark-consent'] });
       qc.invalidateQueries({ queryKey: ['benchmark-position'] });

@@ -103,17 +103,19 @@ describe('useAuthStore — persistence (zustand persist, key "prana-auth")', () 
   })
 
   it(
-    'FLAG: accessToken (the JWT) is currently written to localStorage via partialize, ' +
-    'contradicting prana-portal/CLAUDE.md ("JWT ... store in httpOnly cookie, never localStorage"). ' +
-    'This test documents actual behavior as-is — it is not an endorsement. Fixing it requires also ' +
-    'reworking lib/api.ts getEmpToken()\'s localStorage fallback (same pattern, empAuth.ts), which ' +
-    'exists specifically to read the persisted token back out during a Zustand-hydration race window. ' +
-    'Flagged for a deliberate decision, not silently changed here.',
+    'never persists accessToken (the JWT) to localStorage — CLAUDE.md: JWT stays in ' +
+    'the httpOnly cookie / in-memory, never localStorage (XSS-exposable). It is rehydrated ' +
+    'via the silent refresh flow on reload.',
     () => {
+      useAuthStore.getState().setUser({
+        userId: 'u1', email: 'a@b.in', displayName: 'A', role: 'oa_admin',
+        tenantId: 't1', tenantName: 'Acme',
+      })
       useAuthStore.getState().setAccessToken('jwt-abc123')
       const raw = localStorage.getItem('prana-auth')
       const parsed = JSON.parse(raw as string)
-      expect(parsed.state.accessToken).toBe('jwt-abc123')
+      expect(parsed.state.accessToken).toBeUndefined()
+      expect(parsed.state.user).toBeTruthy()   // user IS persisted
     },
   )
 })

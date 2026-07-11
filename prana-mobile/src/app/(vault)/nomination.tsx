@@ -30,9 +30,12 @@ export default function NominationScreen() {
   const [email, setEmail]       = useState('');
   const [done, setDone]         = useState(false);
 
+  // TODO(backend): no `/vault/compliance/nominees` endpoint exists — routers/compliance.py
+  // (mounted at /v1/vault/compliance) only has erasure/export/consent/grievance. The
+  // nominee-access feature needs a backend endpoint before this screen can load real data.
   const { data, isLoading } = useQuery<{ items: Nominee[] }>({
     queryKey: ['nominations'],
-    queryFn:  () => api.get('/vault/compliance/nominees').then(r => r.data),
+    queryFn:  () => api.get('/vault/compliance/nominees'),
   });
 
   const addMutation = useMutation({
