@@ -15,7 +15,7 @@ export function DocumentViewer() {
   const [page] = useState(0)
   const limit = 20
 
-  const { data, isLoading, refetch } = useQuery({
+  const { data, isLoading, isError, refetch } = useQuery({
     queryKey: ['documents', docType, page],
     queryFn: () => api.get('/v1/ingest/documents', {
       params: { doc_type: docType || undefined, pipeline_status: 'ROUTED', limit, offset: page * limit },
@@ -77,7 +77,13 @@ export function DocumentViewer() {
             {isLoading && (
               <tr><td colSpan={5} className="px-5 py-8 text-center text-slate-400">{tUi('CFO_DIGEST_LOADING')}</td></tr>
             )}
-            {data?.map((doc: any) => (
+            {!isLoading && isError && (
+              <tr><td colSpan={5} className="px-5 py-8 text-center text-red-500">{tUi('OA_DOC_VIEWER_LOAD_FAILED')}</td></tr>
+            )}
+            {!isLoading && !isError && (data?.length ?? 0) === 0 && (
+              <tr><td colSpan={5} className="px-5 py-8 text-center text-slate-400">{tUi('OA_DOC_VIEWER_NONE_FOUND')}</td></tr>
+            )}
+            {!isLoading && !isError && data?.map((doc: any) => (
               <tr key={doc.document_id} className="hover:bg-canvas2">
                 <td className="px-5 py-3">
                   <div className="flex items-center gap-3">

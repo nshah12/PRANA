@@ -11,7 +11,7 @@ export function UserManagement() {
   const qc = useQueryClient()
   const [showCreate, setShowCreate] = useState(false)
 
-  const { data, isLoading } = useQuery({
+  const { data, isLoading, isError } = useQuery({
     queryKey: ['oa-users'],
     queryFn: () => api.get('/v1/org/users').then(r => r.data),
   })
@@ -70,7 +70,13 @@ export function UserManagement() {
             {isLoading && (
               <tr><td colSpan={5} className="px-5 py-8 text-center text-slate-400">{tUi('CFO_DIGEST_LOADING')}</td></tr>
             )}
-            {data?.users?.map((u: any) => (
+            {!isLoading && isError && (
+              <tr><td colSpan={5} className="px-5 py-8 text-center text-red-500">{tUi('OA_USER_MGMT_LOAD_FAILED')}</td></tr>
+            )}
+            {!isLoading && !isError && (data?.users?.length ?? 0) === 0 && (
+              <tr><td colSpan={5} className="px-5 py-8 text-center text-slate-400">{tUi('OA_USER_MGMT_NONE_FOUND')}</td></tr>
+            )}
+            {!isLoading && !isError && data?.users?.map((u: any) => (
               <tr key={u.oa_user_id} className="hover:bg-canvas2">
                 <td className="px-5 py-3">
                   <p className="font-medium text-slate-800">{u.display_name}</p>

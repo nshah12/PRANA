@@ -5,7 +5,7 @@ import { fmtDateTime } from '@/lib/utils'
 import { tUi } from '@/i18n'
 
 export function ConsentDashboard() {
-  const { data } = useQuery({
+  const { data, isLoading, isError, refetch } = useQuery({
     queryKey: ['consent-dashboard'],
     queryFn: () => api.get('/v1/org/consent').then(r => r.data),
   })
@@ -13,6 +13,27 @@ export function ConsentDashboard() {
   const exportMut = useMutation({
     mutationFn: () => api.post('/v1/org/consent/export', {}).then(r => r.data),
   })
+
+  // BUG FIX: this page previously never checked isLoading/isError, silently rendering
+  // '—' stat-card placeholders on both initial load and fetch failure — no skeleton,
+  // no error message, no retry. Violated the mandatory 3-states contract
+  // (.claude/rules/frontend.md) that every other CFO page (AttritionCost, Benchmarking)
+  // already follows. Added explicit loading/error branches to match.
+  if (isLoading) return (
+    <div className="space-y-6 animate-pulse">
+      <div className="h-6 w-40 bg-slate-200 rounded" />
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+        {[...Array(4)].map((_, i) => <div key={i} className="h-24 bg-slate-100 rounded-xl" />)}
+      </div>
+      <div className="h-56 bg-slate-100 rounded-xl" />
+    </div>
+  )
+  if (isError) return (
+    <div className="flex flex-col items-center justify-center py-20 text-slate-400">
+      <p className="text-sm">{tUi('CONSENT_DASH_LOAD_FAILED')}</p>
+      <button onClick={() => refetch()} className="mt-3 text-xs text-indigo-600 hover:underline">{tUi('CFO_ATTRITION_RETRY')}</button>
+    </div>
+  )
 
   const stats = [
     { label: 'Consent granted', value: data?.granted ?? '—', icon: CheckCircle, color: 'text-emerald-600' },

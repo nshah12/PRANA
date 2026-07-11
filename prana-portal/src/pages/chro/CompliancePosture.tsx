@@ -11,7 +11,7 @@ const RISK_COLORS: Record<string, string> = {
 }
 
 export function CompliancePosture() {
-  const { data } = useQuery({
+  const { data, isLoading, isError, refetch } = useQuery({
     queryKey: ['chro-compliance-posture'],
     queryFn: () => api.get('/v1/chro/compliance-posture').then(r => r.data),
   })
@@ -34,6 +34,23 @@ export function CompliancePosture() {
         </div>
       </div>
 
+      {isLoading && (
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 animate-pulse">
+          {Array.from({ length: 4 }).map((_, i) => (
+            <div key={i} className="h-24 bg-slate-100 rounded-xl" />
+          ))}
+        </div>
+      )}
+
+      {isError && (
+        <div className="text-center py-16 text-slate-400">
+          <p className="text-sm">{tUi('CHRO_COMPLIANCE_POSTURE_LOAD_FAILED')}</p>
+          <button onClick={() => refetch()} className="mt-2 text-xs text-red-600 hover:underline">{tUi('CFO_ATTRITION_RETRY')}</button>
+        </div>
+      )}
+
+      {!isLoading && !isError && (
+      <>
       {/* Score cards */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
         {[
@@ -96,6 +113,8 @@ export function CompliancePosture() {
           )}
         </div>
       </div>
+      </>
+      )}
     </div>
   )
 }

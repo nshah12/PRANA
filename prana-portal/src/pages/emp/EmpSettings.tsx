@@ -30,6 +30,13 @@ export function EmpSettings() {
     queryFn: () => api.get('/v1/vault/profile').then(r => r.data),
   })
 
+  // Hooks must run unconditionally on every render (Rules of Hooks) — these were
+  // previously declared after the isLoading/isError early returns, which meant
+  // React saw a different number of hooks between the loading and loaded render
+  // passes and threw "Rendered more hooks than during the previous render."
+  const [mfa, setMfa] = useState({ totp: true, sms: true, loginAlert: true, accessAlert: true })
+  const [notif, setNotif] = useState({ newDoc: true, shareAccessed: true, shareExpiry: false })
+
   if (isLoading) return (
     <div className="p-6 max-w-3xl animate-pulse space-y-4">
       <div className="h-6 w-44 bg-slate-200 rounded" />
@@ -48,9 +55,6 @@ export function EmpSettings() {
   const employers: any[] = data?.employers ?? []
   const vaultUrl = data?.vault_url ?? 'prana.in/vault/—'
   const mobile   = data?.mobile ?? '—'
-
-  const [mfa, setMfa] = useState({ totp: true, sms: true, loginAlert: true, accessAlert: true })
-  const [notif, setNotif] = useState({ newDoc: true, shareAccessed: true, shareExpiry: false })
 
   const ORG_COLORS = ['bg-sky-500','bg-violet-500','bg-emerald-500','bg-amber-500']
 

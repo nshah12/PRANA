@@ -1,6 +1,20 @@
 import '@testing-library/jest-dom'
 import { beforeEach } from 'vitest'
 
+// jsdom doesn't implement ResizeObserver (recharts' ResponsiveContainer needs it
+// to measure its parent element) — any page rendering a recharts component
+// throws "ResizeObserver is not defined" without this stub.
+class ResizeObserverStub {
+  observe() {}
+  unobserve() {}
+  disconnect() {}
+}
+Object.defineProperty(globalThis, 'ResizeObserver', {
+  value: ResizeObserverStub,
+  writable: true,
+  configurable: true,
+})
+
 // Under this project's exact Node/jsdom/vitest version combination, jsdom's real
 // window.localStorage resolves to `undefined` by the time vitest finishes wiring
 // up the test globals (verified directly: raw `new JSDOM(...)` has a working

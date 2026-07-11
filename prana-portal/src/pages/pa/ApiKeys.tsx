@@ -18,8 +18,12 @@ export function ApiKeys() {
   const createMut = useMutation({
     mutationFn: () => api.post('/admin/api-keys', form).then(r => r.data),
     onSuccess: () => {
+      // BUG FIX: previously called setShowForm(false) here, which unmounted the
+      // "Key created — copy now, it will not be shown again" panel before the PA
+      // could ever see or copy the newly issued key (it is never retrievable again
+      // after this response). Keep the form open so the key stays visible; the PA
+      // dismisses it manually via the Cancel button, which is now relabelled "Done".
       qc.invalidateQueries({ queryKey: ['pa-api-keys'] })
-      setShowForm(false)
       setForm({ tenant_id: '', label: '', rate_limit_per_minute: 60 })
     },
   })
@@ -82,9 +86,17 @@ export function ApiKeys() {
             </div>
           </div>
           {createMut.data?.api_key && (
-            <div className="bg-emerald-50 border border-emerald-200 rounded-lg p-4">
+            <div className="bg-emerald-50 border border-emerald-200 rounded-lg p-4 space-y-3">
               <p className="text-xs text-emerald-700 font-medium mb-1">{tUi('PA_API_KEYS_KEY_CREATED_NOTE')}</p>
               <code className="text-xs font-mono text-emerald-900 break-all">{createMut.data.api_key}</code>
+              <div className="flex justify-end">
+                <button
+                  onClick={() => { setShowForm(false); createMut.reset() }}
+                  className="text-xs bg-emerald-600 text-white rounded-lg px-4 py-2 hover:bg-emerald-700"
+                >
+                  {tUi('PA_API_KEYS_DONE')}
+                </button>
+              </div>
             </div>
           )}
           {!createMut.data && (
