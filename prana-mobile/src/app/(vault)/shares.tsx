@@ -7,8 +7,8 @@
  * what, and can cut access with one tap.
  *
  * API:
- *   GET    /vault/shares              → { shares: ShareLink[] }
- *   DELETE /vault/shares/{token_id}   → 204
+ *   GET    /v1/vault/share              → { shares: ShareLink[] }
+ *   DELETE /v1/vault/share/{token_id}   → 204
  */
 import React, { useState } from 'react';
 import {
@@ -236,7 +236,7 @@ export default function SharesScreen() {
     if (!revoking) return;
     setRevokeLoading(true);
     try {
-      await api.delete(`/vault/shares/${revoking.token_id}`);
+      await api.delete(`/v1/vault/share/${revoking.token_id}`);
       setRevoking(null);
       refetch();
     } catch {
@@ -285,6 +285,10 @@ export default function SharesScreen() {
         <View style={s.center}>
           <ActivityIndicator size="large" color={colors.indigo} />
           <Text style={s.centerText}>{tUi('SHARES_LOADING')}</Text>
+        </View>
+      ) : error ? (
+        <View style={s.center}>
+          <Text style={s.centerText}>{tUi('SHARES_LOAD_FAILED')}</Text>
         </View>
       ) : shares.length === 0 ? (
         <EmptyShares />

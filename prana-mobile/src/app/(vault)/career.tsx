@@ -287,7 +287,7 @@ export default function CareerScreen() {
 
   const { data, isLoading, isError } = useQuery<CareerData>({
     queryKey: ['vault', 'career'],
-    queryFn: () => api.get<CareerData>('/vault/career'),
+    queryFn: () => api.get<CareerData>('/v1/vault/career'),
     staleTime: 5 * 60 * 1000,
   });
 

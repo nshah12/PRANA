@@ -229,7 +229,7 @@ export default function ActivityScreen() {
     queryFn: () => api.get<{
       access_log: Array<{ id: string; action: string; doc_title: string; occurred_at: string }>;
       pipeline_pushes: PipelinePush[];
-    }>('/vault/activity'),
+    }>('/v1/vault/activity'),
   });
 
   const pushes = data?.pipeline_pushes ?? [];

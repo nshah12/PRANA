@@ -95,25 +95,25 @@ export function useDocuments(params?: { employer_id?: string; doc_type?: string 
   if (params?.employer_id) qs.set('employer_id', params.employer_id);
   if (params?.doc_type)    qs.set('doc_type',    params.doc_type);
   const query = qs.toString() ? `?${qs}` : '';
-  return useFetch<{ documents: VaultDocument[] }>(`/vault/documents${query}`);
+  return useFetch<{ documents: VaultDocument[] }>(`/v1/vault/documents${query}`);
 }
 
 // ── Employers list ────────────────────────────────────────────────────────────
 
 export function useEmployers() {
-  return useFetch<{ employers: Employer[] }>('/vault/employers');
+  return useFetch<{ employers: Employer[] }>('/v1/vault/employers');
 }
 
 // ── Vault health score ────────────────────────────────────────────────────────
 
 export function useVaultHealth() {
-  return useFetch<VaultHealth>('/vault/health');
+  return useFetch<VaultHealth>('/v1/vault/health');
 }
 
 // ── Share links ───────────────────────────────────────────────────────────────
 
 export function useShares() {
-  return useFetch<{ shares: ShareLink[] }>('/vault/share');
+  return useFetch<{ shares: ShareLink[] }>('/v1/vault/share');
 }
 
 // ── Activity: document access log ─────────────────────────────────────────────
@@ -129,7 +129,7 @@ export interface AccessEntry {
 }
 
 export function useAccessLog(limit = 30) {
-  return useFetch<{ events: AccessEntry[] }>(`/vault/activity?limit=${limit}`);
+  return useFetch<{ events: AccessEntry[] }>(`/v1/vault/activity?limit=${limit}`);
 }
 
 // ── Career timeline ───────────────────────────────────────────────────────────
@@ -144,17 +144,24 @@ export interface TimelineEvent {
 }
 
 export function useTimeline() {
-  return useFetch<{ events: TimelineEvent[] }>('/vault/timeline');
+  return useFetch<{ events: TimelineEvent[] }>('/v1/vault/timeline');
 }
 
 // ── Single document detail ────────────────────────────────────────────────────
 
 export function useDocument(id: string) {
-  return useFetch<{ document: DocumentDetail }>(`/vault/documents/${id}`, [id]);
+  return useFetch<{ document: DocumentDetail }>(`/v1/vault/documents/${id}`, [id]);
 }
 
 // ── Download presigned URL ────────────────────────────────────────────────────
 
+// TODO(backend): no presigned-URL endpoint exists. The real endpoint
+// (GET /v1/vault/documents/{id}?download=true, routers/vault.py view_document)
+// streams the watermarked bytes directly as a StreamingResponse — it does not
+// return { presigned_url }. This function's whole contract needs to change to
+// an authenticated streaming fetch (with the Bearer header) rather than a URL
+// handed to a bare <Image>/browser request. Left unfixed — needs a real design
+// decision, not a prefix patch.
 export async function getDownloadUrl(id: string): Promise<string> {
   const res = await api.get<{ presigned_url: string }>(`/vault/documents/${id}/download`);
   return res.presigned_url;
@@ -175,6 +182,10 @@ export interface CreatedShare {
   expires_at: string;
 }
 
+// TODO(backend): wrong prefix AND wrong path — the real endpoint is
+// POST /v1/vault/share (singular; routers/vault.py create_share), not
+// /vault/shares (plural). Also confirm CreateShareParams matches that
+// handler's request body shape before repointing.
 export async function createShare(params: CreateShareParams): Promise<CreatedShare> {
   return api.post<CreatedShare>('/vault/shares', params);
 }
@@ -194,11 +205,13 @@ export interface CredentialCard {
 }
 
 export async function getCredential(docId: string): Promise<CredentialCard> {
-  return api.get<CredentialCard>(`/vault/documents/${docId}/credential`);
+  return api.get<CredentialCard>(`/v1/vault/documents/${docId}/credential`);
 }
 
 // ── Bulk ZIP download ─────────────────────────────────────────────────────────
 
+// TODO(backend): no bulk-download endpoint exists at all in routers/vault.py.
+// This feature needs a real backend endpoint before it can work — not a prefix fix.
 export async function requestZipDownload(document_ids: string[]): Promise<{ job_id: string; download_url?: string }> {
   return api.post('/vault/documents/bulk-download', { document_ids });
 }

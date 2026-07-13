@@ -800,6 +800,7 @@
     "SHARES_TITLE": "Share links",
     "SHARES_SUB": "You control every door out of your vault",
     "SHARES_LOADING": "Loading shares…",
+    "SHARES_LOAD_FAILED": "Could not load your share links. Try again.",
     "SHARES_ACTIVE_LINKS_LABEL": "Active links",
     "SHARES_TOTAL_VIEWS_LABEL": "Total views",
     "VAULT_HEALTH_SCORE_LABEL": "Vault Health Score",
