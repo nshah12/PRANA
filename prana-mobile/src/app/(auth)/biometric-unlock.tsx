@@ -7,9 +7,17 @@
  * gate you pass through. The visual is the vault recognising the user,
  * not the user proving themselves to the vault.
  *
- * API: POST /auth/employee/biometric-verify
- *   body: { device_id, biometric_signature }
- *   → { access_token }
+ * API: POST /auth/employee/biometric
+ *   body: { step_token, device_id } → { access_token, ... }  (see BiometricIn,
+ *   routers/auth_employee.py)
+ *
+ * TODO(backend): this screen is reached straight from splash.tsx when
+ * hasDeviceCredential is true — there is no prior password step, so no
+ * step_token exists to send. The real /biometric endpoint requires one
+ * (issued by POST /login when it detects a trusted device). A password-less,
+ * device-only re-auth path doesn't exist in the backend yet; this call is
+ * left pointing at the closest real endpoint rather than a guessed one, but
+ * it cannot succeed until that gap is resolved.
  */
 import React, { useEffect, useRef, useState } from 'react';
 import {
@@ -143,10 +151,16 @@ export default function BiometricUnlockScreen() {
       }
 
       // Exchange biometric success for an access token
-      const deviceId = authStore.getDeviceId?.() ?? 'unknown';
+      const deviceId = await authStore.getDeviceId();
+      const stepToken = authStore.getStepToken();
+      if (!deviceId || !stepToken) {
+        setOrbState('fail');
+        setError(tUi('BIOMETRIC_FAILED'));
+        return;
+      }
       const res = await api.post<{ access_token: string }>(
-        '/auth/employee/biometric-verify',
-        { device_id: deviceId, verified: true },
+        '/auth/employee/biometric',
+        { step_token: stepToken, device_id: deviceId },
       );
 
       setOrbState('success');
@@ -221,7 +235,7 @@ export default function BiometricUnlockScreen() {
                   style={s.primaryGrad}
                 >
                   <Text style={s.primaryText}>
-                    {orbState === 'fail' ? 'Try again' : 'Unlock vault'}
+                    {orbState === 'fail' ? tUi('BIOMETRIC_UNLOCK_CTA_RETRY') : tUi('BIOMETRIC_UNLOCK_CTA_UNLOCK')}
                   </Text>
                 </LinearGradient>
               </Pressable>

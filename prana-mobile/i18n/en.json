@@ -655,6 +655,8 @@
     "BIOMETRIC_UNLOCK_SUB_SCANNING": "Hold still for a moment…",
     "BIOMETRIC_UNLOCK_SUB_SUCCESS": "Opening your vault now…",
     "BIOMETRIC_UNLOCK_FAIL_DEFAULT": "Biometric check failed.",
+    "BIOMETRIC_UNLOCK_CTA_RETRY": "Try again",
+    "BIOMETRIC_UNLOCK_CTA_UNLOCK": "Unlock vault",
     "ENABLE_FACE_ID_SKIP": "Skip for now — I'll enable it later",
     "ENABLE_FACE_ID_HOLD_STILL": "Hold still…",
     "ENABLE_FACE_ID_OPENING_VAULT": "Opening your vault…",

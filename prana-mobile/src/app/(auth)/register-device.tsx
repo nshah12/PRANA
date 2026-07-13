@@ -7,9 +7,11 @@
  * into the user's trusted circle. The user is extending ownership,
  * not completing a registration checklist.
  *
- * API: POST /auth/employee/device/register
- *   body: { step_token, device_name, device_public_key, platform, os_version }
- *   → { device_id, registered_at }
+ * API: POST /auth/employee/device/register (Bearer-authenticated — the access
+ *   token is already stored by the time this screen runs, set by the prior
+ *   totp-verify/biometric step's signIn() call; this is NOT a step_token call)
+ *   body: { platform: 'ANDROID'|'IOS', public_key, device_fingerprint?, push_token? }
+ *   → { device_id }
  */
 import React, { useEffect, useRef, useState } from 'react';
 import {
@@ -152,19 +154,20 @@ export default function RegisterDeviceScreen() {
     setError('');
     setLoading(true);
     try {
-      const stepToken = authStore.getStepToken();
-      if (!stepToken) { router.replace('/(auth)/sign-in'); return; }
+      // This endpoint is Bearer-authenticated, not step-token-based — by the time
+      // this screen runs (only reached when totp-verify/biometric already called
+      // signIn()), authStore already holds a valid access token that api.ts attaches
+      // automatically. If somehow it doesn't, there's no valid session to register a
+      // device under, so bail to sign-in rather than call an endpoint that will 401.
+      if (!authStore.getToken()) { router.replace('/(auth)/sign-in'); return; }
 
-      const devicePublicKey = await generateDeviceKey();
+      const publicKey = await generateDeviceKey();
 
-      const res = await api.post<{ device_id: string; registered_at: string }>(
+      const res = await api.post<{ device_id: string }>(
         '/auth/employee/device/register',
         {
-          step_token: stepToken,
-          device_name: deviceName.trim() || 'My Phone',
-          device_public_key: devicePublicKey,
-          platform: Platform.OS,
-          os_version: `${Platform.OS} ${Platform.Version}`,
+          platform: Platform.OS === 'ios' ? 'IOS' : 'ANDROID',
+          public_key: publicKey,
         },
       );
 

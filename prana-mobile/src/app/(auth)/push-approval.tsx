@@ -17,6 +17,14 @@
  *      → the NEW device's session is invalidated
  *
  * The session_id is passed as a route param from the push notification handler.
+ *
+ * TODO(backend): none of the three endpoints this screen calls exist yet —
+ * GET /auth/employee/device/push-status, POST .../push-approve, and POST
+ * .../push-deny are all absent from routers/auth_employee.py (confirmed by a
+ * full grep of the router). This is a whole unbuilt feature (cross-device
+ * push-based login approval), not a path/shape typo, so nothing here is
+ * "fixed" to a real contract — tests below exercise the screen's own state
+ * machine against the mocked API shape documented above.
  */
 import React, { useEffect, useRef, useState } from 'react';
 import {

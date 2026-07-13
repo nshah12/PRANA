@@ -146,16 +146,27 @@ export default function TotpSetupScreen() {
     setVerifying(true);
     try {
       const stepToken = authStore.getStepToken();
-      const res = await api.post<{ access_token: string }>(
+      // /setup/totp/confirm does NOT issue a JWT — it only marks TOTP configured
+      // and returns a new step_token for whatever step comes next (BiometricIn/
+      // ConsentIn's step_token, per TOTPConfirmIn's handler in auth_employee.py).
+      // TODO(backend/flow): the backend only ever advances to "consent" or
+      // "totp" from here — there is no step that leads to register-device or
+      // enable-face-id. This mobile flow assumes every fresh login detours
+      // through device-registration + biometric enrollment before consent,
+      // but the backend's first-time-2FA-setup branch skips both. Routing
+      // straight to consent (the concrete case this backend supports) rather
+      // than register-device, which requires a Bearer token we don't have yet.
+      const res = await api.post<{ next: string; step_token: string }>(
         '/auth/employee/setup/totp/confirm',
         { step_token: stepToken, code },
       );
-      authStore.setToken(res.access_token);
-      authStore.clearStepToken();
-      router.replace('/(auth)/register-device');
+      authStore.setStepToken(res.step_token);
+      router.replace(res.next === 'consent' ? '/(auth)/consent' : '/(auth)/totp-verify');
     } catch (e: any) {
+      // /setup/totp/confirm raises INVALID_TOTP_CODE (the employee-setup variant),
+      // not INVALID_TOTP (that's what /totp uses instead — see errors.py).
       const errCode = e?.body?.error ?? e?.response?.data?.error;
-      if (errCode === 'INVALID_TOTP') setVerifyError(tError('INVALID_TOTP_CODE'));
+      if (errCode === 'INVALID_TOTP_CODE') setVerifyError(tError('INVALID_TOTP_CODE'));
       else setVerifyError(tUi('SOMETHING_WENT_WRONG'));
       setCode('');
       shake();

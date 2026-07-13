@@ -6,8 +6,9 @@
  * This is an offer, not a requirement. The user has already verified
  * their identity. We're offering them a better door to their vault.
  *
- * API: POST /auth/employee/device/enroll-biometric
- *   body: { step_token, device_id }
+ * API: POST /auth/employee/device/{device_id}/biometric (Bearer-authenticated,
+ *   empty body — device_id is a path param, not a body field; the access token
+ *   is already stored by the time this screen runs, same as register-device.tsx)
  *   → { enrolled: true }
  */
 import React, { useEffect, useRef, useState } from 'react';
@@ -160,13 +161,16 @@ export default function EnableFaceIdScreen() {
         return;
       }
 
-      // Enroll with backend — server stores a flag that this device uses biometrics
-      const stepToken = authStore.getStepToken();
-      const deviceId  = authStore.getDeviceId?.() ?? 'unknown';
-      await api.post('/auth/employee/device/enroll-biometric', {
-        step_token: stepToken,
-        device_id:  deviceId,
-      });
+      // Enroll with backend — server stores a flag that this device uses biometrics.
+      // Bearer-authenticated; device_id is a path param and the body is empty.
+      const deviceId = await authStore.getDeviceId();
+      if (!deviceId) {
+        setScanning(false);
+        setStatus('error');
+        setErrorMsg(tUi('BIOMETRIC_ENROLLMENT_FAILED'));
+        return;
+      }
+      await api.post(`/auth/employee/device/${deviceId}/biometric`, {});
 
       setScanning(false);
       setStatus('done');
