@@ -68,6 +68,13 @@ import { colors, fonts, gradJourney, radius } from '@/prana-theme/tokens';
   global `screen`; `afterEach(async () => { await cleanup() })`; keep render-only assertions in
   one test rather than many tiny ones; and if a test only flakes when it runs last, reorder it
   earlier. This is an upstream RTL-v14/React-19 issue, not a project bug.
+- **⚠ RTL v14 gotcha #3 (screens with looping `Animated`):** a screen that starts an
+  `Animated.loop(...)` in `useEffect` (e.g. a pulsing icon) is especially prone to gotcha #2 —
+  the perpetual animation callbacks interact with `act()` across tests in the same file. Fix:
+  use the async `findBy*` queries (via the object returned by `await render(...)`, not sync
+  `getBy*`) for every lookup in that file, including the very first field you fill in — the
+  retry-until-found behavior absorbs the animation-induced re-renders. Plain screens without
+  looping animations are fine with `getBy*`.
 - **Pattern:** wrap components that use React Query in a `QueryClientProvider`
   (`new QueryClient({ defaultOptions: { queries: { retry: false } } })`), same as prana-portal.
 - First reference tests: `i18n/index.test.ts` (pure logic) and

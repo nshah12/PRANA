@@ -7,6 +7,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { router } from 'expo-router';
 import { api } from '@/lib/api';
 import { authStore } from '@/lib/auth-store';
+import { useAuth } from '@/context/AuthContext';
 import { colors, fonts, gradJourney } from '@/prana-theme/tokens';
 import { tError, tConsent } from '@/i18n';
 
@@ -109,6 +110,7 @@ function ConsentSection({
 
 // ── Screen ────────────────────────────────────────────────────────
 export default function ConsentScreen() {
+  const { signIn } = useAuth();
   const [expanded, setExpanded] = useState<string>('what');
   const [agreed,   setAgreed]   = useState(false);
   const [loading,  setLoading]  = useState(false);
@@ -124,11 +126,15 @@ export default function ConsentScreen() {
     setLoading(true);
     try {
       const stepToken = authStore.getStepToken();
-      await api.post('/auth/employee/consent', {
+      // Final setup step — the backend issues the access token here (consent is the
+      // last gate before the vault opens), so it must be stored via signIn() before
+      // navigating, same as the TOTP/biometric verify flows.
+      const res = await api.post<{ access_token: string }>('/auth/employee/setup/consent', {
         step_token:       stepToken,
         consent_version:  CONSENT_VERSION,
         consented_at:     new Date().toISOString(),
       });
+      signIn(res.access_token);
       router.replace('/(vault)/vault');
     } catch {
       setError(tError('CONSENT_RECORD_FAILED'));
