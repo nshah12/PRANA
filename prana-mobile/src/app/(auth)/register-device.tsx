@@ -80,14 +80,14 @@ function DeviceCard({ name, accepted }: { name: string; accepted: boolean }) {
         <Animated.View style={[dc.glow, { opacity: glow }]} />
         <View style={dc.card}>
           <Text style={dc.deviceEmoji}>{deviceEmoji}</Text>
-          <Text style={dc.deviceName} numberOfLines={1}>{name || 'My Phone'}</Text>
+          <Text style={dc.deviceName} numberOfLines={1}>{name || tUi('REGISTER_DEVICE_DEFAULT_NAME')}</Text>
           {accepted ? (
             <Animated.View style={[dc.acceptedBadge, { transform: [{ scale: checkScale }] }]}>
-              <Text style={dc.acceptedText}>✓ Trusted</Text>
+              <Text style={dc.acceptedText}>{tUi('REGISTER_DEVICE_TRUSTED_BADGE')}</Text>
             </Animated.View>
           ) : (
             <View style={dc.pendingBadge}>
-              <Text style={dc.pendingText}>Registering…</Text>
+              <Text style={dc.pendingText}>{tUi('REGISTER_DEVICE_PENDING')}</Text>
             </View>
           )}
         </View>
@@ -145,7 +145,7 @@ export default function RegisterDeviceScreen() {
 
   useEffect(() => {
     Animated.timing(fadeIn, { toValue: 1, duration: 600, useNativeDriver: true }).start();
-    const defaultName = Device.modelName ?? (Platform.OS === 'ios' ? 'iPhone' : 'Android Phone');
+    const defaultName = Device.modelName ?? (Platform.OS === 'ios' ? tUi('REGISTER_DEVICE_DEFAULT_NAME_IOS') : tUi('REGISTER_DEVICE_DEFAULT_NAME_ANDROID'));
     setDeviceName(defaultName);
   }, []);
 
@@ -225,7 +225,7 @@ export default function RegisterDeviceScreen() {
               ref={inputRef}
               value={deviceName}
               onChangeText={setDeviceName}
-              placeholder="e.g. My Work Phone"
+              placeholder={tUi('REGISTER_DEVICE_NAME_PLACEHOLDER')}
               placeholderTextColor="#3D4A6B"
               maxLength={40}
               style={s.input}
@@ -236,9 +236,9 @@ export default function RegisterDeviceScreen() {
 
           {/* Trust signals */}
           <View style={s.trustCard}>
-            <TrustRow icon="🔑" title="Secure key generated" sub="A private key is created on this device and never leaves it" />
-            <TrustRow icon="👁️" title="Full transparency" sub="You can see and remove trusted devices in Settings" />
-            <TrustRow icon="🔔" title="You'll be notified" sub="Anytime a new device is added to your vault" />
+            <TrustRow icon="🔑" title={tUi('REGISTER_DEVICE_TRUST_1_TITLE')} sub={tUi('REGISTER_DEVICE_TRUST_1_SUB')} />
+            <TrustRow icon="👁️" title={tUi('REGISTER_DEVICE_TRUST_2_TITLE')} sub={tUi('REGISTER_DEVICE_TRUST_2_SUB')} />
+            <TrustRow icon="🔔" title={tUi('REGISTER_DEVICE_TRUST_3_TITLE')} sub={tUi('REGISTER_DEVICE_TRUST_3_SUB')} />
           </View>
 
           {error ? (
@@ -259,7 +259,7 @@ export default function RegisterDeviceScreen() {
               style={[s.cta, (loading || accepted) && { opacity: 0.6 }]}
             >
               <Text style={s.ctaText}>
-                {accepted ? 'Device trusted ✓' : loading ? 'Registering…' : 'Trust this device →'}
+                {accepted ? tUi('REGISTER_DEVICE_CTA_TRUSTED') : loading ? tUi('REGISTER_DEVICE_PENDING') : tUi('REGISTER_DEVICE_CTA_DEFAULT')}
               </Text>
             </LinearGradient>
           </Pressable>

@@ -146,9 +146,9 @@ export default function EnableFaceIdScreen() {
     setErrorMsg('');
     try {
       const result = await LocalAuthentication.authenticateAsync({
-        promptMessage: 'Authenticate to enable biometric unlock for your PRANA vault',
-        fallbackLabel: 'Use passcode',
-        cancelLabel: 'Cancel',
+        promptMessage: tUi('ENABLE_FACE_ID_PROMPT_MESSAGE'),
+        fallbackLabel: tUi('ENABLE_FACE_ID_FALLBACK_LABEL'),
+        cancelLabel: tUi('ENABLE_FACE_ID_CANCEL_LABEL'),
         disableDeviceFallback: false,
       });
 
@@ -212,25 +212,25 @@ export default function EnableFaceIdScreen() {
           </View>
 
           {/* Copy */}
-          <Text style={s.stepTag}>YOUR KEY, YOUR VAULT</Text>
+          <Text style={s.stepTag}>{tUi('ENABLE_FACE_ID_STEP_TAG')}</Text>
           <Text style={s.title}>
             {status === 'done'
-              ? `${labelCap} enrolled.`
-              : `Make your ${label}\nthe key to your vault.`}
+              ? tUi('ENABLE_FACE_ID_TITLE_DONE', { label: labelCap })
+              : tUi('ENABLE_FACE_ID_TITLE_PROMPT', { label })}
           </Text>
           <Text style={s.sub}>
             {status === 'done'
-              ? 'Your vault will open the moment it recognises you. No code, no wait.'
-              : `A single glance ${biometricType === 'fingerprint' ? 'or touch' : ''} opens your vault instantly. Your biometric data never leaves this device — we only store an encrypted unlock signal.`}
+              ? tUi('ENABLE_FACE_ID_SUB_DONE')
+              : tUi(biometricType === 'fingerprint' ? 'ENABLE_FACE_ID_SUB_PROMPT_TOUCH' : 'ENABLE_FACE_ID_SUB_PROMPT_FACE')}
           </Text>
 
           {/* What this gives you */}
           {status === 'idle' && (
             <View style={s.benefitCard}>
-              <BenefitRow icon="⚡" text={`Opens vault in under a second`} />
-              <BenefitRow icon="📴" text={`Works offline — no internet needed`} />
-              <BenefitRow icon="🔒" text={`Biometric data stays on-device always`} />
-              <BenefitRow icon="🔑" text={`Revocable from Settings any time`} />
+              <BenefitRow icon="⚡" text={tUi('ENABLE_FACE_ID_BENEFIT_SPEED')} />
+              <BenefitRow icon="📴" text={tUi('ENABLE_FACE_ID_BENEFIT_OFFLINE')} />
+              <BenefitRow icon="🔒" text={tUi('ENABLE_FACE_ID_BENEFIT_ON_DEVICE')} />
+              <BenefitRow icon="🔑" text={tUi('ENABLE_FACE_ID_BENEFIT_REVOCABLE')} />
             </View>
           )}
 
@@ -254,7 +254,7 @@ export default function EnableFaceIdScreen() {
                   end={gradJourney.end}
                   style={s.cta}
                 >
-                  <Text style={s.ctaText}>Enable {labelCap}  {emoji}</Text>
+                  <Text style={s.ctaText}>{tUi('ENABLE_FACE_ID_CTA', { label: labelCap })}  {emoji}</Text>
                 </LinearGradient>
               </Pressable>
               <Pressable onPress={handleSkip} style={s.skipBtn}>
