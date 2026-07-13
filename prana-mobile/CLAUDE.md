@@ -58,9 +58,16 @@ import { colors, fonts, gradJourney, radius } from '@/prana-theme/tokens';
   plus an explicit `@/i18n → i18n/` (the locale module lives at repo root, not `src/`).
 - **Native mocks:** `jest.setup.js` mocks `expo-secure-store` and AsyncStorage (its official
   Jest mock). Add project-specific native-module mocks there.
-- **⚠ RTL v14 gotcha (React 19):** `render`, `rerender`, and `unmount` are **async** — you
-  MUST `await render(<C />)`. Destructuring `render(...)` synchronously yields a Promise with
-  no query methods (`getByText is not a function`). Use the `screen` API after awaiting.
+- **⚠ RTL v14 gotcha #1 (async render):** `render`, `rerender`, and `unmount` are **async** —
+  you MUST `await render(<C />)`. Destructuring `render(...)` synchronously yields a Promise
+  with no query methods (`getByText is not a function`).
+- **⚠ RTL v14 gotcha #2 (multi-render commit flake):** on this React-19 stack, a component
+  render that runs immediately after a `fireEvent`-heavy test in the same file can occasionally
+  commit an **empty tree** (`toJSON()` is null, queries find nothing) — even though it passes in
+  isolation. Mitigations that work: prefer the queries returned by `await render(...)` over the
+  global `screen`; `afterEach(async () => { await cleanup() })`; keep render-only assertions in
+  one test rather than many tiny ones; and if a test only flakes when it runs last, reorder it
+  earlier. This is an upstream RTL-v14/React-19 issue, not a project bug.
 - **Pattern:** wrap components that use React Query in a `QueryClientProvider`
   (`new QueryClient({ defaultOptions: { queries: { retry: false } } })`), same as prana-portal.
 - First reference tests: `i18n/index.test.ts` (pure logic) and
