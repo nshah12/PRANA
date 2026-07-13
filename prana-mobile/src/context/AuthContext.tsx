@@ -13,6 +13,7 @@ interface Profile {
 
 interface AuthContextValue {
   isAuthenticated: boolean;
+  hasDeviceCredential: boolean;
   profile: Profile | null;
   signIn: (token: string) => void;
   signOut: () => void;
@@ -23,16 +24,23 @@ const AuthContext = createContext<AuthContextValue | null>(null);
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const [hasDeviceCredential, setHasDeviceCredential] = useState(false);
   const [profile, setProfile] = useState<Profile | null>(null);
 
-  // Restore session on mount
+  // Restore session on mount. If there's no active session, check whether
+  // this device was previously registered (SecureStore-persisted device id)
+  // so splash.tsx can route to biometric-unlock instead of sign-in.
   useEffect(() => {
-    authStore.loadFromStorage().then(token => {
+    (async () => {
+      const token = await authStore.loadFromStorage();
       if (token) {
         setIsAuthenticated(true);
         loadProfile();
+      } else {
+        const deviceId = await authStore.getDeviceId();
+        setHasDeviceCredential(!!deviceId);
       }
-    });
+    })();
 
     authStore.onSignOut = () => {
       setIsAuthenticated(false);
@@ -68,6 +76,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     <AuthContext.Provider
       value={{
         isAuthenticated,
+        hasDeviceCredential,
         profile,
         signIn,
         signOut,

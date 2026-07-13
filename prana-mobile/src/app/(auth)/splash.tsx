@@ -130,7 +130,7 @@ function VaultCenter({ scale }: { scale: Animated.Value }) {
 }
 
 export default function SplashScreen() {
-  const { isAuthenticated, hasDeviceCredential } = useAuth() as any;
+  const { isAuthenticated, hasDeviceCredential } = useAuth();
   const vaultScale   = useRef(new Animated.Value(0)).current;
   const taglineOpacity = useRef(new Animated.Value(0)).current;
   const taglineY     = useRef(new Animated.Value(16)).current;
