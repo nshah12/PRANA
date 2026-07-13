@@ -42,7 +42,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   async function loadProfile() {
     try {
-      const data = await api.get<Profile>('/vault/profile');
+      const data = await api.get<Profile>('/v1/vault/profile');
       setProfile(data);
     } catch {
       // Profile load failure is non-fatal; vault still usable

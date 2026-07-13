@@ -123,27 +123,27 @@ export default function DataRightsScreen() {
 
   const { data: consentData } = useQuery({
     queryKey: ['compliance', 'consent'],
-    queryFn: () => api.get<{ status: string; granted_at: string | null }>('/vault/compliance/consent'),
+    queryFn: () => api.get<{ status: string; granted_at: string | null }>('/v1/vault/compliance/consent'),
   });
 
   const { data: vaultData } = useQuery({
     queryKey: ['vault', 'summary'],
-    queryFn: () => api.get<{ doc_count: number }>('/vault/documents?limit=0'),
+    queryFn: () => api.get<{ doc_count: number }>('/v1/vault/documents?limit=0'),
     select: (d: any) => ({ doc_count: d?.total ?? 0 }),
   });
 
   const exportMutation = useMutation({
-    mutationFn: () => api.post('/vault/compliance/export'),
+    mutationFn: () => api.post('/v1/vault/compliance/export'),
     onSuccess: () => { setConfirmModal(null); setTimeout(() => setSuccessModal('download'), 300); },
   });
 
   const erasureMutation = useMutation({
-    mutationFn: () => api.post('/vault/compliance/erasure'),
+    mutationFn: () => api.post('/v1/vault/compliance/erasure'),
     onSuccess: () => { setConfirmModal(null); setTimeout(() => setSuccessModal('erasure'), 300); },
   });
 
   const withdrawMutation = useMutation({
-    mutationFn: () => api.post('/vault/compliance/consent/withdraw'),
+    mutationFn: () => api.post('/v1/vault/compliance/consent/withdraw'),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['compliance', 'consent'] });
       setConfirmModal(null);
@@ -250,7 +250,7 @@ export default function DataRightsScreen() {
             ? <Text style={styles.consentCheck}>✓</Text>
             : (
               <Pressable
-                onPress={() => api.post('/vault/compliance/consent/grant').then(() => queryClient.invalidateQueries({ queryKey: ['compliance', 'consent'] }))}
+                onPress={() => api.post('/v1/vault/compliance/consent/grant').then(() => queryClient.invalidateQueries({ queryKey: ['compliance', 'consent'] }))}
                 style={{ paddingHorizontal: 10, paddingVertical: 6, backgroundColor: 'rgba(52,211,153,0.15)', borderRadius: 10 }}
               >
                 <Text style={{ fontFamily: fonts.mono, fontSize: 10, color: colors.emerald }}>Re-grant</Text>
