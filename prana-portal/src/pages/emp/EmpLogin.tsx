@@ -199,18 +199,15 @@ export function EmpLogin() {
 
     const user = { userId, name: 'Employee', email: '', mobile: '', pan_token: '', vault_url: '' }
 
-    // Write directly to localStorage FIRST so the next page load reads the token
-    // regardless of Zustand hydration timing. Zustand persist key format: { state, version }
-    try {
-      localStorage.setItem('prana-emp-auth', JSON.stringify({ state: { user, accessToken }, version: 0 }))
-    } catch {}
-
-    // Also update Zustand store (for same-page state, not relied on after reload)
     setAccessToken(accessToken)
     useEmpAuthStore.getState().setUser(user)
     setStepToken(null)
 
-    window.location.href = '/emp/vault'
+    // SPA navigate (not window.location.href) — a hard reload would drop the
+    // in-memory accessToken we just set (it's deliberately excluded from
+    // persist's partialize, per CLAUDE.md: JWT never in localStorage), forcing
+    // /emp/vault's first render to fire its API calls unauthenticated.
+    navigate('/emp/vault')
   }
 
   // ── Progress indicator (main flow only) ──────────────────────────────────

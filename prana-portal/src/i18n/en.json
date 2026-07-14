@@ -1315,6 +1315,7 @@
     "EMP_VAULT_HEALTH_HISTORIC_MISSING_TITLE": "🗂 Salary slips missing from past employer(s)",
     "EMP_VAULT_HEALTH_HISTORIC_MISSING_SUB": "Alumni employers with no salary slips in vault. Self-upload option available.",
     "EMP_VAULT_HEALTH_SELF_UPLOAD_BTN": "Self-Upload →",
+    "EMP_VAULT_HEALTH_SELF_UPLOAD_MOBILE_ONLY": "Self-upload is available in the PRANA mobile app, not on the web portal yet.",
     "EMP_VAULT_HEALTH_COMPLETE_TITLE": "Vault is complete",
     "EMP_VAULT_HEALTH_COMPLETE_SUB": "No gaps detected across all employers.",
     "OA_DOC_VIEWER_TITLE": "Document Viewer",

@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
+import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { MemoryRouter } from 'react-router-dom'
@@ -9,36 +9,21 @@ vi.mock('@/lib/api', () => ({ api: { post: vi.fn() }, getApiBase: () => '/api' }
 import { api } from '@/lib/api'
 vi.mock('qrcode', () => ({ default: { toDataURL: vi.fn().mockResolvedValue('data:image/png;base64,x') } }))
 
+const mockNavigate = vi.fn()
+vi.mock('react-router-dom', async () => {
+  const actual = await vi.importActual('react-router-dom')
+  return { ...actual as any, useNavigate: () => mockNavigate }
+})
+
 function fakeJwt(payload: object) {
   const b64 = btoa(JSON.stringify(payload)).replace(/\+/g, '-').replace(/\//g, '_')
   return `header.${b64}.sig`
 }
 
-function setLocation() {
-  const original = window.location
-  // @ts-expect-error test override
-  delete window.location
-  // @ts-expect-error partial stub — only href is read/written by finishLogin
-  window.location = { href: '' }
-  return () => {
-    // @ts-expect-error restore
-    delete window.location
-    // @ts-expect-error restore — original was captured before the delete/stub above
-    window.location = original
-  }
-}
-
-let restoreLocation: () => void
-
 beforeEach(() => {
   vi.clearAllMocks()
   localStorage.clear()
   useEmpAuthStore.setState({ user: null, accessToken: null, stepToken: null })
-  restoreLocation = setLocation()
-})
-
-afterEach(() => {
-  restoreLocation()
 })
 
 function renderPage() {
@@ -155,7 +140,7 @@ describe('EmpLogin — TOTP step', () => {
     await user.type(screen.getByPlaceholderText(/6-digit|code/i), '123456')
     await user.click(screen.getByText(/sign in to vault/i))
 
-    await waitFor(() => expect(window.location.href).toBe('/emp/vault'))
+    await waitFor(() => expect(mockNavigate).toHaveBeenCalledWith('/emp/vault'))
     // Access token is held in memory only — never persisted to localStorage (security).
     expect(useEmpAuthStore.getState().accessToken).toBe(token)
     const stored = JSON.parse(localStorage.getItem('prana-emp-auth') as string)
@@ -235,6 +220,6 @@ describe('EmpLogin — consent step', () => {
     vi.mocked(api.post).mockResolvedValueOnce({ data: { access_token: token } })
     await user.click(screen.getByRole('button', { name: /accept/i }))
 
-    await waitFor(() => expect(window.location.href).toBe('/emp/vault'))
+    await waitFor(() => expect(mockNavigate).toHaveBeenCalledWith('/emp/vault'))
   })
 })

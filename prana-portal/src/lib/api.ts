@@ -32,35 +32,62 @@ const AUTH_PATHS = ['/auth/org/login', '/auth/org/totp', '/auth/org/refresh', '/
                     '/auth/employee/request-otp', '/auth/employee/verify-otp',
                     '/auth/employee/complete', '/auth/employee/totp', '/auth/employee/refresh']
 
+// Single-flight refresh: several requests can 401 in the same tick (e.g. a
+// dashboard firing parallel queries right after login). Without sharing one
+// in-flight promise, each would call /refresh independently — the backend
+// rotates the refresh token per call, so only the first succeeds and the
+// rest 401 on an already-rotated token, each wrongly triggering a full
+// logout+redirect and clobbering the session the first call just restored.
+let empRefreshPromise: Promise<string> | null = null
+let orgRefreshPromise: Promise<string> | null = null
+
+function refreshEmpToken(): Promise<string> {
+  if (!empRefreshPromise) {
+    empRefreshPromise = api.post('/auth/employee/refresh', {}, { withCredentials: true })
+      .then(({ data }) => {
+        useEmpAuthStore.getState().setAccessToken(data.access_token)
+        return data.access_token as string
+      })
+      .finally(() => { empRefreshPromise = null })
+  }
+  return empRefreshPromise
+}
+
+function refreshOrgToken(refreshPath: string): Promise<string> {
+  if (!orgRefreshPromise) {
+    orgRefreshPromise = api.post(refreshPath, {}, { withCredentials: true })
+      .then(({ data }) => {
+        useAuthStore.getState().setAccessToken(data.access_token)
+        return data.access_token as string
+      })
+      .finally(() => { orgRefreshPromise = null })
+  }
+  return orgRefreshPromise
+}
+
 api.interceptors.response.use(
   (res) => res,
   async (err) => {
     const original = err.config
     const isAuthEndpoint = AUTH_PATHS.some(p => original.url?.includes(p))
-    console.warn('[API ERR]', err.response?.status, original?.url, 'retry:', original?._retry, 'isAuth:', isAuthEndpoint)
     if (err.response?.status === 401 && !original._retry && !isAuthEndpoint) {
       original._retry = true
       const isEmpRoute = window.location.pathname.startsWith('/emp/')
       const role = useAuthStore.getState().user?.role
       if (isEmpRoute) {
         try {
-          console.warn('[API REFRESH] attempting employee refresh...')
-          const { data } = await api.post('/auth/employee/refresh', {}, { withCredentials: true })
-          console.warn('[API REFRESH] success, new token:', data.access_token?.slice(-8))
-          useEmpAuthStore.getState().setAccessToken(data.access_token)
-          original.headers.Authorization = `Bearer ${data.access_token}`
+          const accessToken = await refreshEmpToken()
+          original.headers.Authorization = `Bearer ${accessToken}`
           return api(original)
-        } catch (refreshErr: any) {
-          console.error('[API REFRESH FAILED]', refreshErr?.response?.status, refreshErr?.response?.data)
+        } catch {
           useEmpAuthStore.getState().logout()
           window.location.href = '/emp/login'
         }
       } else {
         const refreshPath = role === 'portal_admin' ? '/auth/admin/refresh' : '/auth/org/refresh'
         try {
-          const { data } = await api.post(refreshPath, {}, { withCredentials: true })
-          useAuthStore.getState().setAccessToken(data.access_token)
-          original.headers.Authorization = `Bearer ${data.access_token}`
+          const accessToken = await refreshOrgToken(refreshPath)
+          original.headers.Authorization = `Bearer ${accessToken}`
           return api(original)
         } catch {
           useAuthStore.getState().logout()

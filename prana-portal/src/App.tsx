@@ -1,3 +1,4 @@
+import { useState, useEffect } from 'react'
 import { Routes, Route, Navigate, useLocation } from 'react-router-dom'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { useAuthStore } from '@/store/auth'
@@ -117,22 +118,68 @@ import { ContactInquiries }  from '@/pages/pa/ContactInquiries'
 import { HRMSCatalogue }    from '@/pages/pa/HRMSCatalogue'
 import { HRMSSettings }     from '@/pages/oa/HRMSSettings'
 
+function AuthBootstrapSpinner() {
+  return (
+    <div className="min-h-screen flex items-center justify-center">
+      <div className="w-8 h-8 border-2 border-slate-200 border-t-sky-500 rounded-full animate-spin" />
+    </div>
+  )
+}
+
 export function RequireEmpAuth({ children }: { children: React.ReactNode }) {
-  const user        = useEmpAuthStore(s => s.user)
-  const accessToken = useEmpAuthStore(s => s.accessToken)
-  const location    = useLocation()
-  // Allow through if either user or accessToken is set — accessToken is set first in finishLogin
+  const user           = useEmpAuthStore(s => s.user)
+  const accessToken    = useEmpAuthStore(s => s.accessToken)
+  const setAccessToken = useEmpAuthStore(s => s.setAccessToken)
+  const logout         = useEmpAuthStore(s => s.logout)
+  const location       = useLocation()
+
+  // Access token lives in memory only (never persisted — CLAUDE.md), so it's
+  // null on every fresh tab/reload even when `user` is a valid persisted
+  // session. Resolve it proactively via the httpOnly refresh cookie BEFORE
+  // rendering children, instead of letting every child query fire, 401, and
+  // retry after a reactive refresh — same outcome, half the network calls,
+  // and no false 401s in the browser console/network tab.
+  const [bootstrapping, setBootstrapping] = useState(!accessToken && !!user)
+  useEffect(() => {
+    if (user && !accessToken) {
+      api.post('/auth/employee/refresh', {}, { withCredentials: true })
+        .then(({ data }) => setAccessToken(data.access_token))
+        .catch(() => logout())
+        .finally(() => setBootstrapping(false))
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
   if (!user && !accessToken) return <Navigate to="/emp/login" state={{ from: location }} replace />
+  if (bootstrapping) return <AuthBootstrapSpinner />
   return <>{children}</>
 }
 
 export function RequireAuth({ children }: { children: React.ReactNode }) {
-  const user = useAuthStore(s => s.user)
-  const location = useLocation()
+  const user           = useAuthStore(s => s.user)
+  const accessToken    = useAuthStore(s => s.accessToken)
+  const setAccessToken = useAuthStore(s => s.setAccessToken)
+  const logout         = useAuthStore(s => s.logout)
+  const location       = useLocation()
+
+  // Same proactive-bootstrap rationale as RequireEmpAuth above.
+  const [bootstrapping, setBootstrapping] = useState(!accessToken && !!user)
+  useEffect(() => {
+    if (user && !accessToken) {
+      const refreshPath = user.role === 'portal_admin' ? '/auth/admin/refresh' : '/auth/org/refresh'
+      api.post(refreshPath, {}, { withCredentials: true })
+        .then(({ data }) => setAccessToken(data.access_token))
+        .catch(() => logout())
+        .finally(() => setBootstrapping(false))
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
   if (!user) {
     const loginPage = location.pathname.startsWith('/admin') ? '/admin/login' : '/org/login'
     return <Navigate to={loginPage} replace />
   }
+  if (bootstrapping) return <AuthBootstrapSpinner />
   return <>{children}</>
 }
 

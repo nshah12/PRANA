@@ -1,5 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { render, screen } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { MemoryRouter } from 'react-router-dom'
 import { EmpVaultHealth } from './EmpVaultHealth'
@@ -7,6 +8,12 @@ import { EmpVaultHealth } from './EmpVaultHealth'
 vi.mock('@/lib/api', () => ({ api: { get: vi.fn() } }))
 import { api } from '@/lib/api'
 const mockGet = vi.mocked(api.get)
+
+const mockNavigate = vi.fn()
+vi.mock('react-router-dom', async () => {
+  const actual = await vi.importActual('react-router-dom')
+  return { ...actual as any, useNavigate: () => mockNavigate }
+})
 
 function wrapper({ children }: { children: React.ReactNode }) {
   const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } })
@@ -113,10 +120,29 @@ describe('EmpVaultHealth', () => {
 
     expect(await screen.findByText(/Form-16 missing for FY2022-23/)).toBeInTheDocument()
     expect(screen.getByText('Gaps Found — Action Required')).toBeInTheDocument()
-    expect(screen.getAllByText('Request →').length).toBeGreaterThan(0)
+    const requestBtns = screen.getAllByText('Request →')
+    expect(requestBtns.length).toBeGreaterThan(0)
   })
 
-  it('flags historic salary slips missing for alumni employers', async () => {
+  it('regression: the Request button actually navigates to the doc-request page', async () => {
+    // Previously a dead <button> with no onClick at all.
+    const user = userEvent.setup()
+    mockAllEndpoints({
+      health: {
+        overall_score: 40, gap_count: 1,
+        gap_detail: [{ description: 'Form-16 missing for FY2022-23', employer: 'TechCorp' }],
+      },
+    })
+    render(<EmpVaultHealth />, { wrapper })
+
+    await user.click((await screen.findAllByText('Request →'))[0])
+    expect(mockNavigate).toHaveBeenCalledWith('/emp/doc-request')
+  })
+
+  it('flags historic salary slips missing for alumni employers, with self-upload disabled (mobile-only)', async () => {
+    // Regression: previously a dead <button> — the portal has no self-upload page
+    // (that feature only exists in the mobile app), so this must stay disabled
+    // rather than link somewhere wrong.
     mockAllEndpoints({
       profile: { employers: [{ tenant_id: 't2', tenant_name: 'OldCo', doj: '2017-01-01', dol: '2019-12-31' }] },
       docs: { documents: [] },
@@ -124,7 +150,9 @@ describe('EmpVaultHealth', () => {
     render(<EmpVaultHealth />, { wrapper })
 
     expect(await screen.findByText('🗂 Salary slips missing from past employer(s)')).toBeInTheDocument()
-    expect(screen.getByText('Self-Upload →')).toBeInTheDocument()
+    const selfUploadBtn = screen.getByText('Self-Upload →')
+    expect(selfUploadBtn).toBeDisabled()
+    expect(selfUploadBtn).toHaveAttribute('title', 'Self-upload is available in the PRANA mobile app, not on the web portal yet.')
   })
 
   it('never renders a raw rupee figure anywhere in the vault health view — privacy contract', async () => {

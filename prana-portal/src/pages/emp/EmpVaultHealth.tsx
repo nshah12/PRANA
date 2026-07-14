@@ -1,8 +1,10 @@
 import { useQuery } from '@tanstack/react-query'
+import { useNavigate } from 'react-router-dom'
 import { api } from '@/lib/api'
 import { tUi } from '@/i18n'
 
 export function EmpVaultHealth() {
+  const navigate = useNavigate()
   const { data, isLoading } = useQuery({
     queryKey: ['emp-vault-health'],
     queryFn: () => api.get('/v1/vault/health').then(r => r.data),
@@ -115,7 +117,7 @@ export function EmpVaultHealth() {
                     style={{ background:'rgba(245,158,11,0.06)', border:'1px solid rgba(245,158,11,0.2)' }}>
                     <p className="text-sm font-semibold text-slate-800">📋 {g.description ?? g.gap_type}</p>
                     {g.employer && <p className="text-xs text-slate-500 mt-0.5">{tUi('EMP_VAULT_HEALTH_EMPLOYER_PREFIX')} {g.employer}</p>}
-                    <button className="mt-1.5 text-xs font-semibold text-sky-600 hover:underline">{tUi('EMP_VAULT_HEALTH_REQUEST_BTN')}</button>
+                    <button onClick={() => navigate('/emp/doc-request')} className="mt-1.5 text-xs font-semibold text-sky-600 hover:underline">{tUi('EMP_VAULT_HEALTH_REQUEST_BTN')}</button>
                   </div>
                 ))}
 
@@ -125,7 +127,7 @@ export function EmpVaultHealth() {
                     style={{ background:'rgba(245,158,11,0.06)', border:'1px solid rgba(245,158,11,0.2)' }}>
                     <p className="text-sm font-semibold text-slate-800">{tUi('EMP_VAULT_HEALTH_FORM16_MISSING_TITLE')}</p>
                     <p className="text-xs text-slate-500 mt-0.5">{tUi('EMP_VAULT_HEALTH_FORM16_MISSING_SUB')}</p>
-                    <button className="mt-1.5 text-xs font-semibold text-sky-600 hover:underline">{tUi('EMP_VAULT_HEALTH_REQUEST_BTN')}</button>
+                    <button onClick={() => navigate('/emp/doc-request')} className="mt-1.5 text-xs font-semibold text-sky-600 hover:underline">{tUi('EMP_VAULT_HEALTH_REQUEST_BTN')}</button>
                   </div>
                 )}
                 {missingHistoric && (
@@ -133,7 +135,10 @@ export function EmpVaultHealth() {
                     style={{ background:'rgba(239,68,68,0.04)', border:'1px solid rgba(239,68,68,0.15)' }}>
                     <p className="text-sm font-semibold text-slate-800">{tUi('EMP_VAULT_HEALTH_HISTORIC_MISSING_TITLE')}</p>
                     <p className="text-xs text-slate-500 mt-0.5">{tUi('EMP_VAULT_HEALTH_HISTORIC_MISSING_SUB')}</p>
-                    <button className="mt-1.5 text-xs font-semibold text-sky-600 hover:underline">{tUi('EMP_VAULT_HEALTH_SELF_UPLOAD_BTN')}</button>
+                    {/* TODO(product): no portal self-upload page exists yet (self-upload is
+                        mobile-only, see prana-mobile/src/app/(vault)/vault/self-upload.tsx) —
+                        disabled with an honest tooltip rather than linking somewhere wrong. */}
+                    <button disabled title={tUi('EMP_VAULT_HEALTH_SELF_UPLOAD_MOBILE_ONLY')} className="mt-1.5 text-xs font-semibold text-slate-400 cursor-not-allowed">{tUi('EMP_VAULT_HEALTH_SELF_UPLOAD_BTN')}</button>
                   </div>
                 )}
               </div>

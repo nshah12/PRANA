@@ -167,6 +167,32 @@ describe('response interceptor — employee 401 refresh flow', () => {
   })
 })
 
+describe('response interceptor — concurrent 401s (single-flight refresh)', () => {
+  it('shares one in-flight refresh across simultaneous 401s instead of firing one per request', async () => {
+    restoreLocation()
+    restoreLocation = setLocation('/emp/vault')
+    const postSpy = vi.spyOn(api, 'post').mockResolvedValue({ data: { access_token: 'new-emp-token' } } as any)
+
+    // Regression guard: a dashboard firing several parallel queries right after
+    // login (e.g. profile + documents + share) previously triggered one
+    // independent refresh call per 401. The backend rotates the refresh token
+    // per call, so only the first succeeded — the rest 401'd on an
+    // already-rotated token and each wrongly logged the user out, clobbering
+    // the session the first call had just restored. Fixed via a shared
+    // in-flight promise (refreshEmpToken in api.ts) so concurrent 401s piggyback
+    // on one real network call.
+    await Promise.all([
+      responseRejected(make401Error('/v1/vault/profile')).catch(() => {}),
+      responseRejected(make401Error('/v1/vault/documents')).catch(() => {}),
+      responseRejected(make401Error('/v1/vault/share')).catch(() => {}),
+    ])
+
+    const refreshCalls = postSpy.mock.calls.filter(([url]) => url === '/auth/employee/refresh')
+    expect(refreshCalls.length).toBe(1)
+    expect(useEmpAuthStore.getState().accessToken).toBe('new-emp-token')
+  })
+})
+
 describe('response interceptor — org/admin 401 refresh flow', () => {
   it('refreshes via /auth/org/refresh for a non-portal_admin role, through the shared api client', async () => {
     restoreLocation()
