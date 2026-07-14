@@ -10,6 +10,14 @@
  *  4. Show animated progress → success → navigate to vault
  *
  * Privacy: password-protected PDFs handled server-side in-memory, nothing persisted.
+ *
+ * TODO(backend): no employee-facing upload endpoint exists. The only upload
+ * route in prana-api is POST /ingest/upload (routers/ingest.py), which is
+ * OA-Operator-only (dependencies=[OAOperator]) and hardcodes
+ * is_self_upload=FALSE on every inserted row — it's the employer/HRMS bulk
+ * ingest path, not this screen's flow. This is a whole unbuilt feature, not
+ * a path/shape typo, so the call below is left pointing at a documented
+ * placeholder rather than a guessed real endpoint.
  */
 import React, { useState } from 'react';
 import {
@@ -21,7 +29,6 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { router } from 'expo-router';
 import * as DocumentPicker from 'expo-document-picker';
 import { colors, fonts, gradJourney } from '@/prana-theme/tokens';
-import { tUi } from '@/i18n';
 import { api } from '@/lib/api';
 import { tError, tUi } from '@/i18n';
 

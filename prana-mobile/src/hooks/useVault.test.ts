@@ -1,22 +1,24 @@
 /**
  * useVault hook tests — the shared useFetch<T> plumbing (loading/error/data/
  * refetch) backs every one of these hooks, so useDocuments doubles as the
- * contract test for that plumbing. getDownloadUrl/createShare/
- * requestZipDownload are deliberately NOT tested here — they're already
- * flagged with TODO(backend) comments in useVault.ts for calling endpoints
- * that don't exist or have the wrong shape; testing them would just lock in
- * the known-wrong contract.
+ * contract test for that plumbing. getDownloadUrl/requestZipDownload are
+ * deliberately NOT tested here — they're still flagged with TODO(backend)
+ * comments for calling endpoints that don't exist; testing them would just
+ * lock in the known-wrong contract. createShare WAS one of these but has
+ * since been fixed against the confirmed real endpoint (routers/vault.py
+ * create_share) and is tested below.
  */
 import { renderHook, waitFor, cleanup } from '@testing-library/react-native';
 import {
   useDocuments, useEmployers, useVaultHealth, useShares, useAccessLog,
-  useTimeline, useDocument, getCredential,
+  useTimeline, useDocument, getCredential, createShare,
 } from './useVault';
 import { api } from '@/lib/api';
 
 jest.mock('@/lib/api', () => ({ api: { get: jest.fn(), post: jest.fn() } }));
 
 const mockGet = api.get as jest.Mock;
+const mockPost = api.post as jest.Mock;
 afterEach(async () => { await cleanup(); });
 beforeEach(() => { jest.clearAllMocks(); });
 
@@ -102,6 +104,15 @@ describe('useFetch-backed hooks', () => {
     mockGet.mockResolvedValue({ document: { id: 'doc-2' } });
     await rerender({ id: 'doc-2' });
     await waitFor(() => expect(mockGet).toHaveBeenCalledWith('/v1/vault/documents/doc-2'));
+  });
+});
+
+describe('createShare', () => {
+  it('posts to the versioned singular endpoint and returns the raw share_token', async () => {
+    mockPost.mockResolvedValue({ share_id: 's-1', share_token: 'tok-abc', expires_at: '2026-08-01T00:00:00Z', otp_required: false });
+    const result = await createShare({ document_ids: ['doc-1'], expires_hours: 72 });
+    expect(mockPost).toHaveBeenCalledWith('/v1/vault/share', { document_ids: ['doc-1'], expires_hours: 72 });
+    expect(result.share_token).toBe('tok-abc');
   });
 });
 

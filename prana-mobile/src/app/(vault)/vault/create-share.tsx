@@ -7,9 +7,12 @@
  * (e.g. "For HDFC home loan"), and gets a link they can send themselves.
  * PRANA never sends on their behalf.
  *
- * API: POST /vault/shares
- *   body: { document_ids, label?, expires_hours, usage_limit? }
- *   → { token_id, share_url, expires_at }
+ * API: POST /v1/vault/share (routers/vault.py create_share)
+ *   body: { document_ids, recipient_label?, expires_hours, max_views?, otp_required?, recipient_email? }
+ *   → { share_id, share_token, expires_at, otp_required, otp? }
+ *
+ * Note: the backend returns a raw share_token, not a full URL — see the
+ * TODO(product/backend) on createShare() in @/hooks/useVault for why.
  */
 import React, { useState, useMemo } from 'react';
 import {
@@ -78,8 +81,8 @@ const dr = StyleSheet.create({
 // ── Created link sheet ────────────────────────────────────────────────────────
 
 function CreatedLinkSheet({
-  shareUrl, expiresAt, count, onDone,
-}: { shareUrl: string; expiresAt: string; count: number; onDone: () => void }) {
+  shareToken, expiresAt, count, onDone,
+}: { shareToken: string; expiresAt: string; count: number; onDone: () => void }) {
   const [copied, setCopied] = useState(false);
   function handleCopy() { setCopied(true); setTimeout(() => setCopied(false), 2500); }
 
@@ -99,7 +102,7 @@ function CreatedLinkSheet({
           <Text style={cl.sub}>{tUi('CREATE_SHARE_REVOCABLE_NOTE')}</Text>
 
           <View style={cl.linkBox}>
-            <Text style={cl.linkText} numberOfLines={1} selectable>{shareUrl}</Text>
+            <Text style={cl.linkText} numberOfLines={1} selectable>{shareToken}</Text>
             <Pressable style={[cl.copyBtn, copied && cl.copyBtnDone]} onPress={handleCopy}>
               <Text style={cl.copyText}>{copied ? '✓ Copied' : 'Copy'}</Text>
             </Pressable>
@@ -152,7 +155,7 @@ export default function CreateShareScreen() {
   const [usageLimit, setUsageLimit] = useState<number | undefined>(undefined);
   const [creating, setCreating] = useState(false);
   const [error, setError] = useState('');
-  const [created, setCreated] = useState<{ share_url: string; expires_at: string } | null>(null);
+  const [created, setCreated] = useState<{ share_token: string; expires_at: string } | null>(null);
 
   // Filter state
   const [search, setSearch] = useState('');
@@ -174,11 +177,11 @@ export default function CreateShareScreen() {
     try {
       const res = await createShare({
         document_ids: Array.from(selectedIds),
-        label: label.trim() || undefined,
+        recipient_label: label.trim() || undefined,
         expires_hours: expiryHours,
-        usage_limit: usageLimit,
+        max_views: usageLimit,
       });
-      setCreated({ share_url: res.share_url, expires_at: res.expires_at });
+      setCreated({ share_token: res.share_token, expires_at: res.expires_at });
     } catch {
       setError(tUi('SHARE_CREATE_FAILED'));
     } finally {
@@ -192,7 +195,7 @@ export default function CreateShareScreen() {
     <View style={s.screen}>
       {created && (
         <CreatedLinkSheet
-          shareUrl={created.share_url}
+          shareToken={created.share_token}
           expiresAt={created.expires_at}
           count={selectedIds.size}
           onDone={() => { setCreated(null); router.replace('/(vault)/shares'); }}

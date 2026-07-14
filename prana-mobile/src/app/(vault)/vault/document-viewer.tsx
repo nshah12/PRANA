@@ -14,13 +14,14 @@
  *   GET  /vault/documents/{id}/credential     → Career Passport credential card
  *   GET  /public/qr/{code}                    → QR code PNG (no auth)
  *   GET  /vault/documents/{id}/download       → { presigned_url }
- *   POST /vault/shares                        → { share_url, token_id, expires_at }
+ *   POST /v1/vault/share                      → { share_id, share_token, expires_at, otp_required }
+ *   (backend returns a raw share_token, not a URL — see createShare() in @/hooks/useVault)
  */
 import React, { useState } from 'react';
 import {
   View, Text, ScrollView, Pressable, StyleSheet,
   Modal, ActivityIndicator, TextInput, Linking, TouchableWithoutFeedback,
-  Image, Share, Clipboard,
+  Image, Share,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -62,7 +63,10 @@ function CareerPassportModal({
 
   function handleCopy() {
     if (!credential) return;
-    Clipboard.setString(credential.verify_url);
+    // Real RN core Clipboard requires a native module (RNCClipboard) that
+    // isn't linked here (no expo-clipboard dependency) — calling
+    // Clipboard.setString() would throw. Matches ShareSheet.handleCopy()
+    // below, which leaves this as a visual-only no-op for the same reason.
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
   }
@@ -216,10 +220,10 @@ function ShareSheet({
     try {
       const res = await createShare({
         document_ids: [docId],
-        label: label.trim() || undefined,
+        recipient_label: label.trim() || undefined,
         expires_hours: expiryHours,
       });
-      setShareUrl(res.share_url);
+      setShareUrl(res.share_token);
     } catch {
       setError(tUi('SHARE_CREATE_FAILED'));
     } finally {

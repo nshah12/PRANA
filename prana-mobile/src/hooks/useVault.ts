@@ -171,23 +171,29 @@ export async function getDownloadUrl(id: string): Promise<string> {
 
 export interface CreateShareParams {
   document_ids: string[];
-  label?: string;
-  expires_hours: number;     // 24 | 168 | 720
-  usage_limit?: number;
+  recipient_label?: string;
+  expires_hours: number;     // 1-720, backend default 72 (routers/vault.py CreateShareIn)
+  max_views?: number;
+  otp_required?: boolean;
+  recipient_email?: string;
 }
 
 export interface CreatedShare {
-  token_id: string;
-  share_url: string;
+  share_id: string;
+  share_token: string;
   expires_at: string;
+  otp_required: boolean;
+  otp?: string;
 }
 
-// TODO(backend): wrong prefix AND wrong path — the real endpoint is
-// POST /v1/vault/share (singular; routers/vault.py create_share), not
-// /vault/shares (plural). Also confirm CreateShareParams matches that
-// handler's request body shape before repointing.
+// TODO(product/backend): the backend returns a raw share_token, not a full
+// URL — there's no documented public base URL for share links (checked for
+// SHARE_BASE_URL / frontend_url config in prana-api, found none). Building a
+// URL here would mean guessing a domain, so callers get the token as-is;
+// the UI should present/copy the token rather than a fabricated link until
+// a public share base URL is decided.
 export async function createShare(params: CreateShareParams): Promise<CreatedShare> {
-  return api.post<CreatedShare>('/vault/shares', params);
+  return api.post<CreatedShare>('/v1/vault/share', params);
 }
 
 // ── Career Passport credential card ──────────────────────────────────────────
