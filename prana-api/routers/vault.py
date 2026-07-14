@@ -171,16 +171,13 @@ async def get_health(request: Request, db: DbConn, current: Employee):
     health = await svc.get_health(current.user_id)
     if not health:
         return {"overall_score": 0, "gap_count": 0, "gap_detail": [], "computed_at": None}
-    import json as _json
-    gap = health["gap_detail"] or []
-    if isinstance(gap, str):
-        try: gap = _json.loads(gap)
-        except Exception: gap = []
     return {
         "overall_score": health["overall_score"],
         "gap_count": health["gap_count"],
-        "gap_detail": gap,
-        "computed_at": health["computed_at"].isoformat() if health.get("computed_at") else None,
+        # vault_service.get_health() already parses gap_detail into a real list
+        # and serializes computed_at to an ISO string.
+        "gap_detail": health["gap_detail"],
+        "computed_at": health.get("computed_at"),
     }
 
 

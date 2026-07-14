@@ -221,7 +221,7 @@ class VaultService:
             "salary_slip_score": int(row["salary_slip_score"]) if row["salary_slip_score"] is not None else None,
             "form16_score": int(row["form16_score"]) if row["form16_score"] is not None else None,
             "gap_count": int(row["gap_count"]) if row["gap_count"] is not None else 0,
-            "gap_detail": row["gap_detail"] if isinstance(row["gap_detail"], list) else [],
+            "gap_detail": json.loads(row["gap_detail"]) if isinstance(row["gap_detail"], str) else (row["gap_detail"] or []),
             "computed_at": row["computed_at"].isoformat() if row["computed_at"] else None,
         }
 

@@ -209,6 +209,46 @@ async def test_vault_profile_contains_no_pan_or_salary_fields(client, mock_db):
 
 
 @pytest.mark.asyncio
+async def test_vault_health_serializes_computed_at_without_500(client, mock_db):
+    """Regression: vault_service.get_health() already converts computed_at to an ISO
+    string; the router previously called .isoformat() on it again, crashing with
+    AttributeError: 'str' object has no attribute 'isoformat'."""
+    headers = _auth_headers(client)
+    mock_db.fetchrow.return_value = {
+        "overall_score": 61,
+        "employment_proof_score": 80,
+        "salary_slip_score": 51,
+        "form16_score": 84,
+        "gap_count": 1,
+        "gap_detail": '[{"description": "Salary slips missing for 2+ months"}]',
+        "computed_at": datetime(2026, 6, 23, 10, 37, 5, tzinfo=timezone.utc),
+    }
+    resp = await client.get("/v1/vault/health", headers=headers)
+    assert resp.status_code == 200
+    assert resp.json()["computed_at"] == "2026-06-23T10:37:05+00:00"
+
+
+@pytest.mark.asyncio
+async def test_vault_health_preserves_gap_detail_from_jsonb_string(client, mock_db):
+    """Regression: gap_detail is a JSONB column — asyncpg returns it as a raw JSON
+    string, not a Python list. vault_service.get_health() previously discarded it
+    (treated "not already a list" as empty) instead of parsing it."""
+    headers = _auth_headers(client)
+    mock_db.fetchrow.return_value = {
+        "overall_score": 61,
+        "employment_proof_score": 80,
+        "salary_slip_score": 51,
+        "form16_score": 84,
+        "gap_count": 1,
+        "gap_detail": '[{"description": "Salary slips missing for 2+ months"}]',
+        "computed_at": datetime(2026, 6, 23, 10, 37, 5, tzinfo=timezone.utc),
+    }
+    resp = await client.get("/v1/vault/health", headers=headers)
+    assert resp.status_code == 200
+    assert resp.json()["gap_detail"] == [{"description": "Salary slips missing for 2+ months"}]
+
+
+@pytest.mark.asyncio
 async def test_vault_career_contains_no_raw_salary(client, mock_db):
     headers = _auth_headers(client)
     mock_db.fetchval.return_value = "emp-uuid-001"
