@@ -407,3 +407,62 @@ checkpoint/pagination across the full 7-year hot-tier history), so it re-covers 
 active data repeatedly but doesn't guarantee eventual coverage of the entire table. Older,
 already-cold-archived partitions are effectively out of scope for this workflow. Extending
 it to paginate through full history is a future enhancement, not yet scheduled.
+
+## 9. Application Error Observability — 4th Incident Track (DECIDED, APPROVED 2026-07-15)
+
+Full design: `prana-docs/ERROR_OBSERVABILITY_DESIGN.md`. Summary here for readers of this
+doc who won't necessarily open that one.
+
+### 9.1 Why
+
+Before this track existed, PRANA had **zero durable trace of code-level exceptions** —
+no Sentry/Datadog/structured logging/log aggregation anywhere. The global FastAPI exception
+handler didn't log at all, explicit `except Exception: log.exception(...)` blocks only
+reached Python's unstructured stderr "handler of last resort" (`logging.basicConfig()` was
+never called), and no exception path — caught or uncaught — ever created an incident.
+
+### 9.2 Capture layers (all three ship together, no phase-2 deferral)
+
+| Layer | Entry point | Source value written |
+|-------|-------------|----------------------|
+| HTTP | `main.py`'s exception handlers (`db_unavailable_handler` etc. + `unhandled_exception_handler`) | `request.url.path` |
+| Kafka consumers | `kafka/error_capture.py`'s `record_consumer_error()`, called from all 20 consumers' outer `except Exception` | the consumer's class name, e.g. `"AuthConsumer"` |
+| Temporal activities | `workflows/error_capture_interceptor.py`'s `ErrorObservabilityInterceptor` (registered on `Worker(...)` in `worker.py`) | the activity's registered name, e.g. `"verify_audit_integrity"` |
+
+Every capture site calls `ErrorObservabilityService.record()` — never raw SQL — and is
+itself wrapped in a self-protective `except Exception: pass`/`log.exception(...)` so the
+error-recording infrastructure can never recursively fail the request/consumer/activity it's
+trying to observe.
+
+### 9.3 Storage: `error_event` (migration `040_error_event.sql`, not in `schema.sql` — see file header)
+
+Deduplicated by `fingerprint = sha256(exception_type + top_traceback_frame_location +
+normalized_message)` — the same bug recurring with different input data collapses to one row
+with a growing `occurrence_count`, not one row per occurrence. `message`/`traceback` are
+regex-scrubbed for PAN/JWT-shaped/email/`+91`-mobile strings before being written, and only
+`traceback.format_exc()` text is ever captured — never local variable values (a realistic
+PAN/salary leak vector). 90-day retention via `error_event_retention_days` (`platform_config`).
+
+### 9.4 Promotion to a real incident: `ErrorThresholdEvaluationWorkflow`
+
+Pattern 3 (Temporal Schedule), `secops-queue`, default every 15 min via
+`error_threshold_check_interval_minutes`. Each run scans open (`NEW`/`ACKNOWLEDGED`,
+unlinked) `error_event` rows and promotes qualifying ones into the **same** `incident` table
+used by the business-event track (§8's neighbor, not a second incident lifecycle) —
+`services/error_threshold_service.py` holds the classification rules:
+
+| Condition | Severity |
+|-----------|----------|
+| Security/crypto-critical source (`/auth/`, `/totp/` HTTP prefixes, `AuthConsumer`, `verify_audit_integrity`) | P1 on first occurrence |
+| Compliance-critical endpoint (`/v1/dpdp/`, `/v1/ingest/`) recurring 3+ times within 10 min | P2 |
+| Any other genuinely new fingerprint | P2 on first occurrence |
+| Anything else recurring 10+ times within 15 min | P3 |
+
+### 9.5 Portal UI
+
+Folded into the existing PA/CISO incident-register screens as an "Errors" tab (not a
+standalone page) — `prana-portal/src/pages/pa/SecurityIncidentRegister.tsx` (PA, backed by
+`/admin/errors*`, full list/acknowledge/ignore/resolve/promote-to-incident) and
+`prana-portal/src/pages/ciso/SecurityIncidents.tsx` (CISO, backed by `/v1/ciso/errors*`,
+tenant-scoped — own tenant plus `tenant_id IS NULL` platform-level errors — read/acknowledge/
+resolve only, no ignore/promote).

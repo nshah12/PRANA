@@ -9,6 +9,7 @@ from fastapi.responses import JSONResponse
 from config import get_settings
 from errors import PranaError
 from middleware.deprecation import DeprecationMiddleware
+from middleware.request_id import RequestIDMiddleware
 from db import create_pool
 from services.jwt_service import JWTService
 from services.encryption_service import KMSService
@@ -72,8 +73,15 @@ async def lifespan(app: FastAPI):
     try:
         s3_svc.ensure_bucket(settings.s3_bucket_documents)
         s3_svc.ensure_bucket(settings.s3_bucket_staging)
-    except Exception:
-        pass   # No S3 in dev without MinIO — non-fatal
+    except Exception as exc:
+        try:
+            from services.error_observability_service import ErrorObservabilityService
+            await ErrorObservabilityService(app.state.db_pool).record(
+                exc=exc, source="HTTP", source_detail="lifespan:s3_ensure_bucket",
+            )
+        except Exception:
+            pass
+        # No S3 in dev without MinIO — non-fatal
     app.state.s3 = s3_svc
 
     # Immudb — tamper-evident audit ledger. AuditConsumer dual-writes every audit_event
@@ -109,8 +117,15 @@ async def lifespan(app: FastAPI):
                 app.state.temporal_client,
                 interval_minutes=int(interval_row or 2),
             )
-        except Exception:
-            pass  # Non-fatal — health-check schedule creation must not block startup
+        except Exception as exc:
+            try:
+                from services.error_observability_service import ErrorObservabilityService
+                await ErrorObservabilityService(app.state.db_pool).record(
+                    exc=exc, source="HTTP", source_detail="lifespan:ensure_health_schedule",
+                )
+            except Exception:
+                pass
+            # Non-fatal — health-check schedule creation must not block startup
 
         try:
             from workflows.audit_integrity import ensure_audit_integrity_schedule
@@ -122,8 +137,35 @@ async def lifespan(app: FastAPI):
                 app.state.temporal_client,
                 interval_minutes=int(interval_row or 60),
             )
-        except Exception:
-            pass  # Non-fatal — schedule creation must not block startup
+        except Exception as exc:
+            try:
+                from services.error_observability_service import ErrorObservabilityService
+                await ErrorObservabilityService(app.state.db_pool).record(
+                    exc=exc, source="HTTP", source_detail="lifespan:ensure_audit_integrity_schedule",
+                )
+            except Exception:
+                pass
+            # Non-fatal — schedule creation must not block startup
+
+        try:
+            from workflows.error_threshold import ensure_error_threshold_schedule
+            interval_row = await app.state.db_pool.fetchval(
+                "SELECT config_value FROM platform_config WHERE config_key=$1",
+                "error_threshold_check_interval_minutes",
+            )
+            await ensure_error_threshold_schedule(
+                app.state.temporal_client,
+                interval_minutes=int(interval_row or 15),
+            )
+        except Exception as exc:
+            try:
+                from services.error_observability_service import ErrorObservabilityService
+                await ErrorObservabilityService(app.state.db_pool).record(
+                    exc=exc, source="HTTP", source_detail="lifespan:ensure_error_threshold_schedule",
+                )
+            except Exception:
+                pass
+            # Non-fatal — schedule creation must not block startup
 
     # Kafka producer
     kafka = KafkaPub(settings)
@@ -142,8 +184,15 @@ async def lifespan(app: FastAPI):
                 "service":    "prana-api",
                 "version":    settings.app_version if hasattr(settings, "app_version") else "unknown",
             })
-        except Exception:
-            pass  # Non-fatal — don't block startup
+        except Exception as exc:
+            try:
+                from services.error_observability_service import ErrorObservabilityService
+                await ErrorObservabilityService(app.state.db_pool).record(
+                    exc=exc, source="HTTP", source_detail="lifespan:publish_worker_started",
+                )
+            except Exception:
+                pass
+            # Non-fatal — don't block startup
 
     # Kafka consumers — each runs as a background asyncio task
     _consumer_tasks: list[asyncio.Task] = []
@@ -189,8 +238,14 @@ async def lifespan(app: FastAPI):
                 "event_type": "WORKER_STOPPED",
                 "service":    "prana-api",
             })
-        except Exception:
-            pass
+        except Exception as exc:
+            try:
+                from services.error_observability_service import ErrorObservabilityService
+                await ErrorObservabilityService(app.state.db_pool).record(
+                    exc=exc, source="HTTP", source_detail="lifespan:publish_worker_stopped",
+                )
+            except Exception:
+                pass
         await app.state.kafka_producer.stop()
     if app.state.immudb_service:
         app.state.immudb_service.close()
@@ -216,6 +271,10 @@ def create_app() -> FastAPI:
         allow_methods=["GET", "POST", "PUT", "DELETE", "PATCH"],
         allow_headers=["Authorization", "Content-Type", "X-Request-ID"],
     )
+    # Assigns request.state.request_id (honours an incoming X-Request-ID, else generates
+    # one) and echoes it on every response. Prerequisite for error-observability
+    # correlation — see prana-docs/ERROR_OBSERVABILITY_DESIGN.md §3.1.
+    app.add_middleware(RequestIDMiddleware)
     # Adds Deprecation/Sunset headers to deprecated versions/endpoints automatically
     # Blocks sunset versions with 410 Gone — no router changes needed
     app.add_middleware(DeprecationMiddleware)
@@ -247,15 +306,37 @@ def create_app() -> FastAPI:
     # Each handler returns a typed PranaError code — never a hardcoded English sentence.
     # Frontend maps the code to a locale string via tError().
 
+    def _request_id(request: Request) -> str | None:
+        return getattr(request.state, "request_id", None)
+
+    async def _record_error(request: Request, exc: Exception) -> None:
+        """Best-effort — a failure recording the error must never mask the
+        original error response (prana-docs/ERROR_OBSERVABILITY_DESIGN.md §4A)."""
+        try:
+            db_pool = getattr(request.app.state, "db_pool", None)
+            if db_pool is None:
+                return
+            from services.error_observability_service import ErrorObservabilityService
+            async with db_pool.acquire() as conn:
+                await ErrorObservabilityService(conn).record(
+                    exc=exc,
+                    source="HTTP",
+                    source_detail=request.url.path,
+                    request_id=_request_id(request),
+                )
+        except Exception:
+            pass
+
     try:
         import asyncpg
         @app.exception_handler(asyncpg.PostgresConnectionError)
         @app.exception_handler(asyncpg.TooManyConnectionsError)
         @app.exception_handler(asyncpg.CannotConnectNowError)
         async def db_unavailable_handler(request: Request, exc: Exception):
+            await _record_error(request, exc)
             return JSONResponse(
                 status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-                content={"error": PranaError.INFRA_DB_UNAVAILABLE},
+                content={"error": PranaError.INFRA_DB_UNAVAILABLE, "request_id": _request_id(request)},
             )
     except ImportError:
         pass
@@ -265,9 +346,10 @@ def create_app() -> FastAPI:
         @app.exception_handler(redis_exc.ConnectionError)
         @app.exception_handler(redis_exc.TimeoutError)
         async def redis_unavailable_handler(request: Request, exc: Exception):
+            await _record_error(request, exc)
             return JSONResponse(
                 status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-                content={"error": PranaError.INFRA_REDIS_UNAVAILABLE},
+                content={"error": PranaError.INFRA_REDIS_UNAVAILABLE, "request_id": _request_id(request)},
             )
     except ImportError:
         pass
@@ -277,9 +359,10 @@ def create_app() -> FastAPI:
         @app.exception_handler(kafka_errors.KafkaConnectionError)
         @app.exception_handler(kafka_errors.KafkaTimeoutError)
         async def kafka_unavailable_handler(request: Request, exc: Exception):
+            await _record_error(request, exc)
             return JSONResponse(
                 status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-                content={"error": PranaError.INFRA_KAFKA_UNAVAILABLE},
+                content={"error": PranaError.INFRA_KAFKA_UNAVAILABLE, "request_id": _request_id(request)},
             )
     except ImportError:
         pass
@@ -290,28 +373,30 @@ def create_app() -> FastAPI:
         @app.exception_handler(boto_exc.ConnectTimeoutError)
         async def aws_unavailable_handler(request: Request, exc: Exception):
             # Could be S3 or KMS — generic AWS infra error
+            await _record_error(request, exc)
             return JSONResponse(
                 status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-                content={"error": PranaError.INFRA_SERVICE_UNAVAILABLE},
+                content={"error": PranaError.INFRA_SERVICE_UNAVAILABLE, "request_id": _request_id(request)},
             )
 
         @app.exception_handler(boto_exc.ClientError)
         async def aws_client_error_handler(request: Request, exc: Exception):
+            await _record_error(request, exc)
             code = getattr(exc, "response", {}).get("Error", {}).get("Code", "")
             if code in ("KMSInvalidStateException", "DisabledException", "InvalidKeyUsageException"):
                 return JSONResponse(
                     status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-                    content={"error": PranaError.INFRA_KMS_UNAVAILABLE},
+                    content={"error": PranaError.INFRA_KMS_UNAVAILABLE, "request_id": _request_id(request)},
                 )
             if code in ("NoSuchBucket", "NoSuchKey"):
                 return JSONResponse(
                     status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-                    content={"error": PranaError.INFRA_S3_UNAVAILABLE},
+                    content={"error": PranaError.INFRA_S3_UNAVAILABLE, "request_id": _request_id(request)},
                 )
             # Other boto errors fall through to the generic handler
             return JSONResponse(
                 status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-                content={"error": PranaError.INFRA_SERVICE_UNAVAILABLE},
+                content={"error": PranaError.INFRA_SERVICE_UNAVAILABLE, "request_id": _request_id(request)},
             )
     except ImportError:
         pass
@@ -320,9 +405,10 @@ def create_app() -> FastAPI:
         from temporalio.service import RPCError
         @app.exception_handler(RPCError)
         async def temporal_unavailable_handler(request: Request, exc: Exception):
+            await _record_error(request, exc)
             return JSONResponse(
                 status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-                content={"error": PranaError.INFRA_TEMPORAL_UNAVAILABLE},
+                content={"error": PranaError.INFRA_TEMPORAL_UNAVAILABLE, "request_id": _request_id(request)},
             )
     except ImportError:
         pass
@@ -330,9 +416,10 @@ def create_app() -> FastAPI:
     @app.exception_handler(Exception)
     async def unhandled_exception_handler(request: Request, exc: Exception):
         # Never leak stack traces to clients
+        await _record_error(request, exc)
         return JSONResponse(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            content={"error": PranaError.INFRA_SERVICE_UNAVAILABLE},
+            content={"error": PranaError.INFRA_SERVICE_UNAVAILABLE, "request_id": _request_id(request)},
         )
 
     # ── Health ─────────────────────────────────────────────────────────────────

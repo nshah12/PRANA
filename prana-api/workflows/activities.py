@@ -283,8 +283,10 @@ async def stage05_handle_cross_tenant_violation(params: dict) -> dict:
                 "actor_id":            actor_id,
             }, key=uploading_tenant_id)
             await kafka.stop()
-        except Exception:
-            pass  # Temporal will retry the activity; Kafka publish is best-effort within the retry
+        except Exception as exc:
+            from workflows.error_capture_interceptor import _record
+            await _record(exc, "cross_tenant_upload_reject:kafka_publish")
+            # Temporal will retry the activity; Kafka publish is best-effort within the retry
 
         return {"status": "CROSS_TENANT_REJECTED", "anomaly_id": anomaly_id}
     finally:
@@ -848,8 +850,10 @@ async def provision_tenant(params: dict) -> dict:
                 "login_url":      settings.portal_url + "/org/login",
             })
             await kafka.stop()
-        except Exception:
-            pass  # Non-fatal — admin can resend from PA console
+        except Exception as exc:
+            from workflows.error_capture_interceptor import _record
+            await _record(exc, "tenant_provisioning:welcome_email_publish")
+            # Non-fatal — admin can resend from PA console
 
         return {"tenant_id": tenant_id, "oa_admin_id": admin["oa_user_id"]}
     finally:

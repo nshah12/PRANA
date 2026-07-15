@@ -44,7 +44,11 @@ class AnalyticsConsumer:
                 try:
                     if etype == "DOC_ROUTED":
                         await self._handle_doc_routed(event)
-                except Exception:
+                except Exception as exc:
+                    from kafka.error_capture import record_consumer_error
+                    await record_consumer_error(
+                        None, consumer_name="AnalyticsConsumer", exc=exc, event_type=etype,
+                    )
                     log.exception("AnalyticsConsumer error event_type=%s", etype)
         finally:
             await self._consumer.stop()

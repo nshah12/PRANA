@@ -249,8 +249,14 @@ async def acknowledge_anomaly(anomaly_id: str, db: DbConn, current=CFO):
         )
     except HTTPException:
         raise
-    except Exception:
-        pass
+    except Exception as exc:
+        from services.error_observability_service import ErrorObservabilityService
+        try:
+            await ErrorObservabilityService(db).record(
+                exc=exc, source="HTTP", source_detail="acknowledge_anomaly",
+            )
+        except Exception:
+            pass
     # In production: AnomalyAcknowledgementWorkflow fan-out notifies CHRO with identity context
     return {"message": SuccessCode.ANOMALY_ACKNOWLEDGED}
 

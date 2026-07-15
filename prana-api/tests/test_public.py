@@ -10,6 +10,101 @@ async def test_health_endpoint_returns_200(client):
 
 
 @pytest.mark.asyncio
+async def test_every_response_carries_an_x_request_id_header(client):
+    resp = await client.get("/health")
+    assert "X-Request-ID" in resp.headers
+    assert len(resp.headers["X-Request-ID"]) == 36
+
+
+@pytest.mark.asyncio
+async def test_incoming_x_request_id_is_echoed_back(client):
+    resp = await client.get("/health", headers={"X-Request-ID": "caller-abc-123"})
+    assert resp.headers["X-Request-ID"] == "caller-abc-123"
+
+
+@pytest.mark.asyncio
+async def test_unhandled_exception_response_includes_request_id(client, mock_db):
+    """The documented error contract is {error, message, request_id} — the global
+    handler must actually populate request_id, not just the docs claiming it does."""
+    from httpx import AsyncClient, ASGITransport
+    client.app.state.jwt_service.decode = MagicMock(return_value={
+        "sub": "pa-1", "user_type": "portal_admin", "role": "portal_admin",
+        "tenant_id": None, "jti": "s1",
+    })
+    client.app.state.jwt_service.is_revoked = AsyncMock(return_value=False)
+    mock_db.fetch.side_effect = RuntimeError("deliberate test explosion")
+
+    # raise_app_exceptions=False so we get the real 500 response instead of the
+    # test transport re-raising — matches what a real client over the wire sees.
+    async with AsyncClient(
+        transport=ASGITransport(app=client.app, raise_app_exceptions=False),
+        base_url="http://test",
+    ) as raw_client:
+        resp = await raw_client.get("/admin/contact-inquiries", headers={
+            "Authorization": "Bearer x", "X-Request-ID": "trace-me-456",
+        })
+
+    assert resp.status_code == 500
+    body = resp.json()
+    assert body.get("request_id") == "trace-me-456"
+
+
+@pytest.mark.asyncio
+async def test_unhandled_exception_is_recorded_to_error_event(client, mock_db):
+    """The whole point of this track: an exception that used to vanish must now
+    leave a durable trace via ErrorObservabilityService."""
+    from httpx import AsyncClient, ASGITransport
+    client.app.state.jwt_service.decode = MagicMock(return_value={
+        "sub": "pa-1", "user_type": "portal_admin", "role": "portal_admin",
+        "tenant_id": None, "jti": "s1",
+    })
+    client.app.state.jwt_service.is_revoked = AsyncMock(return_value=False)
+    mock_db.fetchrow.return_value = None  # no existing error_event row for this fingerprint
+    mock_db.fetch.side_effect = RuntimeError("deliberate test explosion")
+
+    async with AsyncClient(
+        transport=ASGITransport(app=client.app, raise_app_exceptions=False),
+        base_url="http://test",
+    ) as raw_client:
+        resp = await raw_client.get("/admin/contact-inquiries", headers={
+            "Authorization": "Bearer x", "X-Request-ID": "trace-me-789",
+        })
+
+    assert resp.status_code == 500
+    insert_calls = [c for c in mock_db.execute.call_args_list if "INSERT INTO error_event" in c.args[0]]
+    assert len(insert_calls) == 1
+    params = insert_calls[0].args
+    assert "RuntimeError" in params
+    assert "/admin/contact-inquiries" in params
+    assert "trace-me-789" in params
+
+
+@pytest.mark.asyncio
+async def test_error_recording_failure_never_masks_the_original_response(client, mock_db):
+    """If writing the error_event row itself fails (DB hiccup), the client must
+    still get the normal error response — recording is best-effort."""
+    from httpx import AsyncClient, ASGITransport
+    client.app.state.jwt_service.decode = MagicMock(return_value={
+        "sub": "pa-1", "user_type": "portal_admin", "role": "portal_admin",
+        "tenant_id": None, "jti": "s1",
+    })
+    client.app.state.jwt_service.is_revoked = AsyncMock(return_value=False)
+    mock_db.fetch.side_effect = RuntimeError("deliberate test explosion")
+    mock_db.execute.side_effect = RuntimeError("db is also on fire")
+
+    async with AsyncClient(
+        transport=ASGITransport(app=client.app, raise_app_exceptions=False),
+        base_url="http://test",
+    ) as raw_client:
+        resp = await raw_client.get("/admin/contact-inquiries", headers={
+            "Authorization": "Bearer x",
+        })
+
+    assert resp.status_code == 500
+    assert resp.json()["error"] == "INFRA_SERVICE_UNAVAILABLE"
+
+
+@pytest.mark.asyncio
 async def test_public_endpoints_require_no_auth(client):
     # /public/contact can be called without any auth token
     resp = await client.post(

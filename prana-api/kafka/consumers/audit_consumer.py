@@ -94,7 +94,12 @@ class AuditConsumer:
             except asyncpg.UniqueViolationError:
                 # Duplicate delivery — advance past it
                 pending[tp] = next_offset
-            except Exception:
+            except Exception as exc:
+                from kafka.error_capture import record_consumer_error
+                await record_consumer_error(
+                    self._pool, consumer_name="AuditConsumer", exc=exc,
+                    event_type=event.get("event_type"),
+                )
                 log.exception(
                     "AuditConsumer write failed event_type=%s doc=%s",
                     event.get("event_type"), event.get("document_id"),

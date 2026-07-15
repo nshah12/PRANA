@@ -41,7 +41,11 @@ class PlatformConsumer:
                 event = msg.value
                 try:
                     await self._handle(event)
-                except Exception:
+                except Exception as exc:
+                    from kafka.error_capture import record_consumer_error
+                    await record_consumer_error(
+                        None, consumer_name="PlatformConsumer", exc=exc, event_type=event.get("event_type"),
+                    )
                     log.exception("PlatformConsumer error event_type=%s", event.get("event_type"))
         finally:
             await self._consumer.stop()

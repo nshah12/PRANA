@@ -52,7 +52,11 @@ class CacheInvalidationConsumer:
                 etype = event.get("event_type")
                 try:
                     await self._dispatch(etype, event)
-                except Exception:
+                except Exception as exc:
+                    from kafka.error_capture import record_consumer_error
+                    await record_consumer_error(
+                        None, consumer_name="CacheInvalidationConsumer", exc=exc, event_type=etype,
+                    )
                     log.exception("CacheInvalidationConsumer error event_type=%s", etype)
         finally:
             await self._consumer.stop()

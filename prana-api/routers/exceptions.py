@@ -244,8 +244,15 @@ async def resolve_exception(
                 "employee_uuid": body.employee_uuid,
                 "resolved_by":   current.user_id,
             })
-        except Exception:
-            pass  # Pipeline workflow may have already timed out â€” non-fatal
+        except Exception as exc:
+            from services.error_observability_service import ErrorObservabilityService
+            try:
+                await ErrorObservabilityService(db).record(
+                    exc=exc, source="HTTP", source_detail="resolve_exception:signal_workflow",
+                )
+            except Exception:
+                pass
+            # Pipeline workflow may have already timed out — non-fatal
 
     kafka = getattr(request.app.state, "kafka_producer", None)
     if kafka:
@@ -310,8 +317,14 @@ async def dismiss_exception(
                 "dismissed":     True,
                 "dismiss_reason": body.reason,
             })
-        except Exception:
-            pass
+        except Exception as exc:
+            from services.error_observability_service import ErrorObservabilityService
+            try:
+                await ErrorObservabilityService(db).record(
+                    exc=exc, source="HTTP", source_detail="dismiss_exception:signal_workflow",
+                )
+            except Exception:
+                pass
 
     kafka = getattr(request.app.state, "kafka_producer", None)
     if kafka:

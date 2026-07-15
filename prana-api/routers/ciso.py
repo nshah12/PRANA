@@ -854,6 +854,48 @@ async def escalate_incident(incident_id: str, db: DbConn, current=CISO):
     return {"status": "escalated"}
 
 
+# â”€â”€ Application errors (4th incident track â€” see prana-docs/ERROR_OBSERVABILITY_DESIGN.md) â”€â”€
+# CISO gets read/acknowledge/resolve only â€” no ignore/promote-to-incident (PA-only, pa_admin.py).
+
+class CisoResolveErrorBody(BaseModel):
+    resolution_note: str
+
+
+def _ciso_error_value_error_status(exc: ValueError) -> int:
+    return status.HTTP_404_NOT_FOUND if "not found" in str(exc) else status.HTTP_422_UNPROCESSABLE_ENTITY
+
+
+@router.get("/errors")
+async def list_errors(db: DbConn, current=CISO):
+    """CISO: list application errors for own tenant, plus platform-level (tenant_id NULL) ones."""
+    from services.error_observability_service import ErrorObservabilityService
+    svc = ErrorObservabilityService(db)
+    items = await svc.list_errors(tenant_id=current.tenant_id, include_platform_errors=True)
+    return {"items": items, "total": len(items)}
+
+
+@router.patch("/errors/{error_id}/acknowledge")
+async def acknowledge_error(error_id: str, db: DbConn, current=CISO):
+    from services.error_observability_service import ErrorObservabilityService
+    svc = ErrorObservabilityService(db)
+    try:
+        await svc.acknowledge(error_id=error_id)
+    except ValueError as exc:
+        raise HTTPException(status_code=_ciso_error_value_error_status(exc), detail=str(exc)) from exc
+    return {"status": "acknowledged"}
+
+
+@router.patch("/errors/{error_id}/resolve")
+async def resolve_error(error_id: str, body: CisoResolveErrorBody, db: DbConn, current=CISO):
+    from services.error_observability_service import ErrorObservabilityService
+    svc = ErrorObservabilityService(db)
+    try:
+        await svc.resolve(error_id=error_id, resolved_by=current.user_id, resolution_note=body.resolution_note)
+    except ValueError as exc:
+        raise HTTPException(status_code=_ciso_error_value_error_status(exc), detail=str(exc)) from exc
+    return {"status": "resolved"}
+
+
 # â”€â”€ Notification log â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 @router.get("/notification-log")

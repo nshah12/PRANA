@@ -55,7 +55,11 @@ class SSEFanoutConsumer:
                         "occurred_at":     event.get("occurred_at"),
                     })
                     await self._redis.publish(channel, payload)
-                except Exception:
+                except Exception as exc:
+                    from kafka.error_capture import record_consumer_error
+                    await record_consumer_error(
+                        None, consumer_name="SSEFanoutConsumer", exc=exc, event_type=event.get("event_type"),
+                    )
                     log.exception("SSEFanoutConsumer publish failed doc_id=%s", doc_id)
         finally:
             await self._consumer.stop()

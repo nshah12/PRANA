@@ -153,8 +153,15 @@ async def _issue_jwt(request: Request, response: Response, db, user_id: str, ip:
                 jwt_ttl = int(r["config_value"])
             elif r["config_key"] == "refresh_token_ttl_days":
                 refresh_ttl = int(r["config_value"])
-    except Exception:
-        pass  # use defaults if config unavailable
+    except Exception as exc:
+        from services.error_observability_service import ErrorObservabilityService
+        try:
+            await ErrorObservabilityService(db).record(
+                exc=exc, source="HTTP", source_detail="_issue_jwt:platform_config_read",
+            )
+        except Exception:
+            pass
+        # use defaults if config unavailable
 
     session_svc = SessionService(db, request.app.state.jwt_service)
     tokens = await session_svc.create(

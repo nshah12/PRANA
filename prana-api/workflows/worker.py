@@ -21,6 +21,9 @@ from datetime import timedelta
 from temporalio.client import Client
 from temporalio.worker import Worker
 
+from workflows.error_capture_interceptor import ErrorObservabilityInterceptor
+from workflows.error_threshold import ErrorThresholdEvaluationWorkflow, evaluate_error_thresholds
+
 from config import get_settings
 
 # ── Workflow imports ───────────────────────────────────────────────────────────
@@ -254,12 +257,12 @@ WORKERS: dict[str, dict] = {
             PolicyLockWorkflow, AnomalyDetectionWorkflow,
             KMSKeyRotationWorkflow, HMACSecretRotationWorkflow,
             KMSHealthCheckWorkflow, SystemHealthWorkflow,
-            AuditIntegrityVerificationWorkflow,
+            AuditIntegrityVerificationWorkflow, ErrorThresholdEvaluationWorkflow,
         ],
         "activities": [
             apply_policy_lock, release_policy_lock, notify_policy_lock,
             run_anomaly_detection_batch, rotate_tenant_kek, rotate_hmac_secret,
-            run_health_checks, verify_audit_integrity,
+            run_health_checks, verify_audit_integrity, evaluate_error_thresholds,
             get_next_tenant_for_rotation, verify_kms_key_health, alert_kms_key_issue,
             get_security_config,
         ],
@@ -332,6 +335,9 @@ async def start_worker(client: Client, queue: str, cfg: dict) -> None:
         task_queue=queue,
         workflows=cfg["workflows"],
         activities=cfg["activities"],
+        # Records every failed activity attempt to error_event (deduplicated by
+        # fingerprint) — see prana-docs/ERROR_OBSERVABILITY_DESIGN.md §4C.
+        interceptors=[ErrorObservabilityInterceptor()],
     )
     log.info("Starting worker on queue: %s (%d workflows, %d activities)",
              queue, len(cfg["workflows"]), len(cfg["activities"]))

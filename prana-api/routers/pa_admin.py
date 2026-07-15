@@ -8,7 +8,7 @@ from messages import SuccessCode, success_response
 import datetime
 from typing import Optional
 from fastapi import APIRouter, Depends, HTTPException, Request, status
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 from dependencies import DbConn, require_pa, AuthUser as PortalAdmin
 from errors import PranaError
@@ -63,8 +63,14 @@ async def meta_dashboard(request: Request, db: DbConn, current=PA):
                 storage_used_label = f"{total_bytes / (1024**2):.1f} MB"
             else:
                 storage_used_label = f"{total_bytes / (1024**3):.2f} GB"
-    except Exception:
-        pass
+    except Exception as exc:
+        from services.error_observability_service import ErrorObservabilityService
+        try:
+            await ErrorObservabilityService(db).record(
+                exc=exc, source="HTTP", source_detail="platform_summary:s3_storage_listing",
+            )
+        except Exception:
+            pass
     if storage_used_label == "—":
         # Estimate from document count: average 200 KB per document
         doc_count = await db.fetchval("SELECT COUNT(*) FROM document WHERE is_deleted=FALSE")
@@ -684,8 +690,14 @@ async def acknowledge_anomaly(event_id: str, db: DbConn, current=PA):
             "UPDATE anomaly_event SET status='ACKNOWLEDGED' WHERE event_id=$1",
             event_id,
         )
-    except Exception:
-        pass
+    except Exception as exc:
+        from services.error_observability_service import ErrorObservabilityService
+        try:
+            await ErrorObservabilityService(db).record(
+                exc=exc, source="HTTP", source_detail="acknowledge_anomaly",
+            )
+        except Exception:
+            pass
     return {"message": SuccessCode.ALERT_ACKNOWLEDGED}
 
 
@@ -1095,6 +1107,79 @@ async def pa_escalate_security_incident(incident_id: str, db: DbConn, _=PA):
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,
                             detail=str(exc)) from exc
     return {"status": "escalated"}
+
+
+# ── Application errors (4th incident track — see prana-docs/ERROR_OBSERVABILITY_DESIGN.md) ──
+
+class ResolveErrorIn(BaseModel):
+    resolution_note: str = Field(min_length=1)
+
+
+class PromoteErrorIn(BaseModel):
+    severity: str
+
+
+def _error_value_error_status(exc: ValueError) -> int:
+    return status.HTTP_404_NOT_FOUND if "not found" in str(exc) else status.HTTP_422_UNPROCESSABLE_ENTITY
+
+
+@router.get("/errors")
+async def list_errors(
+    db: DbConn,
+    _=PA,
+    tenant_id: Optional[str] = None,
+    error_status: Optional[str] = None,
+    limit: int = 100,
+):
+    """PA: list captured application errors across all tenants (or filter by tenant)."""
+    from services.error_observability_service import ErrorObservabilityService
+    svc = ErrorObservabilityService(db)
+    items = await svc.list_errors(tenant_id=tenant_id, status=error_status, limit=limit)
+    return {"items": items, "total": len(items)}
+
+
+@router.post("/errors/{error_id}/acknowledge")
+async def acknowledge_error(error_id: str, db: DbConn, _=PA):
+    from services.error_observability_service import ErrorObservabilityService
+    svc = ErrorObservabilityService(db)
+    try:
+        await svc.acknowledge(error_id=error_id)
+    except ValueError as exc:
+        raise HTTPException(status_code=_error_value_error_status(exc), detail=str(exc)) from exc
+    return {"status": "acknowledged"}
+
+
+@router.post("/errors/{error_id}/ignore")
+async def ignore_error(error_id: str, db: DbConn, _=PA):
+    from services.error_observability_service import ErrorObservabilityService
+    svc = ErrorObservabilityService(db)
+    try:
+        await svc.ignore(error_id=error_id)
+    except ValueError as exc:
+        raise HTTPException(status_code=_error_value_error_status(exc), detail=str(exc)) from exc
+    return {"status": "ignored"}
+
+
+@router.post("/errors/{error_id}/resolve")
+async def resolve_error(error_id: str, body: ResolveErrorIn, db: DbConn, current=PA):
+    from services.error_observability_service import ErrorObservabilityService
+    svc = ErrorObservabilityService(db)
+    try:
+        await svc.resolve(error_id=error_id, resolved_by=current.user_id, resolution_note=body.resolution_note)
+    except ValueError as exc:
+        raise HTTPException(status_code=_error_value_error_status(exc), detail=str(exc)) from exc
+    return {"status": "resolved"}
+
+
+@router.post("/errors/{error_id}/promote-to-incident")
+async def promote_error_to_incident(error_id: str, body: PromoteErrorIn, db: DbConn, _=PA):
+    from services.error_observability_service import ErrorObservabilityService
+    svc = ErrorObservabilityService(db)
+    try:
+        incident_id = await svc.promote_to_incident(error_id=error_id, severity=body.severity)
+    except ValueError as exc:
+        raise HTTPException(status_code=_error_value_error_status(exc), detail=str(exc)) from exc
+    return {"status": "promoted", "incident_id": incident_id}
 
 
 # ── Notification log (cross-tenant — PA only) ──────────────────────────────────

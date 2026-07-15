@@ -77,7 +77,11 @@ class WorkflowConsumer:
                         await self._handle_doc_routed(event)
                     else:
                         log.debug("WorkflowConsumer: no handler for event_type=%s", etype)
-                except Exception:
+                except Exception as exc:
+                    from kafka.error_capture import record_consumer_error
+                    await record_consumer_error(
+                        self._db_pool, consumer_name="WorkflowConsumer", exc=exc, event_type=etype,
+                    )
                     log.exception("WorkflowConsumer error event_type=%s document_id=%s",
                                   etype, event.get("document_id"))
                 else:

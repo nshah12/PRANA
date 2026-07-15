@@ -87,8 +87,14 @@ async def upload_documents(
                         "filename":   f.filename,
                         "actor_id":   current.user_id,
                     })
-                except Exception:
-                    pass
+                except Exception as exc:
+                    from services.error_observability_service import ErrorObservabilityService
+                    try:
+                        await ErrorObservabilityService(db).record(
+                            exc=exc, source="HTTP", source_detail="upload_documents:publish_hrms_webhook_failed",
+                        )
+                    except Exception:
+                        pass
             continue
 
         total_bytes += len(file_bytes)
@@ -475,8 +481,15 @@ async def resolve_exception(
                 "exception_resolved",
                 {"employee_uuid": body.employee_uuid, "method": "MANUAL_OA", "confidence": 1.0},
             )
-        except Exception:
-            pass   # workflow may have timed out — DB is source of truth
+        except Exception as exc:
+            from services.error_observability_service import ErrorObservabilityService
+            try:
+                await ErrorObservabilityService(db).record(
+                    exc=exc, source="HTTP", source_detail="resolve_exception:signal_workflow",
+                )
+            except Exception:
+                pass
+            # workflow may have timed out — DB is source of truth
 
     return {"message": SuccessCode.EXCEPTION_RESOLVED}
 

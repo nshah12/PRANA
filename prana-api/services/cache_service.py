@@ -307,8 +307,20 @@ class CacheService:
             count = await self._r.incr(hour_key)
             if count == 1:
                 await self._r.expire(hour_key, 7200)  # 2h
-        except Exception:
-            pass
+        except Exception as exc:
+            try:
+                import asyncpg
+                from config import get_settings
+                from services.error_observability_service import ErrorObservabilityService
+                conn = await asyncpg.connect(get_settings().db_dsn)
+                try:
+                    await ErrorObservabilityService(conn).record(
+                        exc=exc, source="HTTP", source_detail="CacheService.incr_pipeline_throughput",
+                    )
+                finally:
+                    await conn.close()
+            except Exception:
+                pass
 
     async def get_pipeline_throughput(self) -> int:
         import time

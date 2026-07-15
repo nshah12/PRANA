@@ -252,6 +252,13 @@ def _publish_elevation_sse(request: Request, elevation_id: str, new_status: str,
         return
     payload = json.dumps({"elevation_id": elevation_id, "status": new_status, "expires_at": expires_at})
     try:
+        # NOTE: this only catches a synchronous create_task() failure (e.g. no
+        # running loop). The redis.publish() coroutine itself runs later, in the
+        # background — a failure there is NOT caught here at all; it goes to
+        # asyncio's default unhandled-task-exception handler. Recording that
+        # properly needs this to await the publish directly instead of
+        # fire-and-forget, which is a bigger change than this pass covers —
+        # flagged as a known gap rather than silently left unaddressed.
         asyncio.get_event_loop().create_task(redis.publish(f"sse:elevation:{elevation_id}", payload))
     except Exception:
         pass  # SSE notification failure must never block the approve/deny response

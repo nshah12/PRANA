@@ -9,7 +9,7 @@ Covers:
   - No raw salary or PAN in any CISO response
 """
 import datetime
-from unittest.mock import AsyncMock, MagicMock
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
@@ -412,6 +412,74 @@ async def test_ciso_resolve_incident_not_found(client, mock_db):
         headers=AUTH_HEADER,
         json={"resolution_note": "test"},
     )
+    assert resp.status_code == 404
+
+
+# ── Application errors (4th incident track, ERROR_OBSERVABILITY_DESIGN.md §7) ───
+
+ERR_SVC = "services.error_observability_service.ErrorObservabilityService"
+
+
+@pytest.mark.asyncio
+async def test_ciso_errors_list_requires_auth(client, mock_db):
+    resp = await client.get("/v1/ciso/errors")
+    assert resp.status_code in (401, 403)
+
+
+@pytest.mark.asyncio
+async def test_ciso_errors_list_is_tenant_scoped_including_platform_level(client, mock_db):
+    """CISO must see their own tenant's errors AND platform-level (tenant_id IS NULL) ones,
+    but never another tenant's — see ERROR_OBSERVABILITY_DESIGN.md §7."""
+    _set_auth(client, tenant_id="tenant-001")
+    with patch(f"{ERR_SVC}.list_errors", new_callable=AsyncMock) as mock_list:
+        mock_list.return_value = [{"error_id": "e-1", "exception_type": "RuntimeError"}]
+        resp = await client.get("/v1/ciso/errors", headers=AUTH_HEADER)
+
+    assert resp.status_code == 200
+    data = resp.json()
+    assert data["total"] == 1
+    mock_list.assert_awaited_once()
+    kwargs = mock_list.call_args.kwargs
+    assert kwargs["tenant_id"] == "tenant-001"
+    assert kwargs["include_platform_errors"] is True
+
+
+@pytest.mark.asyncio
+async def test_ciso_acknowledge_error(client, mock_db):
+    _set_auth(client)
+    with patch(f"{ERR_SVC}.acknowledge", new_callable=AsyncMock) as mock_ack:
+        resp = await client.patch("/v1/ciso/errors/e-1/acknowledge", headers=AUTH_HEADER)
+
+    assert resp.status_code == 200
+    assert resp.json()["status"] == "acknowledged"
+    mock_ack.assert_awaited_once_with(error_id="e-1")
+
+
+@pytest.mark.asyncio
+async def test_ciso_resolve_error_happy_path(client, mock_db):
+    _set_auth(client, user_id="ciso-uuid-009")
+    with patch(f"{ERR_SVC}.resolve", new_callable=AsyncMock) as mock_resolve:
+        resp = await client.patch(
+            "/v1/ciso/errors/e-1/resolve", headers=AUTH_HEADER,
+            json={"resolution_note": "Confirmed benign, deployed fix"},
+        )
+
+    assert resp.status_code == 200
+    assert resp.json()["status"] == "resolved"
+    mock_resolve.assert_awaited_once_with(
+        error_id="e-1", resolved_by="ciso-uuid-009", resolution_note="Confirmed benign, deployed fix",
+    )
+
+
+@pytest.mark.asyncio
+async def test_ciso_resolve_error_not_found(client, mock_db):
+    _set_auth(client)
+    with patch(f"{ERR_SVC}.resolve", new_callable=AsyncMock,
+                side_effect=ValueError("error_event not found: e-missing")):
+        resp = await client.patch(
+            "/v1/ciso/errors/e-missing/resolve", headers=AUTH_HEADER,
+            json={"resolution_note": "test"},
+        )
     assert resp.status_code == 404
 
 

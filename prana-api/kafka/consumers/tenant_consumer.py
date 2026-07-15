@@ -48,7 +48,11 @@ class TenantConsumer:
                 etype = event.get("event_type")
                 try:
                     await self._dispatch(etype, event)
-                except Exception:
+                except Exception as exc:
+                    from kafka.error_capture import record_consumer_error
+                    await record_consumer_error(
+                        self._pool, consumer_name="TenantConsumer", exc=exc, event_type=etype,
+                    )
                     log.exception("TenantConsumer error event_type=%s", etype)
         finally:
             await self._consumer.stop()

@@ -64,7 +64,11 @@ class NotifConsumer:
                         svc   = NotificationService(db=conn)
                         isvc  = IncidentService(db=conn)
                         await self._dispatch(event, etype, svc, isvc, conn)
-                except Exception:
+                except Exception as exc:
+                    from kafka.error_capture import record_consumer_error
+                    await record_consumer_error(
+                        self._db_pool, consumer_name="NotifConsumer", exc=exc, event_type=etype,
+                    )
                     log.exception("NotifConsumer error event_type=%s", etype)
         finally:
             await self._consumer.stop()
