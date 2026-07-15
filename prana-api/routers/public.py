@@ -1,21 +1,24 @@
 """
-Public endpoints — no auth required.
+Public endpoints — no auth required. Mounted twice in main.py: at /public
+(legacy path, kept working indefinitely) and at /v1/public (the versioned
+path per .claude/rules/api-versioning.md — "only public/HRMS/mobile APIs
+are versioned"). Same router object, same handlers, no duplicated logic.
 
 Contact form:
-  POST /public/contact               — submit a contact message
+  POST /(v1/)public/contact               — submit a contact message
 
 Org self-registration (3-step):
-  POST /public/org-register/init     — step 1: collect email + basics, send OTP
-  POST /public/org-register/verify   — step 2: verify OTP, get verified_token
-  POST /public/org-register/complete — step 3: submit full form
+  POST /(v1/)public/org-register/init     — step 1: collect email + basics, send OTP
+  POST /(v1/)public/org-register/verify   — step 2: verify OTP, get verified_token
+  POST /(v1/)public/org-register/complete — step 3: submit full form
 
 Credential verification (no auth — for recruiters / banks):
-  GET  /public/verify/{code}         — verify a PRANA-XXXXXX-XXXXXX document code
+  GET  /(v1/)public/verify/{code}         — verify a PRANA-XXXXXX-XXXXXX document code
 
-PA read endpoints (auth required — Portal Admin only):
-  GET  /public/contact-inquiries     — all contact submissions
-  GET  /public/org-applications      — all self-registration applications
-  PATCH /public/org-applications/{id} — mark reviewed / set status
+The 3 PA-only read/review endpoints that used to live here (contact-inquiries,
+org-applications) moved to routers/pa_admin.py under /admin/* — they're
+admin-authenticated reads, not public endpoints, and don't belong under a
+path literally named "public" regardless of versioning.
 """
 import hashlib
 import io
@@ -24,7 +27,6 @@ import random
 import string
 import json
 from datetime import datetime, timezone, timedelta
-from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Request, status
 from pydantic import BaseModel, EmailStr
@@ -32,7 +34,6 @@ from limiter import limiter
 import asyncpg
 
 from db import get_db as get_conn
-from dependencies import PortalAdmin, DbConn
 from lib.email import send_otp_email, send_contact_confirmation, send_pa_contact_alert
 
 router = APIRouter(prefix="/public", tags=["public"])
@@ -253,88 +254,6 @@ async def org_register_complete(
     return {"status": "received", "application_id": str(app_id)}
 
 
-# ── PA read endpoints ─────────────────────────────────────────────────────────
-
-@router.get("/contact-inquiries", status_code=200)
-async def list_contact_inquiries(
-    current: PortalAdmin,
-    conn: asyncpg.Connection = Depends(get_conn),
-    page: int = 1,
-    limit: int = 50,
-):
-    offset = (page - 1) * limit
-    rows = await conn.fetch(
-        """
-        SELECT id, name, email, org, enquiry_type, message, status, submitted_at
-        FROM contact_inquiry
-        ORDER BY submitted_at DESC
-        LIMIT $1 OFFSET $2
-        """,
-        limit, offset,
-    )
-    total = await conn.fetchval("SELECT COUNT(*) FROM contact_inquiry")
-    return {
-        "total": total,
-        "page": page,
-        "items": [
-            {
-                "id":           str(r["id"]),
-                "name":         r["name"],
-                "email":        r["email"],
-                "org":          r["org"],
-                "enquiry_type": r["enquiry_type"],
-                "message":      r["message"],
-                "status":       r["status"],
-                "submitted_at": r["submitted_at"].isoformat(),
-            }
-            for r in rows
-        ],
-    }
-
-
-@router.get("/org-applications", status_code=200)
-async def list_org_applications(
-    current: PortalAdmin,
-    conn: asyncpg.Connection = Depends(get_conn),
-    page: int = 1,
-    limit: int = 50,
-    app_status: Optional[str] = None,
-):
-    offset = (page - 1) * limit
-    where = "WHERE status = $3" if app_status else ""
-    params: list = [limit, offset]
-    if app_status:
-        params.append(app_status)
-
-    rows = await conn.fetch(
-        f"""
-        SELECT id, org_name, domain, entity_type, industry, headcount_band,
-               contact_name, contact_email, contact_mobile,
-               message, how_heard, agreed_to_dpa, email_verified,
-               status, review_notes, submitted_at, reviewed_at
-        FROM self_service_application
-        {where}
-        ORDER BY submitted_at DESC
-        LIMIT $1 OFFSET $2
-        """,
-        *params,
-    )
-    total = await conn.fetchval(
-        "SELECT COUNT(*) FROM self_service_application " + where,
-        *params[2:],
-    )
-    return {
-        "total": total,
-        "page": page,
-        "items": [dict(r) | {"id": str(r["id"]), "submitted_at": r["submitted_at"].isoformat()} for r in rows],
-    }
-
-
-class ReviewIn(BaseModel):
-    status:       str            # REVIEWED | APPROVED | REJECTED
-    review_notes: str = ""
-
-
 # ── Credential verification (no auth) ─────────────────────────────────────────
 
 @router.get("/qr/{code}")
@@ -457,21 +376,3 @@ async def verify_credential(
         "file_hash_sha256":   row["file_hash_sha256"],
         "verified_at":        now_iso,
     }
-
-
-@router.patch("/org-applications/{app_id}", status_code=200)
-async def review_application(
-    app_id: str,
-    body: ReviewIn,
-    current: PortalAdmin,
-    conn: asyncpg.Connection = Depends(get_conn),
-):
-    await conn.execute(
-        """
-        UPDATE self_service_application
-        SET status = $1, review_notes = $2, reviewed_at = NOW()
-        WHERE id = $3::uuid
-        """,
-        body.status, body.review_notes, app_id,
-    )
-    return {"status": body.status}

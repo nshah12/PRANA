@@ -42,6 +42,12 @@
 | POST | `/v1/vault/share` | Create share token |
 | GET | `/v1/dpdp/erasure-request` | DPDP erasure |
 | GET | `/v1/ask/` | Ask PRANA chatbot |
+| POST | `/v1/public/contact` | Submit a contact-form message (no auth) |
+| POST | `/v1/public/org-register/init` | Org self-registration step 1: email + OTP |
+| POST | `/v1/public/org-register/verify` | Org self-registration step 2: verify OTP |
+| POST | `/v1/public/org-register/complete` | Org self-registration step 3: submit application |
+| GET | `/v1/public/verify/{code}` | Verify a PRANA credential code (recruiters/banks, no auth) |
+| GET | `/v1/public/qr/{code}` | QR code PNG for a credential verification URL (no auth) |
 
 ### Response conventions (v1)
 ```json
@@ -61,6 +67,8 @@
 |------|------|---------|--------|
 | 2025-06-17 | 🟢 ADDED | `/v1/ingest/stats` | New dashboard stats endpoint |
 | 2025-06-17 | ⚪ INTERNAL | All endpoints | Added `DeprecationMiddleware` — no client impact |
+| 2026-07-15 | 🟢 ADDED | `/v1/public/*` | Versioned mirror of the previously-unversioned `/public/*` endpoints (contact form, org self-registration, credential verification), per `.claude/rules/api-versioning.md` — "only public/HRMS/mobile APIs are versioned." Purely additive: `/public/*` keeps working unchanged, same handlers, no deprecation planned yet. New integrators (recruiters/banks calling credential verification) should prefer `/v1/public/verify/{code}`. |
+| 2026-07-15 | ⚪ INTERNAL | `/public/contact-inquiries`, `/public/org-applications*` | Relocated to `/admin/contact-inquiries`, `/admin/org-applications*` (`routers/pa_admin.py`) — these were PA-authenticated reads that never belonged under a path named "public." Old paths no longer resolve; the only caller (Portal's `ContactInquiries.tsx`) was updated in the same change. Not a partner-facing contract (unversioned admin-console-internal endpoint), so no `/v1/` mirror, deprecation window, or partner notification applies. |
 
 ---
 

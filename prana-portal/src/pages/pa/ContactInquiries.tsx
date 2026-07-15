@@ -46,7 +46,7 @@ function ContactMessages() {
 
   const { data, isLoading } = useQuery({
     queryKey: ['pa-contact-inquiries'],
-    queryFn:  () => api.get('/public/contact-inquiries').then(r => r.data),
+    queryFn:  () => api.get('/admin/contact-inquiries').then(r => r.data),
     refetchInterval: 60_000,
   })
   const items = data?.items ?? []
@@ -124,14 +124,14 @@ function Applications() {
 
   const { data, isLoading } = useQuery({
     queryKey: ['pa-org-applications'],
-    queryFn:  () => api.get('/public/org-applications').then(r => r.data),
+    queryFn:  () => api.get('/admin/org-applications').then(r => r.data),
     refetchInterval: 60_000,
   })
   const items = data?.items ?? []
 
   const reviewMut = useMutation({
     mutationFn: ({ id, status, notes }: { id: string; status: string; notes: string }) =>
-      api.patch(`/public/org-applications/${id}`, { status, review_notes: notes }),
+      api.patch(`/admin/org-applications/${id}`, { status, review_notes: notes }),
     onSuccess: () => qc.invalidateQueries({ queryKey: ['pa-org-applications'] }),
   })
 
@@ -266,11 +266,11 @@ export function ContactInquiries() {
 
   const contactQuery = useQuery({
     queryKey: ['pa-contact-inquiries'],
-    queryFn:  () => api.get('/public/contact-inquiries').then(r => r.data),
+    queryFn:  () => api.get('/admin/contact-inquiries').then(r => r.data),
   })
   const appQuery = useQuery({
     queryKey: ['pa-org-applications'],
-    queryFn:  () => api.get('/public/org-applications').then(r => r.data),
+    queryFn:  () => api.get('/admin/org-applications').then(r => r.data),
   })
 
   const contactNew = (contactQuery.data?.items ?? []).filter((i: any) => i.status === 'NEW').length

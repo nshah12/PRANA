@@ -26,6 +26,31 @@ async def test_public_endpoints_require_no_auth(client):
     assert resp.status_code != 403, "Public contact endpoint must not require auth"
 
 
+@pytest.mark.asyncio
+async def test_v1_public_mirror_serves_same_handlers_as_public(client, mock_db):
+    """public.router is mounted twice — /public (legacy) and /v1/public (versioned,
+    per api-versioning.md). Both must resolve to the identical handler/response."""
+    mock_db.fetchrow.return_value = None  # both calls hit the same "not found" path identically
+    r1 = await client.get("/public/verify/PRANA-123456-789012")
+    r2 = await client.get("/v1/public/verify/PRANA-123456-789012")
+    assert r1.status_code == r2.status_code == 404
+    assert r1.json() == r2.json()
+
+    r1 = await client.get("/public/qr/PRANA-123456-789012")
+    r2 = await client.get("/v1/public/qr/PRANA-123456-789012")
+    assert r1.status_code == r2.status_code == 200
+    assert r1.content == r2.content
+
+
+@pytest.mark.asyncio
+async def test_contact_inquiries_no_longer_served_from_public_router(client):
+    """The 3 PA-only reads relocated to /admin/* (routers/pa_admin.py) — they
+    must not still be reachable under /public or /v1/public."""
+    for path in ["/public/contact-inquiries", "/v1/public/contact-inquiries"]:
+        resp = await client.get(path)
+        assert resp.status_code == 404
+
+
 # ── Credential verification tests ─────────────────────────────────────────────
 
 @pytest.mark.asyncio

@@ -387,6 +387,14 @@ def create_app() -> FastAPI:
 
     # ── v1 — HRMS-facing and mobile-facing (versioned, stable contract) ────────
     # Rule: NEVER modify existing v1 behaviour — breaking changes go to v2 router
+    # public.router mounted a 2nd time under /v1 — genuinely public endpoints
+    # (contact form, org self-registration, credential verification) belong in
+    # the versioned surface per api-versioning.md ("only public/HRMS/mobile
+    # APIs are versioned"). /public/* (above) keeps working unmodified — this
+    # is additive, not a breaking change. Same router, same handlers, no
+    # duplicated logic; only the 3 PA-only reads that used to share this
+    # router moved out entirely (see routers/pa_admin.py's /admin/* additions).
+    app.include_router(public.router,        prefix="/v1",       tags=["v1:public"])
     # Rule: Adding optional fields to v1 responses is safe (non-breaking)
     # Rule: Removing/renaming fields requires v2 + 90-day deprecation notice
     app.include_router(ingest.router,        prefix="/v1/ingest",            tags=["v1:ingest"])

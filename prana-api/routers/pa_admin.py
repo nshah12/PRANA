@@ -986,31 +986,6 @@ async def rate_limits(db: DbConn, current=PA):
     }
 
 
-@router.get("/contact-inquiries")
-async def list_contact_inquiries(current, db: DbConn, event_type: str = "CONTACT_INQUIRY"):
-    rows = await db.fetch(
-        """
-        SELECT event_id, event_type, occurred_at, event_metadata
-        FROM audit_event
-        WHERE event_type = $1
-        ORDER BY occurred_at DESC
-        LIMIT 200
-        """,
-        event_type,
-    )
-    return {
-        "inquiries": [
-            {
-                "event_id": str(r["event_id"]),
-                "event_type": r["event_type"],
-                "created_at": r["occurred_at"].isoformat() if r["occurred_at"] else None,
-                "data": r["event_metadata"] if isinstance(r["event_metadata"], dict) else {},
-            }
-            for r in rows
-        ]
-    }
-
-
 # ── Service Incidents ─────────────────────────────────────────────────────────
 
 class ResolveIncidentIn(BaseModel):
@@ -1190,4 +1165,92 @@ async def list_notifications(
         for r in rows
     ]
     return {"items": items, "total": len(items)}
+
+
+# ── Contact / org-application review ────────────────────────────────────────
+# Relocated from routers/public.py (2026-07-15) — PA-authenticated reads/writes
+# don't belong under a path named "public" (see .claude/rules/api-versioning.md).
+
+@router.get("/contact-inquiries", status_code=200)
+async def list_contact_inquiries(db: DbConn, current=PA, page: int = 1, limit: int = 50):
+    offset = (page - 1) * limit
+    rows = await db.fetch(
+        """
+        SELECT id, name, email, org, enquiry_type, message, status, submitted_at
+        FROM contact_inquiry
+        ORDER BY submitted_at DESC
+        LIMIT $1 OFFSET $2
+        """,
+        limit, offset,
+    )
+    total = await db.fetchval("SELECT COUNT(*) FROM contact_inquiry")
+    return {
+        "total": total,
+        "page": page,
+        "items": [
+            {
+                "id":           str(r["id"]),
+                "name":         r["name"],
+                "email":        r["email"],
+                "org":          r["org"],
+                "enquiry_type": r["enquiry_type"],
+                "message":      r["message"],
+                "status":       r["status"],
+                "submitted_at": r["submitted_at"].isoformat(),
+            }
+            for r in rows
+        ],
+    }
+
+
+@router.get("/org-applications", status_code=200)
+async def list_org_applications(
+    db: DbConn, current=PA, page: int = 1, limit: int = 50, app_status: Optional[str] = None,
+):
+    offset = (page - 1) * limit
+    where = "WHERE status = $3" if app_status else ""
+    params: list = [limit, offset]
+    if app_status:
+        params.append(app_status)
+
+    rows = await db.fetch(
+        f"""
+        SELECT id, org_name, domain, entity_type, industry, headcount_band,
+               contact_name, contact_email, contact_mobile,
+               message, how_heard, agreed_to_dpa, email_verified,
+               status, review_notes, submitted_at, reviewed_at
+        FROM self_service_application
+        {where}
+        ORDER BY submitted_at DESC
+        LIMIT $1 OFFSET $2
+        """,
+        *params,
+    )
+    total = await db.fetchval(
+        "SELECT COUNT(*) FROM self_service_application " + where,
+        *params[2:],
+    )
+    return {
+        "total": total,
+        "page": page,
+        "items": [dict(r) | {"id": str(r["id"]), "submitted_at": r["submitted_at"].isoformat()} for r in rows],
+    }
+
+
+class ReviewIn(BaseModel):
+    status:       str            # REVIEWED | APPROVED | REJECTED
+    review_notes: str = ""
+
+
+@router.patch("/org-applications/{app_id}", status_code=200)
+async def review_application(app_id: str, body: ReviewIn, db: DbConn, current=PA):
+    await db.execute(
+        """
+        UPDATE self_service_application
+        SET status = $1, review_notes = $2, reviewed_at = NOW()
+        WHERE id = $3::uuid
+        """,
+        body.status, body.review_notes, app_id,
+    )
+    return {"status": body.status}
 

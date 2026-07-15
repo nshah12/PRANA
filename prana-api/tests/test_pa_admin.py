@@ -489,3 +489,90 @@ async def test_pa_reset_password_publishes_override_event_with_reason_per_tenant
         assert temp_password not in str(event)
         seen_tenants.add(event["tenant_id"])
     assert seen_tenants == {"tenant-001", "tenant-002"}
+
+
+# ── Contact inquiries / org applications (relocated from routers/public.py) ──
+
+@pytest.mark.asyncio
+async def test_list_contact_inquiries_requires_pa_auth(client):
+    resp = await client.get("/admin/contact-inquiries")
+    assert resp.status_code == 401
+
+
+@pytest.mark.asyncio
+async def test_list_contact_inquiries_rejects_oa_admin(client):
+    _set_oa_auth(client)
+    resp = await client.get("/admin/contact-inquiries", headers=AUTH_HEADER)
+    assert resp.status_code == 403
+
+
+@pytest.mark.asyncio
+async def test_list_contact_inquiries_returns_items(client, mock_db):
+    import datetime
+    _set_pa_auth(client)
+    mock_db.fetch.return_value = [{
+        "id": "ci-1", "name": "Priya", "email": "priya@example.com", "org": "Acme",
+        "enquiry_type": "General", "message": "Hi", "status": "NEW",
+        "submitted_at": datetime.datetime(2026, 7, 1, tzinfo=datetime.timezone.utc),
+    }]
+    mock_db.fetchval.return_value = 1
+
+    resp = await client.get("/admin/contact-inquiries", headers=AUTH_HEADER)
+
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["total"] == 1
+    assert body["items"][0]["email"] == "priya@example.com"
+
+
+@pytest.mark.asyncio
+async def test_list_org_applications_requires_pa_auth(client):
+    resp = await client.get("/admin/org-applications")
+    assert resp.status_code == 401
+
+
+@pytest.mark.asyncio
+async def test_list_org_applications_returns_items(client, mock_db):
+    import datetime
+    _set_pa_auth(client)
+    mock_db.fetch.return_value = [{
+        "id": "app-1", "org_name": "Acme", "domain": "acme.in", "entity_type": "PVT_LTD",
+        "industry": "IT", "headcount_band": "50-100", "contact_name": "Priya",
+        "contact_email": "priya@acme.in", "contact_mobile": "+919000000001",
+        "message": "", "how_heard": "Google", "agreed_to_dpa": True, "email_verified": True,
+        "status": "PENDING", "review_notes": None,
+        "submitted_at": datetime.datetime(2026, 7, 1, tzinfo=datetime.timezone.utc),
+        "reviewed_at": None,
+    }]
+    mock_db.fetchval.return_value = 1
+
+    resp = await client.get("/admin/org-applications", headers=AUTH_HEADER)
+
+    assert resp.status_code == 200
+    assert resp.json()["items"][0]["org_name"] == "Acme"
+
+
+@pytest.mark.asyncio
+async def test_review_application_requires_pa_auth(client):
+    resp = await client.patch("/admin/org-applications/app-1", json={"status": "APPROVED"})
+    assert resp.status_code == 401
+
+
+@pytest.mark.asyncio
+async def test_review_application_updates_status(client, mock_db):
+    _set_pa_auth(client)
+    mock_db.execute = AsyncMock(return_value=None)
+
+    resp = await client.patch(
+        "/admin/org-applications/app-1",
+        headers=AUTH_HEADER,
+        json={"status": "APPROVED", "review_notes": "Looks good"},
+    )
+
+    assert resp.status_code == 200
+    assert resp.json()["status"] == "APPROVED"
+    mock_db.execute.assert_awaited_once()
+    args = mock_db.execute.call_args.args
+    assert args[1] == "APPROVED"
+    assert args[2] == "Looks good"
+    assert args[3] == "app-1"

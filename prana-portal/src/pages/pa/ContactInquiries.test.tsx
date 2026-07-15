@@ -99,7 +99,7 @@ describe('ContactInquiries', () => {
     await user.click(screen.getByText('Self-service registrations'))
     await user.click(await screen.findByText('PQRS Fintech'))
     await user.click(screen.getByText('Mark reviewed'))
-    await waitFor(() => expect(mockPatch).toHaveBeenCalledWith('/public/org-applications/a-1', { status: 'REVIEWED', review_notes: '' }))
+    await waitFor(() => expect(mockPatch).toHaveBeenCalledWith('/admin/org-applications/a-1', { status: 'REVIEWED', review_notes: '' }))
   })
 
   it('rejects a pending application', async () => {
@@ -110,6 +110,6 @@ describe('ContactInquiries', () => {
     await user.click(screen.getByText('Self-service registrations'))
     await user.click(await screen.findByText('PQRS Fintech'))
     await user.click(screen.getByText('Reject'))
-    await waitFor(() => expect(mockPatch).toHaveBeenCalledWith('/public/org-applications/a-1', { status: 'REJECTED', review_notes: '' }))
+    await waitFor(() => expect(mockPatch).toHaveBeenCalledWith('/admin/org-applications/a-1', { status: 'REJECTED', review_notes: '' }))
   })
 })
