@@ -76,6 +76,20 @@ async def lifespan(app: FastAPI):
         pass   # No S3 in dev without MinIO — non-fatal
     app.state.s3 = s3_svc
 
+    # Immudb — tamper-evident audit ledger. AuditConsumer dual-writes every audit_event
+    # row here alongside YugabyteDB (see prana-docs/KAFKA_REDIS_ARCHITECTURE.md).
+    try:
+        from services.immudb_service import ImmudbService
+        app.state.immudb_service = ImmudbService(
+            host=settings.immudb_host,
+            port=settings.immudb_port,
+            user=settings.immudb_user,
+            password=settings.immudb_password,
+            database=settings.immudb_database,
+        )
+    except Exception:
+        app.state.immudb_service = None   # dev: Immudb not running
+
     # Temporal client
     try:
         from temporalio.client import Client as TemporalClient
@@ -125,7 +139,7 @@ async def lifespan(app: FastAPI):
         pod_id = os.environ.get("POD_NAME", "local")
         consumers = [
             # Original consumers
-            AuditConsumer(settings, app.state.db_pool),
+            AuditConsumer(settings, app.state.db_pool, immudb_service=app.state.immudb_service),
             WorkflowConsumer(settings, app.state.temporal_client, app.state.db_pool),
             SSEFanoutConsumer(settings, app.state.redis),
             NotifConsumer(settings, app.state.db_pool),
@@ -165,6 +179,8 @@ async def lifespan(app: FastAPI):
         except Exception:
             pass
         await app.state.kafka_producer.stop()
+    if app.state.immudb_service:
+        app.state.immudb_service.close()
     await app.state.db_pool.close()
     await app.state.redis.aclose()
 

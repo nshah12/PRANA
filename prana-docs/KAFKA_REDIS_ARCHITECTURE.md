@@ -136,7 +136,7 @@ HTTP handler → validate → 1 DB write (source of truth) → 1 Kafka publish �
 |----------|--------------|--------|
 | `WorkflowConsumer` | `prana.ingest.events` (DOC_INGESTED) | `temporal.start_workflow(DocumentPipelineWorkflow)` + `BatchTimeoutMonitorWorkflow` |
 | `WorkflowConsumer` | `prana.ingest.events` (BATCH_UPLOADED) | `temporal.start_workflow(BatchProgressWorkflow)` if batch_id present |
-| `AuditConsumer` | `prana.audit.events` | `INSERT INTO audit_event` — immutable, no UPDATE/DELETE ever |
+| `AuditConsumer` | `prana.audit.events` | `INSERT INTO audit_event` (append-only by policy — see §8 for the DB-level enforcement gap), dual-written to Immudb for cryptographic tamper-evidence |
 | `SSEFanoutConsumer` | `prana.pipeline.events` | `redis.publish(f"sse:doc:{document_id}", status)` |
 | `NotifConsumer` | `prana.notifications` | SES email / WhatsApp WABA dispatch |
 | `AnalyticsConsumer` | `prana.analytics.events` | vault health recalc, trigger `InsightRefreshWorkflow` |
@@ -276,7 +276,77 @@ Each consumer uses `aiokafka.AIOKafkaConsumer` with `group_id` per consumer type
 |-----|--------|-----------|
 | Write throughput | 5,00,000 events/sec | Kafka + YugabyteDB distributed writes |
 | SSE latency | <500ms stage-change visible in browser | Redis Pub/Sub (no polling) |
-| Audit durability | 7-year retention, immutable | AuditConsumer → YugabyteDB hot → Iceberg cold |
+| Audit durability | 7-year retention, tamper-evident | AuditConsumer → YugabyteDB hot → Iceberg cold, dual-written to Immudb (§8) |
 | Cross-region lag | <500ms RPO | Kafka MM2 + Redis CRDT + YugabyteDB active-active |
 | Handler P99 latency | <200ms for upload accept | One DB write + one Kafka publish only |
 | Zero message loss | File never silently dropped | `acks=all` + Temporal durability for pipeline |
+
+---
+
+## 8. Immudb — Tamper-Evident Audit Ledger (DECIDED)
+
+**Status: DECIDED, dev infra live.** 4th data store alongside YugabyteDB / Kafka / Redis.
+
+### 8.1 Why
+
+`audit_event` in YugabyteDB is an **ordinary mutable table**. The only trace of an
+"append-only" design intent is a single SQL comment in `prana-db/schema.sql`:
+
+```sql
+-- IMPORTANT: REVOKE UPDATE, DELETE ON audit_event FROM app_role — append-only by policy.
+```
+
+This was **never executed as real DDL** — no `REVOKE` statement exists anywhere in the
+codebase, and `app_role` is not even defined. Today, any process holding the app's DB
+credentials can silently UPDATE or DELETE audit rows; the DPDP "never erase audit_event"
+rule (`.claude/rules/compliance-dpdp.md`) is enforced by code convention only, not by the
+database. Immudb closes this gap: it is a real, cryptographically verifiable, append-only
+ledger (Codenotary open source, `immudb-py` client) — tampering with a value after it is
+written is mathematically detectable via `verifiedGet`, independent of DB credentials.
+
+### 8.2 Scope
+
+**All audit events platform-wide.** Every event `AuditConsumer` writes to `audit_event` via
+`_write_audit()` is also dual-written to Immudb — not just new security-sensitive actions.
+`_write_access_log()` (→ `document_access_log`) is a separate table/concern and is not
+dual-written.
+
+### 8.3 Architecture
+
+```
+AuditConsumer._write_audit(event)
+    → INSERT INTO audit_event ... RETURNING event_id   (source of truth, YugabyteDB)
+    → anyio.to_thread.run_sync(immudb.verified_set,     (best-effort, off the event loop —
+        key=f"audit:{event_id}", value={...})            immudb-py's gRPC client is sync)
+```
+
+- Key: `audit:{event_id}` — deterministic, 1:1 with the YugabyteDB row.
+- Value: JSON of `event_type, actor_type, actor_id, tenant_id, document_id, ip_address, event_metadata, occurred_at`.
+- **Resilience:** Immudb is a secondary verification store. A failed dual-write is logged
+  (`log.exception`) and swallowed — it must never block or roll back the primary
+  `audit_event` write, and must never stall the Kafka consumer's batch-commit loop.
+- Skipped when `ON CONFLICT DO NOTHING` yields no row (duplicate Kafka redelivery) — the
+  first successful delivery already dual-wrote it.
+- `ImmudbService` (`prana-api/services/immudb_service.py`) follows the same wrapper
+  convention as `KMSService`: plain class, primitive constructor args, real exceptions
+  never a silent placeholder.
+
+### 8.4 Dev Infra
+
+- `docker-compose.yml`: `codenotary/immudb:1.9.5` on `localhost:3322` (gRPC), `9497`
+  (metrics), `8081` (web console). Volume `immudb_data`.
+- Settings (`prana-api/config.py`): `immudb_host`, `immudb_port`, `immudb_user`,
+  `immudb_password`, `immudb_database` (dev default database: `prana_audit`).
+- `immudb_password` is covered by the fail-closed production guard
+  (`Settings.assert_production_ready()`) — refuses to boot in prod on the `immudb` dev default.
+- Wired in `prana-api/main.py` `lifespan()` non-fatally (like S3/Temporal/Kafka) — dev
+  without the Immudb container up still boots with `app.state.immudb_service = None`,
+  and `AuditConsumer` simply skips the dual-write.
+
+### 8.5 Still Open
+
+The `REVOKE UPDATE, DELETE ON audit_event` comment in `schema.sql` remains un-enforced —
+YugabyteDB itself still allows mutation of `audit_event` by any role holding the app's
+credentials. Immudb makes tampering **detectable**, not **impossible** at the primary
+store. Actually executing the REVOKE (and defining `app_role`) is a separate, not-yet-scheduled
+hardening task.

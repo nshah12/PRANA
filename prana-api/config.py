@@ -43,6 +43,7 @@ class Settings(BaseSettings):
             "db_password":          {"yugabyte", ""},
             "ai_service_secret":    {"dev-secret", ""},
             "ask_service_secret":   {"dev-secret", ""},
+            "immudb_password":      {"immudb", ""},
         }
         violations = [f for f, bad in forbidden.items() if getattr(self, f) in bad]
 
@@ -96,6 +97,14 @@ class Settings(BaseSettings):
 
     # Kafka (MSK in prod; local Kafka for dev)
     kafka_bootstrap_servers: str = "localhost:9092"
+
+    # Immudb — tamper-evident audit ledger (cryptographically verifiable, dual-written
+    # alongside audit_event by AuditConsumer; see prana-docs/KAFKA_REDIS_ARCHITECTURE.md)
+    immudb_host: str = "localhost"
+    immudb_port: int = 3322
+    immudb_user: str = "immudb"
+    immudb_password: str = "immudb"
+    immudb_database: str = "prana_audit"
 
     # Kong Admin API — VPC-internal only, never public
     kong_admin_url: str = "http://localhost:8001"  # dev: Kong not running → provisioning step is skipped gracefully

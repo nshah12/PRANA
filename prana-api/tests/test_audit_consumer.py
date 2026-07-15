@@ -133,3 +133,86 @@ async def test_audit_consumer_exposes_run_loop_method():
         "AuditConsumer must expose _run_loop(messages) for unit testing. "
         "This separates the batch-commit logic from Kafka connection management."
     )
+
+
+# ── Immudb dual-write ─────────────────────────────────────────────────────────
+# All audit events platform-wide must also land in the tamper-evident Immudb
+# ledger, not just YugabyteDB's (ordinarily mutable) audit_event table.
+
+def _make_consumer_with_fetchrow(fetchrow_return, immudb_service=None):
+    from kafka.consumers.audit_consumer import AuditConsumer
+
+    mock_pool = MagicMock()
+    mock_conn = AsyncMock()
+    mock_conn.fetchrow = AsyncMock(return_value=fetchrow_return)
+    mock_pool.acquire = MagicMock()
+    mock_pool.acquire.return_value.__aenter__ = AsyncMock(return_value=mock_conn)
+    mock_pool.acquire.return_value.__aexit__ = AsyncMock(return_value=False)
+
+    with patch("kafka.consumers.audit_consumer.AIOKafkaConsumer"):
+        settings = MagicMock()
+        settings.kafka_bootstrap_servers = "localhost:9092"
+        consumer = AuditConsumer(settings, mock_pool, immudb_service=immudb_service)
+
+    return consumer, mock_conn
+
+
+@pytest.mark.asyncio
+async def test_write_audit_dual_writes_to_immudb_when_configured():
+    """Every audit_event write must also land in Immudb under a deterministic key."""
+    mock_immudb = MagicMock()
+    mock_immudb.verified_set = MagicMock(return_value={"id": 1, "verified": True})
+    consumer, mock_conn = _make_consumer_with_fetchrow(
+        {"event_id": "evt-123"}, immudb_service=mock_immudb,
+    )
+
+    event = {
+        "event_type": "ELEVATION_APPROVED",
+        "tenant_id": "t-1",
+        "actor_id": "oa-1",
+        "actor_type": "OA_ADMIN",
+    }
+    await consumer._write_audit(event)
+
+    mock_immudb.verified_set.assert_called_once()
+    key, value = mock_immudb.verified_set.call_args[0]
+    assert key == "audit:evt-123"
+    assert value["event_id"] == "evt-123"
+    assert value["event_type"] == "ELEVATION_APPROVED"
+
+
+@pytest.mark.asyncio
+async def test_write_audit_immudb_failure_does_not_raise_or_block_yugabyte_write():
+    """Immudb is a secondary tamper-evident ledger — its failure must never break
+    the primary audit_event write path."""
+    mock_immudb = MagicMock()
+    mock_immudb.verified_set = MagicMock(side_effect=RuntimeError("immudb unreachable"))
+    consumer, mock_conn = _make_consumer_with_fetchrow(
+        {"event_id": "evt-999"}, immudb_service=mock_immudb,
+    )
+
+    await consumer._write_audit({"event_type": "DOC_ROUTED", "tenant_id": "t-1"})  # must not raise
+
+    mock_conn.fetchrow.assert_called_once()
+
+
+@pytest.mark.asyncio
+async def test_write_audit_skips_immudb_when_not_configured():
+    """Backward compatible: no immudb_service passed → no dual-write attempted."""
+    consumer, mock_conn = _make_consumer_with_fetchrow({"event_id": "evt-1"})
+
+    await consumer._write_audit({"event_type": "DOC_INGESTED", "tenant_id": "t-1"})
+
+    assert consumer._immudb is None
+
+
+@pytest.mark.asyncio
+async def test_write_audit_skips_immudb_when_db_row_not_returned():
+    """ON CONFLICT DO NOTHING with no RETURNING row (duplicate delivery) must not
+    attempt a dual-write with a missing event_id."""
+    mock_immudb = MagicMock()
+    consumer, mock_conn = _make_consumer_with_fetchrow(None, immudb_service=mock_immudb)
+
+    await consumer._write_audit({"event_type": "DOC_INGESTED", "tenant_id": "t-1"})
+
+    mock_immudb.verified_set.assert_not_called()

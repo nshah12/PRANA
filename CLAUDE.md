@@ -64,6 +64,12 @@ All in `prana-docs/`:
 - **SSE pattern:** pipeline stage changes → Kafka → `SSEFanoutConsumer` → Redis Pub/Sub `sse:doc:{document_id}` → browser. Never poll YugabyteDB from SSE endpoint.
 - No plaintext PAN/NIK ever cached — only `pan_token` (HMAC output) as cache key
 
+## Audit Ledger — Immudb (DECIDED, NOT optional)
+- **4th data store, alongside YugabyteDB / Kafka / Redis. Cryptographically verifiable, append-only.**
+- Dev: `codenotary/immudb:1.9.5` container on `localhost:3322` (gRPC)
+- `AuditConsumer` dual-writes every `audit_event` row to Immudb (`ImmudbService.verified_set`) — `audit_event` itself is an ordinary mutable YugabyteDB table (the `REVOKE UPDATE/DELETE` in `schema.sql` is an un-executed comment, not real DDL); Immudb is what actually makes tampering with audit history detectable.
+- Full design: `prana-docs/KAFKA_REDIS_ARCHITECTURE.md` §8
+
 ## Workflow Engine
 - Temporal Python SDK v1.x
 - 57 named workflows (see `prana-api/workflows/CLAUDE.md` for the authoritative list), zero cron/Celery/polling

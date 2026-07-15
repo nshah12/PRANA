@@ -6,6 +6,7 @@ asyncpg==0.29.0
 redis[asyncio]==5.0.8
 httpx==0.27.2
 pydantic==2.9.2
+email-validator==2.3.0   # required for Pydantic EmailStr fields (auth_pa/auth_oa/oa_users/public/tenants)
 pydantic-settings==2.5.2
 PyJWT==2.9.0
 cryptography==43.0.1
@@ -26,3 +27,6 @@ reportlab==4.2.5
 # SMS gateway (Exotel / MSG91) — httpx already listed above
 aiokafka==0.11.0
 slowapi==0.1.9
+
+# Immudb — tamper-evident audit ledger
+immudb-py==1.5.0

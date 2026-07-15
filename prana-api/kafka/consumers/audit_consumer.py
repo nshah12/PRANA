@@ -22,6 +22,7 @@ import logging
 import time
 from typing import AsyncIterable, Iterable
 
+import anyio.to_thread
 import asyncpg
 from aiokafka import AIOKafkaConsumer, TopicPartition
 from aiokafka.structs import OffsetAndMetadata
@@ -36,8 +37,9 @@ FLUSH_SECS = 5.0
 
 
 class AuditConsumer:
-    def __init__(self, settings: Settings, db_pool: asyncpg.Pool) -> None:
+    def __init__(self, settings: Settings, db_pool: asyncpg.Pool, immudb_service=None) -> None:
         self._pool = db_pool
+        self._immudb = immudb_service
         self._consumer = AIOKafkaConsumer(
             "prana.audit.events",
             "prana.vault.events",
@@ -145,7 +147,7 @@ class AuditConsumer:
                                  "tenant_id", "document_id", "ip_address", "occurred_at")}
 
         async with self._pool.acquire() as conn:
-            await conn.execute(
+            row = await conn.fetchrow(
                 """
                 INSERT INTO audit_event
                   (event_type, actor_type, actor_id, tenant_id, document_id,
@@ -153,7 +155,35 @@ class AuditConsumer:
                 VALUES ($1, $2, $3, $4, $5, $6, $7::jsonb,
                         COALESCE($8::timestamptz, NOW()))
                 ON CONFLICT DO NOTHING
+                RETURNING event_id
                 """,
                 etype, actor_type, actor_id, tenant_id, doc_id,
                 ip, json.dumps(metadata), occurred,
             )
+
+        # Dual-write to the tamper-evident Immudb ledger. Best-effort: Immudb is a
+        # secondary verification store — its failure must never break the primary
+        # audit_event write or stall the consumer. Skip on ON CONFLICT DO NOTHING
+        # (row is None) since that event was already dual-written on first delivery.
+        if self._immudb is not None and row is not None:
+            event_id = str(row["event_id"])
+            try:
+                await anyio.to_thread.run_sync(
+                    self._immudb.verified_set,
+                    f"audit:{event_id}",
+                    {
+                        "event_id": event_id,
+                        "event_type": etype,
+                        "actor_type": actor_type,
+                        "actor_id": actor_id,
+                        "tenant_id": tenant_id,
+                        "document_id": doc_id,
+                        "ip_address": ip,
+                        "event_metadata": metadata,
+                        "occurred_at": occurred,
+                    },
+                )
+            except Exception:
+                log.exception(
+                    "Immudb dual-write failed event_id=%s event_type=%s", event_id, etype,
+                )

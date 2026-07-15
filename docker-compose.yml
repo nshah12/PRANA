@@ -21,9 +21,16 @@ version: "3.9"
 #   8002   — prana-ask    (RAG chatbot)
 #   7000   — YugabyteDB master UI
 #   9000   — YugabyteDB tserver UI
+#   3322   — Immudb       (gRPC — tamper-evident audit ledger)
+#   9497   — Immudb metrics
+#   8081   — Immudb web console
 
 x-prana-env: &prana-env
-  DB_DSN: postgresql://yugabyte:yugabyte@yugabyte:5433/prana
+  DB_HOST: yugabyte
+  DB_PORT: "5433"
+  DB_NAME: prana
+  DB_USER: yugabyte
+  DB_PASSWORD: yugabyte
   REDIS_URL: redis://redis:6379/0
   KAFKA_BOOTSTRAP_SERVERS: kafka:9093
   TEMPORAL_HOST: temporal:7233
@@ -35,6 +42,11 @@ x-prana-env: &prana-env
   S3_ACCESS_KEY_ID: minioadmin
   S3_SECRET_ACCESS_KEY: minioadmin
   AWS_REGION: ap-south-1
+  IMMUDB_HOST: immudb
+  IMMUDB_PORT: "3322"
+  IMMUDB_USER: immudb
+  IMMUDB_PASSWORD: immudb
+  IMMUDB_DATABASE: prana_audit
   DEBUG: "true"
 
 services:
@@ -228,6 +240,26 @@ services:
     depends_on:
       - temporal
 
+  # ── Immudb (tamper-evident audit ledger — cryptographically verifiable, append-only) ─
+  immudb:
+    image: codenotary/immudb:1.9.5
+    container_name: prana-immudb
+    command: ["--admin-password=immudb"]
+    ports:
+      - "3322:3322"
+      - "9497:9497"
+      - "8081:8080"
+    environment:
+      IMMUDB_ADDRESS: "0.0.0.0"
+    volumes:
+      - immudb_data:/var/lib/immudb
+    healthcheck:
+      test: ["CMD", "immuadmin", "status"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 20s
+
   # ── prana-api ───────────────────────────────────────────────────────────────
   prana-api:
     build:
@@ -257,6 +289,8 @@ services:
       kafka-init:
         condition: service_completed_successfully
       temporal:
+        condition: service_healthy
+      immudb:
         condition: service_healthy
     restart: on-failure
 
@@ -315,3 +349,4 @@ volumes:
   qdrant_data:
   minio_data:
   temporal_postgres_data:
+  immudb_data:

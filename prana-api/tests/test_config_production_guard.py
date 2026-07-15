@@ -17,6 +17,7 @@ def _prod(**over) -> Settings:
         db_password="a-real-db-password",
         ai_service_secret="a-real-ai-secret",
         ask_service_secret="a-real-ask-secret",
+        immudb_password="a-real-immudb-password",
         auth_encryption_key="ab" * 32,                       # 32 bytes hex, non-zero
         jwt_kms_key_id="arn:aws:kms:ap-south-1:123:key/abc",
     )
@@ -51,6 +52,12 @@ def test_prod_rejects_dev_service_secrets():
         _prod(ai_service_secret="dev-secret").assert_production_ready()
     with pytest.raises(RuntimeError):
         _prod(ask_service_secret="dev-secret").assert_production_ready()
+
+
+def test_prod_rejects_dev_immudb_password():
+    with pytest.raises(RuntimeError) as e:
+        _prod(immudb_password="immudb").assert_production_ready()
+    assert "immudb_password" in str(e.value)
 
 
 def test_prod_rejects_missing_auth_encryption_key():
