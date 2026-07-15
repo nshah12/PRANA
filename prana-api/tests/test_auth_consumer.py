@@ -68,3 +68,32 @@ async def test_security_event_payload_has_correct_reason(consumer, db_pool):
         await consumer._dispatch("TOTP_FAILED", event)
     sec = mock_kafka.security_event.call_args[0][0]
     assert "TOTP" in sec["reason"]
+
+
+# -- Regression: login_attempt_log has no "success" column (schema.sql uses
+# outcome VARCHAR(20) with SUCCESS|FAILED|BLOCKED|RATE_LIMITED) — a query filtering
+# on a nonexistent "success" column raises asyncpg.UndefinedColumnError on every
+# failed login/TOTP attempt, silently breaking the consecutive-failure lockout. ---
+
+@pytest.mark.asyncio
+async def test_login_failure_query_uses_real_outcome_column_not_success(consumer, db_pool):
+    _, conn = db_pool
+    conn.fetchrow.return_value = {"cnt": 1}
+    event = {"event_type": "USER_LOGIN_FAILED", "user_id": "u-5", "user_type": "employee"}
+    await consumer._dispatch("USER_LOGIN_FAILED", event)
+
+    sql = conn.fetchrow.call_args[0][0]
+    assert "success" not in sql.lower(), "login_attempt_log has no 'success' column — use 'outcome'"
+    assert "outcome" in sql.lower()
+
+
+@pytest.mark.asyncio
+async def test_totp_failure_query_uses_real_outcome_column_not_success(consumer, db_pool):
+    _, conn = db_pool
+    conn.fetchrow.return_value = {"cnt": 1}
+    event = {"event_type": "TOTP_FAILED", "user_id": "u-6", "user_type": "employee"}
+    await consumer._dispatch("TOTP_FAILED", event)
+
+    sql = conn.fetchrow.call_args[0][0]
+    assert "success" not in sql.lower(), "login_attempt_log has no 'success' column — use 'outcome'"
+    assert "outcome" in sql.lower()

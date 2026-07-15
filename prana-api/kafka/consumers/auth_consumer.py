@@ -81,7 +81,7 @@ class AuthConsumer:
                 """
                 SELECT COUNT(*) AS cnt FROM login_attempt_log
                 WHERE user_id=$1
-                  AND success=FALSE
+                  AND outcome='FAILED'
                   AND attempted_at > NOW() - INTERVAL '30 minutes'
                 """,
                 user_id,
@@ -102,7 +102,7 @@ class AuthConsumer:
                 """
                 SELECT COUNT(*) AS cnt FROM login_attempt_log
                 WHERE user_id=$1
-                  AND success=FALSE
+                  AND outcome='FAILED'
                   AND attempted_at > NOW() - INTERVAL '30 minutes'
                 """,
                 user_id,
