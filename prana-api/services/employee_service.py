@@ -145,6 +145,48 @@ class EmployeeService:
                 employee_uuid, tenant_id, changed_by,
             )
 
+    async def reactivate(
+        self,
+        employee_uuid: str,
+        tenant_id: str,
+        changed_by: str,
+    ) -> None:
+        """Reverse of mark_alumni — clear dol/push_window_expires, status → ACTIVE."""
+        async with self._db.transaction():
+            row = await self._db.fetchrow(
+                "SELECT pan_token, employee_user_id, status FROM employee_master WHERE employee_uuid=$1 AND tenant_id=$2",
+                employee_uuid, tenant_id,
+            )
+            if not row:
+                raise ValueError("EMPLOYEE_NOT_FOUND")
+            if row["status"] != "ALUMNI":
+                raise ValueError("EMPLOYEE_NOT_ALUMNI")
+
+            await self._db.execute(
+                """
+                UPDATE employee_master
+                SET dol=NULL, push_window_expires=NULL, status='ACTIVE', updated_at=NOW()
+                WHERE employee_uuid=$1
+                """,
+                employee_uuid,
+            )
+            await self._db.execute(
+                """
+                INSERT INTO career_event
+                  (pan_token, employee_user_id, employee_uuid, tenant_id, event_type, event_date, event_title, verified)
+                VALUES ($1,$2,$3,$4,'REJOINED',$5,'Reactivated / Rejoined',TRUE)
+                """,
+                row["pan_token"], row["employee_user_id"], employee_uuid, tenant_id, date.today(),
+            )
+            await self._db.execute(
+                """
+                INSERT INTO employee_master_history
+                  (employee_uuid, tenant_id, field_name, old_value, new_value, changed_by, changed_by_role, change_source)
+                VALUES ($1,$2,'status','ALUMNI','ACTIVE',$3,'oa_admin','MANUAL')
+                """,
+                employee_uuid, tenant_id, changed_by,
+            )
+
     async def update(
         self,
         employee_uuid: str,

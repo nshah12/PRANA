@@ -58,7 +58,7 @@ class OAUserConsumer:
             await self._consumer.stop()
 
     async def _dispatch(self, etype: Optional[str], event: dict) -> None:
-        if etype == "OA_USER_CREATED":
+        if etype in ("OA_USER_CREATED", "OA_WELCOME_RESENT"):
             await self._notify_welcome(event)
 
         elif etype == "OA_USER_LOCKED":

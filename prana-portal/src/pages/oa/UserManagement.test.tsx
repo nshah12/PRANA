@@ -160,4 +160,40 @@ describe('UserManagement', () => {
 
     expect(await screen.findByText('Email already in use')).toBeInTheDocument()
   })
+
+  // -- Resend welcome email -------------------------------------------------------
+
+  it('shows a "Resend welcome email" action for every user regardless of status', async () => {
+    mockGet.mockResolvedValue({ data: { users: makeUsers(2) } })
+    render(<UserManagement />, { wrapper })
+    await screen.findByText('User 0')
+    expect(screen.getAllByText('Resend welcome email').length).toBe(2)
+  })
+
+  it('resending posts to the resend-welcome endpoint and shows the success message', async () => {
+    mockGet.mockResolvedValue({ data: { users: makeUsers(1) } })
+    mockPost.mockResolvedValue({ data: { message: 'OA_WELCOME_EMAIL_RESENT' } })
+    const alertSpy = vi.spyOn(window, 'alert').mockImplementation(() => {})
+    const user = userEvent.setup()
+    render(<UserManagement />, { wrapper })
+
+    await screen.findByText('User 0')
+    await user.click(screen.getByText('Resend welcome email'))
+
+    await waitFor(() => expect(mockPost).toHaveBeenCalledWith('/v1/org/users/u-0/resend-welcome'))
+    await waitFor(() => expect(alertSpy).toHaveBeenCalledWith('Welcome email resent.'))
+  })
+
+  it('shows the mapped error message when resend fails', async () => {
+    mockGet.mockResolvedValue({ data: { users: makeUsers(1) } })
+    mockPost.mockRejectedValue({ response: { data: { detail: 'USER_NOT_FOUND' } } })
+    const alertSpy = vi.spyOn(window, 'alert').mockImplementation(() => {})
+    const user = userEvent.setup()
+    render(<UserManagement />, { wrapper })
+
+    await screen.findByText('User 0')
+    await user.click(screen.getByText('Resend welcome email'))
+
+    await waitFor(() => expect(alertSpy).toHaveBeenCalledWith('No account found with these details.'))
+  })
 })

@@ -66,7 +66,9 @@ def mock_db():
     db.fetch = AsyncMock(return_value=[])
     db.fetchval = AsyncMock(return_value=None)
     db.execute = AsyncMock()
-    db.transaction = MagicMock(return_value=AsyncMock(__aenter__=AsyncMock(), __aexit__=AsyncMock()))
+    # __aexit__ must return a falsy value — AsyncMock()'s default truthy return would
+    # otherwise silently suppress exceptions raised inside `async with db.transaction():`.
+    db.transaction = MagicMock(return_value=AsyncMock(__aenter__=AsyncMock(), __aexit__=AsyncMock(return_value=False)))
     return db
 
 

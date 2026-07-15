@@ -8,16 +8,21 @@ PATCH /employees/{uuid}       — update profile fields
 POST /employees/{uuid}/alumni — mark as alumni (set dol)
 GET  /employees/{uuid}/history — field change history
 """
+import csv
+import io
 from datetime import date
 from messages import SuccessCode, success_response
 from typing import Optional
-from fastapi import APIRouter, Depends, HTTPException, Request, status
+from fastapi import APIRouter, Depends, File, HTTPException, Request, UploadFile, status
 from pydantic import BaseModel
 
 from dependencies import DbConn, require_oa
 from services.employee_service import EmployeeService
 from services.elevation_service import ElevationService
 from errors import PranaError
+
+_BULK_IMPORT_REQUIRED_COLUMNS = {"nik", "full_name", "doj"}
+_BULK_IMPORT_MAX_ROWS = 500
 
 router = APIRouter()
 
@@ -52,6 +57,25 @@ class UpdateEmployeeIn(BaseModel):
 
 class AlumniIn(BaseModel):
     dol: date
+
+
+class ResetTotpIn(BaseModel):
+    identifier: str   # employee's email or mobile (E.164 or bare 10-digit)
+
+
+class ResetPasswordIn(BaseModel):
+    identifier: str   # employee's email or mobile (E.164 or bare 10-digit)
+
+
+def _normalise_identifier(raw: str) -> tuple[str, str]:
+    """Return (column_name, value) for a mobile or email identifier."""
+    raw = raw.strip()
+    if "@" in raw:
+        return "email", raw.lower()
+    digits = raw.replace("+91", "").replace(" ", "").replace("-", "")
+    if len(digits) == 10 and digits[0] in "6789":
+        return "mobile", f"+91{digits}"
+    return "mobile", raw   # pass through, DB will reject
 
 
 def _svc(request: Request, db: DbConn) -> EmployeeService:
@@ -119,6 +143,90 @@ async def create_employee(
             "created_by":      current.user_id,
         })
     return result
+
+
+@router.post("/import", status_code=status.HTTP_200_OK, dependencies=[OAOperator])
+async def bulk_import_employees(
+    request: Request,
+    db: DbConn,
+    file: UploadFile = File(...),
+    current=Depends(require_oa("oa_operator", "oa_admin")),
+):
+    """
+    Bulk-onboard employees from a CSV (columns: nik, full_name, doj required;
+    emp_id_org, designation, department, grade, location, employment_type,
+    cost_centre, uan optional). Each row reuses EmployeeService.create() — a
+    single bad row is recorded as a per-row error, not an aborted batch.
+    """
+    raw = await file.read()
+    text = raw.decode("utf-8-sig", errors="replace")
+    reader = csv.DictReader(io.StringIO(text))
+    fieldnames = {c.strip() for c in (reader.fieldnames or [])}
+    if not _BULK_IMPORT_REQUIRED_COLUMNS.issubset(fieldnames):
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=PranaError.CSV_MISSING_REQUIRED_COLUMNS)
+
+    rows = list(reader)
+    if len(rows) > _BULK_IMPORT_MAX_ROWS:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=PranaError.CSV_TOO_MANY_ROWS)
+
+    tenant = await db.fetchrow("SELECT kek_arn FROM tenant WHERE tenant_id=$1", current.tenant_id)
+    svc = _svc(request, db)
+    kafka = getattr(request.app.state, "kafka_producer", None)
+
+    created = 0
+    errors: list[dict] = []
+    for i, row in enumerate(rows, start=2):   # row 1 is the header
+        nik = (row.get("nik") or "").strip()
+        full_name = (row.get("full_name") or "").strip()
+        doj_raw = (row.get("doj") or "").strip()
+        if not nik or not full_name or not doj_raw:
+            errors.append({"row": i, "error": PranaError.CSV_MISSING_REQUIRED_FIELD})
+            continue
+        try:
+            doj = date.fromisoformat(doj_raw)
+        except ValueError:
+            errors.append({"row": i, "error": PranaError.CSV_INVALID_DATE_FORMAT})
+            continue
+
+        try:
+            result = await svc.create(
+                nik=nik,
+                tenant_id=current.tenant_id,
+                emp_id_org=(row.get("emp_id_org") or "").strip() or None,
+                full_name=full_name,
+                designation=(row.get("designation") or "").strip() or None,
+                department=(row.get("department") or "").strip() or None,
+                grade=(row.get("grade") or "").strip() or None,
+                location=(row.get("location") or "").strip() or None,
+                employment_type=(row.get("employment_type") or "").strip() or "PERMANENT",
+                cost_centre=(row.get("cost_centre") or "").strip() or None,
+                uan=(row.get("uan") or "").strip() or None,
+                doj=doj,
+                created_by=current.user_id,
+                kek_arn=tenant["kek_arn"],
+            )
+        except Exception:
+            errors.append({"row": i, "error": PranaError.EMPLOYEE_CREATE_FAILED})
+            continue
+
+        created += 1
+        if kafka:
+            await kafka.employee_event({
+                "event_type":      "EMPLOYEE_ONBOARDED",
+                "tenant_id":       str(current.tenant_id),
+                "employee_uuid":   result.get("employee_uuid", ""),
+                "emp_id_org":      row.get("emp_id_org"),
+                "employment_type": (row.get("employment_type") or "").strip() or "PERMANENT",
+                "created_by":      current.user_id,
+            })
+
+    return {
+        "message":  SuccessCode.EMPLOYEE_BULK_IMPORT_COMPLETE,
+        "total":    len(rows),
+        "created":  created,
+        "failed":   len(errors),
+        "errors":   errors,
+    }
 
 
 @router.get("/{employee_uuid}", status_code=status.HTTP_200_OK, dependencies=[OAOperator])
@@ -205,6 +313,238 @@ async def mark_alumni(
             "changed_by":    current.user_id,
         })
     return {"message": SuccessCode.MARKED_AS_ALUMNI}
+
+
+@router.post("/reset-totp", status_code=status.HTTP_200_OK, dependencies=[OAAdmin])
+async def reset_employee_totp(
+    body: ResetTotpIn,
+    request: Request,
+    db: DbConn,
+    current=Depends(require_oa("oa_admin")),
+):
+    """
+    OA-Admin self-service: reset an employee's TOTP so QR-scan setup appears on
+    next login. Looked up by email or mobile, scoped to the caller's own tenant.
+    Publishes EMPLOYEE_TOTP_RESET → AuditConsumer (audit_event + Immudb dual-write,
+    CISO visibility).
+    """
+    identifier = body.identifier.strip()
+    if not identifier:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=PranaError.IDENTIFIER_REQUIRED)
+
+    col, value = _normalise_identifier(identifier)
+    if col == "email":
+        row = await db.fetchrow("SELECT employee_user_id FROM employee_user WHERE email = $1", value)
+    else:
+        row = await db.fetchrow("SELECT employee_user_id FROM employee_user WHERE mobile = $1", value)
+    if not row:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=PranaError.EMPLOYEE_NOT_FOUND)
+
+    employee_user_id = str(row["employee_user_id"])
+
+    # Tenant scoping: an employee_user may exist platform-wide (shared identity across
+    # employers) — only reset if this employee is actually in the caller's own tenant.
+    master = await db.fetchrow(
+        "SELECT employee_uuid FROM employee_master WHERE employee_user_id = $1 AND tenant_id = $2",
+        employee_user_id, current.tenant_id,
+    )
+    if not master:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=PranaError.EMPLOYEE_NOT_FOUND)
+
+    await db.execute(
+        "UPDATE employee_user SET totp_secret_enc = NULL, totp_configured_at = NULL WHERE employee_user_id = $1",
+        employee_user_id,
+    )
+
+    kafka = getattr(request.app.state, "kafka_producer", None)
+    if kafka:
+        await kafka.employee_event({
+            "event_type":        "EMPLOYEE_TOTP_RESET",
+            "tenant_id":         str(current.tenant_id),
+            "actor_id":          str(current.user_id),
+            "actor_type":        "OA_ADMIN",
+            "employee_user_id":  employee_user_id,
+            "employee_uuid":     str(master["employee_uuid"]),
+        })
+
+    return {"message": SuccessCode.EMPLOYEE_TOTP_RESET}
+
+
+@router.post("/reset-password", status_code=status.HTTP_200_OK, dependencies=[OAAdmin])
+async def reset_employee_password(
+    body: ResetPasswordIn,
+    request: Request,
+    db: DbConn,
+    current=Depends(require_oa("oa_admin")),
+):
+    """
+    OA-Admin self-service: force-reset an employee's password to a generated
+    temp password (force_reset=TRUE so they must set a new one on next login).
+    Looked up by email or mobile, scoped to the caller's own tenant.
+    """
+    identifier = body.identifier.strip()
+    if not identifier:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=PranaError.IDENTIFIER_REQUIRED)
+
+    col, value = _normalise_identifier(identifier)
+    if col == "email":
+        row = await db.fetchrow("SELECT employee_user_id FROM employee_user WHERE email = $1", value)
+    else:
+        row = await db.fetchrow("SELECT employee_user_id FROM employee_user WHERE mobile = $1", value)
+    if not row:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=PranaError.EMPLOYEE_NOT_FOUND)
+
+    employee_user_id = str(row["employee_user_id"])
+
+    master = await db.fetchrow(
+        "SELECT employee_uuid FROM employee_master WHERE employee_user_id = $1 AND tenant_id = $2",
+        employee_user_id, current.tenant_id,
+    )
+    if not master:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=PranaError.EMPLOYEE_NOT_FOUND)
+
+    import secrets, string
+    from services.password_service import hash_password
+    temp_password = "".join(secrets.choice(string.ascii_letters + string.digits) for _ in range(16))
+
+    await db.execute(
+        "UPDATE employee_user SET password_hash = $2, force_reset = TRUE WHERE employee_user_id = $1",
+        employee_user_id, hash_password(temp_password),
+    )
+
+    kafka = getattr(request.app.state, "kafka_producer", None)
+    if kafka:
+        await kafka.employee_event({
+            "event_type":        "EMPLOYEE_PASSWORD_RESET",
+            "tenant_id":         str(current.tenant_id),
+            "actor_id":          str(current.user_id),
+            "actor_type":        "OA_ADMIN",
+            "employee_user_id":  employee_user_id,
+            "employee_uuid":     str(master["employee_uuid"]),
+        })
+
+    return {"message": SuccessCode.EMPLOYEE_PASSWORD_RESET, "temp_password": temp_password}
+
+
+@router.post("/{employee_uuid}/reactivate", status_code=status.HTTP_200_OK)
+async def reactivate_employee(
+    employee_uuid: str,
+    request: Request,
+    db: DbConn,
+    current=Depends(require_oa("oa_admin")),
+):
+    """Un-mark alumni — reverse of mark_alumni. Employee must currently be ALUMNI."""
+    try:
+        await _svc(request, db).reactivate(
+            employee_uuid=employee_uuid,
+            tenant_id=current.tenant_id,
+            changed_by=current.user_id,
+        )
+    except ValueError as e:
+        msg = str(e)
+        if msg == "EMPLOYEE_NOT_FOUND":
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=PranaError.EMPLOYEE_NOT_FOUND)
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=PranaError.EMPLOYEE_NOT_ALUMNI)
+
+    kafka = getattr(request.app.state, "kafka_producer", None)
+    if kafka:
+        await kafka.employee_event({
+            "event_type":    "EMPLOYEE_REJOINED",
+            "tenant_id":     str(current.tenant_id),
+            "employee_uuid": employee_uuid,
+            "changed_by":    current.user_id,
+        })
+    return {"message": SuccessCode.EMPLOYEE_REACTIVATED}
+
+
+@router.post("/{employee_uuid}/revoke-sessions", status_code=status.HTTP_200_OK)
+async def revoke_employee_sessions(
+    employee_uuid: str,
+    request: Request,
+    db: DbConn,
+    current=Depends(require_oa("oa_admin", "ciso")),
+):
+    """Sign an employee out of every device — revokes all their active sessions."""
+    row = await db.fetchrow(
+        "SELECT employee_user_id FROM employee_master WHERE employee_uuid = $1 AND tenant_id = $2",
+        employee_uuid, current.tenant_id,
+    )
+    if not row:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=PranaError.EMPLOYEE_NOT_FOUND)
+
+    employee_user_id = str(row["employee_user_id"])
+
+    session_rows = await db.fetch(
+        "SELECT session_id FROM user_session WHERE user_type='employee' AND user_id=$1 AND revoked=FALSE",
+        employee_user_id,
+    )
+    session_ids = [str(r["session_id"]) for r in session_rows]
+
+    if session_ids:
+        await db.execute(
+            "UPDATE user_session SET revoked=TRUE, revoked_reason='FORCE_LOGOUT' WHERE user_type='employee' AND user_id=$1 AND revoked=FALSE",
+            employee_user_id,
+        )
+        jwt_svc = request.app.state.jwt_service
+        for sid in session_ids:
+            await jwt_svc.revoke(sid)
+
+    kafka = getattr(request.app.state, "kafka_producer", None)
+    if kafka:
+        await kafka.employee_event({
+            "event_type":        "EMPLOYEE_SESSIONS_REVOKED",
+            "tenant_id":         str(current.tenant_id),
+            "actor_id":          str(current.user_id),
+            "actor_type":        "CISO" if current.role == "ciso" else "OA_ADMIN",
+            "employee_user_id":  employee_user_id,
+            "employee_uuid":     employee_uuid,
+            "revoked_count":     len(session_ids),
+        })
+
+    return {"message": SuccessCode.EMPLOYEE_SESSIONS_REVOKED, "revoked_count": len(session_ids)}
+
+
+@router.post("/{employee_uuid}/revoke-shares", status_code=status.HTTP_200_OK)
+async def revoke_employee_shares(
+    employee_uuid: str,
+    request: Request,
+    db: DbConn,
+    current=Depends(require_oa("oa_admin", "ciso")),
+):
+    """Revoke every active document share link for this employee in one action."""
+    row = await db.fetchrow(
+        "SELECT employee_user_id FROM employee_master WHERE employee_uuid = $1 AND tenant_id = $2",
+        employee_uuid, current.tenant_id,
+    )
+    if not row:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=PranaError.EMPLOYEE_NOT_FOUND)
+
+    employee_user_id = str(row["employee_user_id"])
+
+    revoked_rows = await db.fetch(
+        """
+        UPDATE share_token
+        SET status='REVOKED', revoked_at=NOW()
+        WHERE employee_user_id = $1 AND tenant_id = $2 AND status = 'ACTIVE'
+        RETURNING token_id
+        """,
+        employee_user_id, current.tenant_id,
+    )
+    revoked_count = len(revoked_rows)
+
+    kafka = getattr(request.app.state, "kafka_producer", None)
+    if kafka:
+        await kafka.employee_event({
+            "event_type":        "EMPLOYEE_SHARES_REVOKED",
+            "tenant_id":         str(current.tenant_id),
+            "actor_id":          str(current.user_id),
+            "actor_type":        "CISO" if current.role == "ciso" else "OA_ADMIN",
+            "employee_user_id":  employee_user_id,
+            "employee_uuid":     employee_uuid,
+            "revoked_count":     revoked_count,
+        })
+
+    return {"message": SuccessCode.EMPLOYEE_SHARES_REVOKED, "revoked_count": revoked_count}
 
 
 @router.get("/{employee_uuid}/history", status_code=status.HTTP_200_OK, dependencies=[OAAdmin])

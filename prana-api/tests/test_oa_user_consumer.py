@@ -36,6 +36,21 @@ async def test_oa_user_created_publishes_welcome_email(consumer):
 
 
 @pytest.mark.asyncio
+async def test_oa_welcome_resent_publishes_welcome_email(consumer):
+    """Resend action reuses the same welcome-email dispatch as OA_USER_CREATED."""
+    event = {"event_type": "OA_WELCOME_RESENT", "oa_user_id": "u-1",
+             "email": "bounced@co.com", "tenant_id": "t-1", "resent_by": "admin-1"}
+    mock_kafka = AsyncMock()
+    with patch("kafka.consumers.oa_user_consumer.get_kafka_producer", new=AsyncMock(return_value=mock_kafka)):
+        await consumer._dispatch("OA_WELCOME_RESENT", event)
+    mock_kafka.notify_email.assert_awaited_once()
+    notif = mock_kafka.notify_email.call_args[0][0]
+    assert notif["template_id"] == "OA_WELCOME"
+    assert notif["recipient_id"] == "u-1"
+    assert notif["recipient_email"] == "bounced@co.com"
+
+
+@pytest.mark.asyncio
 async def test_oa_user_locked_starts_account_lock_workflow(consumer):
     event = {"event_type": "OA_USER_LOCKED", "oa_user_id": "u-2", "tenant_id": "t-1"}
     await consumer._dispatch("OA_USER_LOCKED", event)

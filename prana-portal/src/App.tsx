@@ -36,6 +36,8 @@ import { UserManagement }  from '@/pages/oa/UserManagement'
 import { ElevationPage }   from '@/pages/oa/ElevationPage'
 import { OrgSettings }     from '@/pages/oa/OrgSettings'
 import { OrgProfile }      from '@/pages/oa/OrgProfile'
+import { ResetTotp }       from '@/pages/oa/ResetTotp'
+import { EmployeePasswordReset as OaEmployeePasswordReset } from '@/pages/oa/EmployeePasswordReset'
 
 // CHRO pages
 import { VaultHealthChro }      from '@/pages/chro/VaultHealthChro'
@@ -109,6 +111,10 @@ import { OnboardingQueue }   from '@/pages/pa/OnboardingQueue'
 import { TenantDirectory }      from '@/pages/pa/TenantDirectory'
 import { CreateTenantWizard }  from '@/pages/pa/CreateTenantWizard'
 import { OaEmergency }       from '@/pages/pa/OaEmergency'
+import { EmployeeTotpReset } from '@/pages/pa/EmployeeTotpReset'
+import { PaUnlock }          from '@/pages/pa/PaUnlock'
+import { EmployeePasswordReset as PaEmployeePasswordReset } from '@/pages/pa/EmployeePasswordReset'
+import { EmployeeMerge } from '@/pages/pa/EmployeeMerge'
 import { StorageRequests }   from '@/pages/pa/StorageRequests'
 import { PipelineHealth }    from '@/pages/pa/PipelineHealth'
 import { AuditTrail }        from '@/pages/pa/AuditTrail'
@@ -255,6 +261,8 @@ export default function App() {
       <Route path="/org/elevations" element={<RequireAuth><PortalLayout><ElevationPage /></PortalLayout></RequireAuth>} />
       <Route path="/org/elevation"  element={<RequireAuth><PortalLayout><ElevationPage /></PortalLayout></RequireAuth>} />
       <Route path="/org/settings"   element={<RequireAuth><PortalLayout><OrgSettings /></PortalLayout></RequireAuth>} />
+      <Route path="/org/reset-totp" element={<RequireAuth><PortalLayout><ResetTotp /></PortalLayout></RequireAuth>} />
+      <Route path="/org/reset-password" element={<RequireAuth><PortalLayout><OaEmployeePasswordReset /></PortalLayout></RequireAuth>} />
       <Route path="/org/hrms"       element={<RequireAuth><PortalLayout><HRMSSettings /></PortalLayout></RequireAuth>} />
       <Route path="/org/profile"    element={<RequireAuth><PortalLayout><OrgProfile /></PortalLayout></RequireAuth>} />
 
@@ -303,6 +311,10 @@ export default function App() {
       <Route path="/admin/tenants"     element={<RequireAuth><PortalLayout><TenantDirectory /></PortalLayout></RequireAuth>} />
       <Route path="/admin/tenants/new" element={<RequireAuth><PortalLayout><CreateTenantWizard /></PortalLayout></RequireAuth>} />
       <Route path="/admin/oa-override"element={<RequireAuth><PortalLayout><OaEmergency /></PortalLayout></RequireAuth>} />
+      <Route path="/admin/reset-totp" element={<RequireAuth><PortalLayout><EmployeeTotpReset /></PortalLayout></RequireAuth>} />
+      <Route path="/admin/pa-unlock"  element={<RequireAuth><PortalLayout><PaUnlock /></PortalLayout></RequireAuth>} />
+      <Route path="/admin/reset-password" element={<RequireAuth><PortalLayout><PaEmployeePasswordReset /></PortalLayout></RequireAuth>} />
+      <Route path="/admin/employee-merge" element={<RequireAuth><PortalLayout><EmployeeMerge /></PortalLayout></RequireAuth>} />
       <Route path="/admin/storage"    element={<RequireAuth><PortalLayout><StorageRequests /></PortalLayout></RequireAuth>} />
       <Route path="/admin/pipeline"   element={<RequireAuth><PortalLayout><PipelineHealth /></PortalLayout></RequireAuth>} />
       <Route path="/admin/exceptions" element={<RequireAuth><PortalLayout><ExceptionOverview /></PortalLayout></RequireAuth>} />

@@ -26,12 +26,15 @@ CREATE TABLE employee_user (
   consent_status      VARCHAR(20)  NOT NULL DEFAULT 'PENDING',
                        -- PENDING | GRANTED | REVOKED
   status              VARCHAR(20)  NOT NULL DEFAULT 'PENDING_ACTIVATION',
-                       -- PENDING_ACTIVATION | ACTIVE | LOCKED | SUSPENDED
+                       -- PENDING_ACTIVATION | ACTIVE | LOCKED | SUSPENDED | MERGED
   force_reset         BOOLEAN      DEFAULT FALSE,
   failed_totp_count   SMALLINT     DEFAULT 0,           -- Lock at 5
   last_login_at       TIMESTAMPTZ,
   activated_at        TIMESTAMPTZ,
   created_at          TIMESTAMPTZ  NOT NULL DEFAULT NOW(),
+  merged_into         UUID         REFERENCES employee_user(employee_user_id),
+                       -- Set when this row is a duplicate merged into a canonical
+                       -- employee_user_id (PA employee-merge tool). status='MERGED'.
   CONSTRAINT chk_eu_login_handle CHECK (
     mobile IS NOT NULL OR email IS NOT NULL OR status = 'PENDING_ACTIVATION'
   )
@@ -39,6 +42,7 @@ CREATE TABLE employee_user (
 CREATE INDEX idx_eu_pan_token ON employee_user(pan_token);
 CREATE INDEX idx_eu_mobile    ON employee_user(mobile) WHERE mobile IS NOT NULL;
 CREATE INDEX idx_eu_email     ON employee_user(email)  WHERE email  IS NOT NULL;
+CREATE INDEX idx_eu_merged_into ON employee_user(merged_into) WHERE merged_into IS NOT NULL;
 
 -- ============================================================
 -- LAYER 2: MULTI-TENANCY

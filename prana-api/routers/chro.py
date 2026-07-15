@@ -567,7 +567,7 @@ async def save_alert_config(body: AlertConfigBody, db: DbConn, current=CHRO):
                               updated_by   = EXCLUDED.updated_by,
                               updated_at   = NOW()
                 """,
-                current.tenant_id, full_key, str(enabled).lower(), current.oa_user_id,
+                current.tenant_id, full_key, str(enabled).lower(), current.user_id,
             )
     return {"saved": True}
 

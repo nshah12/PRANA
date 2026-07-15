@@ -86,13 +86,22 @@ async def revoke_session(
     db: DbConn,
     current=CISO_OR_ADMIN,
 ):
+    # user_id is in a different ID space per user_type (employee_user_id vs.
+    # oa_user_id) — tenant scoping must check the matching table for each.
     row = await db.fetchrow(
         """
         SELECT us.session_id, us.user_id, us.revoked
         FROM user_session us
-        JOIN oa_user ou ON ou.oa_user_id = us.user_id AND ou.tenant_id = $2
         WHERE us.session_id = $1
-          AND us.user_type IN ('employee', 'oa_user')
+          AND (
+            (us.user_type = 'oa_user' AND EXISTS (
+              SELECT 1 FROM oa_user ou WHERE ou.oa_user_id = us.user_id AND ou.tenant_id = $2
+            ))
+            OR
+            (us.user_type = 'employee' AND EXISTS (
+              SELECT 1 FROM employee_master em WHERE em.employee_user_id = us.user_id AND em.tenant_id = $2
+            ))
+          )
         """,
         session_id, current.tenant_id,
     )

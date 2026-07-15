@@ -5,8 +5,8 @@ import { tUi } from '@/i18n'
 import {
   LayoutDashboard, Users, Upload, FileText, AlertTriangle,
   Settings, ShieldCheck, ShieldAlert, TrendingUp, BarChart3, Calendar,
-  Lock, Key, Activity, Globe, ChevronDown, ChevronRight,
-  Building2, Zap, FileSearch, Bell, ClipboardList, MessageSquare, Handshake, Plug,
+  Lock, Unlock, Key, Activity, Globe, ChevronDown, ChevronRight,
+  Building2, Zap, FileSearch, Bell, ClipboardList, MessageSquare, Handshake, Plug, KeyRound, GitMerge,
 } from 'lucide-react'
 import { useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
@@ -62,6 +62,8 @@ function navForRole(role: UserRole, base: string, counts: BadgeCounts = {}): Nav
           { label: tUi('NAV_ELEVATION_APPROVALS'),to: `${base}/elevations`,      icon: <ShieldCheck size={16}/>, ...(counts.elevations ? { badge: { count: counts.elevations, color: 'amber' as const } } : {}) },
           { label: tUi('NAV_ORG_SETTINGS'),       to: `${base}/settings`,        icon: <Settings size={16}/> },
           { label: tUi('NAV_HRMS_INTEGRATION'),   to: `${base}/hrms`,            icon: <Plug size={16}/> },
+          { label: tUi('NAV_RESET_TOTP'),         to: `${base}/reset-totp`,      icon: <Lock size={16}/> },
+          { label: tUi('NAV_RESET_PASSWORD'),     to: `${base}/reset-password`,  icon: <KeyRound size={16}/> },
         ],
       }]
 
@@ -127,6 +129,10 @@ function navForRole(role: UserRole, base: string, counts: BadgeCounts = {}): Nav
             { label: tUi('NAV_ONBOARDING_QUEUE'), to: `${base}/onboarding`,     icon: <Building2 size={16}/>, ...(counts.onboarding ? { badge: { count: counts.onboarding, color: 'amber' as const } } : {}) },
             { label: tUi('NAV_TENANT_DIRECTORY'), to: `${base}/tenants`,        icon: <Users size={16}/> },
             { label: tUi('NAV_OA_EMERGENCY'),     to: `${base}/oa-override`,    icon: <Zap size={16}/> },
+            { label: tUi('NAV_PA_RESET_TOTP'),    to: `${base}/reset-totp`,     icon: <Lock size={16}/> },
+            { label: tUi('NAV_PA_UNLOCK'),         to: `${base}/pa-unlock`,      icon: <Unlock size={16}/> },
+            { label: tUi('NAV_PA_RESET_PASSWORD'), to: `${base}/reset-password`, icon: <KeyRound size={16}/> },
+            { label: tUi('NAV_PA_EMPLOYEE_MERGE'), to: `${base}/employee-merge`, icon: <GitMerge size={16}/> },
             { label: tUi('NAV_STORAGE_REQUESTS'), to: `${base}/storage`,        icon: <Globe size={16}/>, ...(counts.storage ? { badge: { count: counts.storage, color: 'amber' as const } } : {}) },
             { label: tUi('NAV_ANNOUNCEMENTS'),    to: `${base}/announcements`,  icon: <Bell size={16}/> },
             { label: tUi('NAV_INQUIRIES'),        to: `${base}/inquiries`,      icon: <MessageSquare size={16}/> },

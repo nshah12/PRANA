@@ -1,9 +1,9 @@
 import { useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { UserPlus, Shield, UserX } from 'lucide-react'
+import { UserPlus, Shield, UserX, MailPlus } from 'lucide-react'
 import { api } from '@/lib/api'
 import { fmtDate } from '@/lib/utils'
-import { tUi } from '@/i18n'
+import { tUi, tError, tSuccess } from '@/i18n'
 
 const ROLES = ['oa_operator', 'oa_admin', 'chro', 'cfo', 'ciso'] as const
 
@@ -35,6 +35,12 @@ export function UserManagement() {
         alert(tUi('OA_USER_MGMT_CANNOT_DEMOTE'))
       }
     },
+  })
+
+  const resendWelcomeMutation = useMutation({
+    mutationFn: (userId: string) => api.post(`/v1/org/users/${userId}/resend-welcome`),
+    onSuccess: (res) => alert(tSuccess(res.data.message)),
+    onError: (e: any) => alert(tError(e.response?.data?.detail)),
   })
 
   return (
@@ -99,16 +105,22 @@ export function UserManagement() {
                 </td>
                 <td className="px-5 py-3 text-xs text-slate-400">{fmtDate(u.created_at)}</td>
                 <td className="px-5 py-3">
-                  {u.status === 'ACTIVE' && (
-                    <button onClick={() => {
-                      if (confirm(tUi('OA_USER_MGMT_DEACTIVATE_CONFIRM', { name: u.display_name }))) {
-                        deactivateMutation.mutate(u.oa_user_id)
-                      }
-                    }}
-                    className="flex items-center gap-1 text-xs text-red-500 hover:underline">
-                      <UserX size={13}/> {tUi('OA_USER_MGMT_DEACTIVATE_BTN')}
+                  <div className="flex flex-col gap-1 items-start">
+                    <button onClick={() => resendWelcomeMutation.mutate(u.oa_user_id)}
+                            className="flex items-center gap-1 text-xs text-sky-600 hover:underline">
+                      <MailPlus size={13}/> {tUi('OA_USER_MGMT_RESEND_WELCOME_BTN')}
                     </button>
-                  )}
+                    {u.status === 'ACTIVE' && (
+                      <button onClick={() => {
+                        if (confirm(tUi('OA_USER_MGMT_DEACTIVATE_CONFIRM', { name: u.display_name }))) {
+                          deactivateMutation.mutate(u.oa_user_id)
+                        }
+                      }}
+                      className="flex items-center gap-1 text-xs text-red-500 hover:underline">
+                        <UserX size={13}/> {tUi('OA_USER_MGMT_DEACTIVATE_BTN')}
+                      </button>
+                    )}
+                  </div>
                 </td>
               </tr>
             ))}

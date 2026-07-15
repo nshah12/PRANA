@@ -128,6 +128,36 @@ async def unlock_user(oa_user_id: str, db: DbConn, current=Depends(require_oa("o
     return {"message": SuccessCode.LOCK_REMOVED}
 
 
+@router.post("/users/{oa_user_id}/resend-welcome", status_code=status.HTTP_200_OK, dependencies=[OAAdmin])
+async def resend_welcome_email(
+    oa_user_id: str,
+    request: Request,
+    db: DbConn,
+    current=Depends(require_oa("oa_admin")),
+):
+    """Re-trigger the OA_WELCOME email for a user whose original email bounced —
+    via NotifConsumer/EmailConsumer, never sent directly from the HTTP handler."""
+    row = await db.fetchrow(
+        "SELECT oa_user_id, email FROM oa_user WHERE oa_user_id = $1 AND tenant_id = $2",
+        oa_user_id, current.tenant_id,
+    )
+    if not row:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=PranaError.USER_NOT_FOUND)
+
+    kafka = getattr(request.app.state, "kafka_producer", None)
+    if kafka:
+        await kafka.oa_user_event({
+            "event_type": "OA_WELCOME_RESENT",
+            "tenant_id":  str(current.tenant_id),
+            "oa_user_id": str(row["oa_user_id"]),
+            "email":      row["email"],
+            "login_url":  "https://prana.in/org/login",
+            "resent_by":  str(current.user_id),
+        })
+
+    return {"message": SuccessCode.OA_WELCOME_EMAIL_RESENT}
+
+
 # ── Badge counts (sidebar) ────────────────────────────────────────────────────
 
 @router.get("/exceptions/count", status_code=status.HTTP_200_OK, dependencies=[OAAdmin])

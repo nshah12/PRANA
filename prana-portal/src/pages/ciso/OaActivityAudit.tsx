@@ -5,7 +5,7 @@ import { api } from '@/lib/api'
 import { fmtDateTime } from '@/lib/utils'
 import { tUi } from '@/i18n'
 
-const ACTION_TYPES = ['ALL','DOC_OPEN','DOC_DELETE','DOC_PUSH','USER_CREATE','ELEVATION','EXCEPTION_RESOLVE']
+const ACTION_TYPES = ['ALL','DOC_OPEN','DOC_DELETE','DOC_PUSH','USER_CREATE','ELEVATION','EXCEPTION_RESOLVE','EMPLOYEE_TOTP_RESET']
 
 export function OaActivityAudit() {
   const [actionType, setActionType] = useState('ALL')
@@ -77,17 +77,32 @@ export function OaActivityAudit() {
             {data?.events?.map((e: any, i: number) => (
               <tr key={i} className="hover:bg-canvas2">
                 <td className="px-5 py-3">
-                  <p className="text-sm font-medium text-slate-800">{e.actor_name}</p>
+                  <div className="flex items-center gap-2">
+                    <p className="text-sm font-medium text-slate-800">{e.actor_name}</p>
+                    {e.actor_type === 'PORTAL_ADMIN' && (
+                      <span className="badge badge-red">{tUi('CISO_OA_AUDIT_PA_OVERRIDE_BADGE')}</span>
+                    )}
+                  </div>
                   <p className="text-xs text-slate-400 font-mono">{e.actor_role}</p>
                 </td>
                 <td className="px-5 py-3">
                   <span className={`badge ${
                     e.action_type?.includes('DELETE') ? 'badge-red' :
-                    e.action_type?.includes('ELEVATION') ? 'badge-amber' : 'badge-muted'
+                    e.action_type?.includes('ELEVATION') ? 'badge-amber' :
+                    e.action_type === 'EMPLOYEE_TOTP_RESET' ? 'badge-red' : 'badge-muted'
                   }`}>{e.action_type?.replace(/_/g,' ')}</span>
                 </td>
                 <td className="px-5 py-3 font-mono text-xs text-slate-500 truncate max-w-[180px]">
-                  {e.resource_id ?? '—'}
+                  {e.resource_id
+                    ? (e.action_type === 'EMPLOYEE_TOTP_RESET'
+                        ? `${tUi('CISO_OA_AUDIT_RESOURCE_EMPLOYEE_PREFIX')} ${e.resource_id}`
+                        : e.resource_id)
+                    : '—'}
+                  {e.reason && (
+                    <p className="text-slate-400 font-sans normal-case mt-0.5" title={e.reason}>
+                      {tUi('CISO_OA_AUDIT_REASON_PREFIX')} {e.reason}
+                    </p>
+                  )}
                 </td>
                 <td className="px-5 py-3 font-mono text-xs text-slate-500">{e.ip_address}</td>
                 <td className="px-5 py-3 text-xs text-slate-400">{fmtDateTime(e.created_at)}</td>

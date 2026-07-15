@@ -88,6 +88,74 @@ describe('OaActivityAudit', () => {
     expect(await screen.findByText('Failed to load the activity audit. Try again.')).toBeInTheDocument()
   })
 
+  // -- Portal Admin override visibility (EMPLOYEE_TOTP_RESET etc.) -------------
+
+  it('includes EMPLOYEE_TOTP_RESET as a filterable action type', () => {
+    render(<OaActivityAudit />, { wrapper })
+    expect(screen.getByRole('option', { name: 'EMPLOYEE TOTP RESET' })).toBeInTheDocument()
+  })
+
+  it('marks a PORTAL_ADMIN-actor row as a PA override, distinct from ordinary OA activity', async () => {
+    vi.mocked(api.get).mockResolvedValue({
+      data: {
+        events: [{
+          actor_name: 'pa-admin@prana.in',
+          actor_role: 'portal_admin',
+          actor_type: 'PORTAL_ADMIN',
+          action_type: 'EMPLOYEE_TOTP_RESET',
+          resource_id: 'emp-uuid-001',
+          reason: 'Support escalation TCK-1234',
+          ip_address: '203.0.113.10',
+          created_at: '2026-07-10T09:00:00Z',
+        }],
+      },
+    })
+    render(<OaActivityAudit />, { wrapper })
+
+    expect(await screen.findByText('pa-admin@prana.in')).toBeInTheDocument()
+    expect(screen.getByText('PA OVERRIDE')).toBeInTheDocument()
+    expect(screen.getByText(/Support escalation TCK-1234/)).toBeInTheDocument()
+  })
+
+  it('does not show a PA override marker for an ordinary OA_ADMIN row', async () => {
+    vi.mocked(api.get).mockResolvedValue({
+      data: {
+        events: [{
+          actor_name: 'Priya Sharma',
+          actor_role: 'oa_admin',
+          actor_type: 'OA_ADMIN',
+          action_type: 'DOC_DELETE',
+          resource_id: 'doc-123',
+          ip_address: '192.0.2.55',
+          created_at: '2026-07-05T08:00:00Z',
+        }],
+      },
+    })
+    render(<OaActivityAudit />, { wrapper })
+
+    expect(await screen.findByText('Priya Sharma')).toBeInTheDocument()
+    expect(screen.queryByText('PA OVERRIDE')).not.toBeInTheDocument()
+  })
+
+  it('labels the resource column "Employee" for EMPLOYEE_TOTP_RESET rows', async () => {
+    vi.mocked(api.get).mockResolvedValue({
+      data: {
+        events: [{
+          actor_name: 'pa-admin@prana.in',
+          actor_role: 'portal_admin',
+          actor_type: 'PORTAL_ADMIN',
+          action_type: 'EMPLOYEE_TOTP_RESET',
+          resource_id: 'emp-uuid-001',
+          ip_address: '203.0.113.10',
+          created_at: '2026-07-10T09:00:00Z',
+        }],
+      },
+    })
+    render(<OaActivityAudit />, { wrapper })
+
+    expect(await screen.findByText(/Employee: emp-uuid-001/)).toBeInTheDocument()
+  })
+
   it('exports a signed PDF via blob download on click', async () => {
     const user = userEvent.setup()
     vi.mocked(api.get).mockImplementation((url: string) => {

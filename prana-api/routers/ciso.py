@@ -83,6 +83,9 @@ async def security_overview(db: DbConn, current=CISO):
 
 # â”€â”€ OA Activity Audit â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
+_OA_AUDIT_ACTOR_TYPES = "'OA_OPERATOR','OA_ADMIN','OA_OPERATOR_ELEVATED','PORTAL_ADMIN'"
+
+
 @router.get("/oa-audit")
 async def oa_activity_audit(
     db: DbConn,
@@ -91,7 +94,7 @@ async def oa_activity_audit(
     limit: int = 50,
     current=CISO,
 ):
-    conditions = ["ae.tenant_id = $1", "ae.actor_type IN ('OA_OPERATOR','OA_ADMIN','OA_OPERATOR_ELEVATED')"]
+    conditions = ["ae.tenant_id = $1", f"ae.actor_type IN ({_OA_AUDIT_ACTOR_TYPES})"]
     params: list = [current.tenant_id]
     i = 2
 
@@ -103,11 +106,15 @@ async def oa_activity_audit(
     where = " AND ".join(conditions)
     rows = await db.fetch(
         f"""
-        SELECT ae.event_id, ae.event_type AS action_type, ae.actor_id,
-               ae.document_id AS resource_id, ae.ip_address, ae.occurred_at AS created_at,
-               ou.email AS actor_name, ou.role AS actor_role
+        SELECT ae.event_id, ae.event_type AS action_type, ae.actor_id, ae.actor_type,
+               COALESCE(ae.document_id, (ae.event_metadata->>'employee_uuid')::uuid) AS resource_id,
+               ae.ip_address, ae.occurred_at AS created_at,
+               COALESCE(ou.email, pa.email) AS actor_name,
+               COALESCE(ou.role, 'portal_admin') AS actor_role,
+               ae.event_metadata->>'reason' AS reason
         FROM audit_event ae
-        LEFT JOIN oa_user ou ON ou.oa_user_id = ae.actor_id
+        LEFT JOIN oa_user ou ON ou.oa_user_id = ae.actor_id AND ae.actor_type != 'PORTAL_ADMIN'
+        LEFT JOIN portal_admin pa ON pa.pa_id = ae.actor_id AND ae.actor_type = 'PORTAL_ADMIN'
         WHERE {where}
         ORDER BY ae.occurred_at DESC
         LIMIT {limit} OFFSET {offset}
@@ -120,9 +127,11 @@ async def oa_activity_audit(
                 "event_id":    str(r["event_id"]),
                 "action_type": r["action_type"],
                 "actor_id":    str(r["actor_id"]) if r["actor_id"] else None,
+                "actor_type":  r["actor_type"],
                 "actor_name":  r["actor_name"],
                 "actor_role":  r["actor_role"],
                 "resource_id": str(r["resource_id"]) if r["resource_id"] else None,
+                "reason":      r["reason"],
                 "ip_address":  str(r["ip_address"]) if r["ip_address"] else None,
                 "created_at":  r["created_at"].isoformat() if r["created_at"] else None,
             }
@@ -135,25 +144,30 @@ async def oa_activity_audit(
 async def export_oa_audit(db: DbConn, current=CISO):
     from fastapi.responses import Response
     rows = await db.fetch(
-        """
-        SELECT ae.event_type, ae.actor_id, ou.email AS actor_name, ou.role AS actor_role,
-               ae.document_id, ae.ip_address, ae.occurred_at
+        f"""
+        SELECT ae.event_type, ae.actor_id, ae.actor_type,
+               COALESCE(ou.email, pa.email) AS actor_name,
+               COALESCE(ou.role, 'portal_admin') AS actor_role,
+               COALESCE(ae.document_id, (ae.event_metadata->>'employee_uuid')::uuid) AS resource_id,
+               ae.ip_address, ae.occurred_at
         FROM audit_event ae
-        LEFT JOIN oa_user ou ON ou.oa_user_id = ae.actor_id
+        LEFT JOIN oa_user ou ON ou.oa_user_id = ae.actor_id AND ae.actor_type != 'PORTAL_ADMIN'
+        LEFT JOIN portal_admin pa ON pa.pa_id = ae.actor_id AND ae.actor_type = 'PORTAL_ADMIN'
         WHERE ae.tenant_id = $1
-          AND ae.actor_type IN ('OA_OPERATOR','OA_ADMIN','OA_OPERATOR_ELEVATED')
+          AND ae.actor_type IN ({_OA_AUDIT_ACTOR_TYPES})
         ORDER BY ae.occurred_at DESC
         LIMIT 5000
         """,
         current.tenant_id,
     )
-    lines = ["event_type,actor_name,actor_role,resource_id,ip_address,occurred_at"]
+    lines = ["event_type,actor_type,actor_name,actor_role,resource_id,ip_address,occurred_at"]
     for r in rows:
         lines.append(",".join([
             r["event_type"] or "",
+            r["actor_type"] or "",
             (r["actor_name"] or "").replace(",", " "),
             r["actor_role"] or "",
-            str(r["document_id"]) if r["document_id"] else "",
+            str(r["resource_id"]) if r["resource_id"] else "",
             str(r["ip_address"]) if r["ip_address"] else "",
             r["occurred_at"].isoformat() if r["occurred_at"] else "",
         ]))
@@ -534,15 +548,15 @@ async def manual_unlock(event_id: str, request: Request, db: DbConn, current=CIS
             new_event_id, event_id,
         )
         # Restore account to ACTIVE
-        if lock_row["account_type"] == "employee":
+        if lock_row["user_type"] == "employee":
             await db.execute(
                 "UPDATE employee_user SET status='ACTIVE', failed_totp_count=0 WHERE employee_user_id=$1",
-                lock_row["account_id"],
+                lock_row["user_id"],
             )
-        elif lock_row["account_type"] == "oa_user":
+        elif lock_row["user_type"] == "oa_user":
             await db.execute(
-                "UPDATE oa_user SET status='ACTIVE' WHERE oa_user_id=$1",
-                lock_row["account_id"],
+                "UPDATE oa_user SET status='ACTIVE', failed_totp_count=0 WHERE oa_user_id=$1",
+                lock_row["user_id"],
             )
 
     kafka = getattr(request.app.state, "kafka_producer", None)
@@ -552,7 +566,7 @@ async def manual_unlock(event_id: str, request: Request, db: DbConn, current=CIS
             "tenant_id": str(current.tenant_id),
             "actor_id": str(current.user_id),
             "actor_type": "CISO",
-            "target_account_id": str(lock_row["account_id"]),
+            "target_account_id": str(lock_row["user_id"]),
             "reversed_lock_event_id": event_id,
         })
     return {"message": SuccessCode.LOCK_REMOVED}
