@@ -134,6 +134,7 @@ html = f"""<!DOCTYPE html>
   <h1>PRANA &mdash; Message Taxonomy</h1>
   <p class="sub">Every code the backend emits and the frontend renders. Zero hardcoded strings. Adding a language = adding one JSON file.</p>
   <p class="meta">Generated from <code>prana-portal/src/i18n/en.json</code> &nbsp;&middot;&nbsp; {total} codes total &nbsp;&middot;&nbsp; Enforced by MSG-01 / MSG-02 in enforce_rules.py</p>
+  <p class="meta">Many <code>success</code> / <code>error</code> codes here are also Kafka <code>event_type</code> values: if an action reaches <code>AuditConsumer</code>, it becomes an <code>audit_event</code> row dual-written to Immudb. See <a href="../KAFKA_REDIS_ARCHITECTURE.md">KAFKA_REDIS_ARCHITECTURE.md &sect;8.2</a> for the exact scope.</p>
 
   <div class="stats">
     <div class="sc"><div class="sc-label">Total</div><div class="sc-val" id="s-total">{total}</div><div class="sc-sub">4 services &middot; 8 categories</div></div>

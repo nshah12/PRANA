@@ -304,12 +304,45 @@ database. Immudb closes this gap: it is a real, cryptographically verifiable, ap
 ledger (Codenotary open source, `immudb-py` client) — tampering with a value after it is
 written is mathematically detectable via `verifiedGet`, independent of DB credentials.
 
-### 8.2 Scope
+### 8.2 Scope — what actually reaches Immudb
 
-**All audit events platform-wide.** Every event `AuditConsumer` writes to `audit_event` via
-`_write_audit()` is also dual-written to Immudb — not just new security-sensitive actions.
-`_write_access_log()` (→ `document_access_log`) is a separate table/concern and is not
-dual-written.
+The rule of thumb: **whatever gets a `prana.audit.events` copy becomes an `audit_event` row,
+and every `audit_event` row is dual-written to Immudb.** `AuditConsumer` subscribes to two
+topics (`prana.audit.events`, `prana.vault.events`); everything it reads on those topics goes
+through `_write_audit()` → Immudb, with exactly one carve-out (below).
+
+Every domain helper in `kafka/producer.py` publishes to its own per-domain topic **and** CCs
+`prana.audit.events`, except the two rows marked "no" below:
+
+| Domain helper | Audited → Immudb? | Example event types |
+|---|---|---|
+| `doc_ingested()` | Yes | `DOC_INGESTED` |
+| `batch_uploaded()` | Yes | `BATCH_UPLOADED` |
+| `stage_changed()` | Yes | `STAGE_CHANGED` (pipeline stage transitions) |
+| `doc_routed()` | Yes | `DOC_ROUTED` |
+| `exception_raised()` / `exception_resolved()` | Yes | `EXCEPTION_RAISED`, `EXCEPTION_RESOLVED`, `EXCEPTION_DISMISSED` |
+| `doc_accessed()` | **No, with one exception** — see below | `DOC_ACCESSED`, `SHARE_ACCESSED` |
+| `share_event()` | Yes | `SHARE_CREATED`, `SHARE_REVOKED`, `SHARE_EXPIRED`, `SHARE_OTP_*` |
+| `auth_event()` | Yes | `SESSION_CREATED`, `LOGIN_SUCCESS`, `LOGIN_FAILED`, `TOTP_*`, `OTP_*` |
+| `employee_event()` | Yes | `EMPLOYEE_ONBOARDED/ACTIVATED/EXITED/REJOINED`, `EMPLOYEE_PASSWORD_RESET`, `EMPLOYEE_SESSIONS_REVOKED`, `EMPLOYEE_SHARES_REVOKED` |
+| `tenant_event()` | Yes | `TENANT_CREATED`, `TENANT_CONFIG_UPDATED`, `API_KEY_CREATED/REVOKED`, `KEK_ROTATED` |
+| `oa_user_event()` | Yes | `OA_USER_CREATED`, `OA_USER_LOCKED`, `ELEVATION_APPROVED/DENIED/EXPIRED`, `OA_WELCOME_RESENT`, TOTP/password resets |
+| `compliance_event()` | Yes | `CONSENT_GRANTED/WITHDRAWN`, `ERASURE_*`, `CORRECTION_*`, `GRIEVANCE_*` |
+| `security_event()` | Yes | `ANOMALY_DETECTED`, `ACCOUNT_LOCKED`, `CROSS_TENANT_UPLOAD`, `CSAM_DETECTED` |
+| `statutory_event()` | Yes | `OBLIGATION_DUE/OVERDUE`, `PF_FILING_DUE`, `GRATUITY_*` |
+| `integration_event()` | Yes | `HRMS_WEBHOOK_*`, `EPFO_VERIFICATION_*`, `KMS_*`, `TEXTRACT_*` |
+| `platform_event()` | **No** | `WORKER_STARTED/CRASHED`, `HEALTH_CHECK_FAILED`, `DEPLOYMENT_*` — ops telemetry, no `TOPIC_AUDIT` publish at all |
+| `notify_email/sms/push/whatsapp/bell()` | **No** | Channel-specific dispatch only, no `TOPIC_AUDIT` publish |
+| `cache_invalidate()` | **No** | Internal cache-signal only, no `TOPIC_AUDIT` publish |
+
+**The one carve-out:** `AuditConsumer._run_loop()` special-cases `event_type == "DOC_ACCESSED"`
+— those events are routed to `_write_access_log()` (→ `document_access_log`, the CISO/employee
+access-visibility table) instead of `_write_audit()`, so routine document views are **not**
+mirrored to Immudb. Anything else on `prana.audit.events` (including `SHARE_ACCESSED`, which
+`doc_accessed()` can also emit) falls through to `_write_audit()` and **is** Immudb'd, since the
+routing check matches on the literal string `"DOC_ACCESSED"` only.
+
+`_write_access_log()` itself is a separate table/concern end to end and is never dual-written.
 
 ### 8.3 Architecture
 
