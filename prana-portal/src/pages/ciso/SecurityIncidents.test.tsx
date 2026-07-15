@@ -146,4 +146,66 @@ describe('SecurityIncidents', () => {
     expect(screen.queryByText('Resolve')).not.toBeInTheDocument()
     expect(screen.queryByText('Escalate')).not.toBeInTheDocument()
   })
+
+  // ── Errors tab (4th incident track, ERROR_OBSERVABILITY_DESIGN.md §7) ──────────
+
+  const ERROR_ITEM = {
+    error_id: 'err-1', exception_type: 'RuntimeError', source: 'HTTP',
+    source_detail: '/v1/cfo/anomalies', tenant_id: 'tenant-001', occurrence_count: 2,
+    first_seen_at: '2026-07-15T09:00:00Z', last_seen_at: '2026-07-15T10:00:00Z',
+    status: 'NEW', linked_incident_id: null,
+  }
+
+  it('switches to the Errors tab and loads tenant-scoped errors', async () => {
+    const user = userEvent.setup()
+    vi.mocked(api.get).mockResolvedValue({ data: { items: [] } })
+    render(<SecurityIncidents />, { wrapper })
+    await screen.findByText('No incidents match this filter')
+
+    vi.mocked(api.get).mockResolvedValue({ data: { items: [ERROR_ITEM] } })
+    await user.click(screen.getByRole('button', { name: /^errors$/i }))
+
+    expect(await screen.findByText('RuntimeError')).toBeInTheDocument()
+    expect(api.get).toHaveBeenLastCalledWith('/v1/ciso/errors')
+  })
+
+  it('acknowledges a NEW error', async () => {
+    const user = userEvent.setup()
+    vi.mocked(api.get).mockResolvedValue({ data: { items: [ERROR_ITEM] } })
+    vi.mocked(api.patch).mockResolvedValue({ data: { status: 'acknowledged' } })
+    render(<SecurityIncidents />, { wrapper })
+    await user.click(screen.getByRole('button', { name: /^errors$/i }))
+    await screen.findByText('RuntimeError')
+
+    await user.click(screen.getByRole('button', { name: /acknowledge/i }))
+    await waitFor(() => expect(api.patch).toHaveBeenCalledWith('/v1/ciso/errors/err-1/acknowledge', {}))
+  })
+
+  it('resolves an error with a note', async () => {
+    const user = userEvent.setup()
+    vi.mocked(api.get).mockResolvedValue({ data: { items: [ERROR_ITEM] } })
+    vi.mocked(api.patch).mockResolvedValue({ data: { status: 'resolved' } })
+    render(<SecurityIncidents />, { wrapper })
+    await user.click(screen.getByRole('button', { name: /^errors$/i }))
+    await screen.findByText('RuntimeError')
+
+    await user.click(screen.getByRole('button', { name: /^resolve$/i }))
+    const textarea = screen.getByPlaceholderText('Resolution note…')
+    await user.type(textarea, 'Confirmed benign')
+    await user.click(screen.getByText('Confirm'))
+    await waitFor(() => expect(api.patch).toHaveBeenCalledWith(
+      '/v1/ciso/errors/err-1/resolve', { resolution_note: 'Confirmed benign' },
+    ))
+  })
+
+  it('does not offer ignore or promote-to-incident actions (PA-only)', async () => {
+    const user = userEvent.setup()
+    vi.mocked(api.get).mockResolvedValue({ data: { items: [ERROR_ITEM] } })
+    render(<SecurityIncidents />, { wrapper })
+    await user.click(screen.getByRole('button', { name: /^errors$/i }))
+    await screen.findByText('RuntimeError')
+
+    expect(screen.queryByRole('button', { name: /ignore/i })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: /promote/i })).not.toBeInTheDocument()
+  })
 })

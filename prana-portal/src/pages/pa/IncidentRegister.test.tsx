@@ -61,7 +61,7 @@ describe('IncidentRegister', () => {
     render(<IncidentRegister />, { wrapper })
     await waitFor(() => expect(screen.getByText('API latency spike')).toBeInTheDocument())
     await user.click(screen.getByRole('button', { name: /run check now/i }))
-    await waitFor(() => expect(mockPost).toHaveBeenCalledWith('/pa/incidents/run-check', {}))
+    await waitFor(() => expect(mockPost).toHaveBeenCalledWith('/admin/incidents/run-check', {}))
   })
 
   it('acknowledges an OPEN incident', async () => {
@@ -71,7 +71,7 @@ describe('IncidentRegister', () => {
     render(<IncidentRegister />, { wrapper })
     await waitFor(() => expect(screen.getByText('API latency spike')).toBeInTheDocument())
     await user.click(screen.getByRole('button', { name: /acknowledge/i }))
-    await waitFor(() => expect(mockPost).toHaveBeenCalledWith('/pa/incidents/inc-1/acknowledge', {}))
+    await waitFor(() => expect(mockPost).toHaveBeenCalledWith('/admin/incidents/inc-1/acknowledge', {}))
   })
 
   it('resolves an incident with a resolution note', async () => {
@@ -83,7 +83,7 @@ describe('IncidentRegister', () => {
     const resolveButtons = screen.getAllByRole('button', { name: /resolve/i })
     // inc-2 is ACKNOWLEDGED (only Resolve button, no Acknowledge) — it's the last Resolve button rendered.
     await user.click(resolveButtons[resolveButtons.length - 1])
-    await waitFor(() => expect(mockPost).toHaveBeenCalledWith('/pa/incidents/inc-2/resolve', { note: 'Manually resolved by PA' }))
+    await waitFor(() => expect(mockPost).toHaveBeenCalledWith('/admin/incidents/inc-2/resolve', { note: 'Manually resolved by PA' }))
   })
 
   it('handles run-check failure without crashing', async () => {

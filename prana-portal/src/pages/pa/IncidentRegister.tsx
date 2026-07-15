@@ -29,23 +29,23 @@ export function IncidentRegister() {
 
   const { data, isLoading } = useQuery({
     queryKey: ['pa-incidents'],
-    queryFn: () => api.get('/pa/incidents').then(r => r.data),
+    queryFn: () => api.get('/admin/incidents').then(r => r.data),
     refetchInterval: 60_000,   // auto-refresh every 60s
   })
 
   const triggerCheck = useMutation({
-    mutationFn: () => api.post('/pa/incidents/run-check', {}),
+    mutationFn: () => api.post('/admin/incidents/run-check', {}),
     onSuccess: () => qc.invalidateQueries({ queryKey: ['pa-incidents'] }),
   })
 
   const acknowledge = useMutation({
-    mutationFn: (id: string) => api.post(`/pa/incidents/${id}/acknowledge`, {}),
+    mutationFn: (id: string) => api.post(`/admin/incidents/${id}/acknowledge`, {}),
     onSuccess: () => qc.invalidateQueries({ queryKey: ['pa-incidents'] }),
   })
 
   const resolve = useMutation({
     mutationFn: ({ id, note }: { id: string; note: string }) =>
-      api.post(`/pa/incidents/${id}/resolve`, { note }),
+      api.post(`/admin/incidents/${id}/resolve`, { note }),
     onSuccess: () => qc.invalidateQueries({ queryKey: ['pa-incidents'] }),
   })
 
