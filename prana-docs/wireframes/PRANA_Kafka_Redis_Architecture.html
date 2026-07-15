@@ -121,6 +121,15 @@ h1 { font-size: 18px; font-weight: 700; color: #e8eaf0; margin-bottom: 4px; }
   <h1>PRANA — Enterprise Kafka + Redis Architecture</h1>
   <p class="subtitle">Full redesign · 21 topics · 187 events · 18 Redis namespace groups · Cluster mode · v1.1 · 2026-06-24 · Updated: trigger points + subscriber coverage audit</p>
 
+  <div class="gap-banner" style="margin-bottom:1.5rem;">
+    <strong>Note (2026-07-15):</strong> this page covers Kafka and Redis only and predates two later
+    changes. The authoritative, currently maintained architecture doc is
+    <code>prana-docs/KAFKA_REDIS_ARCHITECTURE.md</code>, which now also documents Immudb as a 4th
+    data store (a tamper-evident audit ledger that <code>AuditConsumer</code> dual-writes every
+    <code>audit_event</code> row to, alongside YugabyteDB). Treat that Markdown file, not this page,
+    as current for anything that has changed since June 2026.
+  </div>
+
   <div class="tabs">
     <div class="tab active" onclick="switchTab('kafka')">Kafka Topics &amp; Events</div>
     <div class="tab" onclick="switchTab('redis')">Redis Namespaces</div>
