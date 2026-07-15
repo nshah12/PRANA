@@ -740,7 +740,8 @@ CREATE TABLE audit_event (
 -- Monthly partitions: audit_event_2025_01, audit_event_2025_02, ...
 -- Hot in YugabyteDB. Cold to Apache Iceberg on S3 via RetentionWorkflow after 30 days.
 -- Retained hot for 7 years minimum (DPDP Act S.9). Never deleted from cold storage.
--- IMPORTANT: REVOKE UPDATE, DELETE ON audit_event FROM app_role — append-only by policy.
+-- Append-only by policy — REVOKE UPDATE, DELETE ON audit_event FROM prana_app_role is
+-- real, executed DDL at the bottom of this file (LAYER 14), not just a comment.
 CREATE INDEX idx_audit_type   ON audit_event(event_type, occurred_at DESC);
 CREATE INDEX idx_audit_actor  ON audit_event(actor_type, actor_id, occurred_at DESC);
 CREATE INDEX idx_audit_tenant ON audit_event(tenant_id, occurred_at DESC);
@@ -907,7 +908,8 @@ INSERT INTO platform_config (config_key, config_value, value_type, description, 
   ('oa_totp_lock_threshold',            '5',           'INTEGER',          'OA/Employee failed TOTP count before lock', '3', '10'),
   ('password_protected_session_ttl',    '10',          'DURATION_MINUTES', 'In-memory session for password-protected doc (wiped on expiry)', '5', '30'),
   ('jwt_ttl_minutes',                   '60',          'DURATION_MINUTES', 'JWT access token TTL', '15', '240'),
-  ('refresh_token_ttl_days',            '7',           'DURATION_DAYS',    'JWT refresh token TTL', '1', '30');
+  ('refresh_token_ttl_days',            '7',           'DURATION_DAYS',    'JWT refresh token TTL', '1', '30'),
+  ('audit_integrity_check_interval_minutes', '60',     'DURATION_MINUTES', 'AuditIntegrityVerificationWorkflow schedule cadence', '15', '1440');
 
 CREATE TABLE tenant_config (
   tenant_id     UUID         NOT NULL REFERENCES tenant(tenant_id),
@@ -990,3 +992,34 @@ CREATE TABLE chro_report (
 );
 
 CREATE INDEX idx_chro_report_tenant ON chro_report(tenant_id, generated_at DESC);
+
+-- ============================================================
+-- LAYER 14: SECURITY — LEAST-PRIVILEGE APPLICATION ROLE
+-- ============================================================
+-- The app's runtime DB pool (config.py db_user/db_password) must connect as
+-- this role, never as the yugabyte/postgres superuser — otherwise the
+-- audit_event REVOKE below is meaningless (the app could just use its own
+-- elevated credentials to bypass it). See KAFKA_REDIS_ARCHITECTURE.md §8 and
+-- prana-db/migrations/039_audit_role_revoke.sql for the full rationale.
+-- Must run after every table above exists.
+
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT FROM pg_catalog.pg_roles WHERE rolname = 'prana_app_role') THEN
+    CREATE ROLE prana_app_role LOGIN PASSWORD 'prana_app_role';  -- dev-only default
+  END IF;
+END
+$$;
+
+GRANT CONNECT ON DATABASE prana TO prana_app_role;
+GRANT USAGE ON SCHEMA public TO prana_app_role;
+GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA public TO prana_app_role;
+GRANT USAGE, SELECT ON ALL SEQUENCES IN SCHEMA public TO prana_app_role;
+ALTER DEFAULT PRIVILEGES IN SCHEMA public
+  GRANT SELECT, INSERT, UPDATE, DELETE ON TABLES TO prana_app_role;
+ALTER DEFAULT PRIVILEGES IN SCHEMA public
+  GRANT USAGE, SELECT ON SEQUENCES TO prana_app_role;
+
+-- The carve-out: audit_event is append-only by policy. INSERT still works
+-- (AuditConsumer's dual-write path); UPDATE/DELETE no longer do.
+REVOKE UPDATE, DELETE ON audit_event FROM prana_app_role;

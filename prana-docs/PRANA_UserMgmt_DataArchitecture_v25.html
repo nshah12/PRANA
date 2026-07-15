@@ -192,10 +192,13 @@
             verifiable audit ledger. <code>AuditConsumer</code> dual-writes
             every <code>audit_event</code> row to it. This doesn't change any
             table schema here, but it does change the trust model for
-            <code>audit_event</code> — the table itself is still an ordinary
-            mutable YugabyteDB table, and Immudb (not a DB-level REVOKE) is
-            what actually makes tampering detectable. Full design:
-            <code>prana-docs/KAFKA_REDIS_ARCHITECTURE.md</code> §8.
+            <code>audit_event</code>. As of 2026-07-15 there's also a real
+            least-privilege <code>prana_app_role</code> (LAYER 14 in
+            <code>schema.sql</code>) with <code>UPDATE</code>/<code>DELETE</code>
+            REVOKEd on <code>audit_event</code>, and a scheduled
+            <code>AuditIntegrityVerificationWorkflow</code> that re-checks
+            recent rows against Immudb and alerts Portal Admins on mismatch.
+            Full design: <code>prana-docs/KAFKA_REDIS_ARCHITECTURE.md</code> §8.
           </div>
         </div>
       </div>

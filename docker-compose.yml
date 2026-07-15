@@ -29,8 +29,14 @@ x-prana-env: &prana-env
   DB_HOST: yugabyte
   DB_PORT: "5433"
   DB_NAME: prana
-  DB_USER: yugabyte
-  DB_PASSWORD: yugabyte
+  # prana_app_role — least-privilege role created by schema.sql / migration
+  # 039_audit_role_revoke.sql. NEVER point this at the yugabyte superuser —
+  # that role can bypass the audit_event REVOKE. Apply the migration (or a
+  # fresh schema.sql) against the yugabyte service BEFORE starting prana-api
+  # with these credentials, or the connection will fail with "role does not
+  # exist". See KAFKA_REDIS_ARCHITECTURE.md §8.
+  DB_USER: prana_app_role
+  DB_PASSWORD: prana_app_role
   REDIS_URL: redis://redis:6379/0
   KAFKA_BOOTSTRAP_SERVERS: kafka:9093
   TEMPORAL_HOST: temporal:7233

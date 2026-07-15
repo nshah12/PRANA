@@ -3,7 +3,7 @@
 # PRANA Workflows — Temporal Architecture
 
 ## Overview
-57 named Temporal workflows replace ALL cron jobs, Celery tasks, and scheduled polling.
+58 named Temporal workflows replace ALL cron jobs, Celery tasks, and scheduled polling.
 **Zero cron anywhere in the system.**
 
 Reconciled 2026-07-05 against the actual `@workflow.defn` classes in this directory —
@@ -32,7 +32,7 @@ vault-queue           → VaultService (ShareExpiryWorkflow, WatermarkWorkflow)
 admin-queue           → AdminService (EmployeeExitWorkflow, PushWindowExpiryWorkflow, ElevationWorkflow)
 analytics-queue       → AnalyticsService (VaultHealthWorkflow, DigestWorkflow)
 insight-queue         → InsightService (InsightRefreshWorkflow, AnomalyAcknowledgementWorkflow)
-secops-queue          → SecurityService (AnomalyDetectionWorkflow, KMSKeyRotationWorkflow, SystemHealthWorkflow)
+secops-queue          → SecurityService (AnomalyDetectionWorkflow, KMSKeyRotationWorkflow, SystemHealthWorkflow, AuditIntegrityVerificationWorkflow)
 safety-queue          → SafetyService (CSAMReportingWorkflow)
 resolution-queue      → ResolutionService (EmbeddingUpdateWorkflow)
 resolution-low-priority-queue → ResolutionService (low-priority embedding updates — yields to pipeline)
@@ -95,7 +95,7 @@ async def ensure_schedule(client: Client, config: ConfigService):
                      spec=ScheduleSpec(intervals=[ScheduleIntervalSpec(every=timedelta(minutes=interval))]))
         )
 ```
-**Used by:** PlatformSummaryWorkflow, DigestWorkflow (weekly/monthly), KMSHealthCheckWorkflow, StorageQuotaCheckWorkflow, ClamAVUpdateWorkflow, RetentionWorkflow
+**Used by:** PlatformSummaryWorkflow, DigestWorkflow (weekly/monthly), KMSHealthCheckWorkflow, StorageQuotaCheckWorkflow, ClamAVUpdateWorkflow, RetentionWorkflow, SystemHealthWorkflow, AuditIntegrityVerificationWorkflow
 
 ### Pattern 4 — Continue-As-New (perpetual)
 For workflows that run forever without unbounded history. Restart with fresh state at `RENEW_THRESHOLD`.
@@ -150,7 +150,7 @@ class HumanSignalWorkflow:
 |--------|-------|---------------|
 | Document Pipeline | 4 | DocumentPipelineWorkflow, BatchProgressWorkflow, BatchTimeoutMonitorWorkflow, EmbeddingUpdateWorkflow |
 | Employee Lifecycle | 7 | EmployeeExitWorkflow, PushWindowExpiryWorkflow, VaultActivationWorkflow, VaultHealthWorkflow, NomineeAccessWorkflow, RejoiningWorkflow, AccountDormancyWorkflow |
-| Security & Access Control | 10 | PolicyLockWorkflow, TOTPLockoutWorkflow, ElevationWorkflow, SessionExpiryWorkflow, SessionForceRevokeWorkflow, AnomalyDetectionWorkflow, KMSKeyRotationWorkflow, HMACSecretRotationWorkflow, CSAMReportingWorkflow, SystemHealthWorkflow |
+| Security & Access Control | 11 | PolicyLockWorkflow, TOTPLockoutWorkflow, ElevationWorkflow, SessionExpiryWorkflow, SessionForceRevokeWorkflow, AnomalyDetectionWorkflow, KMSKeyRotationWorkflow, HMACSecretRotationWorkflow, CSAMReportingWorkflow, SystemHealthWorkflow, AuditIntegrityVerificationWorkflow |
 | DPDP & Legal Compliance | 9 | ErasureConfirmationWorkflow, DataExportWorkflow, ConsentRebumpWorkflow, GrievanceWorkflow, DataCorrectionWorkflow, RetentionWorkflow, AuditArchivalWorkflow, LegalHoldWorkflow, StatutoryComplianceWorkflow |
 | Intelligence Layer | 8 | InsightRefreshWorkflow, CareerInsightWorkflow, VaultCompletenessWorkflow, AnomalyAcknowledgementWorkflow, DigestWorkflow, PeerBenchmarkWorkflow, SkillGapWorkflow, MarketCompWorkflow |
 | Platform Operations | 9 | PlatformSummaryWorkflow, ClamAVUpdateWorkflow, KMSHealthCheckWorkflow, StorageQuotaCheckWorkflow, StagingCleanupWorkflow, WebhookDeliveryWorkflow, NotificationDeliveryWorkflow, StorageExpansionWorkflow, OnboardingReviewSLAWorkflow |
@@ -170,6 +170,12 @@ Corrections from the previous (53-count) version of this table:
   usage example below but never counted in any domain row.
 - `GamificationRefreshWorkflow`, `HRMSSyncWorkflow`, `HRMSSyncScheduleWorkflow` existed in
   code but weren't in this table at all — built after this doc was last reconciled.
+- `AuditIntegrityVerificationWorkflow` added 2026-07-15 (`workflows/audit_integrity.py`,
+  Pattern 3, `secops-queue`) — periodically re-verifies recent `audit_event` rows against
+  their Immudb dual-write. Companion to the `prana_app_role` DB-privilege split
+  (`prana-db/migrations/039_audit_role_revoke.sql`): the REVOKE stops the app from
+  mutating audit history, this workflow is what makes tampering by anyone else with DB
+  access actually get noticed. See `KAFKA_REDIS_ARCHITECTURE.md` §8.
 
 ## Configuration Model (critical rule)
 Every duration and schedule is read at workflow **trigger time** from `get_config(key, tenant_id)`.
@@ -195,6 +201,7 @@ await workflow.sleep(timedelta(minutes=duration_minutes))
 | `consent_rebump_window_days` | 30 | ConsentRebumpWorkflow |
 | `nominee_access_window_days` | 90 | NomineeAccessWorkflow |
 | `platform_summary_interval_minutes` | 5 | PlatformSummaryWorkflow schedule |
+| `audit_integrity_check_interval_minutes` | 60 | AuditIntegrityVerificationWorkflow schedule |
 
 ## Engine Independence Rule
 Business logic lives in plain service classes (zero Temporal imports). Temporal workflows are thin shells that call service methods. This means:

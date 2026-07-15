@@ -376,10 +376,34 @@ AuditConsumer._write_audit(event)
   without the Immudb container up still boots with `app.state.immudb_service = None`,
   and `AuditConsumer` simply skips the dual-write.
 
-### 8.5 Still Open
+### 8.5 Resolved (2026-07-15) — REVOKE executed + periodic verification added
 
-The `REVOKE UPDATE, DELETE ON audit_event` comment in `schema.sql` remains un-enforced —
-YugabyteDB itself still allows mutation of `audit_event` by any role holding the app's
-credentials. Immudb makes tampering **detectable**, not **impossible** at the primary
-store. Actually executing the REVOKE (and defining `app_role`) is a separate, not-yet-scheduled
-hardening task.
+Both halves of the original gap are now closed:
+
+1. **The REVOKE is real DDL, not just a comment.** `prana-db/migrations/039_audit_role_revoke.sql`
+   (also folded into `schema.sql` LAYER 14, so a fresh deploy gets it automatically) creates
+   `prana_app_role` — the role the app's runtime DB pool actually connects as (`config.py`
+   `db_user`/`db_password`, default `prana_app_role`/`prana_app_role` in dev) — grants it
+   full CRUD on every table, then `REVOKE UPDATE, DELETE ON audit_event FROM prana_app_role`.
+   The app can still `INSERT` (AuditConsumer's dual-write path) but can no longer alter or
+   delete existing rows, even if its own credentials are compromised or misused. The
+   fail-closed production guard (`Settings.assert_production_ready()`) additionally refuses
+   to boot if `db_user` is `yugabyte`/`postgres`/`root` — the app must never run as the
+   DB superuser that could bypass this REVOKE.
+
+2. **Something now actually checks.** Provable-but-unchecked tampering was the real
+   danger: `verified_get()` can prove a row was altered, but only if someone calls it.
+   `AuditIntegrityVerificationWorkflow` (`workflows/audit_integrity.py`, Pattern 3 —
+   Temporal Schedule, `secops-queue`, default every 60 min via
+   `audit_integrity_check_interval_minutes`) re-checks the most recent 500 `audit_event`
+   rows against their Immudb dual-write on every run. A mismatch (row altered) or an
+   `unverified` result (Immudb's own cryptographic proof failed) publishes an
+   `AUDIT_INTEGRITY_MISMATCH` security event, which `NotifConsumer` turns into an email to
+   every active Portal Admin. `AuditIntegrityService` (`services/audit_integrity_service.py`)
+   holds the comparison logic — zero Temporal imports, so it's directly unit-testable.
+
+**Residual gap:** this only re-verifies the most recent 500 rows per run (no persistent
+checkpoint/pagination across the full 7-year hot-tier history), so it re-covers recent,
+active data repeatedly but doesn't guarantee eventual coverage of the entire table. Older,
+already-cold-archived partitions are effectively out of scope for this workflow. Extending
+it to paginate through full history is a future enhancement, not yet scheduled.

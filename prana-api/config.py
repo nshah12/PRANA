@@ -13,8 +13,13 @@ class Settings(BaseSettings):
     db_host: str = "localhost"
     db_port: int = 5433                   # YugabyteDB default (not 5432)
     db_name: str = "prana"
-    db_user: str = "yugabyte"
-    db_password: str = "yugabyte"
+    # prana_app_role — least-privilege role (migration 039_audit_role_revoke.sql):
+    # can INSERT/SELECT/UPDATE/DELETE on every app table EXCEPT audit_event, where
+    # UPDATE/DELETE is REVOKEd. The app's runtime pool must NEVER connect as the
+    # yugabyte/postgres superuser — that would let it bypass the REVOKE and silently
+    # tamper with audit history (see KAFKA_REDIS_ARCHITECTURE.md §8).
+    db_user: str = "prana_app_role"
+    db_password: str = "prana_app_role"
     db_pool_min: int = 5
     db_pool_max: int = 20
 
@@ -40,7 +45,11 @@ class Settings(BaseSettings):
         # field name -> values that are forbidden in production
         forbidden = {
             "platform_hmac_secret": {"dev_secret", ""},
-            "db_password":          {"yugabyte", ""},
+            "db_password":          {"yugabyte", "prana_app_role", ""},
+            # yugabyte/postgres/root are superuser-class accounts that can bypass the
+            # audit_event REVOKE (migration 039) — the app must run as prana_app_role
+            # or an equivalent least-privilege role, never the DB superuser.
+            "db_user":              {"yugabyte", "postgres", "root", ""},
             "ai_service_secret":    {"dev-secret", ""},
             "ask_service_secret":   {"dev-secret", ""},
             "immudb_password":      {"immudb", ""},

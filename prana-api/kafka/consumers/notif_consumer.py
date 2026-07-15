@@ -18,6 +18,10 @@ Events handled:
   DPDP_ERASURE_DONE   → notify employee (email)
   DPDP_EXPORT_READY   → notify employee (email)
   DIGEST_READY        → notify role recipients (email)
+  AUDIT_INTEGRITY_MISMATCH → notify all active PA Admins (email) — platform-level,
+                        raised by AuditIntegrityVerificationWorkflow when a
+                        recent audit_event row no longer matches its Immudb
+                        dual-write (see KAFKA_REDIS_ARCHITECTURE.md §8)
 """
 import json
 import logging
@@ -95,6 +99,8 @@ class NotifConsumer:
             await self._handle_dpdp_employee(event, svc, conn, template_id="EXPORT_READY")
         elif etype == "DIGEST_READY":
             await self._handle_digest_ready(event, svc, conn)
+        elif etype == "AUDIT_INTEGRITY_MISMATCH":
+            await self._handle_audit_integrity_mismatch(event, svc, conn)
         else:
             log.debug("NotifConsumer: unhandled event_type=%s", etype)
 
@@ -335,6 +341,31 @@ class NotifConsumer:
                 recipient_email=pa["email"],
                 channel=Channel.EMAIL,
                 template_id="CROSS_TENANT_UPLOAD_ALERT",
+                template_data=template_data,
+            )
+
+    async def _handle_audit_integrity_mismatch(
+        self, event: dict, svc: NotificationService, conn: asyncpg.Connection
+    ) -> None:
+        """Platform-level alert — spans potentially any tenant, so every active
+        PA Admin is notified rather than a single tenant's CISO."""
+        template_data = {
+            "checked_count":     event.get("checked_count", 0),
+            "mismatched_count":  event.get("mismatched_count", 0),
+            "unverified_count":  event.get("unverified_count", 0),
+        }
+        pa_admins = await conn.fetch(
+            "SELECT pa_id, email FROM portal_admin WHERE status='ACTIVE'",
+        )
+        for pa in pa_admins:
+            await svc.notify(
+                tenant_id=None,
+                event_type="AUDIT_INTEGRITY_MISMATCH",
+                recipient_id=str(pa["pa_id"]),
+                recipient_type=RecipientType.OA_USER,
+                recipient_email=pa["email"],
+                channel=Channel.EMAIL,
+                template_id="AUDIT_INTEGRITY_MISMATCH",
                 template_data=template_data,
             )
 

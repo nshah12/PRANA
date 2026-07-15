@@ -92,6 +92,7 @@ from workflows.platform_ops import (
     OnboardingReviewSLAWorkflow,
 )
 from workflows.system_health import SystemHealthWorkflow
+from workflows.audit_integrity import AuditIntegrityVerificationWorkflow
 from workflows.vault_shares import (
     ShareExpiryWorkflow,
     ShareRevocationWorkflow,
@@ -165,6 +166,7 @@ from workflows.platform_ops import (
     escalate_onboarding_review,
 )
 from workflows.system_health import run_health_checks
+from workflows.audit_integrity import verify_audit_integrity
 from workflows.vault_shares import (
     expire_share_token, revoke_share_token, create_share_token,
     send_share_otp, notify_share_accessed, get_share_config,
@@ -252,11 +254,12 @@ WORKERS: dict[str, dict] = {
             PolicyLockWorkflow, AnomalyDetectionWorkflow,
             KMSKeyRotationWorkflow, HMACSecretRotationWorkflow,
             KMSHealthCheckWorkflow, SystemHealthWorkflow,
+            AuditIntegrityVerificationWorkflow,
         ],
         "activities": [
             apply_policy_lock, release_policy_lock, notify_policy_lock,
             run_anomaly_detection_batch, rotate_tenant_kek, rotate_hmac_secret,
-            run_health_checks,
+            run_health_checks, verify_audit_integrity,
             get_next_tenant_for_rotation, verify_kms_key_health, alert_kms_key_issue,
             get_security_config,
         ],

@@ -14,6 +14,7 @@ def _prod(**over) -> Settings:
     base = dict(
         app_env="production",
         platform_hmac_secret="a-real-strong-platform-secret-01",
+        db_user="prana_app_role",
         db_password="a-real-db-password",
         ai_service_secret="a-real-ai-secret",
         ask_service_secret="a-real-ask-secret",
@@ -45,6 +46,28 @@ def test_prod_rejects_dev_db_password():
     with pytest.raises(RuntimeError) as e:
         _prod(db_password="yugabyte").assert_production_ready()
     assert "db_password" in str(e.value)
+
+
+def test_prod_rejects_app_role_dev_db_password():
+    with pytest.raises(RuntimeError) as e:
+        _prod(db_password="prana_app_role").assert_production_ready()
+    assert "db_password" in str(e.value)
+
+
+def test_prod_rejects_running_as_db_superuser():
+    """The app's runtime pool must never connect as yugabyte/postgres — that role
+    can bypass the audit_event REVOKE (migration 039_audit_role_revoke.sql) and
+    silently tamper with audit history."""
+    with pytest.raises(RuntimeError) as e:
+        _prod(db_user="yugabyte", db_password="a-real-db-password").assert_production_ready()
+    assert "db_user" in str(e.value)
+
+    with pytest.raises(RuntimeError):
+        _prod(db_user="postgres", db_password="a-real-db-password").assert_production_ready()
+
+
+def test_prod_allows_app_role_db_user():
+    _prod(db_user="prana_app_role", db_password="a-real-db-password").assert_production_ready()
 
 
 def test_prod_rejects_dev_service_secrets():

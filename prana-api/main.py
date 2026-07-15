@@ -112,6 +112,19 @@ async def lifespan(app: FastAPI):
         except Exception:
             pass  # Non-fatal — health-check schedule creation must not block startup
 
+        try:
+            from workflows.audit_integrity import ensure_audit_integrity_schedule
+            interval_row = await app.state.db_pool.fetchval(
+                "SELECT config_value FROM platform_config WHERE config_key=$1",
+                "audit_integrity_check_interval_minutes",
+            )
+            await ensure_audit_integrity_schedule(
+                app.state.temporal_client,
+                interval_minutes=int(interval_row or 60),
+            )
+        except Exception:
+            pass  # Non-fatal — schedule creation must not block startup
+
     # Kafka producer
     kafka = KafkaPub(settings)
     try:

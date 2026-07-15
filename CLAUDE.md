@@ -67,7 +67,7 @@ All in `prana-docs/`:
 ## Audit Ledger — Immudb (DECIDED, NOT optional)
 - **4th data store, alongside YugabyteDB / Kafka / Redis. Cryptographically verifiable, append-only.**
 - Dev: `codenotary/immudb:1.9.5` container on `localhost:3322` (gRPC)
-- `AuditConsumer` dual-writes every `audit_event` row to Immudb (`ImmudbService.verified_set`) — `audit_event` itself is an ordinary mutable YugabyteDB table (the `REVOKE UPDATE/DELETE` in `schema.sql` is an un-executed comment, not real DDL); Immudb is what actually makes tampering with audit history detectable.
+- `AuditConsumer` dual-writes every `audit_event` row to Immudb (`ImmudbService.verified_set`). The app's runtime DB pool connects as `prana_app_role` (never the `yugabyte`/`postgres` superuser — fail-closed guard enforces this in prod), which has `UPDATE`/`DELETE` on `audit_event` REVOKEd (`prana-db/migrations/039_audit_role_revoke.sql`) — real, executed DDL, not just a comment. `AuditIntegrityVerificationWorkflow` re-checks recent rows against Immudb on a schedule and alerts Portal Admins on mismatch, so tampering is actually noticed, not just theoretically provable.
 - Full design: `prana-docs/KAFKA_REDIS_ARCHITECTURE.md` §8
 
 ## Workflow Engine
