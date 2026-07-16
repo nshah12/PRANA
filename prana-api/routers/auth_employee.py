@@ -226,12 +226,18 @@ async def login(body: LoginIn, request: Request, db: DbConn):
     valid = verify_password(body.password, candidate_hash)
 
     if not row or not valid:
+        # Log every failed attempt, known identifier or not — matching the pattern
+        # routers/auth_oa.py already uses. Without this, brute-force/enumeration
+        # against non-existent accounts left zero audit trail, and was invisible to
+        # the BRUTE_FORCE anomaly detector that reads from this table.
+        await db.execute(
+            "INSERT INTO login_attempt_log (user_type,user_id,attempt_type,outcome,failure_reason,ip_address,entry_point) "
+            "VALUES ('employee',$1,'PASSWORD','FAILED',$2,$3::inet,'PORTAL')",
+            row["employee_user_id"] if row else None,
+            "WRONG_PASSWORD" if row else "UNKNOWN_USER",
+            _get_client_ip(request),
+        )
         if row:
-            await db.execute(
-                "INSERT INTO login_attempt_log (user_type,user_id,attempt_type,outcome,failure_reason,ip_address,entry_point) "
-                "VALUES ('employee',$1,'PASSWORD','FAILED','WRONG_PASSWORD',$2::inet,'PORTAL')",
-                row["employee_user_id"], _get_client_ip(request),
-            )
             kafka = getattr(request.app.state, "kafka_producer", None)
             if kafka:
                 await kafka.auth_event({
