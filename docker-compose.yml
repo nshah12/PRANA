@@ -77,6 +77,7 @@ services:
       timeout: 5s
       retries: 20
       start_period: 60s
+    restart: unless-stopped
 
   # ── DB init — applies schema + seeds once ──────────────────────────────────
   db-init:
@@ -103,6 +104,7 @@ services:
       interval: 5s
       timeout: 3s
       retries: 5
+    restart: unless-stopped
 
   # ── Kafka (KRaft — no ZooKeeper) ────────────────────────────────────────────
   kafka:
@@ -132,6 +134,7 @@ services:
       timeout: 5s
       retries: 10
       start_period: 30s
+    restart: unless-stopped
 
   # ── Kafka topic init ────────────────────────────────────────────────────────
   kafka-init:
@@ -155,10 +158,13 @@ services:
     volumes:
       - qdrant_data:/qdrant/storage
     healthcheck:
-      test: ["CMD", "wget", "-qO-", "http://localhost:6333/readyz"]
+      # qdrant's image has no wget/curl — bash's /dev/tcp is the only HTTP client available.
+      # Must invoke bash explicitly: CMD-SHELL runs /bin/sh (dash), which has no /dev/tcp.
+      test: ["CMD-SHELL", "bash -c \"exec 3<>/dev/tcp/localhost/6333 && printf 'GET /readyz HTTP/1.1\\r\\nHost: localhost\\r\\nConnection: close\\r\\n\\r\\n' >&3 && cat <&3 | grep -q '200 OK'\""]
       interval: 10s
       timeout: 5s
       retries: 5
+    restart: unless-stopped
 
   # ── MinIO (S3-compatible) ───────────────────────────────────────────────────
   minio:
@@ -175,10 +181,21 @@ services:
     volumes:
       - minio_data:/data
     healthcheck:
-      test: ["CMD", "mc", "ready", "local"]
+      # "mc ready local" needs an mc alias named "local" that only ever gets configured
+      # inside the separate minio-init container — it never exists in this container,
+      # so that check failed permanently. minio's own /minio/health/live endpoint
+      # needs no alias and is what minio itself recommends for liveness.
+      # Must invoke bash explicitly: CMD-SHELL runs /bin/sh (dash), which has no /dev/tcp.
+      # No grep in this image either — use bash's own substring match instead.
+      # Outer bash -c argument MUST be single-quoted: CMD-SHELL's /bin/sh wrapper still
+      # expands $(...) and $var inside double quotes, running "cat <&3" itself before
+      # the inner bash even starts (fd 3 isn't open yet in sh) -> "Bad file descriptor".
+      # Single quotes make sh pass the whole thing through literally to the inner bash.
+      test: ["CMD-SHELL", "bash -c 'exec 3<>/dev/tcp/localhost/9010 && printf \"GET /minio/health/live HTTP/1.1\\r\\nHost: localhost\\r\\nConnection: close\\r\\n\\r\\n\" >&3 && response=$$(cat <&3) && [[ $$response == *200\\ OK* ]]'"]
       interval: 10s
       timeout: 5s
       retries: 5
+    restart: unless-stopped
 
   # ── MinIO bucket init ───────────────────────────────────────────────────────
   minio-init:
@@ -211,6 +228,7 @@ services:
       interval: 5s
       timeout: 3s
       retries: 10
+    restart: unless-stopped
 
   # ── Temporal (workflow engine) ───────────────────────────────────────────────
   temporal:
@@ -233,6 +251,7 @@ services:
       timeout: 5s
       retries: 10
       start_period: 60s
+    restart: unless-stopped
 
   # ── Temporal Web UI ──────────────────────────────────────────────────────────
   temporal-ui:
@@ -245,6 +264,7 @@ services:
       - TEMPORAL_CORS_ORIGINS=http://localhost:8080
     depends_on:
       - temporal
+    restart: unless-stopped
 
   # ── Immudb (tamper-evident audit ledger — cryptographically verifiable, append-only) ─
   immudb:
@@ -265,6 +285,7 @@ services:
       timeout: 5s
       retries: 10
       start_period: 20s
+    restart: unless-stopped
 
   # ── prana-api ───────────────────────────────────────────────────────────────
   prana-api:
@@ -298,7 +319,7 @@ services:
         condition: service_healthy
       immudb:
         condition: service_healthy
-    restart: on-failure
+    restart: unless-stopped
 
   # ── prana-ai ────────────────────────────────────────────────────────────────
   prana-ai:
@@ -321,7 +342,7 @@ services:
         condition: service_completed_successfully
       qdrant:
         condition: service_healthy
-    restart: on-failure
+    restart: unless-stopped
 
   # ── prana-ask ───────────────────────────────────────────────────────────────
   prana-ask:
@@ -346,7 +367,7 @@ services:
         condition: service_healthy
       qdrant:
         condition: service_healthy
-    restart: on-failure
+    restart: unless-stopped
 
 volumes:
   yugabyte_data:
