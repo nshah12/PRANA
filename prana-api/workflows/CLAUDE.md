@@ -184,6 +184,13 @@ Corrections from the previous (53-count) version of this table:
   (security/crypto paths → P1 on first occurrence, compliance paths → P2 after 3
   occurrences in 10 minutes, novel bugs → P2 on first occurrence, noisy recurrence →
   P3 after 10 occurrences in 15 minutes).
+- `PolicyLockWorkflow`'s `apply_policy_lock`/`release_policy_lock`/`notify_policy_lock`
+  activities were bare stubs until 2026-07-16 — fixed alongside `get_security_config`
+  (also a stub; every workflow in `workflows/security.py` that reads a duration from
+  config depended on it). Now has a real trigger: `SecurityConsumer._maybe_auto_lock`
+  starts this workflow off a `BULK_DOC_ACCESS`/`BRUTE_FORCE` anomaly, gated behind
+  `bulk_access_auto_lock_enabled`/`brute_force_auto_lock_enabled` (both seeded `false`).
+  See `KAFKA_REDIS_ARCHITECTURE.md` §10 and `prana-docs/SEVERITY_SLA_POLICY_DESIGN.md`.
 
 ## Configuration Model (critical rule)
 Every duration and schedule is read at workflow **trigger time** from `get_config(key, tenant_id)`.

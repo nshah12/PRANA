@@ -466,3 +466,47 @@ standalone page) — `prana-portal/src/pages/pa/SecurityIncidentRegister.tsx` (P
 `prana-portal/src/pages/ciso/SecurityIncidents.tsx` (CISO, backed by `/v1/ciso/errors*`,
 tenant-scoped — own tenant plus `tenant_id IS NULL` platform-level errors — read/acknowledge/
 resolve only, no ignore/promote).
+
+## 10. Severity/SLA Policy & Anomaly Detection Engine (DECIDED, APPROVED 2026-07-16)
+
+Full design: `prana-docs/SEVERITY_SLA_POLICY_DESIGN.md`.
+
+### 10.1 Why
+
+Severity (P0–P3) and SLA-minutes decisions were previously hardcoded constants scattered
+across `incident_service.py`, `error_threshold_service.py`, `health_service.py`, and the
+anomaly-severity literals in `workflows/activities.py` + `security_consumer.py`. A single
+PA-editable rule engine (`services/severity_policy_service.py`, tables `sla_policy` +
+`severity_classification_rule`, migration `041_severity_sla_policy.sql`) replaces all of
+them — every domain now resolves severity the same way, and PA can retune thresholds
+without a deploy.
+
+### 10.2 Anomaly detection — `AnomalyDetectionWorkflow` (Pattern 4, `secops-queue`)
+
+`services/anomaly_detection_service.py`'s `run_batch()` runs 6 real SQL-backed rules every
+`platform_anomaly_check_minutes` (default 5): `BULK_DOC_ACCESS`, `BRUTE_FORCE`,
+`OFF_HOURS_ACCESS`, `IMPOSSIBLE_TRAVEL`, `SHARE_ENUM`, `PRE_EXIT_BULK`. Each reads its own
+occurrence/window threshold from `severity_classification_rule` (domain `ANOMALY_RULE`),
+writes `anomaly_event`, and publishes a `security_event` with severity already resolved —
+`SecurityConsumer` persists the row (event-driven anomalies with no other writer) and calls
+`IncidentService.auto_create_for_anomaly`.
+
+### 10.3 Auto-lock — `PolicyLockWorkflow` (Pattern 2, `auth-queue`)
+
+`workflows/security.py`'s `apply_policy_lock` / `release_policy_lock` activities
+(`services/account_lock_service.py`) write/reverse an `account_status_event` row
+(`event_type='POLICY_LOCK'`) and flip `employee_user`/`oa_user.status` between `ACTIVE` and
+`LOCKED`. `SecurityConsumer._maybe_auto_lock` starts this workflow when a `BULK_DOC_ACCESS`
+or `BRUTE_FORCE` anomaly names a lockable `actor_user_type` (`employee` or `oa_user` —
+`THIRD_PARTY` HRMS API-key actors are never locked), **gated behind
+`bulk_access_auto_lock_enabled` / `brute_force_auto_lock_enabled`, both platform_config
+booleans seeded `false`** — anomaly detection and incident creation ship active; auto-lock
+is PA opt-in after trusting real thresholds. `get_security_config` resolves every
+duration/schedule this file's workflows need via `ConfigService` (tenant_config overrides
+platform_config).
+
+### 10.4 PA configuration
+
+`routers/pa_admin.py`: `GET/PATCH /admin/sla-policy*`, `GET/POST/PATCH
+/admin/severity-rules*`. Portal: `prana-portal/src/pages/pa/IncidentPolicyConfig.tsx` — two
+tabs, SLA & Auto-Incident and Classification Rules.
