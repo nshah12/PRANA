@@ -1339,3 +1339,94 @@ async def review_application(app_id: str, body: ReviewIn, db: DbConn, current=PA
     )
     return {"status": body.status}
 
+
+# ── Severity / SLA policy config — see prana-docs/SEVERITY_SLA_POLICY_DESIGN.md §5 ──
+
+@router.get("/sla-policy")
+async def list_sla_policy(db: DbConn, _=PA):
+    from services.severity_policy_service import SeverityPolicyService
+    items = await SeverityPolicyService(db).get_all_sla_policies()
+    return {"items": items, "total": len(items)}
+
+
+class SlaPolicyUpdateIn(BaseModel):
+    sla_minutes: Optional[int] = Field(default=None, gt=0)
+    auto_create_incident: Optional[bool] = None
+    description: Optional[str] = None
+
+
+@router.patch("/sla-policy/{severity}")
+async def update_sla_policy(severity: str, body: SlaPolicyUpdateIn, db: DbConn, current=PA):
+    from services.severity_policy_service import SeverityPolicyService
+    try:
+        policy = await SeverityPolicyService(db).update_sla_policy(
+            severity=severity, sla_minutes=body.sla_minutes,
+            auto_create_incident=body.auto_create_incident,
+            description=body.description, updated_by=current.user_id,
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
+    return {"message": SuccessCode.SLA_POLICY_UPDATED, "sla_policy": policy}
+
+
+@router.get("/severity-rules")
+async def list_severity_rules(db: DbConn, _=PA, domain: Optional[str] = None):
+    from services.severity_policy_service import SeverityPolicyService
+    items = await SeverityPolicyService(db).list_severity_rules(domain=domain)
+    return {"items": items, "total": len(items)}
+
+
+class SeverityRuleCreateIn(BaseModel):
+    domain: str
+    match_type: str
+    match_value: Optional[str] = None
+    occurrence_threshold: Optional[int] = None
+    occurrence_threshold_max: Optional[int] = None
+    window_minutes: Optional[int] = None
+    severity: str
+    priority: int = 100
+    description: Optional[str] = None
+
+
+@router.post("/severity-rules", status_code=status.HTTP_201_CREATED)
+async def create_severity_rule(body: SeverityRuleCreateIn, db: DbConn, current=PA):
+    from services.severity_policy_service import SeverityPolicyService
+    try:
+        rule = await SeverityPolicyService(db).create_severity_rule(
+            domain=body.domain, match_type=body.match_type, match_value=body.match_value,
+            occurrence_threshold=body.occurrence_threshold,
+            occurrence_threshold_max=body.occurrence_threshold_max,
+            window_minutes=body.window_minutes, severity=body.severity,
+            priority=body.priority, description=body.description,
+            updated_by=current.user_id,
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(exc)) from exc
+    return {"message": SuccessCode.SEVERITY_RULE_CREATED, "severity_rule": rule}
+
+
+class SeverityRuleUpdateIn(BaseModel):
+    occurrence_threshold: Optional[int] = None
+    occurrence_threshold_max: Optional[int] = None
+    window_minutes: Optional[int] = None
+    severity: Optional[str] = None
+    priority: Optional[int] = None
+    is_active: Optional[bool] = None
+    description: Optional[str] = None
+
+
+@router.patch("/severity-rules/{rule_id}")
+async def update_severity_rule(rule_id: str, body: SeverityRuleUpdateIn, db: DbConn, current=PA):
+    from services.severity_policy_service import SeverityPolicyService
+    try:
+        rule = await SeverityPolicyService(db).update_severity_rule(
+            rule_id=rule_id, occurrence_threshold=body.occurrence_threshold,
+            occurrence_threshold_max=body.occurrence_threshold_max,
+            window_minutes=body.window_minutes, severity=body.severity,
+            priority=body.priority, is_active=body.is_active,
+            description=body.description, updated_by=current.user_id,
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
+    return {"message": SuccessCode.SEVERITY_RULE_UPDATED, "severity_rule": rule}
+

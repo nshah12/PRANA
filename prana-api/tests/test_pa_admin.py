@@ -691,3 +691,150 @@ async def test_review_application_updates_status(client, mock_db):
     assert args[1] == "APPROVED"
     assert args[2] == "Looks good"
     assert args[3] == "app-1"
+
+
+# ── Severity / SLA policy config ─────────────────────────────────────────────
+
+SLA_SVC = "services.severity_policy_service.SeverityPolicyService"
+
+
+@pytest.mark.asyncio
+async def test_list_sla_policy_requires_portal_admin_role(client, mock_db):
+    _set_oa_auth(client)
+    resp = await client.get("/admin/sla-policy", headers=AUTH_HEADER)
+    assert resp.status_code == 403
+
+
+@pytest.mark.asyncio
+async def test_list_sla_policy_returns_items(client, mock_db):
+    _set_pa_auth(client)
+    with patch(f"{SLA_SVC}.get_all_sla_policies", new_callable=AsyncMock) as mock_list:
+        mock_list.return_value = [{"severity": "P0", "sla_minutes": 30, "auto_create_incident": True,
+                                    "description": None, "updated_by": None, "updated_at": None}]
+        resp = await client.get("/admin/sla-policy", headers=AUTH_HEADER)
+
+    assert resp.status_code == 200
+    data = resp.json()
+    assert data["total"] == 1
+    assert data["items"][0]["severity"] == "P0"
+
+
+@pytest.mark.asyncio
+async def test_update_sla_policy_calls_service_with_current_user(client, mock_db):
+    _set_pa_auth(client, pa_id="pa-uuid-777")
+    with patch(f"{SLA_SVC}.update_sla_policy", new_callable=AsyncMock) as mock_update:
+        mock_update.return_value = {"severity": "P1", "sla_minutes": 90,
+                                     "auto_create_incident": True, "description": "x",
+                                     "updated_by": "pa-uuid-777", "updated_at": None}
+        resp = await client.patch(
+            "/admin/sla-policy/P1", headers=AUTH_HEADER,
+            json={"sla_minutes": 90, "auto_create_incident": True},
+        )
+
+    assert resp.status_code == 200
+    assert resp.json()["message"] == "SLA_POLICY_UPDATED"
+    assert resp.json()["sla_policy"]["sla_minutes"] == 90
+    mock_update.assert_awaited_once_with(
+        severity="P1", sla_minutes=90, auto_create_incident=True,
+        description=None, updated_by="pa-uuid-777",
+    )
+
+
+@pytest.mark.asyncio
+async def test_update_sla_policy_unknown_severity_returns_404(client, mock_db):
+    _set_pa_auth(client)
+    with patch(f"{SLA_SVC}.update_sla_policy", new_callable=AsyncMock,
+               side_effect=ValueError("No SLA policy for severity P9")):
+        resp = await client.patch(
+            "/admin/sla-policy/P9", headers=AUTH_HEADER, json={"sla_minutes": 10},
+        )
+    assert resp.status_code == 404
+
+
+@pytest.mark.asyncio
+async def test_list_severity_rules_requires_portal_admin_role(client, mock_db):
+    _set_oa_auth(client)
+    resp = await client.get("/admin/severity-rules", headers=AUTH_HEADER)
+    assert resp.status_code == 403
+
+
+@pytest.mark.asyncio
+async def test_list_severity_rules_filters_by_domain_query_param(client, mock_db):
+    _set_pa_auth(client)
+    with patch(f"{SLA_SVC}.list_severity_rules", new_callable=AsyncMock) as mock_list:
+        mock_list.return_value = []
+        resp = await client.get("/admin/severity-rules?domain=ANOMALY_RULE", headers=AUTH_HEADER)
+
+    assert resp.status_code == 200
+    mock_list.assert_awaited_once_with(domain="ANOMALY_RULE")
+
+
+@pytest.mark.asyncio
+async def test_create_severity_rule_calls_service_with_current_user(client, mock_db):
+    _set_pa_auth(client, pa_id="pa-uuid-777")
+    with patch(f"{SLA_SVC}.create_severity_rule", new_callable=AsyncMock) as mock_create:
+        mock_create.return_value = {"rule_id": "r-1", "domain": "ANOMALY_RULE", "match_type": "EXACT",
+                                     "match_value": "NEW_RULE", "occurrence_threshold": 5,
+                                     "occurrence_threshold_max": None, "window_minutes": 15,
+                                     "severity": "P2", "priority": 50, "is_active": True,
+                                     "description": None, "updated_by": "pa-uuid-777", "updated_at": None}
+        resp = await client.post(
+            "/admin/severity-rules", headers=AUTH_HEADER,
+            json={"domain": "ANOMALY_RULE", "match_type": "EXACT", "match_value": "NEW_RULE",
+                  "occurrence_threshold": 5, "window_minutes": 15, "severity": "P2", "priority": 50},
+        )
+
+    assert resp.status_code == 201
+    assert resp.json()["message"] == "SEVERITY_RULE_CREATED"
+    mock_create.assert_awaited_once_with(
+        domain="ANOMALY_RULE", match_type="EXACT", match_value="NEW_RULE",
+        occurrence_threshold=5, occurrence_threshold_max=None, window_minutes=15,
+        severity="P2", priority=50, description=None, updated_by="pa-uuid-777",
+    )
+
+
+@pytest.mark.asyncio
+async def test_create_severity_rule_invalid_match_type_returns_422(client, mock_db):
+    _set_pa_auth(client)
+    with patch(f"{SLA_SVC}.create_severity_rule", new_callable=AsyncMock,
+               side_effect=ValueError("match_type must be PREFIX, EXACT, or DEFAULT")):
+        resp = await client.post(
+            "/admin/severity-rules", headers=AUTH_HEADER,
+            json={"domain": "ANOMALY_RULE", "match_type": "FUZZY", "severity": "P2"},
+        )
+    assert resp.status_code == 422
+
+
+@pytest.mark.asyncio
+async def test_update_severity_rule_calls_service_with_current_user(client, mock_db):
+    _set_pa_auth(client, pa_id="pa-uuid-777")
+    with patch(f"{SLA_SVC}.update_severity_rule", new_callable=AsyncMock) as mock_update:
+        mock_update.return_value = {"rule_id": "r-1", "domain": "ANOMALY_RULE", "match_type": "EXACT",
+                                     "match_value": "BULK_DOC_ACCESS", "occurrence_threshold": 75,
+                                     "occurrence_threshold_max": None, "window_minutes": 10,
+                                     "severity": "P1", "priority": 10, "is_active": False,
+                                     "description": None, "updated_by": "pa-uuid-777", "updated_at": None}
+        resp = await client.patch(
+            "/admin/severity-rules/r-1", headers=AUTH_HEADER,
+            json={"occurrence_threshold": 75, "is_active": False},
+        )
+
+    assert resp.status_code == 200
+    assert resp.json()["message"] == "SEVERITY_RULE_UPDATED"
+    assert resp.json()["severity_rule"]["is_active"] is False
+    mock_update.assert_awaited_once_with(
+        rule_id="r-1", occurrence_threshold=75, occurrence_threshold_max=None,
+        window_minutes=None, severity=None, priority=None, is_active=False,
+        description=None, updated_by="pa-uuid-777",
+    )
+
+
+@pytest.mark.asyncio
+async def test_update_severity_rule_unknown_id_returns_404(client, mock_db):
+    _set_pa_auth(client)
+    with patch(f"{SLA_SVC}.update_severity_rule", new_callable=AsyncMock,
+               side_effect=ValueError("Rule r-9 not found")):
+        resp = await client.patch(
+            "/admin/severity-rules/r-9", headers=AUTH_HEADER, json={"priority": 5},
+        )
+    assert resp.status_code == 404

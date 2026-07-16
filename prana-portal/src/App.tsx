@@ -81,6 +81,7 @@ import { SecOpsDashboard }   from '@/pages/pa/SecOpsDashboard'
 import { AnomalyDetection }  from '@/pages/pa/AnomalyDetection'
 import { IncidentRegister }         from '@/pages/pa/IncidentRegister'
 import { SecurityIncidentRegister } from '@/pages/pa/SecurityIncidentRegister'
+import { IncidentPolicyConfig }     from '@/pages/pa/IncidentPolicyConfig'
 import { PaNotificationLog }        from '@/pages/pa/PaNotificationLog'
 import { CryptoHealth }             from '@/pages/pa/CryptoHealth'
 import { ApiKeys }           from '@/pages/pa/ApiKeys'
@@ -322,6 +323,7 @@ export default function App() {
       <Route path="/admin/anomalies"  element={<RequireAuth><PortalLayout><AnomalyDetection /></PortalLayout></RequireAuth>} />
       <Route path="/admin/incidents"           element={<RequireAuth><PortalLayout><IncidentRegister /></PortalLayout></RequireAuth>} />
       <Route path="/admin/security-incidents" element={<RequireAuth><PortalLayout><SecurityIncidentRegister /></PortalLayout></RequireAuth>} />
+      <Route path="/admin/incident-policy"    element={<RequireAuth><PortalLayout><IncidentPolicyConfig /></PortalLayout></RequireAuth>} />
       <Route path="/admin/notifications"      element={<RequireAuth><PortalLayout><PaNotificationLog /></PortalLayout></RequireAuth>} />
       <Route path="/admin/crypto"     element={<RequireAuth><PortalLayout><CryptoHealth /></PortalLayout></RequireAuth>} />
       <Route path="/admin/audit"      element={<RequireAuth><PortalLayout><AuditTrail /></PortalLayout></RequireAuth>} />

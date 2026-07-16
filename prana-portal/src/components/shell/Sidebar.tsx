@@ -157,6 +157,7 @@ function navForRole(role: UserRole, base: string, counts: BadgeCounts = {}): Nav
             { label: tUi('NAV_ANOMALY_DETECTION'),   to: `${base}/anomalies`,           icon: <AlertTriangle size={16}/>, ...(counts.anomalies ? { badge: { count: counts.anomalies, color: 'amber' as const } } : {}) },
             { label: tUi('NAV_INCIDENT_REGISTER'),   to: `${base}/incidents`,           icon: <ClipboardList size={16}/>, ...(counts.incidents ? { badge: { count: counts.incidents, color: 'red' as const } } : {}) },
             { label: tUi('NAV_SECURITY_INCIDENTS'),  to: `${base}/security-incidents`,  icon: <ShieldAlert size={16}/> },
+            { label: tUi('NAV_INCIDENT_POLICY'),     to: `${base}/incident-policy`,     icon: <Settings size={16}/> },
             { label: tUi('NAV_NOTIFICATION_LOG'),    to: `${base}/notifications`,       icon: <Bell size={16}/> },
             { label: tUi('NAV_CRYPTOGRAPHIC_HEALTH'),to: `${base}/crypto`,              icon: <Key size={16}/> },
             { label: tUi('NAV_AUDIT_TRAIL'),         to: `${base}/audit`,               icon: <FileSearch size={16}/> },
