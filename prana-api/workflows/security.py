@@ -32,13 +32,53 @@ RENEW_THRESHOLD = 5_000  # Continue-As-New before history fills
 # ── Activities (stubs — implementations in services/security_service.py) ──────
 
 @activity.defn(name="apply_policy_lock")
-async def apply_policy_lock(params: dict) -> None: ...
+async def apply_policy_lock(params: dict) -> str:
+    import asyncpg
+
+    from config import get_settings
+    from services.account_lock_service import AccountLockService
+
+    settings = get_settings()
+    db = await asyncpg.connect(settings.db_dsn)
+    try:
+        return await AccountLockService(db).apply_policy_lock(
+            user_type=params["user_type"], user_id=params["user_id"],
+            tenant_id=params.get("tenant_id"), reason_code=params["reason_code"],
+            lock_hours=params["lock_hours"],
+        )
+    finally:
+        await db.close()
 
 @activity.defn(name="release_policy_lock")
-async def release_policy_lock(params: dict) -> None: ...
+async def release_policy_lock(params: dict) -> None:
+    import asyncpg
+
+    from config import get_settings
+    from services.account_lock_service import AccountLockService
+
+    settings = get_settings()
+    db = await asyncpg.connect(settings.db_dsn)
+    try:
+        await AccountLockService(db).release_policy_lock(
+            user_type=params["user_type"], user_id=params["user_id"],
+            event_id=params["event_id"], unlocked_by=params.get("unlocked_by") or "",
+            early=params.get("early", False),
+        )
+    finally:
+        await db.close()
 
 @activity.defn(name="notify_policy_lock")
-async def notify_policy_lock(params: dict) -> None: ...
+async def notify_policy_lock(params: dict) -> None:
+    from kafka.producer import get_kafka_producer
+
+    kafka = await get_kafka_producer()
+    await kafka.security_event({
+        "event_type":  "ACCOUNT_LOCKED",
+        "user_id":     params["user_id"],
+        "user_type":   params["user_type"],
+        "tenant_id":   params.get("tenant_id"),
+        "reason":      params["reason_code"],
+    })
 
 @activity.defn(name="apply_totp_lockout")
 async def apply_totp_lockout(params: dict) -> None: ...
@@ -53,7 +93,23 @@ async def expire_session(params: dict) -> None: ...
 async def force_revoke_session(params: dict) -> None: ...
 
 @activity.defn(name="run_anomaly_detection_batch")
-async def run_anomaly_detection_batch(params: dict) -> dict: ...
+async def run_anomaly_detection_batch(params: dict) -> dict:
+    import asyncpg
+
+    from config import get_settings
+    from services.anomaly_detection_service import AnomalyDetectionService
+
+    settings = get_settings()
+    db = await asyncpg.connect(settings.db_dsn)
+    try:
+        try:
+            from kafka.producer import get_kafka_producer
+            kafka = await get_kafka_producer()
+        except Exception:
+            kafka = None
+        return await AnomalyDetectionService(db, kafka=kafka).run_batch()
+    finally:
+        await db.close()
 
 @activity.defn(name="rotate_tenant_kek")
 async def rotate_tenant_kek(params: dict) -> None: ...
@@ -74,7 +130,25 @@ async def apply_csam_legal_hold(params: dict) -> None: ...
 async def notify_csam_platform_admin(params: dict) -> None: ...
 
 @activity.defn(name="get_security_config")
-async def get_security_config(params: dict) -> str: ...
+async def get_security_config(params: dict) -> str:
+    """Shared config-read activity for every workflow in this file — resolves
+    tenant_config-overrides-platform_config via ConfigService, falling back to
+    params["default"] only if the key is unset in the DB entirely."""
+    import asyncpg
+    import redis.asyncio as redis_async
+
+    from config import get_settings
+    from services.config_service import ConfigService
+
+    settings = get_settings()
+    db = await asyncpg.connect(settings.db_dsn)
+    rdb = redis_async.from_url(settings.redis_url)
+    try:
+        value = await ConfigService(db, rdb).get(params["key"], params.get("tenant_id"))
+        return value if value is not None else params.get("default", "")
+    finally:
+        await db.close()
+        await rdb.aclose()
 
 
 # ── PolicyLockWorkflow (Pattern 2 — Signal-Driven Timer) ─────────────────────
@@ -107,17 +181,20 @@ class PolicyLockWorkflow:
              "tenant_id": params.get("tenant_id"), "default": "24"},
             start_to_close_timeout=timedelta(minutes=2),
         )
-        for act, timeout in [(apply_policy_lock, 5), (notify_policy_lock, 5)]:
-            await workflow.execute_activity(
-                act, params,
-                start_to_close_timeout=timedelta(minutes=timeout), retry_policy=_RETRY,
-            )
+        event_id = await workflow.execute_activity(
+            apply_policy_lock, {**params, "lock_hours": int(hours_str)},
+            start_to_close_timeout=timedelta(minutes=5), retry_policy=_RETRY,
+        )
+        await workflow.execute_activity(
+            notify_policy_lock, params,
+            start_to_close_timeout=timedelta(minutes=5), retry_policy=_RETRY,
+        )
         unlocked = await workflow.wait_condition(
             lambda: self._unlocked_early, timeout=timedelta(hours=int(hours_str)),
         )
         await workflow.execute_activity(
             release_policy_lock,
-            {**params, "unlocked_by": self._unlocked_by,
+            {**params, "event_id": event_id, "unlocked_by": self._unlocked_by,
              "early": unlocked and self._unlocked_early},
             start_to_close_timeout=timedelta(minutes=5), retry_policy=_RETRY,
         )

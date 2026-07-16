@@ -1,5 +1,12 @@
 """Tests for services/error_threshold_service.py — promotion rules (§5 of
-prana-docs/ERROR_OBSERVABILITY_DESIGN.md)."""
+prana-docs/ERROR_OBSERVABILITY_DESIGN.md).
+
+Classification now delegates to SeverityPolicyService (domain=ERROR_OBSERVABILITY),
+reading the rule set from severity_classification_rule instead of hardcoded Python
+constants — see prana-docs/SEVERITY_SLA_POLICY_DESIGN.md. These tests mock the DB
+to return the same rule set seeded by migration 041, to prove the classification
+OUTCOME is unchanged by the refactor.
+"""
 import datetime
 from unittest.mock import AsyncMock, patch
 
@@ -8,6 +15,26 @@ import pytest
 from services.error_threshold_service import ErrorThresholdService
 
 NOW = datetime.datetime(2026, 7, 15, 12, 0, 0, tzinfo=datetime.timezone.utc)
+
+# Mirrors migration 041's domain=ERROR_OBSERVABILITY seed, in priority order.
+_ERROR_OBS_RULES = [
+    {"match_type": "PREFIX", "match_value": "/auth/", "occurrence_threshold": None,
+     "occurrence_threshold_max": None, "window_minutes": None, "severity": "P1"},
+    {"match_type": "PREFIX", "match_value": "/totp/", "occurrence_threshold": None,
+     "occurrence_threshold_max": None, "window_minutes": None, "severity": "P1"},
+    {"match_type": "EXACT", "match_value": "AuthConsumer", "occurrence_threshold": None,
+     "occurrence_threshold_max": None, "window_minutes": None, "severity": "P1"},
+    {"match_type": "EXACT", "match_value": "verify_audit_integrity", "occurrence_threshold": None,
+     "occurrence_threshold_max": None, "window_minutes": None, "severity": "P1"},
+    {"match_type": "PREFIX", "match_value": "/v1/dpdp/", "occurrence_threshold": 3,
+     "occurrence_threshold_max": None, "window_minutes": 10, "severity": "P2"},
+    {"match_type": "PREFIX", "match_value": "/v1/ingest/", "occurrence_threshold": 3,
+     "occurrence_threshold_max": None, "window_minutes": 10, "severity": "P2"},
+    {"match_type": "DEFAULT", "match_value": None, "occurrence_threshold": 1,
+     "occurrence_threshold_max": 1, "window_minutes": None, "severity": "P2"},
+    {"match_type": "DEFAULT", "match_value": None, "occurrence_threshold": 10,
+     "occurrence_threshold_max": None, "window_minutes": 15, "severity": "P3"},
+]
 
 
 def _row(source_detail, occurrence_count, first_seen_at=NOW, last_seen_at=NOW, error_id="e-1"):
@@ -18,65 +45,95 @@ def _row(source_detail, occurrence_count, first_seen_at=NOW, last_seen_at=NOW, e
     }
 
 
+def _svc_with_rules():
+    db = AsyncMock()
+    db.fetch = AsyncMock(return_value=_ERROR_OBS_RULES)
+    return ErrorThresholdService(db)
+
+
+@pytest.mark.asyncio
 @pytest.mark.parametrize("source_detail", [
     "/auth/employee/login", "/auth/org/login", "/auth/admin/login",
     "/totp/setup/init", "AuthConsumer", "verify_audit_integrity",
 ])
-def test_security_path_promotes_to_p1_on_first_occurrence(source_detail):
-    svc = ErrorThresholdService(AsyncMock())
-    assert svc._classify(_row(source_detail, occurrence_count=1)) == "P1"
+async def test_security_path_promotes_to_p1_on_first_occurrence(source_detail):
+    svc = _svc_with_rules()
+    assert await svc._classify(_row(source_detail, occurrence_count=1)) == "P1"
 
 
-def test_non_security_path_single_occurrence_does_not_get_p1():
-    svc = ErrorThresholdService(AsyncMock())
-    assert svc._classify(_row("/v1/cfo/anomalies", occurrence_count=1)) != "P1"
+@pytest.mark.asyncio
+async def test_non_security_path_single_occurrence_does_not_get_p1():
+    svc = _svc_with_rules()
+    assert await svc._classify(_row("/v1/cfo/anomalies", occurrence_count=1)) != "P1"
 
 
+@pytest.mark.asyncio
 @pytest.mark.parametrize("source_detail", ["/v1/dpdp/erasure-request", "/v1/ingest/upload"])
-def test_compliance_path_needs_three_occurrences_within_10_minutes(source_detail):
-    svc = ErrorThresholdService(AsyncMock())
+async def test_compliance_path_needs_three_occurrences_within_10_minutes(source_detail):
+    svc = _svc_with_rules()
     within_window = NOW + datetime.timedelta(minutes=5)
-    assert svc._classify(_row(source_detail, 3, NOW, within_window)) == "P2"
-    assert svc._classify(_row(source_detail, 2, NOW, within_window)) is None
+    assert await svc._classify(_row(source_detail, 3, NOW, within_window)) == "P2"
+    assert await svc._classify(_row(source_detail, 2, NOW, within_window)) is None
 
 
+@pytest.mark.asyncio
 @pytest.mark.parametrize("source_detail", ["/v1/dpdp/erasure-request", "/v1/ingest/upload"])
-def test_compliance_path_outside_10_minute_window_not_promoted(source_detail):
-    svc = ErrorThresholdService(AsyncMock())
+async def test_compliance_path_outside_10_minute_window_not_promoted(source_detail):
+    svc = _svc_with_rules()
     outside_window = NOW + datetime.timedelta(minutes=30)
-    assert svc._classify(_row(source_detail, 3, NOW, outside_window)) is None
+    assert await svc._classify(_row(source_detail, 3, NOW, outside_window)) is None
 
 
-def test_novel_fingerprint_promotes_to_p2_on_first_occurrence():
-    svc = ErrorThresholdService(AsyncMock())
-    assert svc._classify(_row("/v1/cfo/anomalies", occurrence_count=1)) == "P2"
+@pytest.mark.asyncio
+async def test_novel_fingerprint_promotes_to_p2_on_first_occurrence():
+    svc = _svc_with_rules()
+    assert await svc._classify(_row("/v1/cfo/anomalies", occurrence_count=1)) == "P2"
 
 
-def test_recurring_non_security_error_needs_ten_occurrences_within_15_minutes():
-    svc = ErrorThresholdService(AsyncMock())
+@pytest.mark.asyncio
+async def test_recurring_non_security_error_needs_ten_occurrences_within_15_minutes():
+    svc = _svc_with_rules()
     within_window = NOW + datetime.timedelta(minutes=10)
-    assert svc._classify(_row("/v1/cfo/anomalies", 10, NOW, within_window)) == "P3"
-    assert svc._classify(_row("/v1/cfo/anomalies", 9, NOW, within_window)) is None
+    assert await svc._classify(_row("/v1/cfo/anomalies", 10, NOW, within_window)) == "P3"
+    assert await svc._classify(_row("/v1/cfo/anomalies", 9, NOW, within_window)) is None
 
 
-def test_recurring_non_security_error_outside_window_not_promoted():
-    svc = ErrorThresholdService(AsyncMock())
+@pytest.mark.asyncio
+async def test_recurring_non_security_error_outside_window_not_promoted():
+    svc = _svc_with_rules()
     outside_window = NOW + datetime.timedelta(minutes=45)
-    assert svc._classify(_row("/v1/cfo/anomalies", 10, NOW, outside_window)) is None
+    assert await svc._classify(_row("/v1/cfo/anomalies", 10, NOW, outside_window)) is None
 
 
-def test_between_two_and_nine_occurrences_stays_unpromoted():
-    svc = ErrorThresholdService(AsyncMock())
-    assert svc._classify(_row("/v1/cfo/anomalies", 5, NOW, NOW)) is None
+@pytest.mark.asyncio
+async def test_between_two_and_nine_occurrences_stays_unpromoted():
+    svc = _svc_with_rules()
+    assert await svc._classify(_row("/v1/cfo/anomalies", 5, NOW, NOW)) is None
+
+
+def _mixed_fetch(error_rows):
+    """db.fetch side_effect: first call (error_event scan) returns error_rows,
+    every subsequent call (SeverityPolicyService rule lookups) returns the
+    ERROR_OBSERVABILITY rule set."""
+    calls = {"n": 0}
+
+    async def _fetch(sql, *args):
+        calls["n"] += 1
+        if calls["n"] == 1:
+            return error_rows
+        return _ERROR_OBS_RULES
+
+    return _fetch
 
 
 @pytest.mark.asyncio
 async def test_evaluate_promotions_promotes_qualifying_rows_and_skips_others():
     db = AsyncMock()
-    db.fetch = AsyncMock(return_value=[
+    error_rows = [
         _row("/auth/employee/login", 1, error_id="e-security"),
         _row("/v1/cfo/anomalies", 3, error_id="e-quiet"),
-    ])
+    ]
+    db.fetch = AsyncMock(side_effect=_mixed_fetch(error_rows))
     svc = ErrorThresholdService(db)
 
     with patch.object(svc, "promote_to_incident_via_error_observability", new_callable=AsyncMock) as mock_promote:

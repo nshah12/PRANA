@@ -91,6 +91,23 @@ async def test_sse_returns_404_for_wrong_tenant(client, mock_db, mock_redis):
 
 
 @pytest.mark.asyncio
+async def test_sse_404_checks_for_cross_tenant_query_anomaly(client, mock_db, mock_redis):
+    """A 404 here must trigger the tenant-isolation guard — see
+    prana-docs/SEVERITY_SLA_POLICY_DESIGN.md §3.2 (CROSS_TENANT_QUERY)."""
+    _set_oa_auth(client, tenant_id="tenant-002")
+    mock_db.fetchrow.return_value = None
+
+    with patch("services.tenant_isolation_guard.TenantIsolationGuard.check_document_access",
+               new_callable=AsyncMock) as mock_check:
+        resp = await client.get("/v1/ingest/status/doc-001", headers=AUTH_HEADER)
+
+    assert resp.status_code == 404
+    mock_check.assert_awaited_once_with(
+        document_id="doc-001", requesting_tenant_id="tenant-002", actor_id="oa-uuid-001",
+    )
+
+
+@pytest.mark.asyncio
 async def test_sse_tenant_id_used_in_db_ownership_check(client, mock_db, mock_redis):
     """DB query must include tenant_id — never return docs across tenants."""
     _set_oa_auth(client, tenant_id="tenant-001")

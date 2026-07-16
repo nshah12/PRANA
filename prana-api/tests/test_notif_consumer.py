@@ -1,9 +1,10 @@
-"""Tests for kafka/consumers/notif_consumer.py — AUDIT_INTEGRITY_MISMATCH handler.
+"""Tests for kafka/consumers/notif_consumer.py — AUDIT_INTEGRITY_MISMATCH handler
+and _handle_anomaly's severity resolution.
 
-Scoped to the new handler only; NotifConsumer's pre-existing handlers predate
+Scoped to touched handlers only; NotifConsumer's pre-existing handlers predate
 TDD enforcement and kafka/ is exempt from TDD-01 (see .claude/rules/tdd.md).
 """
-from unittest.mock import AsyncMock
+from unittest.mock import AsyncMock, patch
 
 import pytest
 
@@ -65,3 +66,47 @@ async def test_audit_integrity_mismatch_no_pa_admins_does_not_crash():
     await consumer._handle_audit_integrity_mismatch({"event_type": "AUDIT_INTEGRITY_MISMATCH"}, svc, conn)
 
     svc.notify.assert_not_awaited()
+
+
+# ── _handle_anomaly — shared severity resolution (fixes the P3/P2 disagreement) ──
+
+@pytest.mark.asyncio
+async def test_handle_anomaly_uses_explicit_severity_when_present():
+    consumer = NotifConsumer.__new__(NotifConsumer)
+    consumer._lookup_ciso = AsyncMock(return_value=None)
+    svc = AsyncMock()
+    isvc = AsyncMock()
+    conn = AsyncMock()
+
+    event = {"tenant_id": "t-1", "anomaly_id": "a-1", "rule_name": "BRUTE_FORCE", "severity": "P0"}
+    with patch("services.severity_policy_service.SeverityPolicyService.resolve_severity",
+               new_callable=AsyncMock) as mock_resolve:
+        await consumer._handle_anomaly(event, svc, isvc, conn)
+
+    mock_resolve.assert_not_awaited()
+    isvc.auto_create_for_anomaly.assert_awaited_once_with(
+        anomaly_id="a-1", tenant_id="t-1", rule_name="BRUTE_FORCE",
+        severity="P0", assigned_ciso_id=None,
+    )
+
+
+@pytest.mark.asyncio
+async def test_handle_anomaly_resolves_severity_via_policy_when_missing():
+    """Same shared policy lookup security_consumer.py uses — the two consumers
+    can no longer default to different severities for the same event."""
+    consumer = NotifConsumer.__new__(NotifConsumer)
+    consumer._lookup_ciso = AsyncMock(return_value=None)
+    svc = AsyncMock()
+    isvc = AsyncMock()
+    conn = AsyncMock()
+
+    event = {"tenant_id": "t-1", "anomaly_id": "a-2", "rule_name": "SOME_NEW_RULE"}
+    with patch("services.severity_policy_service.SeverityPolicyService.resolve_severity",
+               new_callable=AsyncMock, return_value="P3") as mock_resolve:
+        await consumer._handle_anomaly(event, svc, isvc, conn)
+
+    mock_resolve.assert_awaited_once_with(domain="ANOMALY_RULE", value="SOME_NEW_RULE")
+    isvc.auto_create_for_anomaly.assert_awaited_once_with(
+        anomaly_id="a-2", tenant_id="t-1", rule_name="SOME_NEW_RULE",
+        severity="P3", assigned_ciso_id=None,
+    )

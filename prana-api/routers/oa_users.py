@@ -108,16 +108,31 @@ async def deactivate_user(oa_user_id: str, db: DbConn, current=Depends(require_o
 async def change_role(
     oa_user_id: str,
     body: ChangeRoleIn,
+    request: Request,
     db: DbConn,
     current=Depends(require_oa("oa_admin")),
 ):
     svc = OAUserService(db)
     try:
-        await svc.change_role(oa_user_id, body.role, current.tenant_id, current.user_id)
+        result = await svc.change_role(oa_user_id, body.role, current.tenant_id, current.user_id)
     except ValueError as e:
         code = str(e)
         status_code = status.HTTP_409_CONFLICT if code == "MIN_ADMIN_CONSTRAINT" else status.HTTP_404_NOT_FOUND
         raise HTTPException(status_code=status_code, detail=code)
+
+    # Audit trail (AuditConsumer) + PRIVILEGE_ESCALATION detection (OAUserConsumer) both
+    # happen downstream — never a direct write here, per the HTTP handler contract.
+    kafka = getattr(request.app.state, "kafka_producer", None)
+    if kafka:
+        await kafka.oa_user_event({
+            "event_type": "ROLE_CHANGED",
+            "tenant_id":  str(current.tenant_id),
+            "oa_user_id": oa_user_id,
+            "old_role":   result["old_role"],
+            "new_role":   result["new_role"],
+            "actor_id":   str(current.user_id),
+        })
+
     return {"message": SuccessCode.ROLE_UPDATED}
 
 

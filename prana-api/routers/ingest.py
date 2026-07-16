@@ -264,6 +264,10 @@ async def pipeline_status_stream(
         document_id, tenant_id,
     )
     if not row:
+        from services.tenant_isolation_guard import TenantIsolationGuard
+        await TenantIsolationGuard(db).check_document_access(
+            document_id=document_id, requesting_tenant_id=tenant_id, actor_id=current.user_id,
+        )
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=PranaError.DOCUMENT_NOT_FOUND)
 
     initial_status = row["pipeline_status"]

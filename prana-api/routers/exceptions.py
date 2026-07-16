@@ -219,6 +219,11 @@ async def resolve_exception(
         body.employee_uuid, current.tenant_id,
     )
     if not emp_uuid:
+        from services.tenant_isolation_guard import TenantIsolationGuard
+        await TenantIsolationGuard(db).check_employee_access(
+            employee_uuid=body.employee_uuid, requesting_tenant_id=current.tenant_id,
+            actor_id=current.user_id,
+        )
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=PranaError.EMPLOYEE_NOT_FOUND)
 
     now = datetime.datetime.now(tz=datetime.timezone.utc)

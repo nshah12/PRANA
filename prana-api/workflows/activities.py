@@ -233,6 +233,11 @@ async def stage05_handle_cross_tenant_violation(params: dict) -> dict:
         pan_token          = params.get("pan_token", "")
         actor_id           = params.get("uploaded_by")   # oa_user_id who triggered the upload
 
+        from services.severity_policy_service import SeverityPolicyService
+        severity = await SeverityPolicyService(db).resolve_severity(
+            domain="ANOMALY_RULE", value="CROSS_TENANT_UPLOAD_ATTEMPT",
+        ) or "P0"
+
         async with db.transaction():
             anomaly_id = str(uuid.uuid4())
             await db.execute(
@@ -244,7 +249,7 @@ async def stage05_handle_cross_tenant_violation(params: dict) -> dict:
                 anomaly_id,
                 uploading_tenant_id,
                 "CROSS_TENANT_UPLOAD_ATTEMPT",
-                "P0",
+                severity,
                 actor_id,
                 json.dumps({
                     "document_id":        document_id,

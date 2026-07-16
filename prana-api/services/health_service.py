@@ -17,14 +17,17 @@ from uuid import UUID
 import asyncpg
 import httpx
 
+from services.severity_policy_service import SeverityPolicyService
+
 log = logging.getLogger(__name__)
 
-# Services checked on every poll cycle
-# severity: P1 = data loss / auth down, P2 = feature degraded, P3 = non-critical
+# Services checked on every poll cycle. Severity per service is PA-editable —
+# read from severity_classification_rule (domain=HEALTH_CHECK) via
+# SeverityPolicyService, not hardcoded here. See prana-docs/SEVERITY_SLA_POLICY_DESIGN.md.
 HEALTH_TARGETS = [
-    {"name": "prana-api",  "url": "http://localhost:8000/health", "severity": "P1"},
-    {"name": "prana-ai",   "url": "http://localhost:8001/health", "severity": "P2"},
-    {"name": "prana-ask",  "url": "http://localhost:8002/health", "severity": "P3"},
+    {"name": "prana-api",  "url": "http://localhost:8000/health"},
+    {"name": "prana-ai",   "url": "http://localhost:8001/health"},
+    {"name": "prana-ask",  "url": "http://localhost:8002/health"},
 ]
 
 
@@ -32,6 +35,7 @@ class HealthService:
 
     def __init__(self, db: asyncpg.Connection):
         self._db = db
+        self._policy = SeverityPolicyService(db)
 
     async def run_checks(self) -> list[dict]:
         """
@@ -44,7 +48,8 @@ class HealthService:
             if ok:
                 await self._resolve_if_open(target["name"])
             else:
-                await self._open_or_update(target["name"], target["severity"], detail, target["url"])
+                severity = await self._policy.resolve_severity(domain="HEALTH_CHECK", value=target["name"]) or "P3"
+                await self._open_or_update(target["name"], severity, detail, target["url"])
             results.append({"service": target["name"], "healthy": ok, "detail": detail})
         return results
 

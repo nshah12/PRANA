@@ -128,6 +128,8 @@ CREATE TABLE employee_master (
 CREATE INDEX idx_em_user_id    ON employee_master(employee_user_id);
 CREATE INDEX idx_em_tenant     ON employee_master(tenant_id);
 CREATE INDEX idx_em_active     ON employee_master(tenant_id) WHERE dol IS NULL;
+-- PRE_EXIT_BULK anomaly lookahead (migration 042): fast scan for employees exiting soon.
+CREATE INDEX idx_em_tenant_dol ON employee_master(tenant_id, dol) WHERE dol IS NOT NULL;
 CREATE INDEX idx_emp_pan_token ON employee_master(pan_token);
 -- Resolution Ladder 3 — trigram name search:
 CREATE INDEX idx_emp_name_trgm ON employee_master USING GIN (full_name gin_trgm_ops);
@@ -509,6 +511,18 @@ CREATE TABLE share_token (
 CREATE INDEX idx_share_hash   ON share_token(token_hash);
 CREATE INDEX idx_share_active ON share_token(expires_at) WHERE status = 'ACTIVE';
 CREATE INDEX idx_share_pan    ON share_token(pan_token)  WHERE status = 'ACTIVE';
+
+-- SHARE_ENUM anomaly signal (migration 042) — no record of a failed share-link OTP
+-- attempt existed anywhere before this table.
+CREATE TABLE share_otp_attempt (
+    attempt_id     UUID         PRIMARY KEY DEFAULT gen_random_uuid(),
+    token_id       UUID         NOT NULL REFERENCES share_token(token_id),
+    ip_address     INET         NOT NULL,
+    success        BOOLEAN      NOT NULL,
+    attempted_at   TIMESTAMPTZ  NOT NULL DEFAULT NOW()
+);
+CREATE INDEX idx_share_otp_attempt_ip    ON share_otp_attempt(ip_address, attempted_at DESC);
+CREATE INDEX idx_share_otp_attempt_token ON share_otp_attempt(token_id, attempted_at DESC);
 
 CREATE TABLE document_access_log (
   access_id         UUID         PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -909,7 +923,15 @@ INSERT INTO platform_config (config_key, config_value, value_type, description, 
   ('password_protected_session_ttl',    '10',          'DURATION_MINUTES', 'In-memory session for password-protected doc (wiped on expiry)', '5', '30'),
   ('jwt_ttl_minutes',                   '60',          'DURATION_MINUTES', 'JWT access token TTL', '15', '240'),
   ('refresh_token_ttl_days',            '7',           'DURATION_DAYS',    'JWT refresh token TTL', '1', '30'),
-  ('audit_integrity_check_interval_minutes', '60',     'DURATION_MINUTES', 'AuditIntegrityVerificationWorkflow schedule cadence', '15', '1440');
+  ('audit_integrity_check_interval_minutes', '60',     'DURATION_MINUTES', 'AuditIntegrityVerificationWorkflow schedule cadence', '15', '1440'),
+  ('off_hours_start_hour',               '22',          'INTEGER',           'OFF_HOURS_ACCESS: start of after-hours window, IST 24h clock', '0', '23'),
+  ('off_hours_end_hour',                 '6',           'INTEGER',           'OFF_HOURS_ACCESS: end of after-hours window, IST 24h clock', '0', '23'),
+  ('impossible_travel_speed_kmh',        '900',         'INTEGER',           'IMPOSSIBLE_TRAVEL: speed above which two logins are implausible (roughly commercial flight speed)', '200', '5000'),
+  ('pre_exit_bulk_lookahead_days',       '30',          'DURATION_DAYS',     'PRE_EXIT_BULK: how far in advance a recorded exit date (employee_master.dol) counts as "upcoming"', '1', '90'),
+  ('bulk_access_auto_lock_enabled',      'false',       'BOOLEAN',           'Auto-lock the account on a BULK_DOC_ACCESS anomaly — ships OFF, PA opt-in after trusting real thresholds', 'false', 'true'),
+  ('brute_force_auto_lock_enabled',      'false',       'BOOLEAN',           'Auto-lock the account on a BRUTE_FORCE anomaly — ships OFF, PA opt-in after trusting real thresholds', 'false', 'true'),
+  ('policy_lock_default_hours',          '24',          'DURATION_HOURS',    'PolicyLockWorkflow default lock duration when auto-lock is enabled', '1', '168'),
+  ('platform_anomaly_check_minutes',     '5',           'DURATION_MINUTES',  'AnomalyDetectionWorkflow batch-scan interval', '1', '60');
 
 CREATE TABLE tenant_config (
   tenant_id     UUID         NOT NULL REFERENCES tenant(tenant_id),
@@ -992,6 +1014,84 @@ CREATE TABLE chro_report (
 );
 
 CREATE INDEX idx_chro_report_tenant ON chro_report(tenant_id, generated_at DESC);
+
+-- ============================================================
+-- LAYER 13: INCIDENT SEVERITY & SLA POLICY (migration 041)
+-- ============================================================
+-- PA-editable replacement for hardcoded severity/SLA constants formerly scattered across
+-- services/incident_service.py, services/error_threshold_service.py, services/health_service.py,
+-- and workflows/activities.py + kafka consumers. See prana-docs/SEVERITY_SLA_POLICY_DESIGN.md.
+
+CREATE TABLE sla_policy (
+    severity              VARCHAR(2)   PRIMARY KEY,          -- P0 | P1 | P2 | P3
+    sla_minutes            INTEGER      NOT NULL,
+    auto_create_incident   BOOLEAN      NOT NULL DEFAULT FALSE,
+    description              TEXT,
+    updated_by                UUID,
+    updated_at                 TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+-- One small rule engine, reused across all three severity-deciding domains. See
+-- services/severity_policy_service.py for the evaluation algorithm and
+-- prana-db/migrations/041_severity_sla_policy.sql for the full explanation of
+-- occurrence_threshold vs occurrence_threshold_max semantics.
+CREATE TABLE severity_classification_rule (
+    rule_id                    UUID         PRIMARY KEY DEFAULT gen_random_uuid(),
+    domain                       VARCHAR(30)  NOT NULL,
+                                  -- ERROR_OBSERVABILITY | HEALTH_CHECK | ANOMALY_RULE
+    match_type                    VARCHAR(20)  NOT NULL,
+                                   -- PREFIX | EXACT | DEFAULT
+    match_value                    VARCHAR(200),           -- NULL when match_type = DEFAULT
+    occurrence_threshold             INTEGER,                -- NULL = no lower bound
+    occurrence_threshold_max          INTEGER,                -- NULL = no upper bound
+    window_minutes                     INTEGER,                -- paired with the thresholds above
+    severity                             VARCHAR(2)  NOT NULL,
+    priority                              INTEGER     NOT NULL DEFAULT 100,  -- lower = evaluated first
+    is_active                              BOOLEAN     NOT NULL DEFAULT TRUE,
+    description                             TEXT,
+    updated_by                               UUID,
+    updated_at                                TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    CHECK (match_type IN ('PREFIX', 'EXACT', 'DEFAULT')),
+    CHECK (match_type = 'DEFAULT' OR match_value IS NOT NULL)
+);
+CREATE INDEX idx_severity_rule_domain ON severity_classification_rule(domain, priority)
+    WHERE is_active = TRUE;
+
+INSERT INTO sla_policy (severity, sla_minutes, auto_create_incident, description) VALUES
+    ('P0', 30,   TRUE,  'Immediate — security/DPDP breach class, PA paged'),
+    ('P1', 240,  TRUE,  'Urgent — war room within 4 hours'),
+    ('P2', 1440, FALSE, 'Next business day'),
+    ('P3', 4320, FALSE, 'Weekly digest tier');
+
+INSERT INTO severity_classification_rule
+    (domain, match_type, match_value, occurrence_threshold, occurrence_threshold_max, window_minutes, severity, priority, description) VALUES
+    ('ERROR_OBSERVABILITY', 'PREFIX', '/auth/',                 NULL, NULL, NULL, 'P1', 10, 'Security-critical HTTP path'),
+    ('ERROR_OBSERVABILITY', 'PREFIX', '/totp/',                 NULL, NULL, NULL, 'P1', 10, 'Security-critical HTTP path'),
+    ('ERROR_OBSERVABILITY', 'EXACT',  'AuthConsumer',           NULL, NULL, NULL, 'P1', 10, 'Security-critical Kafka consumer'),
+    ('ERROR_OBSERVABILITY', 'EXACT',  'verify_audit_integrity', NULL, NULL, NULL, 'P1', 10, 'Security-critical Temporal activity'),
+    ('ERROR_OBSERVABILITY', 'PREFIX', '/v1/dpdp/',               3, NULL,   10, 'P2', 20, 'Compliance-critical endpoint, recurring'),
+    ('ERROR_OBSERVABILITY', 'PREFIX', '/v1/ingest/',             3, NULL,   10, 'P2', 20, 'Compliance-critical endpoint, recurring'),
+    ('ERROR_OBSERVABILITY', 'DEFAULT', NULL,                     1,    1, NULL, 'P2', 90, 'Novel bug, first occurrence'),
+    ('ERROR_OBSERVABILITY', 'DEFAULT', NULL,                    10, NULL,   15, 'P3', 95, 'Noisy recurrence, systemic breakage signal');
+
+INSERT INTO severity_classification_rule
+    (domain, match_type, match_value, severity, priority, description) VALUES
+    ('HEALTH_CHECK', 'EXACT', 'prana-api', 'P1', 10, 'CPU service down — REST + Temporal'),
+    ('HEALTH_CHECK', 'EXACT', 'prana-ai',  'P2', 10, 'GPU pipeline worker down'),
+    ('HEALTH_CHECK', 'EXACT', 'prana-ask', 'P3', 10, 'GPU chatbot worker down');
+
+INSERT INTO severity_classification_rule
+    (domain, match_type, match_value, occurrence_threshold, window_minutes, severity, priority, description) VALUES
+    ('ANOMALY_RULE', 'EXACT', 'CROSS_TENANT_UPLOAD_ATTEMPT', NULL, NULL, 'P0', 10, 'Document upload resolved to a different tenant''s employee'),
+    ('ANOMALY_RULE', 'EXACT', 'CROSS_TENANT_QUERY',          NULL, NULL, 'P0', 10, 'Blocked attempt to read another tenant''s resource by ID'),
+    ('ANOMALY_RULE', 'EXACT', 'IMPOSSIBLE_TRAVEL',           NULL, NULL, 'P0', 15, 'Two logins imply travel speed exceeding plausibility'),
+    ('ANOMALY_RULE', 'EXACT', 'PRIVILEGE_ESCALATION',        NULL, NULL, 'P1', 20, 'Self-escalation or jump to a higher-privilege role'),
+    ('ANOMALY_RULE', 'EXACT', 'BRUTE_FORCE',                    5,   15, 'P1', 30, 'Repeated failed login attempts, same identifier'),
+    ('ANOMALY_RULE', 'EXACT', 'BULK_DOC_ACCESS',                50,  10, 'P1', 30, 'Unusually high document access volume, same actor'),
+    ('ANOMALY_RULE', 'EXACT', 'PRE_EXIT_BULK',                  20, 1440, 'P1', 30, 'Bulk self-access shortly before a recorded exit date'),
+    ('ANOMALY_RULE', 'EXACT', 'SHARE_ENUM',                      5,   10, 'P2', 40, 'Failed OTP attempts against many distinct share tokens, same IP'),
+    ('ANOMALY_RULE', 'EXACT', 'OFF_HOURS_ACCESS',              NULL, NULL, 'P2', 50, 'OA actor document access outside business hours'),
+    ('ANOMALY_RULE', 'DEFAULT', NULL,                          NULL, NULL, 'P3', 99, 'Fallback for any unrecognized anomaly rule_name');
 
 -- ============================================================
 -- LAYER 14: SECURITY — LEAST-PRIVILEGE APPLICATION ROLE

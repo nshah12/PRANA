@@ -76,22 +76,28 @@ class OAUserService:
                 s["session_id"],
             )
 
-    async def change_role(self, oa_user_id: str, new_role: str, tenant_id: str, actor_id: str) -> None:
+    async def change_role(self, oa_user_id: str, new_role: str, tenant_id: str, actor_id: str) -> dict:
+        """Update the role and return {old_role, new_role} so the router can publish a
+        ROLE_CHANGED event (audit trail + PRIVILEGE_ESCALATION detection both happen
+        downstream in OAUserConsumer — this method makes exactly the one DB write the
+        HTTP handler contract allows)."""
         row = await self._db.fetchrow(
             "SELECT role FROM oa_user WHERE oa_user_id=$1 AND tenant_id=$2",
             oa_user_id, tenant_id,
         )
         if not row:
             raise ValueError("USER_NOT_FOUND")
+        old_role = row["role"]
 
         # Demotion from oa_admin → check min-1-admin constraint
-        if row["role"] == "oa_admin" and new_role != "oa_admin":
+        if old_role == "oa_admin" and new_role != "oa_admin":
             await self._check_min_admin(tenant_id, exclude_id=oa_user_id)
 
         await self._db.execute(
             "UPDATE oa_user SET role=$2 WHERE oa_user_id=$1 AND tenant_id=$3",
             oa_user_id, new_role, tenant_id,
         )
+        return {"old_role": old_role, "new_role": new_role}
 
     async def unlock(self, oa_user_id: str, tenant_id: str, actor_id: str) -> None:
         await self._db.execute(

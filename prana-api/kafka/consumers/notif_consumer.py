@@ -122,7 +122,15 @@ class NotifConsumer:
         tenant_id   = event.get("tenant_id")
         anomaly_id  = event.get("anomaly_id")
         rule_name   = event.get("rule_name", "UNKNOWN")
-        severity    = event.get("severity", "P2")
+        severity    = event.get("severity")
+        if not severity:
+            # Same shared policy lookup security_consumer.py uses — the two consumers
+            # can no longer default to different severities for the same event. See
+            # prana-docs/SEVERITY_SLA_POLICY_DESIGN.md §4.
+            from services.severity_policy_service import SeverityPolicyService
+            severity = await SeverityPolicyService(conn).resolve_severity(
+                domain="ANOMALY_RULE", value=rule_name,
+            ) or "P3"
 
         ciso = await self._lookup_ciso(conn, tenant_id)
         if ciso:

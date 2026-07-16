@@ -14,10 +14,17 @@ Events handled:
   ELEVATION_APPROVED       → notify requestor (email)
   ELEVATION_DENIED         → notify requestor (email)
   ELEVATION_EXPIRED        → notify requestor (bell)
-  OA_USER_ROLE_CHANGED     → (cache already invalidated via CacheInvalidationConsumer — audit only)
+  ROLE_CHANGED             → audit (fanned out to prana.audit.events by
+                              kafka.oa_user_event() already — nothing to do here for
+                              that part) + PRIVILEGE_ESCALATION detection: publishes
+                              ANOMALY_DETECTED to prana.security.events so
+                              SecurityConsumer persists anomaly_event + creates an
+                              incident, same pipeline as every other anomaly source.
+                              See prana-docs/SEVERITY_SLA_POLICY_DESIGN.md §3.1.
 """
 import json
 import logging
+import uuid
 from typing import Optional
 
 import asyncpg
@@ -28,6 +35,11 @@ from kafka.producer import get_kafka_producer
 
 log = logging.getLogger(__name__)
 GROUP_ID = "prana-oa-user-consumer"
+
+# oa_operator < specialist roles (chro/cfo/ciso) < oa_admin. Used only to decide
+# whether a role change is an ESCALATION (jump to a higher rank) — not a general
+# ranking of role importance.
+_ROLE_RANK = {"oa_operator": 1, "chro": 2, "cfo": 2, "ciso": 2, "oa_admin": 3}
 
 
 class OAUserConsumer:
@@ -83,6 +95,9 @@ class OAUserConsumer:
         elif etype in ("ELEVATION_APPROVED", "ELEVATION_DENIED", "ELEVATION_EXPIRED"):
             await self._notify_elevation_result(etype, event)
 
+        elif etype == "ROLE_CHANGED":
+            await self._detect_privilege_escalation(event)
+
         else:
             log.debug("OAUserConsumer: no action for event_type=%s", etype)
 
@@ -100,6 +115,39 @@ class OAUserConsumer:
             log.info("OAUserConsumer: published OA_WELCOME email oa_user_id=%s", event.get("oa_user_id"))
         except Exception:
             log.exception("OAUserConsumer: failed to publish OA_WELCOME email")
+
+    async def _detect_privilege_escalation(self, event: dict) -> None:
+        old_role = event.get("old_role")
+        new_role = event.get("new_role")
+        actor_id = event.get("actor_id")
+        target_id = event.get("oa_user_id")
+
+        self_change = actor_id is not None and actor_id == target_id
+        old_rank = _ROLE_RANK.get(old_role, 0)
+        new_rank = _ROLE_RANK.get(new_role, 0)
+        escalation = self_change or new_rank > old_rank
+        if not escalation:
+            return
+
+        try:
+            kafka = await get_kafka_producer()
+            await kafka.security_event({
+                "event_type": "ANOMALY_DETECTED",
+                "anomaly_id": str(uuid.uuid4()),
+                "rule_name": "PRIVILEGE_ESCALATION",
+                "tenant_id": event.get("tenant_id"),
+                "actor_id": actor_id,
+                "event_metadata": {
+                    "target_oa_user_id": target_id, "old_role": old_role, "new_role": new_role,
+                    "self_change": self_change,
+                },
+            })
+            log.warning(
+                "OAUserConsumer: PRIVILEGE_ESCALATION flagged target=%s %s->%s self_change=%s",
+                target_id, old_role, new_role, self_change,
+            )
+        except Exception:
+            log.exception("OAUserConsumer: failed to publish PRIVILEGE_ESCALATION anomaly")
 
     async def _notify_elevation_result(self, etype: str, event: dict) -> None:
         recipient_id = event.get("requestor_id") or event.get("oa_user_id")

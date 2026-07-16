@@ -175,3 +175,39 @@ async def test_resend_welcome_publishes_oa_welcome_resent_event(client, mock_db,
     assert payload["tenant_id"] == "tenant-001"
     assert payload["oa_user_id"] == "oa-uuid-002"
     assert payload["resent_by"] == "admin-uuid-9"
+
+
+# -- change-role publishes ROLE_CHANGED (audit trail + PRIVILEGE_ESCALATION detection
+# both happen downstream in OAUserConsumer, never directly in this HTTP handler) --------
+
+@pytest.mark.asyncio
+async def test_change_role_publishes_role_changed_event(client, mock_db, mock_kafka):
+    _set_auth(client, role="oa_admin", tenant_id="tenant-001", user_id="admin-uuid-9")
+    mock_db.fetchrow.return_value = {"role": "oa_operator"}
+
+    resp = await client.post(
+        "/v1/org/users/oa-uuid-002/change-role", headers=AUTH_HEADER, json={"role": "oa_admin"},
+    )
+
+    assert resp.status_code == 200
+    mock_kafka.oa_user_event.assert_called_once()
+    payload = mock_kafka.oa_user_event.call_args[0][0]
+    assert payload["event_type"] == "ROLE_CHANGED"
+    assert payload["tenant_id"] == "tenant-001"
+    assert payload["oa_user_id"] == "oa-uuid-002"
+    assert payload["old_role"] == "oa_operator"
+    assert payload["new_role"] == "oa_admin"
+    assert payload["actor_id"] == "admin-uuid-9"
+
+
+@pytest.mark.asyncio
+async def test_change_role_not_found_returns_404_and_no_publish(client, mock_db, mock_kafka):
+    _set_auth(client, role="oa_admin", tenant_id="tenant-001")
+    mock_db.fetchrow.return_value = None
+
+    resp = await client.post(
+        "/v1/org/users/oa-uuid-999/change-role", headers=AUTH_HEADER, json={"role": "oa_admin"},
+    )
+
+    assert resp.status_code == 404
+    mock_kafka.oa_user_event.assert_not_called()

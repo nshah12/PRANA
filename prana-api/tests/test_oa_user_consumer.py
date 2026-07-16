@@ -77,3 +77,83 @@ async def test_elevation_expired_sends_bell_not_email(consumer):
         await consumer._dispatch("ELEVATION_EXPIRED", event)
     mock_kafka.notify_bell.assert_awaited_once()
     mock_kafka.notify_email.assert_not_awaited()
+
+
+# ── ROLE_CHANGED — PRIVILEGE_ESCALATION detection ───────────────────────────
+# See prana-docs/SEVERITY_SLA_POLICY_DESIGN.md §3.1. This consumer never writes
+# anomaly_event directly — it publishes ANOMALY_DETECTED to prana.security.events,
+# reusing the exact same pipeline (SecurityConsumer persists + creates incidents)
+# as every other anomaly source.
+
+@pytest.mark.asyncio
+async def test_role_changed_promotion_to_admin_flags_escalation():
+    from kafka.consumers.oa_user_consumer import OAUserConsumer
+    settings = MagicMock()
+    settings.kafka_bootstrap_servers = "localhost:9092"
+    consumer = OAUserConsumer(settings, db_pool=None, temporal_client=None)
+
+    event = {"event_type": "ROLE_CHANGED", "tenant_id": "t-1", "oa_user_id": "u-5",
+             "old_role": "oa_operator", "new_role": "oa_admin", "actor_id": "admin-1"}
+    mock_kafka = AsyncMock()
+    with patch("kafka.consumers.oa_user_consumer.get_kafka_producer", new=AsyncMock(return_value=mock_kafka)):
+        await consumer._dispatch("ROLE_CHANGED", event)
+
+    mock_kafka.security_event.assert_awaited_once()
+    payload = mock_kafka.security_event.call_args[0][0]
+    assert payload["event_type"] == "ANOMALY_DETECTED"
+    assert payload["rule_name"] == "PRIVILEGE_ESCALATION"
+    assert payload["tenant_id"] == "t-1"
+    assert payload["actor_id"] == "admin-1"
+    assert payload["event_metadata"]["target_oa_user_id"] == "u-5"
+    assert payload["event_metadata"]["old_role"] == "oa_operator"
+    assert payload["event_metadata"]["new_role"] == "oa_admin"
+
+
+@pytest.mark.asyncio
+async def test_role_changed_self_change_flags_escalation_regardless_of_direction():
+    """An admin changing their OWN role — even sideways/downward — is suspicious;
+    normal role management always targets someone else."""
+    from kafka.consumers.oa_user_consumer import OAUserConsumer
+    settings = MagicMock()
+    consumer = OAUserConsumer(settings, db_pool=None, temporal_client=None)
+
+    event = {"event_type": "ROLE_CHANGED", "tenant_id": "t-1", "oa_user_id": "admin-1",
+             "old_role": "oa_admin", "new_role": "ciso", "actor_id": "admin-1"}
+    mock_kafka = AsyncMock()
+    with patch("kafka.consumers.oa_user_consumer.get_kafka_producer", new=AsyncMock(return_value=mock_kafka)):
+        await consumer._dispatch("ROLE_CHANGED", event)
+
+    mock_kafka.security_event.assert_awaited_once()
+    payload = mock_kafka.security_event.call_args[0][0]
+    assert payload["rule_name"] == "PRIVILEGE_ESCALATION"
+
+
+@pytest.mark.asyncio
+async def test_role_changed_demotion_by_someone_else_not_flagged():
+    from kafka.consumers.oa_user_consumer import OAUserConsumer
+    settings = MagicMock()
+    consumer = OAUserConsumer(settings, db_pool=None, temporal_client=None)
+
+    event = {"event_type": "ROLE_CHANGED", "tenant_id": "t-1", "oa_user_id": "u-6",
+             "old_role": "oa_admin", "new_role": "oa_operator", "actor_id": "admin-1"}
+    mock_kafka = AsyncMock()
+    with patch("kafka.consumers.oa_user_consumer.get_kafka_producer", new=AsyncMock(return_value=mock_kafka)):
+        await consumer._dispatch("ROLE_CHANGED", event)
+
+    mock_kafka.security_event.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+async def test_role_changed_lateral_move_by_someone_else_not_flagged():
+    """chro -> cfo (both specialist rank 2, changed by a different admin) is routine."""
+    from kafka.consumers.oa_user_consumer import OAUserConsumer
+    settings = MagicMock()
+    consumer = OAUserConsumer(settings, db_pool=None, temporal_client=None)
+
+    event = {"event_type": "ROLE_CHANGED", "tenant_id": "t-1", "oa_user_id": "u-7",
+             "old_role": "chro", "new_role": "cfo", "actor_id": "admin-1"}
+    mock_kafka = AsyncMock()
+    with patch("kafka.consumers.oa_user_consumer.get_kafka_producer", new=AsyncMock(return_value=mock_kafka)):
+        await consumer._dispatch("ROLE_CHANGED", event)
+
+    mock_kafka.security_event.assert_not_awaited()

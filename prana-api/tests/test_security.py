@@ -1,11 +1,17 @@
 """Tests for workflows/security.py — security lifecycle workflows."""
 import inspect
+from unittest.mock import AsyncMock, MagicMock, patch
+
+import pytest
 
 from workflows.security import (
     PolicyLockWorkflow,
     KMSKeyRotationWorkflow,
     TOTPLockoutWorkflow,
     RENEW_THRESHOLD,
+    get_security_config,
+    apply_policy_lock,
+    release_policy_lock,
 )
 
 
@@ -36,3 +42,67 @@ def test_totp_lockout_duration_from_config():
         "TOTP lockout duration must be read from config, not hardcoded"
     assert "execute_activity" in src, \
         "TOTPLockoutWorkflow must delegate via execute_activity"
+
+
+def _patched_asyncpg_and_redis():
+    """get_security_config/apply_policy_lock/release_policy_lock all open their own
+    asyncpg + redis connections — patch both at the module level they're imported in."""
+    fake_redis = MagicMock()
+    fake_redis.aclose = AsyncMock()
+    return (
+        patch("asyncpg.connect", new_callable=AsyncMock),
+        patch("redis.asyncio.from_url", return_value=fake_redis),
+    )
+
+
+@pytest.mark.asyncio
+async def test_get_security_config_returns_resolved_value():
+    """Regression guard: was a bare stub (`...` -> None) — every workflow in this
+    file that reads a duration/schedule from config would crash on int(None)."""
+    p_asyncpg, p_redis = _patched_asyncpg_and_redis()
+    with p_asyncpg, p_redis, \
+         patch("services.config_service.ConfigService.get", new_callable=AsyncMock, return_value="48"):
+        result = await get_security_config({"key": "policy_lock_default_hours", "tenant_id": "t-1", "default": "24"})
+    assert result == "48"
+
+
+@pytest.mark.asyncio
+async def test_get_security_config_falls_back_to_default_when_unset():
+    p_asyncpg, p_redis = _patched_asyncpg_and_redis()
+    with p_asyncpg, p_redis, \
+         patch("services.config_service.ConfigService.get", new_callable=AsyncMock, return_value=None):
+        result = await get_security_config({"key": "policy_lock_default_hours", "default": "24"})
+    assert result == "24"
+
+
+@pytest.mark.asyncio
+async def test_apply_policy_lock_activity_delegates_to_account_lock_service():
+    p_asyncpg, _ = _patched_asyncpg_and_redis()
+    with p_asyncpg, \
+         patch("services.account_lock_service.AccountLockService.apply_policy_lock",
+               new_callable=AsyncMock, return_value="event-1") as mock_apply:
+        result = await apply_policy_lock({
+            "user_type": "employee", "user_id": "emp-1", "tenant_id": "t-1",
+            "reason_code": "BULK_ACCESS_ANOMALY", "lock_hours": 24,
+        })
+    assert result == "event-1"
+    mock_apply.assert_awaited_once_with(
+        user_type="employee", user_id="emp-1", tenant_id="t-1",
+        reason_code="BULK_ACCESS_ANOMALY", lock_hours=24,
+    )
+
+
+@pytest.mark.asyncio
+async def test_release_policy_lock_activity_delegates_to_account_lock_service():
+    p_asyncpg, _ = _patched_asyncpg_and_redis()
+    with p_asyncpg, \
+         patch("services.account_lock_service.AccountLockService.release_policy_lock",
+               new_callable=AsyncMock) as mock_release:
+        await release_policy_lock({
+            "user_type": "employee", "user_id": "emp-1",
+            "event_id": "event-1", "unlocked_by": "", "early": False,
+        })
+    mock_release.assert_awaited_once_with(
+        user_type="employee", user_id="emp-1",
+        event_id="event-1", unlocked_by="", early=False,
+    )
