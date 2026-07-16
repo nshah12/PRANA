@@ -29,7 +29,7 @@ api.interceptors.request.use((config) => {
 const AUTH_PATHS = ['/auth/org/login', '/auth/org/totp', '/auth/org/refresh', '/auth/org/logout',
                     '/auth/admin/login', '/auth/admin/totp', '/auth/admin/refresh', '/auth/admin/logout',
                     '/auth/admin/totp-setup', '/auth/org/totp-setup',
-                    '/auth/employee/request-otp', '/auth/employee/verify-otp',
+                    '/auth/employee/login', '/auth/employee/request-otp', '/auth/employee/verify-otp',
                     '/auth/employee/complete', '/auth/employee/totp', '/auth/employee/refresh']
 
 // Single-flight refresh: several requests can 401 in the same tick (e.g. a

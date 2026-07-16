@@ -128,6 +128,19 @@ describe('response interceptor — non-401 / already-retried / auth-endpoint pas
     await expect(responseRejected(err)).rejects.toBe(err)
   })
 
+  it('rejects a 401 from /auth/employee/login without attempting a refresh — regression guard: a bad ' +
+     'login attempt must surface as a failed login, not silently refresh-and-retry the login call itself, ' +
+     'which produces an infinite login/refresh/login loop since a login POST can never succeed via retry', async () => {
+    restoreLocation()
+    restoreLocation = setLocation('/emp/login')
+    const postSpy = vi.spyOn(api, 'post')
+
+    const err = make401Error('/auth/employee/login')
+    await expect(responseRejected(err)).rejects.toBe(err)
+
+    expect(postSpy).not.toHaveBeenCalled()
+  })
+
   it('rejects a 401 that has already been retried once, rather than retrying forever', async () => {
     const err = make401Error('/v1/vault/documents', /* retried */ true)
     await expect(responseRejected(err)).rejects.toBe(err)
