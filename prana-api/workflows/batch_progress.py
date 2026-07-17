@@ -72,12 +72,13 @@ class BatchProgressWorkflow:
     @workflow.run
     async def run(self, params: dict) -> dict:
         cfg = await workflow.execute_activity(
-            get_batch_config, {"tenant_id": params["tenant_id"]},
+            get_batch_config, {"tenant_id": params["tenant_id"], "batch_id": params.get("batch_id")},
             start_to_close_timeout=timedelta(minutes=2), retry_policy=_RETRY,
         )
         per_file_hours = int(cfg.get("pipeline_max_duration_hours", 4))
         batch_hours    = int(cfg.get("batch_max_duration_hours", 24))
-        handles        = await self._fan_out(params, per_file_hours)
+        document_ids   = cfg.get("document_ids", [])
+        handles        = await self._fan_out(params, document_ids, per_file_hours)
         results        = await self._gather(handles, batch_hours)
         for doc_id, status in results.items():
             if status == "STRAGGLER":
@@ -87,11 +88,11 @@ class BatchProgressWorkflow:
                      "tenant_id": params["tenant_id"]},
                     start_to_close_timeout=timedelta(minutes=5), retry_policy=_RETRY,
                 )
-        return await self._write_summary(params, results)
+        return await self._write_summary(params, document_ids, results)
 
-    async def _fan_out(self, params: dict, per_file_hours: int) -> list:
+    async def _fan_out(self, params: dict, document_ids: list, per_file_hours: int) -> list:
         handles = []
-        for doc_id in params["document_ids"]:
+        for doc_id in document_ids:
             h = await workflow.start_child_workflow(
                 DocumentPipelineWorkflow.run,
                 {"document_id": doc_id, "tenant_id": params["tenant_id"],
@@ -132,13 +133,13 @@ class BatchProgressWorkflow:
                     start_to_close_timeout=timedelta(minutes=5), retry_policy=_RETRY,
                 )
 
-    async def _write_summary(self, params: dict, results: dict) -> dict:
+    async def _write_summary(self, params: dict, document_ids: list, results: dict) -> dict:
         routed     = sum(1 for s in results.values() if s == "ROUTED")
         exceptions = sum(1 for s in results.values() if s in ("EXCEPTION", "EXCEPTION_TIMEOUT"))
         quarantine = sum(1 for s in results.values() if s == "QUARANTINED")
         failed     = sum(1 for s in results.values() if s in ("STRAGGLER", "UNKNOWN"))
         summary = {"batch_id": params["batch_id"], "tenant_id": params["tenant_id"],
-                   "total": len(params["document_ids"]), "routed": routed,
+                   "total": len(document_ids), "routed": routed,
                    "exceptions": exceptions, "quarantine": quarantine, "failed": failed,
                    "results": results}
         await workflow.execute_activity(

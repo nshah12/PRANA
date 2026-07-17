@@ -1,6 +1,9 @@
 """Tests for services/share_service.py."""
 import inspect
 import pathlib
+from unittest.mock import AsyncMock
+
+import pytest
 
 from services.share_service import ShareService
 
@@ -38,3 +41,42 @@ def test_revoke_share_deletes_redis_key():
     # Revocation should clear the DB record
     assert "UPDATE" in src.upper() or "DELETE" in src.upper(), \
         "revoke() must UPDATE or DELETE the share_token row"
+
+
+# ── revoke_by_id / mark_expired — internal mutations for Temporal activities,
+# no employee_user_id ownership check (workflow already has an authorized
+# actor context, unlike revoke() which is called from an employee's own
+# authenticated HTTP request) ────────────────────────────────────────────────
+
+@pytest.mark.asyncio
+async def test_revoke_by_id_updates_status_without_ownership_check():
+    db = AsyncMock()
+    svc = ShareService(db=db, redis=None, settings=None)
+    await svc.revoke_by_id("share-1")
+    sql, *args = db.execute.call_args.args
+    assert "UPDATE share_token" in sql
+    assert "REVOKED" in sql
+    assert "share-1" in args
+    assert "employee_user_id" not in sql
+
+
+@pytest.mark.asyncio
+async def test_mark_expired_updates_status_to_expired():
+    db = AsyncMock()
+    svc = ShareService(db=db, redis=None, settings=None)
+    await svc.mark_expired("share-1")
+    sql, *args = db.execute.call_args.args
+    assert "UPDATE share_token" in sql
+    assert "EXPIRED" in sql
+    assert "share-1" in args
+
+
+@pytest.mark.asyncio
+async def test_mark_expired_only_touches_active_rows():
+    """Idempotent: a retry after the row is already EXPIRED/REVOKED must not
+    clobber a REVOKED row back to EXPIRED."""
+    db = AsyncMock()
+    svc = ShareService(db=db, redis=None, settings=None)
+    await svc.mark_expired("share-1")
+    sql, *_ = db.execute.call_args.args
+    assert "status='ACTIVE'" in sql or "status = 'ACTIVE'" in sql

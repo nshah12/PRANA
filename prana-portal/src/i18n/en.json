@@ -144,6 +144,8 @@
     "ERASURE_REQUESTED": "Erasure request submitted. You will be notified within 30 days.",
     "EXPORT_REQUESTED": "Data export requested. You will receive a link within 72 hours.",
     "CORRECTION_REQUESTED": "Correction request submitted.",
+    "CORRECTION_APPLIED": "Correction applied to your record.",
+    "CORRECTION_REJECTED": "Correction request was not approved.",
     "CONSENT_WITHDRAWN": "Consent withdrawn. Processing for this purpose has stopped.",
     "GRIEVANCE_SUBMITTED": "Grievance submitted. We will acknowledge within 48 hours.",
     "CONNECTOR_SAVED": "HRMS connector saved.",
@@ -211,7 +213,12 @@
     "SYNC_IN_PROGRESS": "Syncing with HRMS…",
     "SYNC_COMPLETE": "Sync complete. {count} records updated.",
     "SYNC_PARTIAL": "Sync partially complete. {success} succeeded, {failed} failed.",
-    "RATE_LIMIT_WARNING": "You are approaching the request limit. Please slow down."
+    "RATE_LIMIT_WARNING": "You are approaching the request limit. Please slow down.",
+    "EMPLOYEE_EXITED": "Employee vault frozen and 7-year retention started.",
+    "VAULT_WELCOME": "Welcome to PRANA — your career vault is now active.",
+    "VAULT_WELCOME_REJOIN": "Welcome back — your vault has been reactivated.",
+    "ALUMNI_CONSENT_PROMPT": "Stay connected with your former employer's alumni network?",
+    "ACCOUNT_DORMANT_FLAGGED": "We miss you — log in to keep your vault active."
   },
   "validation": {
     "FIELD_REQUIRED": "This field is required.",

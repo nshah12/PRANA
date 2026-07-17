@@ -213,6 +213,16 @@ async def batch_upload(
 
     accepted  = [r for r in results if "document_id" in r]
     ended_at  = datetime.datetime.now(datetime.timezone.utc)
+
+    if accepted:
+        # BatchProgressWorkflow's write_batch_summary activity UPDATEs this row once
+        # every child pipeline settles — must exist before that workflow starts.
+        await db.execute(
+            "INSERT INTO document_batch (batch_id, tenant_id, total_files, status) "
+            "VALUES ($1, $2, $3, 'PROCESSING')",
+            batch_id, current.tenant_id, len(accepted),
+        )
+
     batch_event = {
         "event_type":  "BATCH_UPLOADED",
         "event_id":    str(uuid.uuid4()),

@@ -178,6 +178,20 @@ CREATE INDEX idx_ce_user      ON career_event(employee_user_id, event_date DESC)
 CREATE INDEX idx_ce_tenant    ON career_event(tenant_id, event_date DESC);
 CREATE INDEX idx_ce_meta      ON career_event USING GIN (metadata);
 
+-- employee_insight — per-employee LLM-derived insight storage (migration
+-- 047_employee_insight.sql). One row per (employee_uuid, insight_type).
+-- insights is JSONB and, per the privacy contract, must never contain raw ₹
+-- figures, PAN, or NIK.
+CREATE TABLE employee_insight (
+  insight_id    UUID         PRIMARY KEY DEFAULT gen_random_uuid(),
+  employee_uuid UUID         NOT NULL REFERENCES employee_master(employee_uuid),
+  tenant_id     UUID         REFERENCES tenant(tenant_id),
+  insight_type  VARCHAR(20)  NOT NULL CHECK (insight_type IN ('CAREER', 'SKILL_GAP', 'MARKET_COMP')),
+  insights      JSONB        NOT NULL DEFAULT '{}',
+  computed_at   TIMESTAMPTZ  NOT NULL DEFAULT NOW()
+);
+CREATE UNIQUE INDEX idx_employee_insight_type ON employee_insight(employee_uuid, insight_type);
+
 -- ============================================================
 -- LAYER 4: USER MANAGEMENT (org and platform staff)
 -- ============================================================
@@ -475,18 +489,53 @@ CREATE TABLE document (
   pushed_at            TIMESTAMPTZ  DEFAULT NOW(),
   routed_at            TIMESTAMPTZ,
   upload_comment       TEXT,        -- OA-Operator annotation at upload time
-  original_filename    TEXT         -- Original filename from upload (not stored on S3)
+  original_filename    TEXT,        -- Original filename from upload (not stored on S3)
+  -- Added by migrations/033_document_statutory_hold.sql — DPDP Act erasure requests
+  -- can conflict with Indian labour law retention obligations (EPF Act, Income Tax
+  -- Act, Companies Act, Gratuity Act); these columns let ComplianceService.execute_erasure
+  -- honour a statutory hold instead of deleting the document outright.
+  statutory_hold_reason VARCHAR(50),
+  statutory_hold_until  DATE,
+  statutory_hold_set_at TIMESTAMPTZ,
+  statutory_hold_set_by VARCHAR(50), -- 'SYSTEM_INFER' or an oa_user_id (manual override)
+  employee_visible      BOOLEAN      NOT NULL DEFAULT TRUE,
+  employer_visible      BOOLEAN      NOT NULL DEFAULT TRUE,
+  -- Added by migrations/044_document_legal_hold.sql — an indefinite litigation
+  -- hold, distinct from statutory_hold_until (a KNOWN-expiry labour-law date).
+  legal_hold_active     BOOLEAN      NOT NULL DEFAULT FALSE,
+  legal_hold_reason     TEXT
 );
 CREATE INDEX idx_doc_pan_token ON document(pan_token) WHERE is_deleted = FALSE;
 CREATE INDEX idx_doc_pipeline  ON document(pipeline_status) WHERE pipeline_status NOT IN ('ROUTED','EXCEPTION');
 CREATE INDEX idx_doc_employee  ON document(employee_uuid, doc_type);
 CREATE INDEX idx_doc_tenant    ON document(tenant_id, pipeline_status);
+CREATE INDEX idx_doc_statutory_hold ON document(statutory_hold_until)
+  WHERE statutory_hold_until IS NOT NULL AND is_deleted = FALSE AND employer_visible = TRUE;
+CREATE INDEX idx_doc_legal_hold ON document(legal_hold_active) WHERE legal_hold_active = TRUE;
 CREATE INDEX idx_doc_extracted ON document USING GIN (extracted_fields);
 
 -- Deferred FK: career_event → document
 ALTER TABLE career_event
   ADD CONSTRAINT fk_ce_doc
   FOREIGN KEY (doc_uuid) REFERENCES document(document_id);
+
+-- Batch-level summary for multi-file uploads (BatchProgressWorkflow, migration 043).
+-- One row per batch_id, created at upload time, updated by write_batch_summary once
+-- all child DocumentPipelineWorkflow runs (or the batch timeout) settle.
+CREATE TABLE document_batch (
+  batch_id      UUID         PRIMARY KEY,
+  tenant_id     UUID         NOT NULL REFERENCES tenant(tenant_id),
+  total_files   INTEGER      NOT NULL DEFAULT 0,
+  routed        INTEGER      NOT NULL DEFAULT 0,
+  exceptions    INTEGER      NOT NULL DEFAULT 0,
+  quarantined   INTEGER      NOT NULL DEFAULT 0,
+  failed        INTEGER      NOT NULL DEFAULT 0,
+  status        VARCHAR(20)  NOT NULL DEFAULT 'PROCESSING',
+                 -- PROCESSING | COMPLETE | PARTIAL
+  created_at    TIMESTAMPTZ  NOT NULL DEFAULT NOW(),
+  completed_at  TIMESTAMPTZ
+);
+CREATE INDEX idx_document_batch_tenant ON document_batch(tenant_id, created_at DESC);
 
 CREATE TABLE share_token (
   token_id             UUID         PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -762,6 +811,17 @@ CREATE INDEX idx_audit_tenant ON audit_event(tenant_id, occurred_at DESC);
 CREATE INDEX idx_audit_pan    ON audit_event(pan_token, occurred_at DESC);
 CREATE INDEX idx_audit_doc    ON audit_event(document_id, occurred_at DESC);
 
+-- Added by migrations/045_audit_archive_log.sql — records which audit_event rows
+-- were copied to cold S3 storage. Cannot be a column on audit_event itself: UPDATE
+-- is REVOKEd on that table (see LAYER 14 below) so this is deliberately a separate,
+-- INSERT-only bookkeeping table.
+CREATE TABLE audit_archive_log (
+  event_id     UUID         PRIMARY KEY,
+  archived_at  TIMESTAMPTZ  NOT NULL DEFAULT NOW(),
+  s3_key       TEXT         NOT NULL
+);
+CREATE INDEX idx_audit_archive_log_archived_at ON audit_archive_log(archived_at);
+
 CREATE TABLE anomaly_event (
   anomaly_id     UUID         PRIMARY KEY DEFAULT gen_random_uuid(),
   tenant_id      UUID         REFERENCES tenant(tenant_id),
@@ -931,7 +991,9 @@ INSERT INTO platform_config (config_key, config_value, value_type, description, 
   ('bulk_access_auto_lock_enabled',      'false',       'BOOLEAN',           'Auto-lock the account on a BULK_DOC_ACCESS anomaly — ships OFF, PA opt-in after trusting real thresholds', 'false', 'true'),
   ('brute_force_auto_lock_enabled',      'false',       'BOOLEAN',           'Auto-lock the account on a BRUTE_FORCE anomaly — ships OFF, PA opt-in after trusting real thresholds', 'false', 'true'),
   ('policy_lock_default_hours',          '24',          'DURATION_HOURS',    'PolicyLockWorkflow default lock duration when auto-lock is enabled', '1', '168'),
-  ('platform_anomaly_check_minutes',     '5',           'DURATION_MINUTES',  'AnomalyDetectionWorkflow batch-scan interval', '1', '60');
+  ('platform_anomaly_check_minutes',     '5',           'DURATION_MINUTES',  'AnomalyDetectionWorkflow batch-scan interval', '1', '60'),
+  ('pipeline_max_duration_hours',        '4',           'DURATION_HOURS',    'BatchTimeoutMonitorWorkflow: per-file ceiling before a document is marked a straggler', '1', '24'),
+  ('batch_max_duration_hours',           '24',          'DURATION_HOURS',    'BatchProgressWorkflow: whole-batch ceiling before remaining unfinished files are marked stragglers', '1', '168');
 
 CREATE TABLE tenant_config (
   tenant_id     UUID         NOT NULL REFERENCES tenant(tenant_id),
@@ -999,6 +1061,23 @@ CREATE TABLE storage_request (
   decided_at      TIMESTAMPTZ
 );
 CREATE INDEX idx_storage_req_status ON storage_request(status, requested_at DESC);
+
+-- webhook_delivery_log — durable delivery record for WebhookDeliveryWorkflow
+-- (workflows/platform_ops.py, migration 046_webhook_delivery_log.sql)
+CREATE TABLE webhook_delivery_log (
+  delivery_id     UUID         PRIMARY KEY DEFAULT gen_random_uuid(),
+  tenant_id       UUID         REFERENCES tenant(tenant_id),
+  webhook_url     TEXT         NOT NULL,
+  event_type      VARCHAR(60)  NOT NULL,
+  status          VARCHAR(20)  NOT NULL DEFAULT 'PENDING',
+                   -- PENDING | DELIVERED | FAILED
+  response_code   SMALLINT,
+  attempt_count   SMALLINT     NOT NULL DEFAULT 0,
+  last_attempt_at TIMESTAMPTZ,
+  created_at      TIMESTAMPTZ  NOT NULL DEFAULT NOW()
+);
+CREATE INDEX idx_webhook_delivery_tenant ON webhook_delivery_log(tenant_id, created_at DESC);
+CREATE INDEX idx_webhook_delivery_failed ON webhook_delivery_log(status) WHERE status = 'FAILED';
 
 -- Layer 13: CHRO Reports
 -- On-demand PDF report metadata; PDF is re-generated from stored row data.

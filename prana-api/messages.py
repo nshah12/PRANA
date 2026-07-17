@@ -65,6 +65,8 @@ class SuccessCode(StrEnum):
     ERASURE_CANCELLED      = "ERASURE_CANCELLED"
     EXPORT_REQUESTED       = "EXPORT_REQUESTED"
     CORRECTION_REQUESTED   = "CORRECTION_REQUESTED"
+    CORRECTION_APPLIED     = "CORRECTION_APPLIED"
+    CORRECTION_REJECTED    = "CORRECTION_REJECTED"
     CONSENT_WITHDRAWN      = "CONSENT_WITHDRAWN"
     CONSENT_GRANTED        = "CONSENT_GRANTED"
     GRIEVANCE_SUBMITTED    = "GRIEVANCE_SUBMITTED"
@@ -157,6 +159,13 @@ class InfoCode(StrEnum):
 
     # ── System ────────────────────────────────────────────────────────────────
     RATE_LIMIT_WARNING     = "RATE_LIMIT_WARNING"      # approaching rate limit
+
+    # ── Employee lifecycle ───────────────────────────────────────────────────
+    EMPLOYEE_EXITED        = "EMPLOYEE_EXITED"          # vault frozen, retention started
+    VAULT_WELCOME          = "VAULT_WELCOME"            # first-time vault activation
+    VAULT_WELCOME_REJOIN   = "VAULT_WELCOME_REJOIN"     # re-hire vault welcome
+    ALUMNI_CONSENT_PROMPT  = "ALUMNI_CONSENT_PROMPT"    # stay-connected prompt post-exit
+    ACCOUNT_DORMANT_FLAGGED = "ACCOUNT_DORMANT_FLAGGED" # re-engagement nudge
 
 
 class ValidationCode(StrEnum):

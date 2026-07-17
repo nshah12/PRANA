@@ -110,3 +110,40 @@ async def test_handle_anomaly_resolves_severity_via_policy_when_missing():
         anomaly_id="a-2", tenant_id="t-1", rule_name="SOME_NEW_RULE",
         severity="P3", assigned_ciso_id=None,
     )
+
+
+# ── SHARE_ACCESSED — workflows/vault_shares.py's notify_share_accessed activity ──
+
+@pytest.mark.asyncio
+async def test_share_accessed_notifies_employee_via_email():
+    consumer = NotifConsumer.__new__(NotifConsumer)
+    svc = AsyncMock()
+    isvc = AsyncMock()
+    conn = AsyncMock()
+    conn.fetchrow = AsyncMock(return_value={"email": "emp@example.com"})
+
+    event = {"event_type": "SHARE_ACCESSED", "employee_user_id": "emp-1", "tenant_id": "t-1"}
+    await consumer._dispatch(event, "SHARE_ACCESSED", svc, isvc, conn)
+
+    conn.fetchrow.assert_awaited_once()
+    svc.notify.assert_awaited_once()
+    call = svc.notify.call_args.kwargs
+    assert call["recipient_id"] == "emp-1"
+    assert call["recipient_email"] == "emp@example.com"
+    assert call["recipient_type"] == RecipientType.EMPLOYEE
+    assert call["channel"] == Channel.EMAIL
+    assert call["template_id"] == "SHARE_ACCESSED"
+
+
+@pytest.mark.asyncio
+async def test_share_accessed_no_employee_email_does_not_crash():
+    consumer = NotifConsumer.__new__(NotifConsumer)
+    svc = AsyncMock()
+    isvc = AsyncMock()
+    conn = AsyncMock()
+    conn.fetchrow = AsyncMock(return_value=None)
+
+    event = {"event_type": "SHARE_ACCESSED", "employee_user_id": "emp-1"}
+    await consumer._dispatch(event, "SHARE_ACCESSED", svc, isvc, conn)
+
+    svc.notify.assert_not_awaited()

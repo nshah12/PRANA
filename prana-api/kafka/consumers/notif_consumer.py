@@ -17,6 +17,8 @@ Events handled:
   CROSS_TENANT_UPLOAD → notify Tenant CISO (email + bell) + PA Admin (email)
   DPDP_ERASURE_DONE   → notify employee (email)
   DPDP_EXPORT_READY   → notify employee (email)
+  SHARE_ACCESSED      → notify employee/share-owner (email) — published by
+                        workflows/vault_shares.py's notify_share_accessed activity
   DIGEST_READY        → notify role recipients (email)
   AUDIT_INTEGRITY_MISMATCH → notify all active PA Admins (email) — platform-level,
                         raised by AuditIntegrityVerificationWorkflow when a
@@ -101,6 +103,8 @@ class NotifConsumer:
             await self._handle_dpdp_employee(event, svc, conn, template_id="ERASURE_COMPLETE")
         elif etype == "DPDP_EXPORT_READY":
             await self._handle_dpdp_employee(event, svc, conn, template_id="EXPORT_READY")
+        elif etype == "SHARE_ACCESSED":
+            await self._handle_dpdp_employee(event, svc, conn, template_id="SHARE_ACCESSED")
         elif etype == "DIGEST_READY":
             await self._handle_digest_ready(event, svc, conn)
         elif etype == "AUDIT_INTEGRITY_MISMATCH":
