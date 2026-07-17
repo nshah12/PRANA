@@ -155,6 +155,13 @@ class Settings(BaseSettings):
     msg91_auth_key:     str = ""
     msg91_template_id:  str = ""
 
+    # NCMEC CyberTipline — mandatory CSAM reporting (POCSO Act + IT Act). Empty
+    # ncmec_report_url = dev mode: logs instead of calling out (see sms_provider
+    # "dev" for the same pattern). Must be set in production — this is a legal
+    # reporting obligation, not an optional integration.
+    ncmec_report_url: str = ""
+    ncmec_api_key:    str = ""
+
     # CORS — localhost for dev, GitHub Pages for demo, prana.in for prod
     cors_origins: list[str] = [
         "http://localhost:3000",

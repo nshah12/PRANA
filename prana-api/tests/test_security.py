@@ -106,3 +106,158 @@ async def test_release_policy_lock_activity_delegates_to_account_lock_service():
         user_type="employee", user_id="emp-1",
         event_id="event-1", unlocked_by="", early=False,
     )
+
+
+# ── TOTP lockout activities ───────────────────────────────────────────────────
+
+@pytest.mark.asyncio
+async def test_apply_totp_lockout_delegates_to_account_lock_service():
+    from workflows.security import apply_totp_lockout
+
+    p_asyncpg, _ = _patched_asyncpg_and_redis()
+    with p_asyncpg, \
+         patch("services.account_lock_service.AccountLockService.apply_totp_lockout",
+               new_callable=AsyncMock, return_value="event-2") as mock_apply:
+        result = await apply_totp_lockout({"user_type": "employee", "user_id": "emp-1", "tenant_id": "t-1"})
+    assert result == "event-2"
+    mock_apply.assert_awaited_once_with(user_type="employee", user_id="emp-1", tenant_id="t-1")
+
+
+@pytest.mark.asyncio
+async def test_release_totp_lockout_delegates_to_account_lock_service():
+    from workflows.security import release_totp_lockout
+
+    p_asyncpg, _ = _patched_asyncpg_and_redis()
+    with p_asyncpg, \
+         patch("services.account_lock_service.AccountLockService.release_totp_lockout",
+               new_callable=AsyncMock) as mock_release:
+        await release_totp_lockout({"user_type": "employee", "user_id": "emp-1", "event_id": "event-2"})
+    mock_release.assert_awaited_once_with(user_type="employee", user_id="emp-1", event_id="event-2")
+
+
+# ── Session activities ────────────────────────────────────────────────────────
+
+@pytest.mark.asyncio
+async def test_expire_session_revokes_with_expired_reason():
+    from workflows.security import expire_session
+
+    p_asyncpg, p_redis = _patched_asyncpg_and_redis()
+    with p_asyncpg, p_redis, \
+         patch("services.session_service.SessionService.revoke", new_callable=AsyncMock) as mock_revoke:
+        await expire_session({"session_id": "sess-1"})
+    mock_revoke.assert_awaited_once_with("sess-1", reason="EXPIRED")
+
+
+@pytest.mark.asyncio
+async def test_force_revoke_session_uses_ciso_reason():
+    from workflows.security import force_revoke_session
+
+    p_asyncpg, p_redis = _patched_asyncpg_and_redis()
+    with p_asyncpg, p_redis, \
+         patch("services.session_service.SessionService.revoke", new_callable=AsyncMock) as mock_revoke:
+        await force_revoke_session({"session_id": "sess-2"})
+    mock_revoke.assert_awaited_once_with("sess-2", reason="FORCE_REVOKED_CISO")
+
+
+# ── KMS / HMAC rotation activities ────────────────────────────────────────────
+
+@pytest.mark.asyncio
+async def test_get_next_tenant_for_rotation_delegates_with_interval():
+    from workflows.security import get_next_tenant_for_rotation
+
+    p_asyncpg, _ = _patched_asyncpg_and_redis()
+    with p_asyncpg, \
+         patch("services.kms_rotation_service.KMSRotationService.get_next_tenant_for_rotation",
+               new_callable=AsyncMock, return_value={"tenant_id": "t-1", "kek_arn": "arn:1"}) as mock_get:
+        result = await get_next_tenant_for_rotation({"interval_days": 365})
+    assert result == {"tenant_id": "t-1", "kek_arn": "arn:1"}
+    mock_get.assert_awaited_once_with(interval_days=365)
+
+
+@pytest.mark.asyncio
+async def test_kms_key_rotation_workflow_passes_interval_days_to_next_tenant_lookup():
+    """Regression guard: _rotate_one used to fetch interval_str via
+    get_security_config and then never pass it to get_next_tenant_for_rotation —
+    the activity would have received no interval_days at all."""
+    src = inspect.getsource(KMSKeyRotationWorkflow._rotate_one)
+    assert "interval_days" in src, \
+        "interval_str must actually be threaded into get_next_tenant_for_rotation's params"
+
+
+@pytest.mark.asyncio
+async def test_rotate_tenant_kek_delegates_to_kms_rotation_service():
+    from workflows.security import rotate_tenant_kek
+
+    p_asyncpg, _ = _patched_asyncpg_and_redis()
+    with p_asyncpg, \
+         patch("services.kms_rotation_service.KMSRotationService.rotate_tenant_kek",
+               new_callable=AsyncMock) as mock_rotate, \
+         patch("services.encryption_service.KMSService.__init__", return_value=None):
+        await rotate_tenant_kek({"tenant_id": "t-1", "kek_arn": "arn:1"})
+    mock_rotate.assert_awaited_once_with(tenant_id="t-1", kek_arn="arn:1")
+
+
+@pytest.mark.asyncio
+async def test_rotate_hmac_secret_delegates_to_kms_rotation_service():
+    from workflows.security import rotate_hmac_secret
+
+    p_asyncpg, _ = _patched_asyncpg_and_redis()
+    with p_asyncpg, \
+         patch("services.kms_rotation_service.KMSRotationService.rotate_hmac_secret",
+               new_callable=AsyncMock) as mock_rotate, \
+         patch("boto3.client", return_value=MagicMock()):
+        await rotate_hmac_secret({"secret_id": "prana/platform-hmac-secret"})
+    mock_rotate.assert_awaited_once_with(secret_id="prana/platform-hmac-secret")
+
+
+# ── CSAM reporting activities ─────────────────────────────────────────────────
+
+@pytest.mark.asyncio
+async def test_apply_csam_legal_hold_delegates_to_compliance_service():
+    from workflows.security import apply_csam_legal_hold
+
+    p_asyncpg, _ = _patched_asyncpg_and_redis()
+    with p_asyncpg, \
+         patch("services.compliance_service.ComplianceService.apply_legal_hold",
+               new_callable=AsyncMock) as mock_hold:
+        await apply_csam_legal_hold({"tenant_id": "t-1", "document_id": "doc-1"})
+    mock_hold.assert_awaited_once_with(reason="CSAM_NCMEC_HOLD", tenant_id="t-1", document_id="doc-1")
+
+
+@pytest.mark.asyncio
+async def test_report_csam_to_ncmec_delegates_to_csam_report_service():
+    from workflows.security import report_csam_to_ncmec
+
+    p_asyncpg, _ = _patched_asyncpg_and_redis()
+    with p_asyncpg, \
+         patch("services.csam_report_service.CSAMReportService.report_to_ncmec",
+               new_callable=AsyncMock, return_value={"report_id": "R-1"}) as mock_report:
+        result = await report_csam_to_ncmec({"document_id": "doc-1", "tenant_id": "t-1"})
+    assert result == {"report_id": "R-1"}
+    mock_report.assert_awaited_once_with(document_id="doc-1", tenant_id="t-1")
+
+
+@pytest.mark.asyncio
+async def test_report_csam_to_ncmec_dev_mode_logs_instead_of_calling_out():
+    """Mandatory legal filing — dev mode must not silently no-op without a trace."""
+    from services.csam_report_service import CSAMReportService
+    from config import Settings
+
+    settings = Settings(ncmec_report_url="")
+    result = await CSAMReportService(db=MagicMock(), settings=settings).report_to_ncmec(
+        document_id="doc-1", tenant_id="t-1",
+    )
+    assert result == {"report_id": "DEV-NOOP"}
+
+
+@pytest.mark.asyncio
+async def test_notify_csam_platform_admin_publishes_security_event():
+    from workflows.security import notify_csam_platform_admin
+
+    mock_kafka = AsyncMock()
+    with patch("kafka.producer.get_kafka_producer", new_callable=AsyncMock, return_value=mock_kafka):
+        await notify_csam_platform_admin({"document_id": "doc-1", "tenant_id": "t-1"})
+    mock_kafka.security_event.assert_awaited_once()
+    event = mock_kafka.security_event.call_args[0][0]
+    assert event["event_type"] == "CSAM_REPORT_SUBMITTED"
+    assert event["recipient_role"] == "PLATFORM_ADMIN"

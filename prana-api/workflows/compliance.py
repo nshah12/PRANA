@@ -58,23 +58,102 @@ async def escalate_grievance(params: dict) -> None: ...
 @activity.defn(name="close_grievance")
 async def close_grievance(params: dict) -> None: ...
 
+async def _connect():
+    import asyncpg
+
+    from config import get_settings
+
+    settings = get_settings()
+    return await asyncpg.connect(settings.db_dsn)
+
+
 @activity.defn(name="apply_data_correction")
-async def apply_data_correction(params: dict) -> None: ...
+async def apply_data_correction(params: dict) -> None:
+    from services.compliance_service import ComplianceService
+
+    db = await _connect()
+    try:
+        await ComplianceService(db=db).apply_data_correction(params["correction_id"])
+    finally:
+        await db.close()
 
 @activity.defn(name="notify_correction_complete")
-async def notify_correction_complete(params: dict) -> None: ...
+async def notify_correction_complete(params: dict) -> None:
+    from services.compliance_service import ComplianceService
+
+    db = await _connect()
+    try:
+        await ComplianceService(db=db).notify_correction_complete(
+            employee_user_id=params["employee_user_id"],
+            tenant_id=params.get("tenant_id"),
+            approved=params.get("approved", False),
+            reviewed_in_time=params.get("reviewed_in_time", False),
+        )
+    finally:
+        await db.close()
 
 @activity.defn(name="schedule_document_deletion")
-async def schedule_document_deletion(params: dict) -> None: ...
+async def schedule_document_deletion(params: dict) -> dict:
+    from services.compliance_service import ComplianceService
+
+    db = await _connect()
+    try:
+        return await ComplianceService(db=db).schedule_document_deletion(
+            employee_uuid=params["employee_uuid"], tenant_id=params.get("tenant_id"),
+        )
+    finally:
+        await db.close()
 
 @activity.defn(name="archive_audit_events_batch")
-async def archive_audit_events_batch(params: dict) -> dict: ...
+async def archive_audit_events_batch(params: dict) -> dict:
+    import boto3
+
+    from config import get_settings
+    from services.compliance_service import ComplianceService
+
+    settings = get_settings()
+    db = await _connect()
+    try:
+        s3 = boto3.client("s3", region_name=settings.aws_region)
+        svc = ComplianceService(
+            db=db, s3_client=s3,
+            exports_bucket=getattr(settings, "s3_bucket_exports", settings.s3_bucket_documents),
+        )
+        return await svc.archive_audit_events_batch(
+            cutoff_days=int(params.get("cutoff_days", 730)),
+            batch_size=int(params.get("batch_size", 5000)),
+        )
+    finally:
+        await db.close()
 
 @activity.defn(name="apply_legal_hold")
-async def apply_legal_hold(params: dict) -> None: ...
+async def apply_legal_hold(params: dict) -> None:
+    from services.compliance_service import ComplianceService
+
+    db = await _connect()
+    try:
+        await ComplianceService(db=db).apply_legal_hold(
+            reason=params.get("reason", "LITIGATION_HOLD"),
+            tenant_id=params.get("tenant_id"),
+            employee_uuid=params.get("employee_uuid"),
+            document_id=params.get("document_id"),
+        )
+    finally:
+        await db.close()
 
 @activity.defn(name="release_legal_hold")
-async def release_legal_hold(params: dict) -> None: ...
+async def release_legal_hold(params: dict) -> None:
+    from services.compliance_service import ComplianceService
+
+    db = await _connect()
+    try:
+        await ComplianceService(db=db).release_legal_hold(
+            tenant_id=params.get("tenant_id"),
+            employee_uuid=params.get("employee_uuid"),
+            document_id=params.get("document_id"),
+        )
+    finally:
+        await db.close()
 
 @activity.defn(name="get_config_value")
 async def get_config_value(params: dict) -> str: ...
@@ -321,8 +400,19 @@ class AuditArchivalWorkflow:
 
     @workflow.run
     async def run(self, params: dict) -> None:
+        cutoff_str = await workflow.execute_activity(
+            get_config_value,
+            {"key": "audit_archival_cutoff_days", "tenant_id": params.get("tenant_id"), "default": "730"},
+            start_to_close_timeout=timedelta(minutes=2),
+        )
+        batch_str = await workflow.execute_activity(
+            get_config_value,
+            {"key": "audit_archival_batch_size", "tenant_id": params.get("tenant_id"), "default": "5000"},
+            start_to_close_timeout=timedelta(minutes=2),
+        )
         result = await workflow.execute_activity(
-            archive_audit_events_batch, params,
+            archive_audit_events_batch,
+            {**params, "cutoff_days": cutoff_str, "batch_size": batch_str},
             start_to_close_timeout=timedelta(hours=2),
             retry_policy=_RETRY,
         )
@@ -368,23 +458,43 @@ class LegalHoldWorkflow:
 
 @activity.defn(name="mark_overdue_obligations")
 async def mark_overdue_obligations(params: dict) -> dict:
-    from db import get_db_connection
+    # NOTE: previously imported a nonexistent "db.get_db_connection" — db.py only
+    # exports create_pool/get_db (a FastAPI dependency, not usable from a Temporal
+    # activity). That raised ImportError the instant this activity ran; the only
+    # test covering it checked registration by name, never actually called it, so
+    # it shipped unnoticed. Uses the same per-activity asyncpg.connect() pattern
+    # as every other real activity in this codebase.
+    import asyncpg
+
+    from config import get_settings
     from services.compliance_service import ComplianceService
-    async with get_db_connection() as db:
+
+    settings = get_settings()
+    db = await asyncpg.connect(settings.db_dsn)
+    try:
         svc = ComplianceService(db=db)
         return await svc.mark_overdue_obligations(tenant_id=params["tenant_id"])
+    finally:
+        await db.close()
 
 
 @activity.defn(name="notify_overdue_obligations")
 async def notify_overdue_obligations(params: dict) -> None:
-    from db import get_db_connection
+    import asyncpg
+
+    from config import get_settings
     from kafka.producer import get_kafka_producer
     from services.compliance_service import ComplianceService
+
     tenant_id = params["tenant_id"]
     count = params.get("count", 0)
-    async with get_db_connection() as db:
+    settings = get_settings()
+    db = await asyncpg.connect(settings.db_dsn)
+    try:
         svc = ComplianceService(db=db)
         await svc.notify_overdue_obligations(tenant_id=tenant_id, count=count)
+    finally:
+        await db.close()
     # Publish to prana.notifications so NotifConsumer dispatches CHRO alert
     kafka = await get_kafka_producer()
     await kafka.publish(

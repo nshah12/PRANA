@@ -144,3 +144,65 @@ async def test_release_policy_lock_noop_if_event_not_found():
     )
 
     db.execute.assert_not_called()
+
+
+# ── apply_totp_lockout / release_totp_lockout ─────────────────────────────────
+
+@pytest.mark.asyncio
+async def test_apply_totp_lockout_writes_totp_lockout_event():
+    db = _db(fetchval_return=None)
+    svc = AccountLockService(db)
+
+    event_id = await svc.apply_totp_lockout(user_type="employee", user_id="emp-1", tenant_id="tenant-1")
+
+    assert event_id
+    insert_call = next(c for c in db.execute.call_args_list if "INSERT INTO account_status_event" in c.args[0])
+    assert "TOTP_LOCKOUT" in insert_call.args[0]
+    assert insert_call.args[2] == "employee"
+    assert insert_call.args[3] == "emp-1"
+
+
+@pytest.mark.asyncio
+async def test_apply_totp_lockout_is_idempotent():
+    existing_id = uuid.uuid4()
+    db = _db(fetchval_return=existing_id)
+    svc = AccountLockService(db)
+
+    event_id = await svc.apply_totp_lockout(user_type="employee", user_id="emp-1", tenant_id="tenant-1")
+
+    assert event_id == str(existing_id)
+    assert not any("INSERT INTO account_status_event" in c.args[0] for c in db.execute.call_args_list)
+
+
+@pytest.mark.asyncio
+async def test_apply_totp_lockout_locks_portal_admin_table():
+    db = _db(fetchval_return=None)
+    svc = AccountLockService(db)
+
+    await svc.apply_totp_lockout(user_type="portal_admin", user_id="pa-1", tenant_id=None)
+
+    assert any("UPDATE portal_admin" in c.args[0] for c in db.execute.call_args_list)
+
+
+@pytest.mark.asyncio
+async def test_release_totp_lockout_restores_active_and_resets_failed_count():
+    lock_event_id = str(uuid.uuid4())
+    db = _db(fetchrow_return={"reversed_by_event_id": None})
+    svc = AccountLockService(db)
+
+    await svc.release_totp_lockout(user_type="employee", user_id="emp-1", event_id=lock_event_id)
+
+    status_call = next(c for c in db.execute.call_args_list if "UPDATE employee_user SET status" in c.args[0])
+    assert status_call.args[1] == "ACTIVE"
+    reset_call = next(c for c in db.execute.call_args_list if "failed_totp_count=0" in c.args[0])
+    assert reset_call.args[1] == "emp-1"
+
+
+@pytest.mark.asyncio
+async def test_release_totp_lockout_is_idempotent_noop_if_already_reversed():
+    db = _db(fetchrow_return={"reversed_by_event_id": uuid.uuid4()})
+    svc = AccountLockService(db)
+
+    await svc.release_totp_lockout(user_type="employee", user_id="emp-1", event_id=str(uuid.uuid4()))
+
+    db.execute.assert_not_called()

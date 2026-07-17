@@ -240,3 +240,26 @@ class KMSService:
             SigningAlgorithm="RSASSA_PKCS1_V1_5_SHA_256",
         )
         return resp["Signature"]
+
+    def create_tenant_kek(self, tenant_id: str) -> str:
+        """Provisions a new customer-managed CMK for a tenant's KEK rotation.
+        A full key swap (not AWS's native same-key annual rotation) so a
+        suspected-compromised key can actually be retired, not just have its
+        backing material rotated in place. Returns the new key's ARN."""
+        resp = self._client.create_key(
+            Description=f"PRANA tenant KEK — {tenant_id}",
+            KeyUsage="ENCRYPT_DECRYPT",
+            Origin="AWS_KMS",
+        )
+        key_arn = resp["KeyMetadata"]["Arn"]
+        self._client.create_alias(
+            AliasName=f"alias/prana-tenant-{tenant_id}-{resp['KeyMetadata']['KeyId'][:8]}",
+            TargetKeyId=resp["KeyMetadata"]["KeyId"],
+        )
+        return key_arn
+
+    @property
+    def raw_client(self):
+        """Escape hatch for code that needs a boto3 KMS operation this wrapper
+        doesn't expose yet (e.g. describe_key for health checks)."""
+        return self._client

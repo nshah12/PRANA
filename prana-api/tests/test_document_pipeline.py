@@ -4,6 +4,40 @@ import inspect
 from workflows.document_pipeline import DocumentPipelineWorkflow
 
 
+def test_stage_activities_are_the_same_objects_as_workflows_activities():
+    """Regression guard: document_pipeline.py used to redeclare stage02-06 (and
+    update_pipeline_status) as its own bare-stub @activity.defn functions,
+    shadowing the real implementations in workflows/activities.py by name only
+    — the exact ACTIVITY-01 hazard (a real compliance.py instance of this
+    shipped and went unnoticed for a while). Now this file imports the real
+    functions directly, so there is exactly one declaration per activity name
+    and no way for worker.py's registration to accidentally pick the wrong one."""
+    import workflows.activities as real
+    import workflows.document_pipeline as pipeline
+
+    for name in (
+        "stage02_encrypt", "stage03_scan", "stage04_extract",
+        "stage04_write_unclassified", "stage05_resolve",
+        "stage05_handle_cross_tenant_violation", "stage06_route",
+        "stage06_raise_exception", "update_pipeline_status",
+    ):
+        assert getattr(pipeline, name) is getattr(real, name), \
+            f"workflows.document_pipeline.{name} must be the same object as workflows.activities.{name}"
+
+
+def test_embedding_activities_intentionally_have_no_prana_api_implementation():
+    """compute_document_embedding/write_document_embedding are registered by
+    prana-ai's own worker on the shared resolution-queue (worker.py's
+    "resolution-queue" entry has activities=[] with that exact comment) —
+    prana-api must never define a real body for these, or the two processes
+    would race to register the same activity name."""
+    # Neither name should appear in workflows/activities.py — this file is the
+    # only place they're declared, and deliberately left unimplemented.
+    import workflows.activities as real
+    assert not hasattr(real, "compute_document_embedding")
+    assert not hasattr(real, "write_document_embedding")
+
+
 def test_pipeline_workflow_is_thin_shell_no_db_calls_in_run():
     src = inspect.getsource(DocumentPipelineWorkflow.run)
     assert "SELECT" not in src.upper(), "No SQL SELECT in workflow shell"

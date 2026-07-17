@@ -1,13 +1,36 @@
 """
 DocumentPipelineWorkflow — thin Temporal shell.
-All business logic lives in prana-ai pipeline stages (plain Python, no Temporal imports).
-This file contains ONLY Temporal primitives: workflow, activities, task queue wiring.
+Stage activities (stage02-06) are implemented once in workflows/activities.py
+and imported here directly — not redeclared — so there is exactly one
+@activity.defn per name and no risk of a duplicate stub shadowing the real
+implementation (see scripts/enforce_rules.py's ACTIVITY-01 check, added after
+exactly that bug shipped in workflows/compliance.py). Stages 03-06 call
+prana-ai via HTTP internally; stage02 (encryption) runs locally since it needs
+KMS access, which prana-ai does not have.
 """
 from datetime import timedelta
 from temporalio import workflow, activity
 from temporalio.common import RetryPolicy
 
-TASK_QUEUE = "document-pipeline"
+from workflows.activities import (
+    stage02_encrypt,
+    stage03_scan,
+    stage04_extract,
+    stage04_write_unclassified,
+    stage05_resolve,
+    stage05_handle_cross_tenant_violation,
+    stage06_route,
+    stage06_raise_exception,
+    update_pipeline_status,
+)
+
+# Must match worker.py's WORKERS dict key exactly — this constant is imported by
+# workflow_consumer.py (DocumentPipelineWorkflow/BatchTimeoutMonitorWorkflow starts)
+# and by batch_progress.py (BatchProgressWorkflow's own child-workflow starts), so a
+# wrong value here silently breaks every document upload: start_workflow() never
+# validates a queue has a listening worker, so nothing errors — the document simply
+# never leaves pipeline_status=QUEUED. See scripts/enforce_rules.py's QUEUE-01 check.
+TASK_QUEUE = "ingestsvc-queue"
 
 _RETRY = RetryPolicy(
     maximum_attempts=3,
@@ -17,35 +40,13 @@ _RETRY = RetryPolicy(
 )
 
 
-# ── Activity stubs (implementations live in prana-ai, called via HTTP) ────────
-
-@activity.defn(name="stage02_encrypt")
-async def stage02_encrypt(params: dict) -> dict: ...
-
-@activity.defn(name="stage03_scan")
-async def stage03_scan(params: dict) -> dict: ...
-
-@activity.defn(name="stage04_extract")
-async def stage04_extract(params: dict) -> dict: ...
-
-@activity.defn(name="stage05_resolve")
-async def stage05_resolve(params: dict) -> dict: ...
-
-@activity.defn(name="stage06_route")
-async def stage06_route(params: dict) -> dict: ...
-
-@activity.defn(name="stage06_raise_exception")
-async def stage06_raise_exception(params: dict) -> dict: ...
-
-@activity.defn(name="stage04_write_unclassified")
-async def stage04_write_unclassified(params: dict) -> dict: ...
-
-@activity.defn(name="stage05_handle_cross_tenant_violation")
-async def stage05_handle_cross_tenant_violation(params: dict) -> dict: ...
-
-@activity.defn(name="update_pipeline_status")
-async def update_pipeline_status(params: dict) -> None: ...
-
+# ── EmbeddingUpdateWorkflow's activities are registered by prana-ai's own ────
+# worker process on this same task queue (see worker.py's "resolution-queue"
+# entry: "activities": [] # activities registered by prana-ai worker) — prana-
+# api never registers a compute_document_embedding/write_document_embedding
+# implementation, and must not: doing so from prana-api would create the exact
+# duplicate-registration hazard this file's stage02-06 activities used to have
+# (see the import block above), just in the opposite direction.
 @activity.defn(name="compute_document_embedding")
 async def compute_document_embedding(params: dict) -> dict: ...
 

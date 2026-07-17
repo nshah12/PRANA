@@ -64,7 +64,10 @@ async def stage02_encrypt(params: dict) -> dict:
             access_key_id=settings.aws_access_key_id,
             secret_access_key=settings.aws_secret_access_key,
         )
-        dek = await kms.decrypt_dek(enc_dek, params["tenant_kek_arn"])
+        # KMSService.unwrap_dek is synchronous (boto3 kms.decrypt is not async) —
+        # this used to call a nonexistent "decrypt_dek" method with `await`, which
+        # would raise AttributeError before ever reaching the real coroutine issue.
+        dek = kms.unwrap_dek(enc_dek, params["tenant_kek_arn"])
         try:
             from ff3 import FF3Cipher
             key_hex    = dek[:16].hex()           # FF3-1 uses 16, 24, or 32-byte key
@@ -94,7 +97,7 @@ async def stage02_encrypt(params: dict) -> dict:
             access_key_id=settings.aws_access_key_id,
             secret_access_key=settings.aws_secret_access_key,
         )
-        file_dek = await kms.decrypt_dek(params["enc_dek"], params["tenant_kek_arn"])
+        file_dek = kms.unwrap_dek(params["enc_dek"], params["tenant_kek_arn"])
         try:
             from cryptography.hazmat.primitives.ciphers.aead import AESGCM
             obj = s3.get_object(Bucket=staging_bucket, Key=staging_key)
@@ -499,7 +502,10 @@ async def close_grievance(params: dict) -> None:
 @activity.defn(name="get_batch_config")
 async def get_batch_config(params: dict) -> dict:
     """
-    Read pipeline_max_duration_hours and batch_max_duration_hours from config.
+    Read pipeline_max_duration_hours and batch_max_duration_hours from config, and
+    (when batch_id is given) the document_ids belonging to that batch — BATCH_UPLOADED
+    events carry only a count, not the ids, so BatchProgressWorkflow's fan-out has to
+    look them up here rather than receive them in its start params.
     Tenant config overrides platform config.
     """
     import asyncpg
@@ -521,10 +527,16 @@ async def get_batch_config(params: dict) -> dict:
             )
             return row["val"] if row else default
 
-        return {
+        result = {
             "pipeline_max_duration_hours": await _cfg("pipeline_max_duration_hours", "4"),
             "batch_max_duration_hours":    await _cfg("batch_max_duration_hours",    "24"),
         }
+        if params.get("batch_id"):
+            rows = await db.fetch(
+                "SELECT document_id FROM document WHERE batch_id=$1", params["batch_id"],
+            )
+            result["document_ids"] = [str(r["document_id"]) for r in rows]
+        return result
     finally:
         await db.close()
 

@@ -26,64 +26,180 @@ _RETRY = RetryPolicy(
 )
 
 
-# ── Activities (stubs — implementations in services/analytics_service.py + prana-ai) ──
+# ── Activities (implementations in services/analytics_service.py) ───────────
+
+async def _connect():
+    import asyncpg
+
+    from config import get_settings
+
+    settings = get_settings()
+    return await asyncpg.connect(settings.db_dsn)
+
 
 @activity.defn(name="build_career_insight")
-async def build_career_insight(params: dict) -> dict: ...
+async def build_career_insight(params: dict) -> dict:
+    from services.analytics_service import AnalyticsService
+
+    db = await _connect()
+    try:
+        return await AnalyticsService(db).build_career_insight(employee_uuid=params["employee_uuid"])
+    finally:
+        await db.close()
 
 @activity.defn(name="write_career_insight")
-async def write_career_insight(params: dict) -> None: ...
+async def write_career_insight(params: dict) -> None:
+    from services.analytics_service import AnalyticsService
+
+    db = await _connect()
+    try:
+        await AnalyticsService(db).write_career_insight(
+            employee_uuid=params["employee_uuid"], tenant_id=params.get("tenant_id"),
+            insights=params.get("insights", {}),
+        )
+    finally:
+        await db.close()
 
 @activity.defn(name="score_vault_completeness")
-async def score_vault_completeness(params: dict) -> dict: ...
+async def score_vault_completeness(params: dict) -> dict:
+    from services.analytics_service import AnalyticsService
+
+    db = await _connect()
+    try:
+        return await AnalyticsService(db).score_vault_completeness(employee_uuid=params["employee_uuid"])
+    finally:
+        await db.close()
 
 @activity.defn(name="write_vault_completeness")
-async def write_vault_completeness(params: dict) -> None: ...
+async def write_vault_completeness(params: dict) -> None:
+    from services.analytics_service import AnalyticsService
+
+    db = await _connect()
+    try:
+        await AnalyticsService(db).write_vault_completeness(
+            employee_uuid=params["employee_uuid"], vault_completeness=params["vault_completeness"],
+        )
+    finally:
+        await db.close()
 
 @activity.defn(name="record_anomaly_ack")
-async def record_anomaly_ack(params: dict) -> None: ...
+async def record_anomaly_ack(params: dict) -> None:
+    from services.analytics_service import AnalyticsService
+
+    db = await _connect()
+    try:
+        await AnalyticsService(db).record_anomaly_ack(
+            anomaly_id=params["anomaly_id"], acked=params.get("acked", False),
+            note=params.get("note", ""), acknowledged_by=params.get("acknowledged_by"),
+        )
+    finally:
+        await db.close()
 
 @activity.defn(name="build_weekly_digest")
 async def build_weekly_digest(params: dict) -> dict:
-    """
-    Builds digest data for all configured roles for the tenant.
-    Full implementation lives in the analytics-queue worker which injects a DB pool.
-    DigestService.build_*_digest() is called per role; results are merged into params
-    and forwarded to send_digest_email.
-    """
-    return {"digest_type": "weekly", "tenant_id": params.get("tenant_id"), "data": {}}
+    from services.analytics_service import AnalyticsService
+
+    db = await _connect()
+    try:
+        return await AnalyticsService(db).build_digest(tenant_id=params["tenant_id"], digest_type="weekly")
+    finally:
+        await db.close()
 
 
 @activity.defn(name="build_monthly_digest")
 async def build_monthly_digest(params: dict) -> dict:
-    return {"digest_type": "monthly", "tenant_id": params.get("tenant_id"), "data": {}}
+    from services.analytics_service import AnalyticsService
+
+    db = await _connect()
+    try:
+        return await AnalyticsService(db).build_digest(tenant_id=params["tenant_id"], digest_type="monthly")
+    finally:
+        await db.close()
 
 
 @activity.defn(name="send_digest_email")
 async def send_digest_email(params: dict) -> None:
-    """
-    Publishes digest payload to prana.notifications Kafka topic.
-    NotifConsumer dispatches via AWS SES — never calls SES directly from here.
-    """
-    ...
+    from kafka.producer import get_kafka_producer
+    from services.analytics_service import AnalyticsService
+
+    db = await _connect()
+    try:
+        kafka = await get_kafka_producer()
+        await AnalyticsService(db, kafka=kafka).send_digest_email(
+            tenant_id=params["tenant_id"], digest_type=params["digest_type"], data=params.get("data", {}),
+        )
+    finally:
+        await db.close()
 
 @activity.defn(name="build_peer_benchmark")
-async def build_peer_benchmark(params: dict) -> dict: ...
+async def build_peer_benchmark(params: dict) -> dict:
+    from services.analytics_service import AnalyticsService
+
+    db = await _connect()
+    try:
+        return await AnalyticsService(db).build_peer_benchmark(
+            tenant_id=params["tenant_id"], grade=params["grade"], department=params["department"],
+        )
+    finally:
+        await db.close()
 
 @activity.defn(name="write_peer_benchmark")
-async def write_peer_benchmark(params: dict) -> None: ...
+async def write_peer_benchmark(params: dict) -> None:
+    from services.analytics_service import AnalyticsService
+
+    db = await _connect()
+    try:
+        await AnalyticsService(db).write_peer_benchmark(
+            tenant_id=params["tenant_id"], band_label=params["band_label"], cache_value=params["cache_value"],
+        )
+    finally:
+        await db.close()
 
 @activity.defn(name="build_skill_gap_analysis")
-async def build_skill_gap_analysis(params: dict) -> dict: ...
+async def build_skill_gap_analysis(params: dict) -> dict:
+    from services.analytics_service import AnalyticsService
+
+    db = await _connect()
+    try:
+        return await AnalyticsService(db).build_skill_gap_analysis(employee_uuid=params["employee_uuid"])
+    finally:
+        await db.close()
 
 @activity.defn(name="write_skill_gap")
-async def write_skill_gap(params: dict) -> None: ...
+async def write_skill_gap(params: dict) -> None:
+    from services.analytics_service import AnalyticsService
+
+    db = await _connect()
+    try:
+        await AnalyticsService(db).write_skill_gap(
+            employee_uuid=params["employee_uuid"], tenant_id=params.get("tenant_id"),
+            insights=params.get("insights", {}),
+        )
+    finally:
+        await db.close()
 
 @activity.defn(name="build_market_comp")
-async def build_market_comp(params: dict) -> dict: ...
+async def build_market_comp(params: dict) -> dict:
+    from services.analytics_service import AnalyticsService
+
+    db = await _connect()
+    try:
+        return await AnalyticsService(db).build_market_comp(employee_uuid=params["employee_uuid"])
+    finally:
+        await db.close()
 
 @activity.defn(name="write_market_comp")
-async def write_market_comp(params: dict) -> None: ...
+async def write_market_comp(params: dict) -> None:
+    from services.analytics_service import AnalyticsService
+
+    db = await _connect()
+    try:
+        await AnalyticsService(db).write_market_comp(
+            employee_uuid=params["employee_uuid"], tenant_id=params.get("tenant_id"),
+            insights=params.get("insights", {}),
+        )
+    finally:
+        await db.close()
 
 
 # ── CareerInsightWorkflow (Pattern 1 — fast) ─────────────────────────────────

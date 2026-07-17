@@ -81,16 +81,75 @@ async def notify_policy_lock(params: dict) -> None:
     })
 
 @activity.defn(name="apply_totp_lockout")
-async def apply_totp_lockout(params: dict) -> None: ...
+async def apply_totp_lockout(params: dict) -> str:
+    import asyncpg
+
+    from config import get_settings
+    from services.account_lock_service import AccountLockService
+
+    settings = get_settings()
+    db = await asyncpg.connect(settings.db_dsn)
+    try:
+        return await AccountLockService(db).apply_totp_lockout(
+            user_type=params["user_type"], user_id=params["user_id"],
+            tenant_id=params.get("tenant_id"),
+        )
+    finally:
+        await db.close()
 
 @activity.defn(name="release_totp_lockout")
-async def release_totp_lockout(params: dict) -> None: ...
+async def release_totp_lockout(params: dict) -> None:
+    import asyncpg
+
+    from config import get_settings
+    from services.account_lock_service import AccountLockService
+
+    settings = get_settings()
+    db = await asyncpg.connect(settings.db_dsn)
+    try:
+        await AccountLockService(db).release_totp_lockout(
+            user_type=params["user_type"], user_id=params["user_id"], event_id=params["event_id"],
+        )
+    finally:
+        await db.close()
 
 @activity.defn(name="expire_session")
-async def expire_session(params: dict) -> None: ...
+async def expire_session(params: dict) -> None:
+    import asyncpg
+    import redis.asyncio as redis_async
+
+    from config import get_settings
+    from services.jwt_service import JWTService
+    from services.session_service import SessionService
+
+    settings = get_settings()
+    db = await asyncpg.connect(settings.db_dsn)
+    rdb = redis_async.from_url(settings.redis_url)
+    try:
+        await SessionService(db, JWTService(settings, rdb)).revoke(params["session_id"], reason="EXPIRED")
+    finally:
+        await db.close()
+        await rdb.aclose()
 
 @activity.defn(name="force_revoke_session")
-async def force_revoke_session(params: dict) -> None: ...
+async def force_revoke_session(params: dict) -> None:
+    import asyncpg
+    import redis.asyncio as redis_async
+
+    from config import get_settings
+    from services.jwt_service import JWTService
+    from services.session_service import SessionService
+
+    settings = get_settings()
+    db = await asyncpg.connect(settings.db_dsn)
+    rdb = redis_async.from_url(settings.redis_url)
+    try:
+        await SessionService(db, JWTService(settings, rdb)).revoke(
+            params["session_id"], reason="FORCE_REVOKED_CISO",
+        )
+    finally:
+        await db.close()
+        await rdb.aclose()
 
 @activity.defn(name="run_anomaly_detection_batch")
 async def run_anomaly_detection_batch(params: dict) -> dict:
@@ -111,23 +170,107 @@ async def run_anomaly_detection_batch(params: dict) -> dict:
     finally:
         await db.close()
 
+@activity.defn(name="get_next_tenant_for_rotation")
+async def get_next_tenant_for_rotation(params: dict) -> dict:
+    import asyncpg
+
+    from config import get_settings
+    from services.kms_rotation_service import KMSRotationService
+
+    settings = get_settings()
+    db = await asyncpg.connect(settings.db_dsn)
+    try:
+        return await KMSRotationService(db).get_next_tenant_for_rotation(
+            interval_days=int(params.get("interval_days", 365)),
+        )
+    finally:
+        await db.close()
+
 @activity.defn(name="rotate_tenant_kek")
-async def rotate_tenant_kek(params: dict) -> None: ...
+async def rotate_tenant_kek(params: dict) -> None:
+    import asyncpg
+
+    from config import get_settings
+    from services.encryption_service import KMSService
+    from services.kms_rotation_service import KMSRotationService
+
+    settings = get_settings()
+    db = await asyncpg.connect(settings.db_dsn)
+    try:
+        kms = KMSService(
+            region=settings.aws_region,
+            access_key_id=settings.aws_access_key_id,
+            secret_access_key=settings.aws_secret_access_key,
+        )
+        await KMSRotationService(db, kms_service=kms).rotate_tenant_kek(
+            tenant_id=params["tenant_id"], kek_arn=params["kek_arn"],
+        )
+    finally:
+        await db.close()
 
 @activity.defn(name="rotate_hmac_secret")
-async def rotate_hmac_secret(params: dict) -> None: ...
+async def rotate_hmac_secret(params: dict) -> None:
+    import asyncpg
+    import boto3
 
-@activity.defn(name="get_next_tenant_for_rotation")
-async def get_next_tenant_for_rotation(params: dict) -> dict: ...
+    from config import get_settings
+    from services.kms_rotation_service import KMSRotationService
 
-@activity.defn(name="report_csam_to_ncmec")
-async def report_csam_to_ncmec(params: dict) -> None: ...
+    settings = get_settings()
+    db = await asyncpg.connect(settings.db_dsn)
+    try:
+        secrets_client = boto3.client("secretsmanager", region_name=settings.aws_region)
+        await KMSRotationService(db, secrets_client=secrets_client).rotate_hmac_secret(
+            secret_id=params.get("secret_id", "prana/platform-hmac-secret"),
+        )
+    finally:
+        await db.close()
 
 @activity.defn(name="apply_csam_legal_hold")
-async def apply_csam_legal_hold(params: dict) -> None: ...
+async def apply_csam_legal_hold(params: dict) -> None:
+    import asyncpg
+
+    from config import get_settings
+    from services.compliance_service import ComplianceService
+
+    settings = get_settings()
+    db = await asyncpg.connect(settings.db_dsn)
+    try:
+        await ComplianceService(db=db).apply_legal_hold(
+            reason="CSAM_NCMEC_HOLD",
+            tenant_id=params.get("tenant_id"),
+            document_id=params.get("document_id"),
+        )
+    finally:
+        await db.close()
+
+@activity.defn(name="report_csam_to_ncmec")
+async def report_csam_to_ncmec(params: dict) -> dict:
+    import asyncpg
+
+    from config import get_settings
+    from services.csam_report_service import CSAMReportService
+
+    settings = get_settings()
+    db = await asyncpg.connect(settings.db_dsn)
+    try:
+        return await CSAMReportService(db, settings).report_to_ncmec(
+            document_id=params["document_id"], tenant_id=params.get("tenant_id"),
+        )
+    finally:
+        await db.close()
 
 @activity.defn(name="notify_csam_platform_admin")
-async def notify_csam_platform_admin(params: dict) -> None: ...
+async def notify_csam_platform_admin(params: dict) -> None:
+    from kafka.producer import get_kafka_producer
+
+    kafka = await get_kafka_producer()
+    await kafka.security_event({
+        "event_type":   "CSAM_REPORT_SUBMITTED",
+        "document_id":  params.get("document_id"),
+        "tenant_id":    params.get("tenant_id"),
+        "recipient_role": "PLATFORM_ADMIN",
+    })
 
 @activity.defn(name="get_security_config")
 async def get_security_config(params: dict) -> str:
@@ -329,7 +472,7 @@ class KMSKeyRotationWorkflow:
             start_to_close_timeout=timedelta(minutes=2),
         )
         tenant = await workflow.execute_activity(
-            get_next_tenant_for_rotation, params,
+            get_next_tenant_for_rotation, {**params, "interval_days": int(interval_str)},
             start_to_close_timeout=timedelta(minutes=5), retry_policy=_RETRY,
         )
         if tenant.get("tenant_id"):
