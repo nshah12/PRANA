@@ -943,7 +943,10 @@ def check_local_import_resolution():
     if str(API_ROOT) not in sys.path:
         sys.path.insert(0, str(API_ROOT))
 
-    scan_dirs = [API_ROOT / "workflows", API_ROOT / "services", API_ROOT / "kafka" / "consumers"]
+    scan_dirs = [
+        API_ROOT / "workflows", API_ROOT / "services", API_ROOT / "kafka" / "consumers",
+        API_ROOT / "routers", API_ROOT / "connectors",
+    ]
     module_cache: dict[str, object] = {}
 
     def resolve_module(name: str):
