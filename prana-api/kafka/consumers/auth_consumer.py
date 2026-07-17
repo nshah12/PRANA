@@ -5,8 +5,8 @@ Security analysis on auth events: consecutive failures → trigger account lock,
 suspicious login detection, session analytics.
 
 Events handled:
-  USER_LOGIN_FAILED       → increment failure counter; if ≥ threshold → AccountLockWorkflow
-  TOTP_FAILED             → increment TOTP failure counter; if ≥ threshold → AccountLockWorkflow
+  USER_LOGIN_FAILED       → increment failure counter; if ≥ threshold → PolicyLockWorkflow
+  TOTP_FAILED             → increment TOTP failure counter; if ≥ threshold → PolicyLockWorkflow
   SESSION_FORCE_REVOKED   → log security incident
   PASSWORD_CHANGED        → invalidate all other sessions (send signal to SessionManagementWorkflow)
 """
@@ -133,13 +133,18 @@ class AuthConsumer:
             return
         wf_id = f"account-lock-{user_id}"
         try:
+            # The generic policy-lock workflow is PolicyLockWorkflow (workflows/security.py),
+            # registered on secops-queue in worker.py, backed by AccountLockService's
+            # apply_policy_lock/release_policy_lock (whose keyword is reason_code, not
+            # reason). See kafka/consumers/security_consumer.py's own use of the same
+            # workflow for the anomaly-triggered auto-lock path.
             await self._temporal.start_workflow(
-                "AccountLockWorkflow",
-                {"user_id": user_id, "user_type": user_type, "tenant_id": tenant_id, "reason": reason},
+                "PolicyLockWorkflow",
+                {"user_id": user_id, "user_type": user_type, "tenant_id": tenant_id, "reason_code": reason},
                 id=wf_id,
-                task_queue="prana-admin",
+                task_queue="secops-queue",
             )
-            log.info("AuthConsumer: started AccountLockWorkflow user_id=%s reason=%s", user_id, reason)
+            log.info("AuthConsumer: started PolicyLockWorkflow user_id=%s reason=%s", user_id, reason)
         except Exception as exc:
             if "already exists" not in str(exc).lower():
-                log.exception("AuthConsumer: failed to start AccountLockWorkflow")
+                log.exception("AuthConsumer: failed to start PolicyLockWorkflow")

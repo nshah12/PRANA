@@ -79,7 +79,7 @@ class ComplianceConsumer:
                     workflow="ErasureConfirmationWorkflow",
                     wf_id=f"erasure-{uid}",
                     args=[event],
-                    task_queue="prana-compliance",
+                    task_queue="compliance-queue",
                 )
             # Email confirmation of erasure request (DPDP mandated acknowledgement)
             await self._notify("email", uid, tid, "ERASURE_REQUESTED",
@@ -94,7 +94,7 @@ class ComplianceConsumer:
                     workflow="DataExportWorkflow",
                     wf_id=f"export-{event.get('export_id', uid)}",
                     args=[event],
-                    task_queue="prana-compliance",
+                    task_queue="compliance-queue",
                 )
             # Push notification — export can take time; push when ready isn't here yet
             await self._notify("push", uid, tid, "DATA_EXPORT_REQUESTED",
@@ -103,10 +103,10 @@ class ComplianceConsumer:
         elif etype in ("CORRECTION_REQUESTED", "DATA_CORRECTION_REQUESTED"):
             if self._temporal:
                 await self._start(
-                    workflow="CorrectionWorkflow",
+                    workflow="DataCorrectionWorkflow",
                     wf_id=f"correction-{event.get('correction_id', uid)}",
                     args=[event],
-                    task_queue="prana-compliance",
+                    task_queue="compliance-queue",
                 )
 
         elif etype == "GRIEVANCE_FILED":
@@ -115,7 +115,7 @@ class ComplianceConsumer:
                     workflow="GrievanceWorkflow",
                     wf_id=f"grievance-{event.get('grievance_id', uid)}",
                     args=[event],
-                    task_queue="prana-compliance",
+                    task_queue="compliance-queue",
                 )
             # Email acknowledgement — DPDP Act 2023 requires 48-hour ack
             await self._notify("email", uid, tid, "GRIEVANCE_FILED",

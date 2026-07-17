@@ -27,7 +27,9 @@ async def test_erasure_requested_starts_workflow(consumer, temporal):
     temporal.start_workflow.assert_awaited_once()
     call_kwargs = temporal.start_workflow.call_args
     assert call_kwargs[1]["id"] == "erasure-eu-1"
-    assert call_kwargs[1]["task_queue"] == "prana-compliance"
+    # ErasureConfirmationWorkflow is registered on compliance-queue in worker.py —
+    # a wrong queue means the workflow starts but is never polled by any worker.
+    assert call_kwargs[1]["task_queue"] == "compliance-queue"
 
 
 @pytest.mark.asyncio

@@ -182,7 +182,9 @@ async def test_auto_lock_starts_policy_lock_workflow_when_enabled(consumer, db_p
         "user_type": "oa_user", "user_id": "oa-1",
         "tenant_id": "t-1", "reason_code": "BULK_ACCESS_ANOMALY",
     }
-    assert call.kwargs["task_queue"] == "auth-queue"
+    # PolicyLockWorkflow is registered on secops-queue in worker.py, not auth-queue —
+    # a wrong queue here means the workflow starts but is never polled by any worker.
+    assert call.kwargs["task_queue"] == "secops-queue"
     assert call.kwargs["id"] == "policy-lock-BULK_DOC_ACCESS-oa-1"
 
 

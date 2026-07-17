@@ -4,11 +4,12 @@ EmployeeConsumer — prana.employee.events
 Handles employee lifecycle: vault activation, exit, profile updates.
 
 Events handled:
-  EMPLOYEE_ONBOARDED     → start IdentityResolutionWorkflow
-  VAULT_ACTIVATED        → start VaultActivationWorkflow
-  EMPLOYEE_EXITED        → start EmployeeExitWorkflow (triggers push window, archive)
-  EMPLOYEE_REJOINED      → start IdentityResolutionWorkflow (re-check dedup)
-  ACCOUNT_DORMANT        → start AccountDormancyWorkflow
+  EMPLOYEE_ONBOARDED     → no workflow (identity resolution happens per-document
+                           in DocumentPipelineWorkflow stage 05, not per employee)
+  VAULT_ACTIVATED        → start VaultActivationWorkflow (admin-queue)
+  EMPLOYEE_EXITED        → start EmployeeExitWorkflow (admin-queue; triggers push window, archive)
+  EMPLOYEE_REJOINED      → start RejoiningWorkflow (admin-queue; re-links via pan_token dedup)
+  ACCOUNT_DORMANT        → start AccountDormancyWorkflow (admin-queue)
   EMPLOYEE_PROFILE_UPDATED → publish EMPLOYEE_PROFILE_INVALIDATE to cache.invalidation
   HRMS_EMPLOYEE_SYNCED   → upsert employee_master; publish EMPLOYEE_ONBOARDED for new entries
 """
@@ -62,21 +63,33 @@ class EmployeeConsumer:
             await self._consumer.stop()
 
     async def _dispatch(self, etype: Optional[str], event: dict) -> None:
-        if etype in ("EMPLOYEE_ONBOARDED", "EMPLOYEE_REJOINED"):
-            await self._start_workflow("IdentityResolutionWorkflow",
-                                       f"identity-{event.get('employee_uuid')}", event, "prana-ingest")
+        if etype == "EMPLOYEE_ONBOARDED":
+            # No Temporal workflow here: identity resolution happens per-document
+            # inside DocumentPipelineWorkflow's stage 05 (pan_token exact -> employee_id
+            # exact -> name+DOJ fuzzy -> embedding cosine), not as a separate
+            # employee-level step. "IdentityResolutionWorkflow" (previously started
+            # here) is never @workflow.defn'd anywhere in the codebase — starting it
+            # silently queued a workflow no worker could ever execute.
+            pass
+
+        elif etype == "EMPLOYEE_REJOINED":
+            # Re-hire: reconcile the existing vault and re-link via pan_token dedup —
+            # this is exactly what RejoiningWorkflow (workflows/employee_lifecycle.py)
+            # does, not the nonexistent "IdentityResolutionWorkflow" started here before.
+            await self._start_workflow("RejoiningWorkflow",
+                                       f"rejoin-{event.get('employee_uuid')}", event, "admin-queue")
 
         elif etype == "VAULT_ACTIVATED":
             await self._start_workflow("VaultActivationWorkflow",
-                                       f"vault-activate-{event.get('employee_uuid')}", event, "prana-ingest")
+                                       f"vault-activate-{event.get('employee_uuid')}", event, "admin-queue")
 
         elif etype == "EMPLOYEE_EXITED":
             await self._start_workflow("EmployeeExitWorkflow",
-                                       f"emp-exit-{event.get('employee_uuid')}-{event.get('tenant_id')}", event, "prana-admin")
+                                       f"emp-exit-{event.get('employee_uuid')}-{event.get('tenant_id')}", event, "admin-queue")
 
         elif etype == "ACCOUNT_DORMANT":
             await self._start_workflow("AccountDormancyWorkflow",
-                                       f"dormant-{event.get('employee_user_id')}", event, "prana-admin")
+                                       f"dormant-{event.get('employee_user_id')}", event, "admin-queue")
 
         elif etype == "EMPLOYEE_PROFILE_UPDATED":
             if self._kafka:

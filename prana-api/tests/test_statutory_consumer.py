@@ -34,19 +34,33 @@ async def test_obligation_due_notifies_chro_and_cfo_via_bell(consumer, db_pool):
 
 
 @pytest.mark.asyncio
-async def test_obligation_overdue_starts_escalation_workflow(consumer):
+async def test_obligation_overdue_starts_no_workflow(consumer):
+    """Regression guard: this used to start "ObligationEscalationWorkflow" — never
+    @workflow.defn'd anywhere, and OBLIGATION_OVERDUE is never published (labour_law.py
+    only emits OBLIGATION_DUE/OBLIGATION_COMPLETED). Real overdue handling already runs
+    nightly via StatutoryComplianceWorkflow's Pattern-3 schedule."""
     event = {"event_type": "OBLIGATION_OVERDUE", "tenant_id": "t-1", "obligation_id": "ob-2"}
     await consumer._dispatch("OBLIGATION_OVERDUE", event)
-    consumer._temporal.start_workflow.assert_awaited_once()
-    assert "ob-2" in consumer._temporal.start_workflow.call_args[1]["id"]
+    consumer._temporal.start_workflow.assert_not_awaited()
 
 
 @pytest.mark.asyncio
-async def test_gratuity_eligibility_starts_workflow(consumer):
+async def test_gratuity_eligibility_starts_no_workflow(consumer):
+    """Regression guard: this used to start "GratuityCalculationWorkflow" — never
+    @workflow.defn'd anywhere, and GRATUITY_ELIGIBILITY_TRIGGERED is never published."""
     event = {"event_type": "GRATUITY_ELIGIBILITY_TRIGGERED", "tenant_id": "t-1",
              "employee_uuid": "em-1"}
     await consumer._dispatch("GRATUITY_ELIGIBILITY_TRIGGERED", event)
-    consumer._temporal.start_workflow.assert_awaited_once()
+    consumer._temporal.start_workflow.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+async def test_bonus_calculation_due_starts_no_workflow(consumer):
+    """Regression guard: this used to start "BonusCalculationWorkflow" — never
+    @workflow.defn'd anywhere, and BONUS_CALCULATION_DUE is never published."""
+    event = {"event_type": "BONUS_CALCULATION_DUE", "tenant_id": "t-1", "period": "2026-Q2"}
+    await consumer._dispatch("BONUS_CALCULATION_DUE", event)
+    consumer._temporal.start_workflow.assert_not_awaited()
 
 
 @pytest.mark.asyncio

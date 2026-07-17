@@ -9,7 +9,7 @@ notifications, cache invalidation side-effects, audit-driven workflows.
 
 Events handled:
   OA_USER_CREATED          → trigger welcome email notification
-  OA_USER_LOCKED           → start AccountLockWorkflow
+  OA_USER_LOCKED           → start PolicyLockWorkflow
   ELEVATION_REQUESTED      → audit (workflow already started in HTTP handler)
   ELEVATION_APPROVED       → notify requestor (email)
   ELEVATION_DENIED         → notify requestor (email)
@@ -79,18 +79,26 @@ class OAUserConsumer:
 
         elif etype == "OA_USER_LOCKED":
             if self._temporal:
-                wf_id = f"account-lock-oa-{event.get('oa_user_id')}"
+                oa_user_id = event.get("oa_user_id")
+                wf_id = f"account-lock-oa-{oa_user_id}"
                 try:
+                    # "AccountLockWorkflow" was never @workflow.defn'd anywhere — the
+                    # real generic policy-lock workflow is PolicyLockWorkflow
+                    # (workflows/security.py), registered on secops-queue in worker.py,
+                    # backed by AccountLockService.apply_policy_lock which expects
+                    # user_type/user_id/tenant_id/reason_code, not the raw event shape.
                     await self._temporal.start_workflow(
-                        "AccountLockWorkflow",
-                        event,
+                        "PolicyLockWorkflow",
+                        {"user_type": "oa_user", "user_id": oa_user_id,
+                         "tenant_id": event.get("tenant_id"),
+                         "reason_code": event.get("reason_code", "OA_ADMIN_LOCK")},
                         id=wf_id,
-                        task_queue="prana-admin",
+                        task_queue="secops-queue",
                     )
-                    log.info("OAUserConsumer: started AccountLockWorkflow workflow_id=%s", wf_id)
+                    log.info("OAUserConsumer: started PolicyLockWorkflow workflow_id=%s", wf_id)
                 except Exception as exc:
                     if "already exists" not in str(exc).lower():
-                        log.exception("OAUserConsumer: failed to start AccountLockWorkflow")
+                        log.exception("OAUserConsumer: failed to start PolicyLockWorkflow")
 
         elif etype in ("ELEVATION_APPROVED", "ELEVATION_DENIED", "ELEVATION_EXPIRED"):
             await self._notify_elevation_result(etype, event)

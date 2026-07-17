@@ -4,11 +4,19 @@ TenantConsumer — prana.tenant.events
 Handles tenant lifecycle: provisioning, activation, suspension.
 
 Events handled:
-  TENANT_CREATED     → start TenantProvisioningWorkflow (KEK, S3 prefix, first OA-Admin)
-  TENANT_ACTIVATED   → start TenantOnboardingWorkflow (send welcome to OA-Admin)
-  TENANT_SUSPENDED   → start TenantSuspensionWorkflow (revoke sessions, block ingest)
+  TENANT_CREATED     → start TenantProvisioningWorkflow (KEK, S3 prefix, first OA-Admin,
+                        welcome email — see workflows/tenant.py)
+  TENANT_ACTIVATED   → no workflow ("TenantOnboardingWorkflow" was never @workflow.defn'd;
+                        the welcome-email/provisioning it would have done is already
+                        covered by TenantProvisioningWorkflow off TENANT_CREATED)
+  TENANT_SUSPENDED   → no workflow (never published — routers/pa_admin.py's suspend_tenant
+                        writes the DB status directly without publishing this event; no
+                        "TenantSuspensionWorkflow" exists either)
   TENANT_OFFBOARDED  → start TenantOffboardingWorkflow (full data cleanup)
-  KEK_ROTATED        → start KekRotationWorkflow
+  KEK_ROTATED        → no workflow (never published; no "KekRotationWorkflow" exists —
+                        real KEK rotation is KMSKeyRotationWorkflow, workflows/security.py,
+                        a single perpetual Continue-As-New process on secops-queue that
+                        iterates all tenants itself, not a per-tenant per-event workflow)
   TENANT_CONFIG_UPDATED / API_KEY_REVOKED
                      → CacheInvalidationConsumer already handles these via auto-publish;
                         this consumer only needs to log — no workflow needed.
@@ -62,23 +70,33 @@ class TenantConsumer:
 
         if etype == "TENANT_CREATED":
             await self._start_workflow("TenantProvisioningWorkflow",
-                                       f"tenant-provision-{tid}", event, "prana-admin")
+                                       f"tenant-provision-{tid}", event, "admin-queue")
 
         elif etype == "TENANT_ACTIVATED":
-            await self._start_workflow("TenantOnboardingWorkflow",
-                                       f"tenant-onboard-{tid}", event, "prana-admin")
+            # No workflow: "TenantOnboardingWorkflow" was never @workflow.defn'd —
+            # starting it would silently queue a workflow no worker could execute.
+            # The welcome-email/provisioning it would have done already happens in
+            # TenantProvisioningWorkflow off TENANT_CREATED.
+            log.debug("TenantConsumer: TENANT_ACTIVATED has no event-driven handler "
+                      "— provisioning already ran off TENANT_CREATED")
 
         elif etype == "TENANT_SUSPENDED":
-            await self._start_workflow("TenantSuspensionWorkflow",
-                                       f"tenant-suspend-{tid}", event, "prana-admin")
+            # No workflow: never published (routers/pa_admin.py's suspend_tenant writes
+            # the DB status directly, no Kafka event) and "TenantSuspensionWorkflow" was
+            # never @workflow.defn'd.
+            log.debug("TenantConsumer: TENANT_SUSPENDED has no event-driven handler")
 
         elif etype == "TENANT_OFFBOARDED":
             await self._start_workflow("TenantOffboardingWorkflow",
-                                       f"tenant-offboard-{tid}", event, "prana-admin")
+                                       f"tenant-offboard-{tid}", event, "admin-queue")
 
         elif etype == "KEK_ROTATED":
-            await self._start_workflow("KekRotationWorkflow",
-                                       f"kek-rotate-{tid}", event, "prana-admin")
+            # No workflow: never published, and "KekRotationWorkflow" was never
+            # @workflow.defn'd. Real KEK rotation is KMSKeyRotationWorkflow
+            # (workflows/security.py) — a single perpetual process on secops-queue
+            # that iterates all tenants itself, not a per-event per-tenant workflow.
+            log.debug("TenantConsumer: KEK_ROTATED has no event-driven handler "
+                      "— see KMSKeyRotationWorkflow's perpetual schedule")
 
         else:
             log.debug("TenantConsumer: no workflow for event_type=%s — audit handles it", etype)

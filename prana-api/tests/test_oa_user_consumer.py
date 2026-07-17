@@ -51,11 +51,19 @@ async def test_oa_welcome_resent_publishes_welcome_email(consumer):
 
 
 @pytest.mark.asyncio
-async def test_oa_user_locked_starts_account_lock_workflow(consumer):
+async def test_oa_user_locked_starts_policy_lock_workflow(consumer):
+    """Regression guard: this used to start "AccountLockWorkflow" — never
+    @workflow.defn'd anywhere. The real workflow is PolicyLockWorkflow
+    (workflows/security.py), registered on secops-queue in worker.py."""
     event = {"event_type": "OA_USER_LOCKED", "oa_user_id": "u-2", "tenant_id": "t-1"}
     await consumer._dispatch("OA_USER_LOCKED", event)
     consumer._temporal.start_workflow.assert_awaited_once()
-    assert consumer._temporal.start_workflow.call_args[1]["id"] == "account-lock-oa-u-2"
+    call = consumer._temporal.start_workflow.call_args
+    assert call.args[0] == "PolicyLockWorkflow"
+    assert call.args[1]["user_type"] == "oa_user"
+    assert call.args[1]["user_id"] == "u-2"
+    assert call.kwargs["id"] == "account-lock-oa-u-2"
+    assert call.kwargs["task_queue"] == "secops-queue"
 
 
 @pytest.mark.asyncio

@@ -31,7 +31,13 @@ Rules enforced:
   [DB-05]     No datetime.utcnow() — deprecated, use datetime.now(datetime.timezone.utc)
   [TDD-01]    Every source file must have a corresponding test file (ERROR — blocks merge)
   [TDD-02]    Test files must contain at least one def test_*() function
+  [ACTIVITY-01] Duplicate-named Temporal activity must resolve to its real implementation,
+                never to an orphaned bare-stub declaration in another workflows/*.py file
+  [QUEUE-01]  Every start_workflow/start_child_workflow task_queue must be one of
+              worker.py's real registered queue names — a wrong queue name means the
+              workflow sits started-but-never-polled forever, with zero error raised
 """
+import ast
 import re
 import sys
 from pathlib import Path
@@ -434,6 +440,364 @@ scan_py(
     "Direct kafka.publish() in service. Use domain helpers which fan-out to the correct topics.",
     exclude_pattern=r"(#\s*kafka03-direct-ok|producer\.py)",
 )
+
+# ── [ACTIVITY-01] Duplicate-named Temporal activity must resolve to its real
+# implementation in worker.py, never to an orphaned stub in another file ──────
+#
+# Root cause of a real incident (2026-06-18, commit 813339c): activities.py grew
+# real implementations (calling ComplianceService etc.) for several activity
+# names, but worker.py's import block for compliance-queue was never updated to
+# pull from there — it kept importing the plain stub names straight from
+# workflows/compliance.py. Every workflow using those activities
+# (ErasureConfirmationWorkflow, GrievanceWorkflow, ...) ran on Temporal and
+# looked healthy, but every activity silently did nothing — a DPDP erasure
+# request would never actually erase data. Purely structural
+# (inspect.getsource(Workflow.run)) tests never caught this because they only
+# look at the workflow shell, never at which activity function object actually
+# got registered with the Worker. This check parses worker.py's AST for real
+# instead of trusting import statements to be correct.
+
+def _is_stub_body(body: list) -> bool:
+    """True if a function body is only `...` (bare Ellipsis) — this codebase's
+    established convention for an unimplemented activity."""
+    if len(body) != 1:
+        return False
+    stmt = body[0]
+    return (
+        isinstance(stmt, ast.Expr)
+        and isinstance(stmt.value, ast.Constant)
+        and stmt.value.value is Ellipsis
+    )
+
+
+def check_activity_wiring():
+    workflows_dir = API_ROOT / "workflows"
+    worker_file = workflows_dir / "worker.py"
+    if not workflows_dir.exists() or not worker_file.exists():
+        return
+
+    # 1. Every @activity.defn(name="X") across workflows/*.py, and whether it's a stub.
+    declared: dict[str, list[tuple[Path, bool]]] = {}
+    for f in workflows_dir.glob("*.py"):
+        if f.name == "worker.py":
+            continue
+        try:
+            tree = ast.parse(f.read_text(encoding="utf-8", errors="ignore"), filename=str(f))
+        except SyntaxError:
+            continue
+        for node in ast.walk(tree):
+            if not isinstance(node, ast.AsyncFunctionDef):
+                continue
+            for dec in node.decorator_list:
+                if not (isinstance(dec, ast.Call) and isinstance(dec.func, ast.Attribute)
+                        and dec.func.attr == "defn"
+                        and isinstance(dec.func.value, ast.Name) and dec.func.value.id == "activity"):
+                    continue
+                name_kw = next((kw for kw in dec.keywords if kw.arg == "name"), None)
+                if name_kw and isinstance(name_kw.value, ast.Constant):
+                    declared.setdefault(name_kw.value.value, []).append((f, _is_stub_body(node.body)))
+
+    duplicates = {n: v for n, v in declared.items() if len(v) > 1}
+    if not duplicates:
+        return
+
+    # 2. worker.py: local import alias -> (source module stem, original name).
+    worker_tree = ast.parse(worker_file.read_text(encoding="utf-8", errors="ignore"), filename=str(worker_file))
+    alias_origin: dict[str, tuple[str, str]] = {}
+    for node in ast.walk(worker_tree):
+        if isinstance(node, ast.ImportFrom) and node.module and node.module.startswith("workflows."):
+            module_stem = node.module.split(".")[-1]
+            for alias in node.names:
+                alias_origin[alias.asname or alias.name] = (module_stem, alias.name)
+
+    # 3. Local names actually referenced inside any WORKERS[...]["activities"] list.
+    wired_locals: set[str] = set()
+    for node in ast.walk(worker_tree):
+        if isinstance(node, ast.Dict):
+            for key, value in zip(node.keys, node.values):
+                if isinstance(key, ast.Constant) and key.value == "activities" and isinstance(value, ast.List):
+                    wired_locals.update(elt.id for elt in value.elts if isinstance(elt, ast.Name))
+
+    # 4. For every duplicate-named activity, find which declaration is actually
+    #    wired, and fail if that one is a stub while a real one exists elsewhere.
+    for act_name, occurrences in duplicates.items():
+        wired_file = next(
+            (workflows_dir / f"{module_stem}.py"
+             for local, (module_stem, original_name) in alias_origin.items()
+             if original_name == act_name and local in wired_locals),
+            None,
+        )
+        if wired_file is None:
+            continue  # not wired anywhere — TDD-01/dead-code territory, not this rule's job
+        wired_is_stub = next((stub for f, stub in occurrences if f == wired_file), None)
+        real_elsewhere = [f for f, stub in occurrences if f != wired_file and not stub]
+        if wired_is_stub and real_elsewhere:
+            fail("ACTIVITY-01", wired_file, 1, act_name,
+                 f"Activity '{act_name}' is wired in worker.py to the STUB in {wired_file.name}, "
+                 f"but a real implementation exists in {', '.join(p.name for p in real_elsewhere)}. "
+                 f"Fix worker.py's import for '{act_name}' to pull from the real module.",
+                 severity="ERROR")
+
+check_activity_wiring()
+
+# ── [QUEUE-01] task_queue must be a real worker.py-registered queue name ──────
+#
+# Root cause of a live incident found 2026-07-17: workflow_consumer.py's
+# _handle_doc_ingested — triggered on EVERY document upload — starts
+# DocumentPipelineWorkflow and BatchTimeoutMonitorWorkflow on
+# task_queue=TASK_QUEUE, where TASK_QUEUE is workflows/document_pipeline.py's
+# own module constant ("document-pipeline"). But worker.py registers those
+# workflow classes under "ingestsvc-queue" — a different string. Temporal's
+# start_workflow() does not validate that a worker is polling the given queue
+# name — it just queues the start event. Nothing ever raises: the document
+# simply never advances past pipeline_status=QUEUED, forever, silently. The
+# same "prana-admin" / "prana-compliance" style stale queue names (leftover
+# from before queue names were standardized to the "*-queue" suffix) appear
+# in auth_consumer.py, compliance_consumer.py, oa_user_consumer.py, and
+# security_consumer.py's CSAMReportingWorkflow start.
+#
+# This resolves each call site's task_queue value — literal string, or a
+# module-level constant possibly imported from another workflows/*.py file —
+# statically, without a live Temporal cluster, and fails the build if it
+# isn't one of worker.py's real WORKERS dict keys.
+
+def _real_queue_names(worker_tree: ast.AST) -> set[str]:
+    names: set[str] = set()
+    for node in ast.walk(worker_tree):
+        # WORKERS: dict[str, dict] = {...} parses as AnnAssign, not Assign.
+        if isinstance(node, (ast.Assign, ast.AnnAssign)) and isinstance(node.value, ast.Dict):
+            for key in node.value.keys:
+                if isinstance(key, ast.Constant) and isinstance(key.value, str):
+                    names.add(key.value)
+    return names
+
+
+def _workflow_queue_map(worker_tree: ast.AST) -> dict[str, set[str]]:
+    """Workflow class name -> the set of real queue(s) worker.py actually
+    registers it on (a workflow can legitimately appear on more than one, e.g.
+    VaultCompletenessWorkflow on both vault-queue and resolution-queue-analytics).
+    Lets QUEUE-01 check not just 'is this any real queue' but 'is this the
+    right queue for the specific workflow being started here' — the weaker
+    check would have missed PolicyLockWorkflow being started on auth-queue
+    when it's actually registered on secops-queue."""
+    mapping: dict[str, set[str]] = {}
+    for node in ast.walk(worker_tree):
+        if not (isinstance(node, (ast.Assign, ast.AnnAssign)) and isinstance(node.value, ast.Dict)):
+            continue
+        for queue_key, queue_val in zip(node.value.keys, node.value.values):
+            if not (isinstance(queue_key, ast.Constant) and isinstance(queue_val, ast.Dict)):
+                continue
+            queue_name = queue_key.value
+            for k2, v2 in zip(queue_val.keys, queue_val.values):
+                if isinstance(k2, ast.Constant) and k2.value == "workflows" and isinstance(v2, ast.List):
+                    for elt in v2.elts:
+                        if isinstance(elt, ast.Name):
+                            mapping.setdefault(elt.id, set()).add(queue_name)
+    return mapping
+
+
+def _module_const_table(py_files: list[Path], module_prefix: str) -> dict[str, dict[str, object]]:
+    """module_stem -> {const_name: ('literal', str) | ('ref', local_name) |
+    ('import', source_module_stem, original_name)}"""
+    table: dict[str, dict[str, object]] = {}
+    for f in py_files:
+        try:
+            tree = ast.parse(f.read_text(encoding="utf-8", errors="ignore"), filename=str(f))
+        except SyntaxError:
+            continue
+        entries: dict[str, object] = {}
+        for node in ast.iter_child_nodes(tree):
+            if isinstance(node, ast.ImportFrom) and node.module and node.module.startswith(module_prefix):
+                src_stem = node.module.split(".")[-1]
+                for alias in node.names:
+                    entries[alias.asname or alias.name] = ("import", src_stem, alias.name)
+            elif isinstance(node, ast.Assign) and len(node.targets) == 1 and isinstance(node.targets[0], ast.Name):
+                target = node.targets[0].id
+                if isinstance(node.value, ast.Constant) and isinstance(node.value.value, str):
+                    entries[target] = ("literal", node.value.value)
+                elif isinstance(node.value, ast.Name):
+                    entries[target] = ("ref", node.value.id)
+        table[f.stem] = entries
+    return table
+
+
+def _resolve_const(table: dict[str, dict[str, object]], module_stem: str, name: str, depth: int = 0):
+    if depth > 6 or module_stem not in table or name not in table[module_stem]:
+        return None
+    kind, *rest = table[module_stem][name]
+    if kind == "literal":
+        return rest[0]
+    if kind == "ref":
+        return _resolve_const(table, module_stem, rest[0], depth + 1)
+    if kind == "import":
+        src_stem, original_name = rest
+        return _resolve_const(table, src_stem, original_name, depth + 1)
+    return None
+
+
+_START_WORKFLOW_METHODS = {"start_workflow", "start_child_workflow", "execute_child_workflow"}
+
+
+def _resolve_tq_node(node, const_table: dict, module_stem: str):
+    """A task_queue argument's AST node -> its string value, or None if it can't
+    be resolved statically (e.g. an f-string or a runtime-computed expression —
+    not this check's job to flag, only genuinely wrong literals/constants)."""
+    if isinstance(node, ast.Constant) and isinstance(node.value, str):
+        return node.value
+    if isinstance(node, ast.Name):
+        return _resolve_const(const_table, module_stem, node.id)
+    return None
+
+
+def _resolve_wf_node(node):
+    """A start_workflow call's first argument -> the workflow class/type name,
+    handling both `"EmployeeExitWorkflow"` (string) and `SomeWorkflow.run`
+    (attribute access on the class) call styles."""
+    if isinstance(node, ast.Constant) and isinstance(node.value, str):
+        return node.value
+    if isinstance(node, ast.Attribute) and isinstance(node.value, ast.Name):
+        return node.value.id
+    if isinstance(node, ast.Name):
+        return node.id
+    return None
+
+
+def _find_forwarding_wrappers(tree) -> dict[str, dict[str, tuple[int, str]]]:
+    """Local method name -> {'task_queue': (pos, param_name), 'workflow': (pos, param_name)}
+    for whichever of the two a wrapper forwards positionally/by-keyword. Several
+    consumers wrap the real Temporal call in their own private helper (_start,
+    _start_workflow, ...) — a direct scan of only the outermost call site misses
+    both the queue name and the workflow name these forward through a parameter."""
+    wrappers: dict[str, dict[str, tuple[int, str]]] = {}
+    for node in ast.walk(tree):
+        if not isinstance(node, ast.AsyncFunctionDef):
+            continue
+        # .args covers positional-or-keyword params; .kwonlyargs covers the
+        # keyword-only params after a bare `*` (e.g. ComplianceConsumer._start's
+        # `async def _start(self, *, workflow, wf_id, args, task_queue)`).
+        params = [a.arg for a in node.args.args if a.arg != "self"]
+        params += [a.arg for a in node.args.kwonlyargs]
+        for inner in ast.walk(node):
+            if not (isinstance(inner, ast.Call) and isinstance(inner.func, ast.Attribute)
+                    and inner.func.attr in _START_WORKFLOW_METHODS):
+                continue
+            found: dict[str, tuple[int, str]] = {}
+            tq_kw = next((kw for kw in inner.keywords if kw.arg == "task_queue"), None)
+            if tq_kw and isinstance(tq_kw.value, ast.Name) and tq_kw.value.id in params:
+                found["task_queue"] = (params.index(tq_kw.value.id), tq_kw.value.id)
+            # Workflow name/type is always the first positional arg to
+            # start_workflow/start_child_workflow/execute_child_workflow.
+            if inner.args and isinstance(inner.args[0], ast.Name) and inner.args[0].id in params:
+                found["workflow"] = (params.index(inner.args[0].id), inner.args[0].id)
+            if found:
+                wrappers[node.name] = found
+                break
+    return wrappers
+
+
+def _call_arg_node(call: ast.Call, pos: int, param_name: str):
+    if pos < len(call.args):
+        return call.args[pos]
+    kw = next((k for k in call.keywords if k.arg == param_name), None)
+    return kw.value if kw else None
+
+
+def check_task_queue_wiring():
+    workflows_dir = API_ROOT / "workflows"
+    consumers_dir = API_ROOT / "kafka" / "consumers"
+    worker_file = workflows_dir / "worker.py"
+    if not worker_file.exists():
+        return
+
+    worker_tree = ast.parse(worker_file.read_text(encoding="utf-8", errors="ignore"), filename=str(worker_file))
+    real_queues = _real_queue_names(worker_tree)
+    workflow_queues = _workflow_queue_map(worker_tree)
+    if not real_queues:
+        return
+
+    workflow_files = [f for f in workflows_dir.glob("*.py")]
+    consumer_files = [f for f in consumers_dir.glob("*.py")] if consumers_dir.exists() else []
+    const_table = _module_const_table(workflow_files, "workflows.")
+    # Consumers can reference workflows.* constants too — fold them into the same table
+    # under their own stem so in-file ast.Name lookups resolve against local constants.
+    const_table.update(_module_const_table(consumer_files, "workflows."))
+
+    for f in workflow_files + consumer_files:
+        try:
+            tree = ast.parse(f.read_text(encoding="utf-8", errors="ignore"), filename=str(f))
+        except SyntaxError:
+            continue
+        wrappers = _find_forwarding_wrappers(tree)
+
+        for node in ast.walk(tree):
+            if not isinstance(node, ast.Call):
+                continue
+
+            if isinstance(node.func, ast.Attribute) and node.func.attr in _START_WORKFLOW_METHODS:
+                tq_kw = next((kw for kw in node.keywords if kw.arg == "task_queue"), None)
+                tq_node = tq_kw.value if tq_kw else None
+                wf_node = node.args[0] if node.args else None
+            elif isinstance(node.func, ast.Attribute) and node.func.attr in wrappers:
+                spec = wrappers[node.func.attr]
+                tq_node = _call_arg_node(node, *spec["task_queue"]) if "task_queue" in spec else None
+                wf_node = _call_arg_node(node, *spec["workflow"]) if "workflow" in spec else None
+            else:
+                continue
+
+            resolved_queue = _resolve_tq_node(tq_node, const_table, f.stem) if tq_node is not None else None
+            resolved_wf = _resolve_wf_node(wf_node) if wf_node is not None else None
+            if resolved_queue is None:
+                continue
+
+            # WORKFLOW-01: the workflow name itself must correspond to a real
+            # @workflow.defn class registered in worker.py's WORKERS map. This is
+            # the same failure mode as ACTIVITY-01 one level up — a Kafka consumer
+            # can call start_workflow("SomeWorkflow", ...) where "SomeWorkflow" was
+            # never defined anywhere (renamed, planned-but-never-built, or a typo).
+            # Against a mocked Temporal client in tests this silently "passes";
+            # against a real cluster it raises the first time the event fires, or
+            # (if task_queue happens to be a real queue) just queues forever with
+            # no error anywhere. Found via full-repo AST scan 2026-07-17:
+            # "AccountLockWorkflow" (auth_consumer.py, oa_user_consumer.py — real
+            # target is PolicyLockWorkflow), "IdentityResolutionWorkflow"
+            # (employee_consumer.py — no per-employee equivalent; EMPLOYEE_REJOINED
+            # maps to RejoiningWorkflow instead), "ObligationEscalationWorkflow"/
+            # "GratuityCalculationWorkflow"/"BonusCalculationWorkflow"
+            # (statutory_consumer.py), "TenantOnboardingWorkflow"/
+            # "TenantSuspensionWorkflow"/"KekRotationWorkflow" (tenant_consumer.py).
+            if resolved_wf and resolved_wf not in workflow_queues:
+                fail("WORKFLOW-01", f, node.lineno, resolved_wf,
+                     f"'{resolved_wf}' is started via start_workflow(), but no "
+                     f"@workflow.defn(name='{resolved_wf}') class is registered in "
+                     f"worker.py's WORKERS map. This workflow either doesn't exist, was "
+                     f"renamed, or was never wired up — starting it is a silent no-op "
+                     f"against a real Temporal cluster (or an immediate failure the "
+                     f"first time the triggering event fires).",
+                     severity="ERROR")
+
+            expected = workflow_queues.get(resolved_wf) if resolved_wf else None
+            if expected is not None:
+                # We know exactly which workflow is being started — verify against
+                # ITS real registration, not just "any known queue" (a workflow can
+                # resolve to a real-sounding queue that isn't the one it's actually
+                # registered on, e.g. PolicyLockWorkflow on auth-queue instead of
+                # its actual secops-queue — a same-severity silent no-op bug that a
+                # weaker "is this any real queue" check would miss).
+                if resolved_queue not in expected:
+                    fail("QUEUE-01", f, node.lineno, resolved_queue,
+                         f"{resolved_wf} is started with task_queue='{resolved_queue}', but "
+                         f"worker.py registers {resolved_wf} on "
+                         f"{'/'.join(sorted(expected))} — not that queue. The workflow will "
+                         f"start but never be picked up by any worker — no error, silent no-op.",
+                         severity="ERROR")
+            elif resolved_queue not in real_queues:
+                fail("QUEUE-01", f, node.lineno, resolved_queue,
+                     f"task_queue resolves to '{resolved_queue}', which is not one of worker.py's "
+                     f"registered queues ({', '.join(sorted(real_queues))}). The workflow will "
+                     f"start but never be picked up by any worker — no error, silent no-op.",
+                     severity="ERROR")
+
+check_task_queue_wiring()
 
 # ── [DB-05] No datetime.utcnow() — timezone-naive, deprecated in Python 3.12 ──
 scan_py(

@@ -123,17 +123,28 @@ from workflows.activities import (
     check_dns_txt_record as check_dns_txt_record_impl,
     mark_tenant_verification_failed as mark_tenant_verification_failed_impl,
     provision_tenant as provision_tenant_impl,
+    # ACTIVITY-01 fix (2026-07-17): these 9 + get_config_value were previously
+    # imported from workflows.compliance below, which registered that module's
+    # bare `...` stubs instead of these real ComplianceService-backed bodies —
+    # every workflow using them (ErasureConfirmationWorkflow, GrievanceWorkflow,
+    # DataExportWorkflow, ConsentRebumpWorkflow) silently did nothing on Temporal.
+    send_erasure_notice as send_erasure_notice_impl,
+    execute_erasure as execute_erasure_impl,
+    send_consent_rebump as send_consent_rebump_impl,
+    check_consent_status as check_consent_status_impl,
+    build_data_export as build_data_export_impl,
+    notify_export_ready as notify_export_ready_impl,
+    open_grievance as open_grievance_impl,
+    escalate_grievance as escalate_grievance_impl,
+    close_grievance as close_grievance_impl,
+    get_config_value as get_config_value_impl,
 )
 
 # Stub activities from domain modules (registered by function reference)
 from workflows.compliance import (
-    send_erasure_notice, execute_erasure, send_consent_rebump,
-    check_consent_status, build_data_export, notify_export_ready,
-    open_grievance, escalate_grievance, close_grievance,
     apply_data_correction, notify_correction_complete,
     schedule_document_deletion, archive_audit_events_batch,
     apply_legal_hold, release_legal_hold,
-    get_config_value,
     mark_overdue_obligations, notify_overdue_obligations,
 )
 from workflows.intelligence import (
@@ -282,12 +293,12 @@ WORKERS: dict[str, dict] = {
             StatutoryComplianceWorkflow,
         ],
         "activities": [
-            send_erasure_notice, execute_erasure, send_consent_rebump,
-            check_consent_status, build_data_export, notify_export_ready,
-            open_grievance, escalate_grievance, close_grievance,
+            send_erasure_notice_impl, execute_erasure_impl, send_consent_rebump_impl,
+            check_consent_status_impl, build_data_export_impl, notify_export_ready_impl,
+            open_grievance_impl, escalate_grievance_impl, close_grievance_impl,
             apply_data_correction, notify_correction_complete,
             schedule_document_deletion, archive_audit_events_batch,
-            apply_legal_hold, release_legal_hold, get_config_value,
+            apply_legal_hold, release_legal_hold, get_config_value_impl,
             mark_overdue_obligations, notify_overdue_obligations,
         ],
     },

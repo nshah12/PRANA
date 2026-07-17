@@ -6,10 +6,16 @@ starting escalation workflows on overdue obligations.
 
 Events handled:
   OBLIGATION_DUE       → notify CHRO + CFO via portal bell
-  OBLIGATION_OVERDUE   → start ObligationEscalationWorkflow + notify CISO + CFO (email)
+  OBLIGATION_OVERDUE   → no workflow (never published — real overdue handling
+                          already runs nightly via StatutoryComplianceWorkflow's
+                          mark_overdue_obligations/notify_overdue_obligations,
+                          Pattern 3 schedule in workflows/compliance.py)
   OBLIGATION_COMPLETED → log, update analytics
-  GRATUITY_ELIGIBILITY_TRIGGERED → start GratuityCalculationWorkflow
-  BONUS_CALCULATION_DUE          → start BonusCalculationWorkflow
+  GRATUITY_ELIGIBILITY_TRIGGERED → no workflow (never published; no
+                          GratuityCalculationWorkflow exists — starting it
+                          would queue a workflow no worker could ever execute)
+  BONUS_CALCULATION_DUE          → no workflow (never published; no
+                          BonusCalculationWorkflow exists — same reason)
 """
 import json
 import logging
@@ -61,17 +67,19 @@ class StatutoryConsumer:
             await self._notify_due(event)
 
         elif etype == "OBLIGATION_OVERDUE":
-            await self._handle_overdue(event)
+            # No workflow: never published (labour_law.py only emits OBLIGATION_DUE/
+            # OBLIGATION_COMPLETED) and "ObligationEscalationWorkflow" was never
+            # @workflow.defn'd. Real overdue handling already runs nightly via
+            # StatutoryComplianceWorkflow (workflows/compliance.py, Pattern 3 schedule).
+            log.debug("StatutoryConsumer: OBLIGATION_OVERDUE has no event-driven handler "
+                      "— see StatutoryComplianceWorkflow's nightly schedule")
 
-        elif etype == "GRATUITY_ELIGIBILITY_TRIGGERED":
-            await self._start_workflow("GratuityCalculationWorkflow",
-                                       f"gratuity-{event.get('employee_uuid')}-{event.get('tenant_id')}",
-                                       event, "prana-compliance")
-
-        elif etype == "BONUS_CALCULATION_DUE":
-            await self._start_workflow("BonusCalculationWorkflow",
-                                       f"bonus-{event.get('tenant_id')}-{event.get('period')}",
-                                       event, "prana-compliance")
+        elif etype in ("GRATUITY_ELIGIBILITY_TRIGGERED", "BONUS_CALCULATION_DUE"):
+            # No workflow: neither event is ever published, and neither
+            # "GratuityCalculationWorkflow" nor "BonusCalculationWorkflow" is
+            # @workflow.defn'd anywhere — starting either would silently queue a
+            # workflow no worker could ever execute.
+            log.debug("StatutoryConsumer: no workflow implemented yet for event_type=%s", etype)
 
         else:
             log.debug("StatutoryConsumer: no action for event_type=%s", etype)
@@ -101,21 +109,3 @@ class StatutoryConsumer:
                      tenant_id, len(rows))
         except Exception:
             log.exception("StatutoryConsumer: failed to publish obligation_due notifications")
-
-    async def _handle_overdue(self, event: dict) -> None:
-        await self._start_workflow("ObligationEscalationWorkflow",
-                                   f"obligation-escalate-{event.get('obligation_id')}",
-                                   event, "prana-compliance")
-
-    async def _start_workflow(self, workflow: str, wf_id: str, event: dict, task_queue: str) -> None:
-        if not self._temporal:
-            return
-        try:
-            await self._temporal.start_workflow(
-                workflow, event, id=wf_id, task_queue=task_queue,
-            )
-            log.info("StatutoryConsumer: started %s workflow_id=%s", workflow, wf_id)
-        except Exception as exc:
-            if "already exists" not in str(exc).lower():
-                log.exception("StatutoryConsumer: failed to start %s", workflow)
-                raise

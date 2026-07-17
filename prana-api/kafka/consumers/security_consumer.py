@@ -74,7 +74,7 @@ class SecurityConsumer:
                 wf_id = f"csam-{event.get('document_id')}"
                 try:
                     await self._temporal.start_workflow(
-                        "CSAMReportingWorkflow", event, id=wf_id, task_queue="prana-admin",
+                        "CSAMReportingWorkflow", event, id=wf_id, task_queue="safety-queue",
                     )
                     log.critical("SecurityConsumer: started CSAMReportingWorkflow document_id=%s", event.get("document_id"))
                 except Exception as exc:
@@ -169,7 +169,7 @@ class SecurityConsumer:
                 "PolicyLockWorkflow",
                 {"user_type": actor_user_type, "user_id": actor_id,
                  "tenant_id": tenant_id, "reason_code": reason_code},
-                id=wf_id, task_queue="auth-queue",
+                id=wf_id, task_queue="secops-queue",
             )
             log.warning("SecurityConsumer: auto-locked account via PolicyLockWorkflow "
                         "rule=%s actor_id=%s", rule_name, actor_id)

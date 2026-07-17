@@ -48,6 +48,10 @@ async def test_login_failed_at_threshold_starts_lock_and_security_event(consumer
 
 @pytest.mark.asyncio
 async def test_totp_failed_starts_lock_at_threshold(consumer, db_pool):
+    """Regression guard: this used to start "AccountLockWorkflow" — never
+    @workflow.defn'd anywhere. The real workflow is PolicyLockWorkflow
+    (workflows/security.py), registered on secops-queue in worker.py, whose
+    activity expects reason_code (not reason) as the dict key."""
     _, conn = db_pool
     conn.fetchrow.return_value = {"cnt": 5}
     mock_kafka = AsyncMock()
@@ -55,7 +59,11 @@ async def test_totp_failed_starts_lock_at_threshold(consumer, db_pool):
         event = {"event_type": "TOTP_FAILED", "user_id": "u-3", "user_type": "employee", "tenant_id": "t-1"}
         await consumer._dispatch("TOTP_FAILED", event)
     consumer._temporal.start_workflow.assert_awaited_once()
-    assert consumer._temporal.start_workflow.call_args[1]["id"] == "account-lock-u-3"
+    call = consumer._temporal.start_workflow.call_args
+    assert call.args[0] == "PolicyLockWorkflow"
+    assert call.args[1]["reason_code"] == "CONSECUTIVE_TOTP_FAILURES"
+    assert call.kwargs["id"] == "account-lock-u-3"
+    assert call.kwargs["task_queue"] == "secops-queue"
 
 
 @pytest.mark.asyncio
