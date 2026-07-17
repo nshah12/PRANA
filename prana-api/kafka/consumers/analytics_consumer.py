@@ -63,7 +63,7 @@ class AnalyticsConsumer:
 
         # Trigger insight refresh as fire-and-forget (low-priority queue)
         if self._temporal and employee_uuid:
-            from workflows.document_pipeline import InsightRefreshWorkflow
+            from workflows.insight_refresh import InsightRefreshWorkflow
             try:
                 await self._temporal.start_workflow(
                     InsightRefreshWorkflow.run,

@@ -37,10 +37,22 @@ async def run_hrms_pull(connector_id: str, tenant_id: str) -> dict:
     conn   = await asyncpg.connect(os.environ["DATABASE_URL"])
     kms    = boto3.client("kms", region_name="ap-south-1")
 
-    # Kafka producer — obtained from the activity context env for now.
-    # In production this will be wired via the worker's startup config.
-    from kafka.producer import KafkaProducer
-    kafka = KafkaProducer(bootstrap_servers=os.environ["KAFKA_BOOTSTRAP_SERVERS"])
+    # kafka.producer has no "KafkaProducer" class (that's aiokafka's raw API,
+    # not this project's wrapper) — the real producer is KafkaPub, obtained
+    # via get_kafka_producer(). _svc.run_pull_sync calls kafka.employee_event(...),
+    # a KafkaPub method, so this must return a KafkaPub instance, not a raw
+    # aiokafka producer even if one were constructed correctly.
+    from kafka.producer import get_kafka_producer
+    kafka = await get_kafka_producer()
+
+    # workflow.info()/workflow.in_workflow() don't exist — this runs as an
+    # ACTIVITY, not workflow code, so the run id (if any) comes from
+    # activity.info(), which raises RuntimeError outside an activity context
+    # (e.g. called directly in a unit test).
+    try:
+        temporal_run_id = activity.info().workflow_run_id
+    except RuntimeError:
+        temporal_run_id = None
 
     try:
         return await _svc.run_pull_sync(
@@ -49,7 +61,7 @@ async def run_hrms_pull(connector_id: str, tenant_id: str) -> dict:
             db=conn,
             kms=kms,
             kafka=kafka,
-            temporal_run_id=workflow.info().run_id if workflow.in_workflow() else None,
+            temporal_run_id=temporal_run_id,
         )
     finally:
         await conn.close()

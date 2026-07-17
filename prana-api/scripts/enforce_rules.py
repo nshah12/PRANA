@@ -36,8 +36,16 @@ Rules enforced:
   [QUEUE-01]  Every start_workflow/start_child_workflow task_queue must be one of
               worker.py's real registered queue names — a wrong queue name means the
               workflow sits started-but-never-polled forever, with zero error raised
+  [IMPORT-01] `from services.X import Y` / `from workflows.X import Y` (and local
+              bare modules db/config/messages/errors/versioning) must import a name
+              that actually exists in the target module — a real, imported-and-
+              checked resolution, not a regex guess
+  [IMPORT-02] `instance.method()` where `instance` was assigned directly from a
+              locally-imported class must call a method that actually exists on
+              that class
 """
 import ast
+import importlib
 import re
 import sys
 from pathlib import Path
@@ -882,6 +890,138 @@ def check_tdd_assertions():
                      severity="WARN")
 
 check_tdd_assertions()
+
+
+# ── [IMPORT-01/IMPORT-02] Local imports and instance-method calls must resolve ──
+#
+# Two real bugs found 2026-07-17, neither caught by any existing rule:
+#   - workflows/compliance.py's mark_overdue_obligations did
+#     `from db import get_db_connection` — db.py only exports create_pool/get_db
+#     (a FastAPI dependency, not usable from a Temporal activity). AttributeError
+#     the instant it ran; the only test covering it checked registration by
+#     name, never actually called it.
+#   - workflows/activities.py's stage02_encrypt called `await kms.decrypt_dek(...)`
+#     — KMSService has no such method (the real one is unwrap_dek, and it's
+#     synchronous). Every PAN-bearing document upload would have crashed
+#     against a real KMSService; no test exercised that branch.
+#
+# Both are "code that looks finished" bugs — not bare stubs, so ACTIVITY-01 and
+# TDD-01 don't fire. This check actually imports the target module (this script
+# already runs inside the project's own venv, same as pytest) and verifies with
+# a real hasattr() that the referenced name/method truly exists, instead of
+# trusting that an import or method call that reads correctly IS correct.
+#
+# Scoped deliberately to project-local modules only — services.*, workflows.*,
+# kafka.*, routers.*, connectors.*, and the bare top-level modules (db, config,
+# messages, errors, versioning). Never third-party libraries (boto3, redis,
+# asyncpg, httpx, temporalio...): several of them generate attributes
+# dynamically at runtime in ways a static hasattr() check can't see correctly,
+# and a noisy false-positive-prone rule erodes trust in this whole file faster
+# than the bugs it would occasionally catch.
+
+_LOCAL_MODULE_PREFIXES = ("services.", "workflows.", "kafka.", "routers.", "connectors.")
+_LOCAL_BARE_MODULES = {"db", "config", "messages", "errors", "versioning"}
+
+
+def _is_local_module(module_name: str) -> bool:
+    return module_name in _LOCAL_BARE_MODULES or module_name.startswith(_LOCAL_MODULE_PREFIXES)
+
+
+def _try_import(module_name: str):
+    try:
+        return importlib.import_module(module_name)
+    except Exception:
+        # Import failure is a real problem, but a different one (syntax error,
+        # missing dependency, circular import) — not this rule's job, and
+        # raising here would turn every unrelated import bug into a confusing
+        # IMPORT-01 false positive. Silently skip; other tooling (pytest
+        # collection) already surfaces broken imports loudly.
+        return None
+
+
+def check_local_import_resolution():
+    if str(API_ROOT) not in sys.path:
+        sys.path.insert(0, str(API_ROOT))
+
+    scan_dirs = [API_ROOT / "workflows", API_ROOT / "services", API_ROOT / "kafka" / "consumers"]
+    module_cache: dict[str, object] = {}
+
+    def resolve_module(name: str):
+        if name not in module_cache:
+            module_cache[name] = _try_import(name)
+        return module_cache[name]
+
+    for directory in scan_dirs:
+        if not directory.exists():
+            continue
+        for f in directory.glob("*.py"):
+            if f.name == "__init__.py" or "test_" in f.name:
+                continue
+            try:
+                tree = ast.parse(f.read_text(encoding="utf-8", errors="ignore"), filename=str(f))
+            except SyntaxError:
+                continue
+
+            for func in ast.walk(tree):
+                if not isinstance(func, (ast.FunctionDef, ast.AsyncFunctionDef)):
+                    continue
+
+                # import_bindings: local name -> (module_name, real_name_in_module | None for whole-module import)
+                import_bindings: dict[str, tuple[str, str | None]] = {}
+                # instance_bindings: variable name -> class import binding, for `var = ClassName(...)`
+                instance_bindings: dict[str, str] = {}
+
+                for node in ast.walk(func):
+                    if isinstance(node, ast.ImportFrom) and node.module and _is_local_module(node.module):
+                        for alias in node.names:
+                            import_bindings[alias.asname or alias.name] = (node.module, alias.name)
+                    elif isinstance(node, ast.Import):
+                        for alias in node.names:
+                            if _is_local_module(alias.name):
+                                import_bindings[alias.asname or alias.name] = (alias.name, None)
+                    elif isinstance(node, ast.Assign) and isinstance(node.value, ast.Call):
+                        callee = node.value.func
+                        if (isinstance(callee, ast.Name) and callee.id in import_bindings
+                                and len(node.targets) == 1 and isinstance(node.targets[0], ast.Name)):
+                            instance_bindings[node.targets[0].id] = callee.id
+
+                # IMPORT-01: `from local_module import name` — name must exist in module.
+                for local_name, (module_name, real_name) in import_bindings.items():
+                    if real_name is None:
+                        continue
+                    mod = resolve_module(module_name)
+                    if mod is None:
+                        continue
+                    if not hasattr(mod, real_name):
+                        fail("IMPORT-01", f, func.lineno, f"from {module_name} import {real_name}",
+                             f"'{real_name}' does not exist in {module_name} — this import will raise "
+                             f"ImportError/AttributeError the first time {func.name} actually runs.",
+                             severity="ERROR")
+
+                # IMPORT-02: `instance.method()` where instance = LocallyImportedClass(...).
+                for node in ast.walk(func):
+                    if not (isinstance(node, ast.Attribute) and isinstance(node.value, ast.Name)):
+                        continue
+                    var_name = node.value.id
+                    if var_name not in instance_bindings:
+                        continue
+                    class_local_name = instance_bindings[var_name]
+                    module_name, real_class_name = import_bindings[class_local_name]
+                    if real_class_name is None:
+                        continue
+                    mod = resolve_module(module_name)
+                    if mod is None:
+                        continue
+                    cls = getattr(mod, real_class_name, None)
+                    if cls is None or not isinstance(cls, type):
+                        continue
+                    if not hasattr(cls, node.attr):
+                        fail("IMPORT-02", f, node.lineno, f"{var_name}.{node.attr}(...)",
+                             f"{real_class_name} (from {module_name}) has no method '{node.attr}' — "
+                             f"this call will raise AttributeError the first time {func.name} actually runs.",
+                             severity="ERROR")
+
+check_local_import_resolution()
 
 
 # ── Report ─────────────────────────────────────────────────────────────────────
