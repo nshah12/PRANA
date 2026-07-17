@@ -1094,6 +1094,24 @@ INSERT INTO severity_classification_rule
     ('ANOMALY_RULE', 'DEFAULT', NULL,                          NULL, NULL, 'P3', 99, 'Fallback for any unrecognized anomaly rule_name');
 
 -- ============================================================
+-- LAYER 13B: INTEGRATION RETRY TRACKING (migration 043)
+-- ============================================================
+-- One row per ingest request that has hit at least one retryable HRMS webhook
+-- failure. Created by IntegrationConsumer itself on first failure (INSERT ...
+-- ON CONFLICT), not by the HTTP handler — see migration 043 for why.
+
+CREATE TABLE api_ingest_log (
+  request_id     UUID         PRIMARY KEY,
+  tenant_id      UUID         NOT NULL REFERENCES tenant(tenant_id),
+  filename       TEXT,
+  reason         TEXT,
+  retry_count    SMALLINT     NOT NULL DEFAULT 0,
+  last_retry_at  TIMESTAMPTZ,
+  created_at     TIMESTAMPTZ  NOT NULL DEFAULT NOW()
+);
+CREATE INDEX idx_api_ingest_log_tenant ON api_ingest_log(tenant_id, created_at DESC);
+
+-- ============================================================
 -- LAYER 14: SECURITY — LEAST-PRIVILEGE APPLICATION ROLE
 -- ============================================================
 -- The app's runtime DB pool (config.py db_user/db_password) must connect as

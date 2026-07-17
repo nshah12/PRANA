@@ -85,29 +85,40 @@ class IntegrationConsumer:
         if not self._pool:
             return
 
+        request_id = event.get("request_id")
+        if not request_id:
+            log.warning("IntegrationConsumer: HRMS_WEBHOOK_FAILED missing request_id, cannot track retry tenant_id=%s",
+                        event.get("tenant_id"))
+            return
+
         max_retries = 3
         async with self._pool.acquire() as conn:
             try:
+                # Atomic upsert: first failure for a request_id creates the row
+                # (retry_count=1); later failures increment it, guarded by the
+                # WHERE clause so a row already at max_retries is left untouched
+                # and RETURNING comes back empty — no separate SELECT needed.
                 row = await conn.fetchrow(
-                    "SELECT retry_count FROM api_ingest_log WHERE request_id = $1",
-                    event.get("request_id"),
-                )
-                retry_count = row["retry_count"] if row else 0
-                if retry_count >= max_retries:
-                    log.error("IntegrationConsumer: HRMS webhook exhausted retries tenant_id=%s",
-                              event.get("tenant_id"))
-                    return
-                await conn.execute(
                     """
-                    UPDATE api_ingest_log
-                    SET retry_count = retry_count + 1, last_retry_at = NOW()
-                    WHERE request_id = $1
+                    INSERT INTO api_ingest_log (request_id, tenant_id, filename, reason, retry_count, last_retry_at)
+                    VALUES ($1, $2, $3, $4, 1, NOW())
+                    ON CONFLICT (request_id) DO UPDATE
+                    SET retry_count = api_ingest_log.retry_count + 1, last_retry_at = NOW()
+                    WHERE api_ingest_log.retry_count < $5
+                    RETURNING retry_count
                     """,
-                    event.get("request_id"),
+                    request_id, event.get("tenant_id"), event.get("filename"), event.get("reason"), max_retries,
                 )
             except Exception:
                 log.exception("IntegrationConsumer: failed to update retry count")
-        log.info("IntegrationConsumer: HRMS retry logged tenant_id=%s", event.get("tenant_id"))
+                return
+
+        if row is None:
+            log.error("IntegrationConsumer: HRMS webhook exhausted retries tenant_id=%s",
+                       event.get("tenant_id"))
+            return
+        log.info("IntegrationConsumer: HRMS retry logged tenant_id=%s retry_count=%s",
+                  event.get("tenant_id"), row["retry_count"])
 
     async def _flag_for_manual_review(self, event: dict) -> None:
         if not self._pool:

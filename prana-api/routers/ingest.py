@@ -82,6 +82,7 @@ async def upload_documents(
                 try:
                     await kafka.integration_event({
                         "event_type": "HRMS_WEBHOOK_FAILED",
+                        "request_id": getattr(request.state, "request_id", None),
                         "tenant_id":  current.tenant_id,
                         "reason":     e.detail,
                         "filename":   f.filename,

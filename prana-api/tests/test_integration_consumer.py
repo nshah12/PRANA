@@ -23,22 +23,47 @@ def consumer(db_pool):
 
 
 @pytest.mark.asyncio
-async def test_hrms_webhook_failed_increments_retry(consumer, db_pool):
+async def test_hrms_webhook_failed_creates_row_on_first_failure(consumer, db_pool):
+    """First failure for a request_id: INSERT branch of the upsert fires, retry_count=1."""
     _, conn = db_pool
     conn.fetchrow.return_value = {"retry_count": 1}
-    event = {"event_type": "HRMS_WEBHOOK_FAILED", "tenant_id": "t-1",
+    event = {"event_type": "HRMS_WEBHOOK_FAILED", "request_id": "r-1", "tenant_id": "t-1",
              "filename": "salaryslip.pdf", "reason": "INVALID_FORMAT"}
     await consumer._handle(event)
-    conn.execute.assert_awaited()
+    conn.fetchrow.assert_awaited_once()
+    args = conn.fetchrow.await_args.args
+    assert "api_ingest_log" in args[0]
+    assert args[1:] == ("r-1", "t-1", "salaryslip.pdf", "INVALID_FORMAT", 3)
+
+
+@pytest.mark.asyncio
+async def test_hrms_webhook_failed_increments_retry_on_repeat_failure(consumer, db_pool):
+    """Repeat failure for the same request_id: ON CONFLICT DO UPDATE branch fires."""
+    _, conn = db_pool
+    conn.fetchrow.return_value = {"retry_count": 2}
+    event = {"event_type": "HRMS_WEBHOOK_FAILED", "request_id": "r-1", "tenant_id": "t-1",
+             "filename": "doc.pdf"}
+    await consumer._handle(event)
+    conn.fetchrow.assert_awaited_once()
 
 
 @pytest.mark.asyncio
 async def test_hrms_webhook_failed_max_retries_no_more_increment(consumer, db_pool):
+    """WHERE retry_count < max_retries fails on the 4th attempt — RETURNING yields nothing."""
     _, conn = db_pool
-    conn.fetchrow.return_value = {"retry_count": 3}  # at max
+    conn.fetchrow.return_value = None  # simulates the ON CONFLICT ... WHERE clause not matching
+    event = {"event_type": "HRMS_WEBHOOK_FAILED", "request_id": "r-1", "tenant_id": "t-1", "filename": "doc.pdf"}
+    await consumer._handle(event)
+    # Should not raise — exhausted-retries path just logs and returns
+
+
+@pytest.mark.asyncio
+async def test_hrms_webhook_failed_missing_request_id_skips_db_write(consumer, db_pool):
+    """Without a request_id there is nothing to key the upsert on — must not hit the DB."""
+    _, conn = db_pool
     event = {"event_type": "HRMS_WEBHOOK_FAILED", "tenant_id": "t-1", "filename": "doc.pdf"}
     await consumer._handle(event)
-    # Should not try to update past max retries
+    conn.fetchrow.assert_not_awaited()
 
 
 @pytest.mark.asyncio
