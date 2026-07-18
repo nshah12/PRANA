@@ -5,10 +5,20 @@
 ## What lives here
 ```
 prana-db/
-  schema.sql        ← Full YugabyteDB DDL, 19 tables, correct FK order
-  migrations/       ← Numbered migration files (001_*.sql, 002_*.sql ...)
+  schema.sql        ← SINGLE SOURCE OF TRUTH. Full YugabyteDB DDL, correct FK order.
+  migrations/       ← HISTORICAL REFERENCE ONLY — see migrations/README.md. Not run
+                       by anything, not authoritative. Never add new files here —
+                       edit schema.sql directly instead.
   seeds/            ← Dev/test seed data only — never production data
 ```
+
+**No migration runner exists anywhere in this codebase.** `db-init.sh` (the
+actual dev bootstrap) only ever runs `schema.sql` + 3 seed files; it has never
+touched `migrations/`. `schema.sql` is edited directly, in place, whenever a
+feature needs a schema change — treat it as the single living definition of
+the schema, not a baseline that migrations layer on top of. See
+`migrations/README.md` for the full reconciliation history (2026-07-18) of how
+this was confirmed and what drift existed between the two.
 
 ## Database
 - **Engine:** YugabyteDB (PostgreSQL-compatible distributed SQL)
@@ -45,11 +55,14 @@ prana-db/
 - `JSONB` columns (`extracted_fields`, `metadata`) — index with `GIN` only if query pattern is known
 - Row-level security (RLS) is enforced on all tenant-scoped tables — `tenant_id` must be in every WHERE clause on those tables
 
-## Migration Rules
-- Run migrations via `prana-api` service at startup (Alembic or custom runner)
+## Schema change rules (there is no migration runner — see above)
+- Edit `schema.sql` directly. Do not add files to `migrations/` — that
+  directory is frozen historical reference (`migrations/README.md`).
 - Never run DDL inside a Temporal workflow or activity
-- Rollback: every migration file must have a commented `-- ROLLBACK:` section at the bottom
-- Test migrations against a local YugabyteDB Docker instance before merging
+- Test schema.sql against a fresh local YugabyteDB Docker instance before
+  merging — `docker exec <yugabyte-container> ysqlsh ... -v ON_ERROR_STOP=1
+  -f schema.sql` against a throwaway database is the fastest way to catch a
+  DDL mistake before it reaches a real environment.
 
 ## Seeds (`seeds/`)
 - Dev seeds only: 1 platform, 2 tenants, 5 employees, sample documents

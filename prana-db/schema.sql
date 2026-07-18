@@ -134,7 +134,10 @@ CREATE INDEX idx_emp_pan_token ON employee_master(pan_token);
 -- Resolution Ladder 3 — trigram name search:
 CREATE INDEX idx_emp_name_trgm ON employee_master USING GIN (full_name gin_trgm_ops);
 -- Resolution Ladder 4 — cosine similarity embedding search:
-CREATE INDEX idx_emp_embedding ON employee_master USING ivfflat (name_embedding vector_cosine_ops);
+-- No ANN index: this environment's pgvector build (0.4.4-yb-1.1) supports
+-- neither ivfflat nor hnsw access methods. Falls back to a sequential scan,
+-- which is fine at current data volume; revisit when a pgvector build with
+-- a supported ANN index type is available.
 
 CREATE TABLE employee_master_history (
   history_id      UUID         PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -334,7 +337,9 @@ CREATE TABLE login_attempt_log (
   attempted_at            TIMESTAMPTZ  NOT NULL DEFAULT NOW()
 );
 CREATE INDEX idx_lal_user        ON login_attempt_log(user_type, user_id, attempted_at DESC) WHERE user_id IS NOT NULL;
-CREATE INDEX idx_lal_ip          ON login_attempt_log(ip_address, attempted_at DESC);
+-- idx_lal_ip: skipped -- YugabyteDB does not support an index with INET as the
+-- leading (hash) column ("INDEX on column of type 'INET' not yet supported").
+-- Sequential scan on ip_address is fine at current data volume.
 CREATE INDEX idx_lal_failed      ON login_attempt_log(user_type, user_id, attempted_at DESC) WHERE outcome = 'FAILED';
 CREATE INDEX idx_lal_enrichment  ON login_attempt_log(attempted_at) WHERE enrichment_status = 'PENDING';
 CREATE INDEX idx_lal_flagged     ON login_attempt_log(attempted_at DESC) WHERE is_flagged = TRUE;
@@ -570,7 +575,7 @@ CREATE TABLE share_otp_attempt (
     success        BOOLEAN      NOT NULL,
     attempted_at   TIMESTAMPTZ  NOT NULL DEFAULT NOW()
 );
-CREATE INDEX idx_share_otp_attempt_ip    ON share_otp_attempt(ip_address, attempted_at DESC);
+-- idx_share_otp_attempt_ip: skipped -- same YugabyteDB INET-index limitation as idx_lal_ip above.
 CREATE INDEX idx_share_otp_attempt_token ON share_otp_attempt(token_id, attempted_at DESC);
 
 CREATE TABLE document_access_log (
@@ -604,7 +609,7 @@ CREATE TABLE document_access_log (
 CREATE INDEX idx_dal_employee  ON document_access_log(employee_user_id, accessed_at DESC);
 CREATE INDEX idx_dal_document  ON document_access_log(document_id, accessed_at DESC);
 CREATE INDEX idx_dal_tenant    ON document_access_log(tenant_id, accessed_at DESC);
-CREATE INDEX idx_dal_ip        ON document_access_log(ip_address, accessed_at DESC);
+-- idx_dal_ip: skipped -- same YugabyteDB INET-index limitation as idx_lal_ip above.
 CREATE INDEX idx_dal_flagged   ON document_access_log(tenant_id, accessed_at DESC) WHERE is_flagged = TRUE;
 CREATE INDEX idx_dal_watermark ON document_access_log(watermark_ref) WHERE watermark_ref IS NOT NULL;
 
@@ -780,7 +785,7 @@ CREATE TABLE nominee (
 -- ============================================================
 
 CREATE TABLE audit_event (
-  event_id       UUID         PRIMARY KEY DEFAULT gen_random_uuid(),
+  event_id       UUID         DEFAULT gen_random_uuid(),
   event_type     VARCHAR(40)  NOT NULL,
                   -- DOC_PUSHED | DOC_ROUTED | DOC_OPENED | DOC_DOWNLOADED | DOC_DELETED |
                   -- SHARE_CREATED | SHARE_ACCESSED | SHARE_REVOKED | EXCEPTION_RAISED |
@@ -798,7 +803,13 @@ CREATE TABLE audit_event (
   document_id    UUID,
   event_metadata JSONB,
   ip_address     INET,
-  occurred_at    TIMESTAMPTZ  NOT NULL DEFAULT NOW()
+  occurred_at    TIMESTAMPTZ  NOT NULL DEFAULT NOW(),
+  PRIMARY KEY (event_id, occurred_at)
+  -- Composite PK (not event_id alone): YugabyteDB/Postgres require the partition
+  -- column in every PK/unique constraint on a partitioned table. A single-column
+  -- PK here made this CREATE TABLE fail outright on every fresh db-init — the
+  -- table silently never existed. Fixed 2026-07-18 after tracing a live 500 on
+  -- /admin/tenants back through a chain of never-applied migrations.
 ) PARTITION BY RANGE (occurred_at);
 -- Monthly partitions: audit_event_2025_01, audit_event_2025_02, ...
 -- Hot in YugabyteDB. Cold to Apache Iceberg on S3 via RetentionWorkflow after 30 days.
@@ -810,6 +821,13 @@ CREATE INDEX idx_audit_actor  ON audit_event(actor_type, actor_id, occurred_at D
 CREATE INDEX idx_audit_tenant ON audit_event(tenant_id, occurred_at DESC);
 CREATE INDEX idx_audit_pan    ON audit_event(pan_token, occurred_at DESC);
 CREATE INDEX idx_audit_doc    ON audit_event(document_id, occurred_at DESC);
+CREATE TABLE audit_event_2025   PARTITION OF audit_event FOR VALUES FROM ('2025-01-01') TO ('2026-01-01');
+CREATE TABLE audit_event_2026   PARTITION OF audit_event FOR VALUES FROM ('2026-01-01') TO ('2027-01-01');
+CREATE TABLE audit_event_2027   PARTITION OF audit_event FOR VALUES FROM ('2027-01-01') TO ('2028-01-01');
+CREATE TABLE audit_event_default PARTITION OF audit_event DEFAULT;
+-- A partitioned parent with zero partitions rejects every INSERT ("no partition
+-- of relation found for row") — dev/test needs at least these to actually work.
+-- RetentionWorkflow manages real monthly partitions in production.
 
 -- Added by migrations/045_audit_archive_log.sql — records which audit_event rows
 -- were copied to cold S3 storage. Cannot be a column on audit_event itself: UPDATE
@@ -823,7 +841,7 @@ CREATE TABLE audit_archive_log (
 CREATE INDEX idx_audit_archive_log_archived_at ON audit_archive_log(archived_at);
 
 CREATE TABLE anomaly_event (
-  anomaly_id     UUID         PRIMARY KEY DEFAULT gen_random_uuid(),
+  anomaly_id     UUID         DEFAULT gen_random_uuid(),
   tenant_id      UUID         REFERENCES tenant(tenant_id),
   rule_name      VARCHAR(40)  NOT NULL,
                   -- IMPOSSIBLE_TRAVEL | BULK_DOC_ACCESS | SHARE_ENUM | OFF_HOURS_ACCESS |
@@ -836,11 +854,17 @@ CREATE TABLE anomaly_event (
   acknowledged_by   UUID,
   acknowledged_at   TIMESTAMPTZ,
   financial_pattern TEXT,
-  detected_at       TIMESTAMPTZ  NOT NULL DEFAULT NOW()
+  detected_at       TIMESTAMPTZ  NOT NULL DEFAULT NOW(),
+  PRIMARY KEY (anomaly_id, detected_at)
+  -- Composite PK — see audit_event's identical fix above for why.
 ) PARTITION BY RANGE (detected_at);
 -- Severity: P0 = immediate PA page; P1 = 1hr war room; P2 = next-business-day; P3 = weekly digest
 -- P0 breach triggers BreachNotificationWorkflow: 72-hour DPB notification (DPDP Act S.35 STATUTORY)
 CREATE INDEX idx_anomaly_open ON anomaly_event(tenant_id, detected_at DESC) WHERE status = 'OPEN';
+CREATE TABLE anomaly_event_2025   PARTITION OF anomaly_event FOR VALUES FROM ('2025-01-01') TO ('2026-01-01');
+CREATE TABLE anomaly_event_2026   PARTITION OF anomaly_event FOR VALUES FROM ('2026-01-01') TO ('2027-01-01');
+CREATE TABLE anomaly_event_2027   PARTITION OF anomaly_event FOR VALUES FROM ('2027-01-01') TO ('2028-01-01');
+CREATE TABLE anomaly_event_default PARTITION OF anomaly_event DEFAULT;
 
 CREATE TABLE kms_key_log (
   log_id           UUID         NOT NULL DEFAULT gen_random_uuid(),
@@ -857,6 +881,10 @@ CREATE TABLE kms_key_log (
 ) PARTITION BY RANGE (checked_at);
 CREATE INDEX idx_kms_tenant  ON kms_key_log(tenant_id, checked_at DESC);
 CREATE INDEX idx_kms_errors  ON kms_key_log(status) WHERE status != 'HEALTHY';
+CREATE TABLE kms_key_log_2025   PARTITION OF kms_key_log FOR VALUES FROM ('2025-01-01') TO ('2026-01-01');
+CREATE TABLE kms_key_log_2026   PARTITION OF kms_key_log FOR VALUES FROM ('2026-01-01') TO ('2027-01-01');
+CREATE TABLE kms_key_log_2027   PARTITION OF kms_key_log FOR VALUES FROM ('2027-01-01') TO ('2028-01-01');
+CREATE TABLE kms_key_log_default PARTITION OF kms_key_log DEFAULT;
 
 -- ============================================================
 -- LAYER 9b: HRMS CONNECTOR CONFIG (migration 013)
@@ -899,6 +927,10 @@ CREATE TABLE pa_platform_summary (
   last_updated     TIMESTAMPTZ  NOT NULL DEFAULT NOW(),
   PRIMARY KEY (region, tenant_id)
 ) PARTITION BY HASH (tenant_id);
+CREATE TABLE pa_platform_summary_0 PARTITION OF pa_platform_summary FOR VALUES WITH (MODULUS 4, REMAINDER 0);
+CREATE TABLE pa_platform_summary_1 PARTITION OF pa_platform_summary FOR VALUES WITH (MODULUS 4, REMAINDER 1);
+CREATE TABLE pa_platform_summary_2 PARTITION OF pa_platform_summary FOR VALUES WITH (MODULUS 4, REMAINDER 2);
+CREATE TABLE pa_platform_summary_3 PARTITION OF pa_platform_summary FOR VALUES WITH (MODULUS 4, REMAINDER 3);
 -- Refreshed every 5 min by PlatformSummaryWorkflow.
 -- PA Meta Dashboard reads ONLY from this table — never from raw employee rows.
 
@@ -1171,6 +1203,431 @@ INSERT INTO severity_classification_rule
     ('ANOMALY_RULE', 'EXACT', 'SHARE_ENUM',                      5,   10, 'P2', 40, 'Failed OTP attempts against many distinct share tokens, same IP'),
     ('ANOMALY_RULE', 'EXACT', 'OFF_HOURS_ACCESS',              NULL, NULL, 'P2', 50, 'OA actor document access outside business hours'),
     ('ANOMALY_RULE', 'DEFAULT', NULL,                          NULL, NULL, 'P3', 99, 'Fallback for any unrecognized anomaly rule_name');
+
+-- ============================================================
+-- LAYER 15: RECONCILIATION (2026-07-18)
+-- ============================================================
+-- prana-db/migrations/ had drifted from this file for a long time: schema.sql
+-- was edited directly as features shipped, while most migration files were
+-- never actually replayed against a real database (no runner ever existed).
+-- This surfaced as a live 500 on GET /admin/tenants?status_filter=PENDING
+-- (tenant.industry didn't exist) and GET /admin/incidents (service_incident
+-- didn't exist). Reconciled by diffing the live, working DB (after applying
+-- every migration that still applied cleanly) against this file table-by-
+-- table and column-by-column. Everything below is additive and idempotent.
+-- The migrations/ directory is now historical reference only — see its
+-- README for the full per-file reconciliation notes.
+
+-- ── Tenant enterprise profile (migrations 007/016) ─────────────────────────
+ALTER TABLE tenant
+  ADD COLUMN IF NOT EXISTS brand_name                 VARCHAR(200),
+  ADD COLUMN IF NOT EXISTS entity_type                VARCHAR(30),
+  ADD COLUMN IF NOT EXISTS pan_entity                 VARCHAR(10),
+  ADD COLUMN IF NOT EXISTS tan                        VARCHAR(10),
+  ADD COLUMN IF NOT EXISTS incorporation_date         DATE,
+  ADD COLUMN IF NOT EXISTS roc_jurisdiction           VARCHAR(50),
+  ADD COLUMN IF NOT EXISTS reg_address                JSONB,
+  ADD COLUMN IF NOT EXISTS corp_address                JSONB,
+  ADD COLUMN IF NOT EXISTS primary_contact            JSONB,
+  ADD COLUMN IF NOT EXISTS dpo_name                   VARCHAR(100),
+  ADD COLUMN IF NOT EXISTS dpo_email                  VARCHAR(150),
+  ADD COLUMN IF NOT EXISTS grievance_officer_name     VARCHAR(100),
+  ADD COLUMN IF NOT EXISTS grievance_officer_email    VARCHAR(150),
+  ADD COLUMN IF NOT EXISTS dpa_accepted_at            TIMESTAMPTZ,
+  ADD COLUMN IF NOT EXISTS dpa_version                VARCHAR(20) DEFAULT '1.0',
+  ADD COLUMN IF NOT EXISTS industry                   VARCHAR(50),
+  ADD COLUMN IF NOT EXISTS employee_headcount_band    VARCHAR(20),
+  ADD COLUMN IF NOT EXISTS payroll_frequency          VARCHAR(20) DEFAULT 'MONTHLY',
+  ADD COLUMN IF NOT EXISTS fiscal_year_start          VARCHAR(10) DEFAULT 'APRIL',
+  ADD COLUMN IF NOT EXISTS hrms_system                VARCHAR(50),
+  ADD COLUMN IF NOT EXISTS document_ingestion_method  VARCHAR(30) DEFAULT 'PORTAL_UPLOAD',
+  ADD COLUMN IF NOT EXISTS additional_domains         TEXT[],
+  ADD COLUMN IF NOT EXISTS pf_registration            VARCHAR(30),
+  ADD COLUMN IF NOT EXISTS esic_registration          VARCHAR(20),
+  ADD COLUMN IF NOT EXISTS logo_url                   TEXT,
+  ADD COLUMN IF NOT EXISTS brand_colour               VARCHAR(7),
+  ADD COLUMN IF NOT EXISTS support_email              VARCHAR(150),
+  ADD COLUMN IF NOT EXISTS sla_tier                   VARCHAR(20) DEFAULT 'STANDARD',
+  ADD COLUMN IF NOT EXISTS onboarding_tier            VARCHAR(20) DEFAULT 'ASSISTED',
+  ADD COLUMN IF NOT EXISTS contract_type              VARCHAR(20) DEFAULT 'ANNUAL',
+  ADD COLUMN IF NOT EXISTS account_manager            VARCHAR(100);
+
+-- ── career_event insight metadata (migration 004) ──────────────────────────
+ALTER TABLE career_event
+  ADD COLUMN IF NOT EXISTS insight_generated_at   TIMESTAMPTZ,
+  ADD COLUMN IF NOT EXISTS insight_model_version  VARCHAR(100);
+CREATE INDEX IF NOT EXISTS idx_career_event_insight_stale
+  ON career_event(insight_generated_at)
+  WHERE insight_text IS NULL OR insight_generated_at IS NULL;
+
+-- ── employee_consent per-org scoping (migration 026) ───────────────────────
+ALTER TABLE employee_consent
+  ADD COLUMN IF NOT EXISTS tenant_id       UUID REFERENCES tenant(tenant_id) ON DELETE CASCADE,
+  ADD COLUMN IF NOT EXISTS share_mobile    BOOLEAN NOT NULL DEFAULT TRUE,
+  ADD COLUMN IF NOT EXISTS share_email     BOOLEAN NOT NULL DEFAULT TRUE,
+  ADD COLUMN IF NOT EXISTS notice_language CHAR(5) NOT NULL DEFAULT 'en',
+  ADD COLUMN IF NOT EXISTS notice_hash     VARCHAR(64);
+CREATE UNIQUE INDEX IF NOT EXISTS uq_consent_global  ON employee_consent(employee_user_id, purpose) WHERE tenant_id IS NULL;
+CREATE UNIQUE INDEX IF NOT EXISTS uq_consent_per_org  ON employee_consent(employee_user_id, purpose, tenant_id) WHERE tenant_id IS NOT NULL;
+CREATE INDEX IF NOT EXISTS idx_consent_tenant_purpose ON employee_consent(tenant_id, purpose, is_active) WHERE tenant_id IS NOT NULL;
+
+-- ── compliance_obligation audit-grade fields (migrations 002/014/019) ──────
+ALTER TABLE compliance_obligation
+  ADD COLUMN IF NOT EXISTS statutory_act       VARCHAR(80),
+  ADD COLUMN IF NOT EXISTS category            VARCHAR(50),
+  ADD COLUMN IF NOT EXISTS period_start        DATE,
+  ADD COLUMN IF NOT EXISTS period_end          DATE,
+  ADD COLUMN IF NOT EXISTS filing_reference    VARCHAR(100),
+  ADD COLUMN IF NOT EXISTS submitted_by        UUID REFERENCES oa_user(oa_user_id),
+  ADD COLUMN IF NOT EXISTS document_id         UUID REFERENCES document(document_id),
+  ADD COLUMN IF NOT EXISTS headcount           INTEGER,
+  ADD COLUMN IF NOT EXISTS overdue_since       DATE,
+  ADD COLUMN IF NOT EXISTS obligation_type     VARCHAR(50),
+  ADD COLUMN IF NOT EXISTS statutory_ref       VARCHAR(100),
+  ADD COLUMN IF NOT EXISTS period              VARCHAR(20),
+  ADD COLUMN IF NOT EXISTS completion_pct      INTEGER NOT NULL DEFAULT 0,
+  ADD COLUMN IF NOT EXISTS total_employees     INTEGER NOT NULL DEFAULT 0,
+  ADD COLUMN IF NOT EXISTS compliant_employees INTEGER NOT NULL DEFAULT 0,
+  ADD COLUMN IF NOT EXISTS gap_count           INTEGER NOT NULL DEFAULT 0,
+  ADD COLUMN IF NOT EXISTS notes               TEXT,
+  ADD COLUMN IF NOT EXISTS last_computed_at    TIMESTAMPTZ;
+CREATE INDEX IF NOT EXISTS idx_compob_overdue ON compliance_obligation(tenant_id) WHERE status = 'OVERDUE';
+CREATE INDEX IF NOT EXISTS idx_compob_type    ON compliance_obligation(tenant_id, obligation_type) WHERE obligation_type IS NOT NULL;
+
+-- ── PA CHRO alert config + audit archival config (migrations 014/045) ─────
+INSERT INTO platform_config (config_key, config_value, value_type, description, min_value, max_value) VALUES
+  ('chro_alert_deadline_alert',      'true', 'BOOLEAN', 'CHRO: notify when statutory deadline < 30 days away', NULL, NULL),
+  ('chro_alert_vault_health_drop',   'true', 'BOOLEAN', 'CHRO: notify when org vault health drops > 5 points', NULL, NULL),
+  ('chro_alert_exception_spike',     'true', 'BOOLEAN', 'CHRO: notify when exception queue exceeds 5 open', NULL, NULL),
+  ('chro_alert_exit_doc_delay',      'true', 'BOOLEAN', 'CHRO: notify when exit docs not pushed within 7 days', NULL, NULL),
+  ('audit_archival_cutoff_days',     '730',  'DURATION_DAYS', 'AuditArchivalWorkflow: age (days) after which audit_event rows are copied to cold S3 storage.', '30', '2555'),
+  ('audit_archival_batch_size',      '5000', 'INTEGER', 'AuditArchivalWorkflow: max rows archived per activity execution.', '100', '50000')
+ON CONFLICT (config_key) DO NOTHING;
+
+-- ── HRMS connector definition (PA-level catalogue) — migration 029 ─────────
+CREATE TABLE IF NOT EXISTS hrms_connector_definition (
+  connector_definition_id UUID         PRIMARY KEY DEFAULT gen_random_uuid(),
+  connector_key           VARCHAR(30)  NOT NULL UNIQUE,   -- SAP | DARWINBOX | KEKA | GREYTHR | ZOHO | ...
+  display_name            VARCHAR(100) NOT NULL,
+  logo_url                TEXT,
+  auth_method             VARCHAR(20)  NOT NULL,          -- API_KEY | OAUTH2 | HMAC
+  supported_modes         TEXT[]       NOT NULL DEFAULT ARRAY['PULL'],  -- PULL | PUSH | WEBHOOK
+  canonical_field_schema  JSONB        NOT NULL DEFAULT '{}',
+  docs_url                TEXT,
+  is_active               BOOLEAN      NOT NULL DEFAULT TRUE,
+  created_at              TIMESTAMPTZ  NOT NULL DEFAULT NOW(),
+  updated_at              TIMESTAMPTZ  NOT NULL DEFAULT NOW()
+);
+CREATE INDEX IF NOT EXISTS idx_hrms_def_key    ON hrms_connector_definition(connector_key);
+CREATE INDEX IF NOT EXISTS idx_hrms_def_active ON hrms_connector_definition(is_active);
+
+ALTER TABLE hrms_connector_config
+  ADD COLUMN IF NOT EXISTS connector_definition_id UUID REFERENCES hrms_connector_definition(connector_definition_id),
+  ADD COLUMN IF NOT EXISTS field_mapping           JSONB NOT NULL DEFAULT '{}',
+  ADD COLUMN IF NOT EXISTS webhook_secret           TEXT;  -- HMAC secret for validating inbound webhooks; plaintext OK, low-sensitivity shared secret
+
+CREATE TABLE IF NOT EXISTS hrms_sync_log (
+  sync_id         UUID         PRIMARY KEY DEFAULT gen_random_uuid(),
+  connector_id    UUID         NOT NULL REFERENCES hrms_connector_config(connector_id),
+  tenant_id       UUID         NOT NULL REFERENCES tenant(tenant_id),
+  sync_mode       VARCHAR(20)  NOT NULL DEFAULT 'PULL',
+  started_at      TIMESTAMPTZ  NOT NULL DEFAULT NOW(),
+  completed_at    TIMESTAMPTZ,
+  status          VARCHAR(20)  NOT NULL DEFAULT 'RUNNING',  -- RUNNING | SUCCESS | FAILED
+  docs_pushed     INTEGER      NOT NULL DEFAULT 0,
+  docs_failed     INTEGER      NOT NULL DEFAULT 0,
+  error_message   TEXT,
+  cursor_before   TEXT,
+  cursor_after    TEXT,
+  temporal_run_id TEXT
+);
+CREATE INDEX IF NOT EXISTS idx_hrms_sync_connector ON hrms_sync_log(connector_id, started_at DESC);
+CREATE INDEX IF NOT EXISTS idx_hrms_sync_tenant    ON hrms_sync_log(tenant_id, started_at DESC);
+
+-- ── incident + error_event — platform incident tracking (migrations 017/040) ─
+-- incident: PA/CISO-visible security & SLA incidents. error_event: application
+-- error observability, promoted to `incident` rows by ErrorThresholdEvaluationWorkflow.
+CREATE TABLE IF NOT EXISTS incident (
+  incident_id     UUID         PRIMARY KEY DEFAULT gen_random_uuid(),
+  tenant_id       UUID         REFERENCES tenant(tenant_id),
+  incident_type   VARCHAR(40)  NOT NULL,
+  severity        VARCHAR(5)   NOT NULL,             -- P0 | P1 | P2 | P3
+  title           TEXT         NOT NULL,
+  description     TEXT,
+  source_table    VARCHAR(40),
+  source_id       UUID,
+  assigned_to     UUID,
+  assigned_role   VARCHAR(20),
+  status          VARCHAR(20)  NOT NULL DEFAULT 'OPEN',  -- OPEN | ACKNOWLEDGED | ESCALATED | RESOLVED
+  sla_deadline    TIMESTAMPTZ,
+  escalated_at    TIMESTAMPTZ,
+  resolved_at     TIMESTAMPTZ,
+  resolved_by     UUID,
+  resolution_note TEXT,
+  created_at      TIMESTAMPTZ  NOT NULL DEFAULT NOW()
+);
+CREATE INDEX IF NOT EXISTS idx_incident_open_severity ON incident(severity, created_at DESC) WHERE status = 'OPEN';
+CREATE INDEX IF NOT EXISTS idx_incident_sla           ON incident(sla_deadline) WHERE status != 'RESOLVED';
+CREATE INDEX IF NOT EXISTS idx_incident_tenant_status ON incident(tenant_id, status, severity);
+
+CREATE TABLE IF NOT EXISTS error_event (
+  error_id           UUID         PRIMARY KEY DEFAULT gen_random_uuid(),
+  fingerprint        VARCHAR(64)  NOT NULL,   -- hash of (exception_type, source, source_detail) for dedup
+  exception_type     VARCHAR(200) NOT NULL,
+  message            TEXT,
+  traceback          TEXT,
+  source             VARCHAR(30)  NOT NULL,   -- HTTP | KAFKA | TEMPORAL
+  source_detail      VARCHAR(200),
+  request_id         UUID,
+  event_id           UUID,
+  tenant_id          UUID         REFERENCES tenant(tenant_id),
+  actor_type         VARCHAR(30),
+  actor_id           UUID,
+  occurrence_count   INTEGER      NOT NULL DEFAULT 1,
+  first_seen_at      TIMESTAMPTZ  NOT NULL DEFAULT NOW(),
+  last_seen_at       TIMESTAMPTZ  NOT NULL DEFAULT NOW(),
+  status             VARCHAR(20)  NOT NULL DEFAULT 'NEW',  -- NEW | ACKNOWLEDGED | PROMOTED | RESOLVED
+  linked_incident_id UUID         REFERENCES incident(incident_id),
+  resolved_by        UUID,
+  resolved_at        TIMESTAMPTZ,
+  resolution_note    TEXT
+);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_error_event_fingerprint_open
+  ON error_event(fingerprint) WHERE status IN ('NEW', 'ACKNOWLEDGED');
+CREATE INDEX IF NOT EXISTS idx_error_event_status     ON error_event(status, last_seen_at DESC);
+CREATE INDEX IF NOT EXISTS idx_error_event_last_seen  ON error_event(last_seen_at DESC);
+CREATE INDEX IF NOT EXISTS idx_error_event_tenant     ON error_event(tenant_id, last_seen_at DESC) WHERE tenant_id IS NOT NULL;
+
+-- ── notification_log — every outbound notification with delivery tracking (migration 017) ─
+CREATE TABLE IF NOT EXISTS notification_log (
+  notification_id  UUID         PRIMARY KEY DEFAULT gen_random_uuid(),
+  tenant_id        UUID         REFERENCES tenant(tenant_id),   -- NULL for platform-level notifs
+  event_type       VARCHAR(40)  NOT NULL,     -- ANOMALY_DETECTED | DOC_ROUTED | ...
+  source_id        UUID,
+  source_table     VARCHAR(40),
+  recipient_id     UUID         NOT NULL,
+  recipient_type   VARCHAR(20)  NOT NULL,     -- EMPLOYEE | OA_USER | PORTAL_ADMIN
+  recipient_email  TEXT,
+  recipient_phone  TEXT,
+  channel          VARCHAR(20)  NOT NULL,     -- EMAIL | SMS | WHATSAPP | PUSH | PORTAL_BELL
+  template_id      VARCHAR(50)  NOT NULL,
+  template_data    JSONB,
+  status           VARCHAR(20)  NOT NULL DEFAULT 'QUEUED',  -- QUEUED | SENT | FAILED
+  provider_ref     TEXT,
+  sent_at          TIMESTAMPTZ,
+  failed_at        TIMESTAMPTZ,
+  error_message    TEXT,
+  retry_count      SMALLINT     NOT NULL DEFAULT 0,
+  created_at       TIMESTAMPTZ  NOT NULL DEFAULT NOW()
+);
+CREATE INDEX IF NOT EXISTS idx_notif_log_tenant_created  ON notification_log(tenant_id, created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_notif_log_recipient       ON notification_log(recipient_id, channel, created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_notif_log_queued_failed   ON notification_log(status) WHERE status IN ('QUEUED', 'FAILED');
+CREATE INDEX IF NOT EXISTS idx_notif_log_event_type      ON notification_log(event_type, created_at DESC);
+
+-- ── Public-facing submission tables (migration 008) ────────────────────────
+CREATE TABLE IF NOT EXISTS contact_inquiry (
+  id            UUID         PRIMARY KEY DEFAULT gen_random_uuid(),
+  name          VARCHAR(100) NOT NULL,
+  email         VARCHAR(150) NOT NULL,
+  org           VARCHAR(200),
+  enquiry_type  VARCHAR(50),
+  message       TEXT,
+  status        VARCHAR(20)  NOT NULL DEFAULT 'NEW',   -- NEW | REVIEWED | REPLIED
+  ip_address    INET,
+  submitted_at  TIMESTAMPTZ  NOT NULL DEFAULT NOW()
+);
+CREATE INDEX IF NOT EXISTS idx_contact_inquiry_submitted ON contact_inquiry(submitted_at DESC);
+CREATE INDEX IF NOT EXISTS idx_contact_inquiry_status    ON contact_inquiry(status);
+
+CREATE TABLE IF NOT EXISTS self_service_application (
+  id              UUID         PRIMARY KEY DEFAULT gen_random_uuid(),
+  org_name        VARCHAR(200) NOT NULL,
+  domain          VARCHAR(100) NOT NULL,
+  entity_type     VARCHAR(50),
+  industry        VARCHAR(50),
+  headcount_band  VARCHAR(20),
+  contact_name    VARCHAR(100) NOT NULL,
+  contact_email   VARCHAR(150) NOT NULL,
+  contact_mobile  VARCHAR(20),
+  message         TEXT,
+  how_heard       VARCHAR(50),
+  agreed_to_dpa   BOOLEAN      NOT NULL DEFAULT FALSE,
+  email_verified  BOOLEAN      NOT NULL DEFAULT FALSE,
+  status          VARCHAR(20)  NOT NULL DEFAULT 'PENDING', -- PENDING | REVIEWED | APPROVED | REJECTED
+  review_notes    TEXT,
+  submitted_at    TIMESTAMPTZ  NOT NULL DEFAULT NOW(),
+  reviewed_at     TIMESTAMPTZ
+);
+CREATE INDEX IF NOT EXISTS idx_ssa_submitted ON self_service_application(submitted_at DESC);
+CREATE INDEX IF NOT EXISTS idx_ssa_status    ON self_service_application(status);
+CREATE INDEX IF NOT EXISTS idx_ssa_email     ON self_service_application(contact_email);
+
+CREATE TABLE IF NOT EXISTS org_registration_otp (
+  token       UUID         PRIMARY KEY DEFAULT gen_random_uuid(),
+  email       VARCHAR(150) NOT NULL,
+  otp_hash    VARCHAR(64)  NOT NULL,   -- SHA-256(otp) — never store plaintext
+  form_data   JSONB,
+  expires_at  TIMESTAMPTZ  NOT NULL,
+  verified    BOOLEAN      NOT NULL DEFAULT FALSE,
+  created_at  TIMESTAMPTZ  NOT NULL DEFAULT NOW()
+);
+CREATE INDEX IF NOT EXISTS idx_reg_otp_email ON org_registration_otp(email);
+
+-- ── device_registration — mobile trust-based biometric auth (migration 012) ─
+CREATE TABLE IF NOT EXISTS device_registration (
+  device_id           UUID         PRIMARY KEY DEFAULT gen_random_uuid(),
+  employee_user_id    UUID         NOT NULL REFERENCES employee_user(employee_user_id) ON DELETE CASCADE,
+  platform            VARCHAR(10)  NOT NULL CHECK (platform IN ('ANDROID', 'IOS')),
+  device_name         VARCHAR(100),
+  device_fingerprint  VARCHAR(128),
+  push_token          TEXT,
+  biometric_enrolled  BOOLEAN      NOT NULL DEFAULT FALSE,
+  enrolled_at         TIMESTAMPTZ,
+  last_used_at        TIMESTAMPTZ,
+  registered_at       TIMESTAMPTZ  NOT NULL DEFAULT NOW(),
+  revoked             BOOLEAN      NOT NULL DEFAULT FALSE
+);
+CREATE INDEX IF NOT EXISTS idx_dr_employee    ON device_registration(employee_user_id) WHERE revoked = FALSE;
+CREATE INDEX IF NOT EXISTS idx_dr_fingerprint ON device_registration(device_fingerprint) WHERE revoked = FALSE;
+
+-- ── doc_type_field_manifest — OA-configurable per-doc-type field mapping (migration 018) ─
+CREATE TABLE IF NOT EXISTS doc_type_field_manifest (
+  manifest_id            UUID         PRIMARY KEY DEFAULT gen_random_uuid(),
+  tenant_id              UUID         REFERENCES tenant(tenant_id) ON DELETE CASCADE,  -- NULL = platform default
+  doc_type               VARCHAR(50)  NOT NULL,
+  required_fields        JSONB        NOT NULL DEFAULT '[]',
+  identity_fields        JSONB        NOT NULL DEFAULT '[]',
+  optional_fields        JSONB        NOT NULL DEFAULT '[]',
+  classification_signals JSONB        NOT NULL DEFAULT '[]',
+  confidence_threshold   DOUBLE PRECISION NOT NULL DEFAULT 0.75 CHECK (confidence_threshold BETWEEN 0.0 AND 1.0),
+  supported_formats      JSONB        NOT NULL DEFAULT '["pdf", "docx", "jpeg", "jpg", "png", "tiff"]',
+  is_active              BOOLEAN      NOT NULL DEFAULT TRUE,
+  created_by             UUID         REFERENCES oa_user(oa_user_id),
+  created_at             TIMESTAMPTZ  NOT NULL DEFAULT NOW(),
+  updated_at             TIMESTAMPTZ  NOT NULL DEFAULT NOW(),
+  updated_by             UUID         REFERENCES oa_user(oa_user_id),
+  usage_count            INTEGER      NOT NULL DEFAULT 0,
+  signal_weights         JSONB        NOT NULL DEFAULT '[]'  -- migration 037: per-signal scoring weights
+);
+CREATE UNIQUE INDEX IF NOT EXISTS uidx_manifest_platform_doctype ON doc_type_field_manifest(doc_type) WHERE tenant_id IS NULL;
+CREATE UNIQUE INDEX IF NOT EXISTS uidx_manifest_tenant_doctype   ON doc_type_field_manifest(tenant_id, doc_type) WHERE tenant_id IS NOT NULL;
+CREATE INDEX IF NOT EXISTS idx_manifest_active ON doc_type_field_manifest(doc_type, is_active);
+CREATE INDEX IF NOT EXISTS idx_manifest_tenant ON doc_type_field_manifest(tenant_id) WHERE tenant_id IS NOT NULL;
+CREATE INDEX IF NOT EXISTS idx_manifest_usage  ON doc_type_field_manifest(tenant_id, usage_count DESC);
+
+-- ── Alumni network outreach (migrations 023/025/026/027) ───────────────────
+CREATE TABLE IF NOT EXISTS alumni_outreach (
+  outreach_id      UUID         PRIMARY KEY DEFAULT gen_random_uuid(),
+  tenant_id        UUID         NOT NULL REFERENCES tenant(tenant_id),
+  employee_uuid    UUID         NOT NULL REFERENCES employee_master(employee_uuid),
+  employee_user_id UUID         NOT NULL REFERENCES employee_user(employee_user_id),
+  sent_by_oa_user  UUID         NOT NULL REFERENCES oa_user(oa_user_id),
+  subject          VARCHAR(200) NOT NULL,
+  body_text        TEXT         NOT NULL CHECK (LENGTH(body_text) <= 2000),
+  status           VARCHAR(20)  NOT NULL DEFAULT 'SENT'
+                     CHECK (status IN ('SENT', 'READ', 'REPLIED', 'IGNORED', 'OPTED_OUT')),
+  sent_at          TIMESTAMPTZ  NOT NULL DEFAULT NOW(),
+  read_at          TIMESTAMPTZ,
+  replied_at       TIMESTAMPTZ,
+  reply_body       TEXT         CHECK (LENGTH(reply_body) <= 2000)
+);
+CREATE INDEX IF NOT EXISTS idx_alumni_outreach_employee ON alumni_outreach(employee_user_id, sent_at DESC);
+CREATE INDEX IF NOT EXISTS idx_alumni_outreach_tenant   ON alumni_outreach(tenant_id, sent_at DESC);
+CREATE INDEX IF NOT EXISTS idx_alumni_outreach_window   ON alumni_outreach(tenant_id, employee_user_id, sent_at DESC);
+
+-- ── Gamification — career score, badges, streaks (migration 028) ──────────
+CREATE TABLE IF NOT EXISTS badge_definition (
+  badge_definition_id UUID         PRIMARY KEY DEFAULT gen_random_uuid(),
+  badge_key           VARCHAR(50)  NOT NULL UNIQUE,
+  badge_name          VARCHAR(100) NOT NULL,
+  badge_description   TEXT,
+  badge_icon          VARCHAR(10)  NOT NULL,
+  category            VARCHAR(30)  NOT NULL,
+  sort_order          SMALLINT     NOT NULL DEFAULT 0,
+  is_active           BOOLEAN      NOT NULL DEFAULT TRUE,
+  created_at          TIMESTAMPTZ  NOT NULL DEFAULT NOW()
+);
+
+CREATE TABLE IF NOT EXISTS employee_badge (
+  employee_badge_id   UUID         PRIMARY KEY DEFAULT gen_random_uuid(),
+  employee_user_id    UUID         NOT NULL REFERENCES employee_user(employee_user_id),
+  badge_definition_id UUID         NOT NULL REFERENCES badge_definition(badge_definition_id),
+  context_key         VARCHAR(50)  NOT NULL DEFAULT '',  -- disambiguates repeatable badges (e.g. per-org)
+  earned_at           TIMESTAMPTZ  NOT NULL DEFAULT NOW(),
+  context             JSONB        NOT NULL DEFAULT '{}',
+  UNIQUE (employee_user_id, badge_definition_id, context_key)
+);
+CREATE INDEX IF NOT EXISTS idx_emp_badge_user ON employee_badge(employee_user_id);
+
+CREATE TABLE IF NOT EXISTS career_score (
+  employee_user_id   UUID         PRIMARY KEY REFERENCES employee_user(employee_user_id),
+  score              SMALLINT     NOT NULL DEFAULT 0,
+  completeness_pts   SMALLINT     NOT NULL DEFAULT 0,
+  freshness_pts      SMALLINT     NOT NULL DEFAULT 0,
+  diversity_pts      SMALLINT     NOT NULL DEFAULT 0,
+  engagement_pts     SMALLINT     NOT NULL DEFAULT 0,
+  last_calculated_at TIMESTAMPTZ  NOT NULL DEFAULT NOW()
+);
+
+CREATE TABLE IF NOT EXISTS employee_streak (
+  employee_user_id    UUID         PRIMARY KEY REFERENCES employee_user(employee_user_id),
+  current_streak_days SMALLINT     NOT NULL DEFAULT 0,
+  longest_streak_days SMALLINT     NOT NULL DEFAULT 0,
+  last_checkin_date   DATE,
+  streak_started_date DATE,
+  total_checkins      INTEGER      NOT NULL DEFAULT 0,
+  updated_at          TIMESTAMPTZ  NOT NULL DEFAULT NOW()
+);
+
+-- ── Comp benchmarking — opt-in contribution + k-anonymous results (migration 024) ─
+-- salary_band (above, LAYER 9b/10) holds the aggregated cohort bands themselves;
+-- these two tables track individual opt-in and the per-employee result view.
+CREATE TABLE IF NOT EXISTS comp_contribution (
+  contribution_id  UUID         PRIMARY KEY DEFAULT gen_random_uuid(),
+  employee_user_id UUID         NOT NULL REFERENCES employee_user(employee_user_id),
+  pan_token        VARCHAR(64)  NOT NULL,
+  cohort_key       VARCHAR(300) NOT NULL,
+  contributed_at   TIMESTAMPTZ  NOT NULL DEFAULT NOW(),
+  withdrawn_at     TIMESTAMPTZ,
+  UNIQUE (employee_user_id, cohort_key)
+);
+CREATE INDEX IF NOT EXISTS idx_contrib_employee ON comp_contribution(employee_user_id);
+CREATE INDEX IF NOT EXISTS idx_contrib_cohort    ON comp_contribution(cohort_key) WHERE withdrawn_at IS NULL;
+
+CREATE TABLE IF NOT EXISTS peer_benchmark_result (
+  result_id        UUID         PRIMARY KEY DEFAULT gen_random_uuid(),
+  employee_user_id UUID         NOT NULL REFERENCES employee_user(employee_user_id),
+  cohort_key       VARCHAR(300) NOT NULL,
+  percentile_band  VARCHAR(20),
+  cohort_size      INTEGER      NOT NULL,
+  suppressed       BOOLEAN      NOT NULL DEFAULT FALSE,   -- TRUE if cohort_size < CFO_COHORT_MIN
+  label_text       VARCHAR(200),
+  computed_at      TIMESTAMPTZ  NOT NULL DEFAULT NOW(),
+  UNIQUE (employee_user_id, cohort_key)
+);
+CREATE INDEX IF NOT EXISTS idx_benchmark_employee ON peer_benchmark_result(employee_user_id);
+
+-- ── service_incident — PA infra health monitoring (migration 011) ─────────
+CREATE TABLE IF NOT EXISTS service_incident (
+  incident_id     UUID         PRIMARY KEY DEFAULT gen_random_uuid(),
+  service_name    VARCHAR(50)  NOT NULL,   -- prana-api | prana-ai | prana-ask | kafka | redis | db
+  severity        VARCHAR(20)  NOT NULL,   -- P1 | P2 | P3
+  status          VARCHAR(20)  NOT NULL DEFAULT 'OPEN',  -- OPEN | ACKNOWLEDGED | RESOLVED
+  title           TEXT         NOT NULL,
+  detail          TEXT,
+  detected_at     TIMESTAMPTZ  NOT NULL DEFAULT NOW(),
+  acknowledged_at TIMESTAMPTZ,
+  acknowledged_by UUID,
+  resolved_at     TIMESTAMPTZ,
+  resolved_by     UUID,
+  resolution_note TEXT,
+  notified_at     TIMESTAMPTZ,
+  check_url       VARCHAR(500)
+);
+CREATE INDEX IF NOT EXISTS idx_service_incident_status   ON service_incident(status);
+CREATE INDEX IF NOT EXISTS idx_service_incident_service  ON service_incident(service_name, status);
+CREATE INDEX IF NOT EXISTS idx_service_incident_detected ON service_incident(detected_at DESC);
 
 -- ============================================================
 -- LAYER 14: SECURITY — LEAST-PRIVILEGE APPLICATION ROLE
