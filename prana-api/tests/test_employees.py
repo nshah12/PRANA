@@ -478,6 +478,122 @@ async def test_bulk_import_creates_each_valid_row_and_returns_summary(client, mo
 
 
 @pytest.mark.asyncio
+async def test_bulk_import_passes_mobile_email_columns_through(client, mock_db, mock_kafka):
+    """Optional mobile/email CSV columns must reach EmployeeService.create() —
+    previously there was no code path at all setting a bulk-imported employee's
+    login handle, so nobody could ever log in regardless of HRMS data available."""
+    _set_auth(client, role="oa_admin", tenant_id="tenant-001")
+    mock_db.fetchrow.return_value = {"kek_arn": "arn:aws:kms:ap-south-1:123:key/abc"}
+    csv_content = (
+        "nik,full_name,doj,mobile,email\n"
+        "ABCDE1234F,Rahul Sharma,2022-01-15,+919876543210,rahul@example.com\n"
+    )
+    with patch("services.employee_service.EmployeeService.create", new_callable=AsyncMock) as mock_create:
+        mock_create.return_value = {
+            "employee_uuid": "emp-uuid-1", "employee_user_id": "eu-1",
+            "pan_token": "hash1", "temp_password": "TempPass123",
+        }
+        resp = await client.post(
+            "/v1/org/employees/import", headers=AUTH_HEADER, files=_csv_upload(csv_content),
+        )
+
+    assert resp.status_code == 200
+    kwargs = mock_create.call_args.kwargs
+    assert kwargs["mobile"] == "+919876543210"
+    assert kwargs["email"] == "rahul@example.com"
+
+
+@pytest.mark.asyncio
+async def test_bulk_import_publishes_credentials_issued_when_temp_password_returned(client, mock_db, mock_kafka):
+    """Previously nothing ever published an event NotifConsumer could turn into a
+    notification for a newly-created employee — this closes that loop."""
+    _set_auth(client, role="oa_admin", tenant_id="tenant-001")
+    mock_db.fetchrow.return_value = {"kek_arn": "arn:aws:kms:ap-south-1:123:key/abc"}
+    single_row_csv = "nik,full_name,doj\nABCDE1234F,Rahul Sharma,2022-01-15\n"
+    with patch("services.employee_service.EmployeeService.create", new_callable=AsyncMock) as mock_create:
+        mock_create.return_value = {
+            "employee_uuid": "emp-uuid-1", "employee_user_id": "eu-1",
+            "pan_token": "hash1", "temp_password": "TempPass123",
+        }
+        resp = await client.post(
+            "/v1/org/employees/import", headers=AUTH_HEADER, files=_csv_upload(single_row_csv),
+        )
+
+    assert resp.status_code == 200
+    mock_kafka.employee_credentials_issued.assert_awaited_once()
+    payload = mock_kafka.employee_credentials_issued.call_args.args[0]
+    assert payload["event_type"] == "EMPLOYEE_CREDENTIALS_ISSUED"
+    assert payload["recipient_id"] == "eu-1"
+    assert "temp_password" not in str(payload)   # never leak the plaintext password onto Kafka
+
+
+@pytest.mark.asyncio
+async def test_bulk_import_no_credentials_event_when_no_temp_password(client, mock_db, mock_kafka):
+    """No mobile/email supplied → EmployeeService.create() returns temp_password=None
+    → no EMPLOYEE_CREDENTIALS_ISSUED event should fire (nothing to notify about yet)."""
+    _set_auth(client, role="oa_admin", tenant_id="tenant-001")
+    mock_db.fetchrow.return_value = {"kek_arn": "arn:aws:kms:ap-south-1:123:key/abc"}
+    with patch("services.employee_service.EmployeeService.create", new_callable=AsyncMock) as mock_create:
+        mock_create.return_value = {
+            "employee_uuid": "emp-uuid-1", "employee_user_id": "eu-1",
+            "pan_token": "hash1", "temp_password": None,
+        }
+        resp = await client.post(
+            "/v1/org/employees/import", headers=AUTH_HEADER, files=_csv_upload(_VALID_CSV),
+        )
+
+    assert resp.status_code == 200
+    mock_kafka.employee_credentials_issued.assert_not_awaited()
+
+
+# -- Single employee create ------------------------------------------------------
+
+@pytest.mark.asyncio
+async def test_create_employee_passes_mobile_email_through_and_publishes_credentials(client, mock_db, mock_kafka):
+    _set_auth(client, role="oa_admin", tenant_id="tenant-001", user_id="admin-uuid-9")
+    mock_db.fetchrow.return_value = {"kek_arn": "arn:aws:kms:ap-south-1:123:key/abc"}
+    with patch("services.employee_service.EmployeeService.create", new_callable=AsyncMock) as mock_create:
+        mock_create.return_value = {
+            "employee_uuid": "emp-uuid-1", "employee_user_id": "eu-1",
+            "pan_token": "hash1", "temp_password": "TempPass123",
+        }
+        resp = await client.post(
+            "/v1/org/employees", headers=AUTH_HEADER, json={
+                "nik": "ABCDE1234F", "full_name": "Rahul Sharma", "doj": "2022-01-15",
+                "mobile": "+919876543210", "email": "rahul@example.com",
+            },
+        )
+
+    assert resp.status_code == 201
+    kwargs = mock_create.call_args.kwargs
+    assert kwargs["mobile"] == "+919876543210"
+    assert kwargs["email"] == "rahul@example.com"
+    mock_kafka.employee_credentials_issued.assert_awaited_once()
+    payload = mock_kafka.employee_credentials_issued.call_args.args[0]
+    assert payload["event_type"] == "EMPLOYEE_CREDENTIALS_ISSUED"
+    assert payload["recipient_id"] == "eu-1"
+
+
+@pytest.mark.asyncio
+async def test_create_employee_no_credentials_event_when_no_temp_password(client, mock_db, mock_kafka):
+    _set_auth(client, role="oa_admin", tenant_id="tenant-001")
+    mock_db.fetchrow.return_value = {"kek_arn": "arn:aws:kms:ap-south-1:123:key/abc"}
+    with patch("services.employee_service.EmployeeService.create", new_callable=AsyncMock) as mock_create:
+        mock_create.return_value = {
+            "employee_uuid": "emp-uuid-1", "employee_user_id": "eu-1",
+            "pan_token": "hash1", "temp_password": None,
+        }
+        resp = await client.post(
+            "/v1/org/employees", headers=AUTH_HEADER, json={
+                "nik": "ABCDE1234F", "full_name": "Rahul Sharma", "doj": "2022-01-15",
+            },
+        )
+
+    assert resp.status_code == 201
+    mock_kafka.employee_credentials_issued.assert_not_awaited()
+
+
+@pytest.mark.asyncio
 async def test_bulk_import_isolates_row_level_errors_missing_field(client, mock_db, mock_kafka):
     """One row missing a required field must not abort the whole batch."""
     _set_auth(client, role="oa_admin", tenant_id="tenant-001")
@@ -599,6 +715,11 @@ async def test_reset_totp_by_email_looks_up_employee_user_table(client, mock_db)
 
 @pytest.mark.asyncio
 async def test_reset_totp_by_mobile_normalises_to_e164(client, mock_db):
+    """mobile is never stored in plaintext (schema.sql employee_user, 2026-07-18) —
+    the lookup must query by mobile_token (HMAC of the E.164-normalised value),
+    not the raw digits or raw mobile string."""
+    from services.encryption_service import compute_mobile_token
+
     _set_auth(client, role="oa_admin", tenant_id="tenant-001")
     mock_db.fetchrow.side_effect = [
         {"employee_user_id": "eu-001"},
@@ -614,8 +735,9 @@ async def test_reset_totp_by_mobile_normalises_to_e164(client, mock_db):
 
     assert resp.status_code == 200
     lookup_call = mock_db.fetchrow.call_args_list[0]
-    assert "mobile" in lookup_call[0][0].lower()
-    assert lookup_call[0][1] == "+919000000001"
+    assert "mobile_token" in lookup_call[0][0].lower()
+    expected_token = compute_mobile_token("+919000000001", "test_secret_32chars_padding_pad1")
+    assert lookup_call[0][1] == expected_token
 
 
 @pytest.mark.asyncio

@@ -2,13 +2,17 @@
 Employee master CRUD.
 pan_token computed here → NIK dropped immediately → never stored anywhere.
 """
+import secrets
 import uuid
 from datetime import date, timedelta
 from typing import Optional
 
 import asyncpg
 
-from services.encryption_service import compute_pan_token, encrypt_nik_fpe, generate_dek, KMSService
+from services.encryption_service import (
+    compute_mobile_token, compute_pan_token,
+    encrypt_nik_fpe, generate_dek, hash_password, KMSService,
+)
 
 
 class EmployeeService:
@@ -35,20 +39,46 @@ class EmployeeService:
         doj: date,
         created_by: str,
         kek_arn: str,
+        mobile: Optional[str] = None,
+        email: Optional[str] = None,
+        auth_kek_arn: Optional[str] = None,
     ) -> dict:
         """
         Create or upsert employee_user + employee_master for one employee.
         NIK is processed here and immediately discarded — never written to any table.
+
+        mobile/email are the employee's login handle, optionally supplied by the
+        employer at push/import time (HRMS systems typically carry this). When
+        given on a brand-new employee_user row, a temp password is provisioned
+        here too (force_reset=TRUE) — same pattern as TenantService.activate()'s
+        first OA-Admin — so the employee has a real way to log in rather than
+        being stuck in PENDING_ACTIVATION with nothing set. If neither is given,
+        the row stays exactly as before: no login handle, no password, activation
+        deferred (chk_eu_login_handle in schema.sql already requires one of the
+        two once status leaves PENDING_ACTIVATION).
+
+        auth_kek_arn is required whenever mobile is given — resolve_platform_auth_kek_arn
+        (settings), the ONE real AWS KMS CMK that also encrypts totp_secret_enc
+        (see routers/totp_setup.py). Mobile is a login credential the employee
+        needs in tenant-agnostic contexts (their own login, their own profile)
+        exactly like their TOTP secret — it must NOT be tied to any one tenant's
+        KEK or per-employee DEK, since that would make decrypting it depend on
+        which tenant happened to onboard them first. It also isn't a static app
+        secret (the earlier version of this fix): decrypting now requires a live
+        KMS call, not just holding a config value.
         """
         pan_token = compute_pan_token(nik, self._hmac_secret)
 
-        # DEK per employee — wrapped with tenant KEK
+        # DEK per employee — wrapped with tenant KEK. Scoped to PAN/NIK only —
+        # mobile deliberately does NOT use this (see auth_kek_arn docstring above).
         dek = generate_dek()
         enc_dek = self._kms.wrap_dek(dek, kek_arn)
         enc_pan = encrypt_nik_fpe(nik, dek)
 
         # Drop nik and dek from memory as early as possible
         del nik, dek
+
+        temp_password: Optional[str] = None
 
         async with self._db.transaction():
             # Upsert employee_user (same person may already exist from another tenant)
@@ -59,14 +89,39 @@ class EmployeeService:
                 employee_user_id = str(eu_row["employee_user_id"])
             else:
                 employee_user_id = str(uuid.uuid4())
-                await self._db.execute(
-                    """
-                    INSERT INTO employee_user
-                      (employee_user_id, pan_token, enc_pan, enc_dek, status)
-                    VALUES ($1,$2,$3,$4,'PENDING_ACTIVATION')
-                    """,
-                    employee_user_id, pan_token, enc_pan, enc_dek,
-                )
+                if mobile or email:
+                    # Mobile is never stored in plaintext (schema.sql employee_user,
+                    # 2026-07-18): mobile_token is the deterministic HMAC lookup key
+                    # (mirrors pan_token), enc_mobile is a real KMS ciphertext under
+                    # the platform auth CMK (only computed here — the dedup branch
+                    # above never touches an existing row's mobile).
+                    mobile_token: Optional[str] = None
+                    enc_mobile: Optional[str] = None
+                    if mobile:
+                        if not auth_kek_arn:
+                            raise ValueError("auth_kek_arn is required when mobile is provided")
+                        mobile_token = compute_mobile_token(mobile, self._hmac_secret)
+                        enc_mobile = self._kms.encrypt_value(mobile, auth_kek_arn)
+                    temp_password = secrets.token_urlsafe(12)
+                    await self._db.execute(
+                        """
+                        INSERT INTO employee_user
+                          (employee_user_id, pan_token, enc_pan, enc_dek, mobile_token, enc_mobile, email,
+                           password_hash, force_reset, status)
+                        VALUES ($1,$2,$3,$4,$5,$6,$7,$8,TRUE,'PENDING_ACTIVATION')
+                        """,
+                        employee_user_id, pan_token, enc_pan, enc_dek, mobile_token, enc_mobile, email,
+                        hash_password(temp_password),
+                    )
+                else:
+                    await self._db.execute(
+                        """
+                        INSERT INTO employee_user
+                          (employee_user_id, pan_token, enc_pan, enc_dek, status)
+                        VALUES ($1,$2,$3,$4,'PENDING_ACTIVATION')
+                        """,
+                        employee_user_id, pan_token, enc_pan, enc_dek,
+                    )
 
             # Create employee_master for this tenant
             employee_uuid = str(uuid.uuid4())
@@ -97,6 +152,7 @@ class EmployeeService:
             "employee_uuid": employee_uuid,
             "employee_user_id": employee_user_id,
             "pan_token": pan_token,
+            "temp_password": temp_password,
         }
 
     async def mark_alumni(
@@ -282,3 +338,18 @@ class EmployeeService:
     async def _tenant_name(self, tenant_id: str) -> str:
         row = await self._db.fetchrow("SELECT tenant_name FROM tenant WHERE tenant_id=$1", tenant_id)
         return row["tenant_name"] if row else "Unknown"
+
+    async def decrypt_mobile(self, employee_user_id: str, auth_kek_arn: str) -> Optional[str]:
+        """
+        Reverses enc_mobile for display (own profile, consented CHRO alumni export).
+        auth_kek_arn = resolve_platform_auth_kek_arn(settings) — the ONE real
+        AWS KMS CMK that also encrypts totp_secret_enc. Not tenant-scoped:
+        mobile is a tenant-agnostic login credential, not gated by whichever
+        tenant happened to onboard the employee first.
+        """
+        row = await self._db.fetchrow(
+            "SELECT enc_mobile FROM employee_user WHERE employee_user_id=$1", employee_user_id
+        )
+        if not row or not row["enc_mobile"]:
+            return None
+        return self._kms.decrypt_value(row["enc_mobile"], auth_kek_arn)

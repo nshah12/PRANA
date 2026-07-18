@@ -17,7 +17,16 @@
 
 ## Encryption stack
 - Passwords: Argon2id (time=2, memory=65536, parallelism=2)
-- TOTP secret: AES-256-GCM
+- TOTP secret + employee mobile number: real AWS KMS (platform-wide auth CMK,
+  `resolve_platform_auth_kek_arn` / `KMSService.encrypt_value`/`decrypt_value`)
+  — NOT a static app secret and NOT a tenant KEK. Both fields must stay
+  decryptable regardless of tenant context (they're login credentials, not
+  tenant-owned data), so they can't use per-tenant KEKs like PAN does; and a
+  leaked static secret would decrypt every user's TOTP/mobile platform-wide in
+  one shot with no audit trail, so they don't use `resolve_auth_dek` either.
+  See `services/employee_service.py`'s `auth_kek_arn` docstring for the full
+  reasoning. `resolve_auth_dek` (static, non-KMS) remains scoped to HRMS API-key
+  signing secrets only.
 - Document DEK: KMS envelope encryption (tenant KEK, AWS KMS ap-south-1)
 - `temp_password_hash` takes priority over `password_hash` in login — must clear to NULL after force reset
 

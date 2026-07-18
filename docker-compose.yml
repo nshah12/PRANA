@@ -53,6 +53,10 @@ x-prana-env: &prana-env
   AWS_ACCESS_KEY_ID: test
   AWS_SECRET_ACCESS_KEY: test
   KMS_ENDPOINT_URL: http://localstack:4566
+  # Set after running `python scripts/bootstrap_platform_auth_kek.py` once against
+  # this LocalStack instance — empty until then means mobile/TOTP encryption will
+  # fail at runtime (by design: no static-secret fallback for this key).
+  PLATFORM_AUTH_KEK_ARN: ""
   IMMUDB_HOST: immudb
   IMMUDB_PORT: "3322"
   IMMUDB_USER: immudb

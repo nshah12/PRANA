@@ -23,10 +23,16 @@ from fastapi import APIRouter, Depends, HTTPException, Request, status
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, Field
 
+import logging
+
 from dependencies import AuthUser, Employee, DbConn
 from services.vault_service import VaultService
 from services.share_service import ShareService
+from services.employee_service import EmployeeService
+from services.encryption_service import resolve_platform_auth_kek_arn
 from errors import PranaError
+
+log = logging.getLogger(__name__)
 
 router = APIRouter()
 
@@ -200,7 +206,7 @@ async def get_profile(request: Request, db: DbConn, current: Employee):
     """
     row = await db.fetchrow(
         """
-        SELECT eu.employee_user_id, eu.mobile, eu.status,
+        SELECT eu.employee_user_id, eu.status,
                eu.created_at,
                em.full_name, em.designation, em.department,
                em.employee_user_id AS master_user_id
@@ -222,10 +228,24 @@ async def get_profile(request: Request, db: DbConn, current: Employee):
     name_slug = (row["full_name"] or "user").lower().replace(" ", "-")
     short_id = str(row["employee_user_id"])[:8]
 
+    # mobile is decrypted via the platform auth CMK (same key as totp_secret_enc)
+    # — tenant-agnostic, since it's the employee's own login credential, not
+    # scoped to any particular employer relationship.
+    emp_svc = EmployeeService(
+        db=db, kms=request.app.state.kms_service,
+        platform_hmac_secret=request.app.state.settings.platform_hmac_secret,
+    )
+    auth_kek_arn = resolve_platform_auth_kek_arn(request.app.state.settings)
+    try:
+        mobile = await emp_svc.decrypt_mobile(str(row["employee_user_id"]), auth_kek_arn)
+    except Exception:
+        log.warning("decrypt_mobile failed employee_user_id=%s", row["employee_user_id"])
+        mobile = None
+
     return {
         "employee_user_id": str(row["employee_user_id"]),
         "name": row["full_name"] or "—",
-        "mobile": row["mobile"],
+        "mobile": mobile,
         "status": row["status"],
         "vault_url": f"prana.in/vault/{name_slug}-{short_id}",
         "has_totp": True,   # if logged in, TOTP was already verified

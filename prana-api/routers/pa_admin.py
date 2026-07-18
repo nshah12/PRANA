@@ -12,6 +12,7 @@ from pydantic import BaseModel, Field
 
 from dependencies import DbConn, require_pa, AuthUser as PortalAdmin
 from errors import PranaError
+from services.encryption_service import compute_mobile_token
 
 router = APIRouter()
 PA = Depends(require_pa)
@@ -375,7 +376,8 @@ async def pa_reset_employee_totp(body: ResetEmployeeTotpIn, request: Request, db
     if col == "email":
         row = await db.fetchrow("SELECT employee_user_id FROM employee_user WHERE email = $1", value)
     else:
-        row = await db.fetchrow("SELECT employee_user_id FROM employee_user WHERE mobile = $1", value)
+        mobile_token = compute_mobile_token(value, request.app.state.settings.platform_hmac_secret)
+        row = await db.fetchrow("SELECT employee_user_id FROM employee_user WHERE mobile_token = $1", mobile_token)
     if not row:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=PranaError.EMPLOYEE_NOT_FOUND)
 
@@ -424,7 +426,8 @@ async def pa_reset_employee_password(body: ResetEmployeePasswordIn, request: Req
     if col == "email":
         row = await db.fetchrow("SELECT employee_user_id FROM employee_user WHERE email = $1", value)
     else:
-        row = await db.fetchrow("SELECT employee_user_id FROM employee_user WHERE mobile = $1", value)
+        mobile_token = compute_mobile_token(value, request.app.state.settings.platform_hmac_secret)
+        row = await db.fetchrow("SELECT employee_user_id FROM employee_user WHERE mobile_token = $1", mobile_token)
     if not row:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=PranaError.EMPLOYEE_NOT_FOUND)
 
@@ -473,11 +476,16 @@ async def merge_employee_records(body: MergeEmployeesIn, request: Request, db: D
     if not reason:
         raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=PranaError.OVERRIDE_REASON_REQUIRED)
 
+    hmac_secret = request.app.state.settings.platform_hmac_secret
+
     dup_col, dup_val = _normalise_identifier(body.duplicate_identifier)
     if dup_col == "email":
         dup_row = await db.fetchrow("SELECT employee_user_id FROM employee_user WHERE email = $1", dup_val)
     else:
-        dup_row = await db.fetchrow("SELECT employee_user_id FROM employee_user WHERE mobile = $1", dup_val)
+        dup_row = await db.fetchrow(
+            "SELECT employee_user_id FROM employee_user WHERE mobile_token = $1",
+            compute_mobile_token(dup_val, hmac_secret),
+        )
     if not dup_row:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=PranaError.EMPLOYEE_NOT_FOUND)
 
@@ -485,7 +493,10 @@ async def merge_employee_records(body: MergeEmployeesIn, request: Request, db: D
     if can_col == "email":
         can_row = await db.fetchrow("SELECT employee_user_id FROM employee_user WHERE email = $1", can_val)
     else:
-        can_row = await db.fetchrow("SELECT employee_user_id FROM employee_user WHERE mobile = $1", can_val)
+        can_row = await db.fetchrow(
+            "SELECT employee_user_id FROM employee_user WHERE mobile_token = $1",
+            compute_mobile_token(can_val, hmac_secret),
+        )
     if not can_row:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=PranaError.EMPLOYEE_NOT_FOUND)
 

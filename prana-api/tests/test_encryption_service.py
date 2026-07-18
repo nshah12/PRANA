@@ -155,3 +155,96 @@ def test_fpe_source_has_no_plaintext_fallback():
     import services.encryption_service as enc_mod
     src = inspect.getsource(enc_mod)
     assert 'f"ENC_{nik' not in src, "plaintext-leaking FPE fallback must be gone"
+
+
+# ── Platform auth CMK (mobile numbers + TOTP secrets) ────────────────────────
+# Replaces the static resolve_auth_dek secret for these two fields (2026-07-19):
+# a leaked static secret decrypts everything platform-wide, silently, forever.
+# Real KMS requires live IAM-gated access, is CloudTrail-audited, and can be
+# cut off instantly by disabling the CMK.
+
+def test_kms_encrypt_value_calls_kms_encrypt():
+    mock_client = MagicMock()
+    mock_client.encrypt.return_value = {"CiphertextBlob": b"ciphertext-bytes"}
+    svc = _make_kms_service(mock_client)
+
+    result = svc.encrypt_value("+919876543210", "arn:aws:kms:ap-south-1:123:key/platform-auth")
+
+    mock_client.encrypt.assert_called_once_with(
+        KeyId="arn:aws:kms:ap-south-1:123:key/platform-auth", Plaintext=b"+919876543210",
+    )
+    import base64
+    assert result == base64.b64encode(b"ciphertext-bytes").decode()
+
+
+def test_kms_decrypt_value_calls_kms_decrypt():
+    mock_client = MagicMock()
+    mock_client.decrypt.return_value = {"Plaintext": b"+919876543210"}
+    svc = _make_kms_service(mock_client)
+
+    result = svc.decrypt_value(_b64("some-ciphertext"), "arn:aws:kms:ap-south-1:123:key/platform-auth")
+
+    mock_client.decrypt.assert_called_once()
+    assert result == "+919876543210"
+
+
+def test_kms_encrypt_decrypt_value_roundtrip_via_mock():
+    """encrypt_value's output must be exactly what decrypt_value expects as input."""
+    mock_client = MagicMock()
+    stash = {}
+
+    def fake_encrypt(KeyId, Plaintext):
+        stash["plaintext"] = Plaintext
+        return {"CiphertextBlob": b"opaque-ciphertext"}
+
+    def fake_decrypt(CiphertextBlob, KeyId):
+        assert CiphertextBlob == b"opaque-ciphertext"
+        return {"Plaintext": stash["plaintext"]}
+
+    mock_client.encrypt.side_effect = fake_encrypt
+    mock_client.decrypt.side_effect = fake_decrypt
+    svc = _make_kms_service(mock_client)
+
+    enc = svc.encrypt_value("JBSWY3DPEHPK3PXP", "arn:aws:kms:ap-south-1:123:key/x")
+    dec = svc.decrypt_value(enc, "arn:aws:kms:ap-south-1:123:key/x")
+    assert dec == "JBSWY3DPEHPK3PXP"
+
+
+def test_kms_create_platform_auth_kek_returns_arn():
+    mock_client = MagicMock()
+    mock_client.create_key.return_value = {"KeyMetadata": {"Arn": "arn:aws:kms:ap-south-1:123:key/platform-auth-new"}}
+    svc = _make_kms_service(mock_client)
+
+    arn = svc.create_platform_auth_kek()
+
+    assert arn == "arn:aws:kms:ap-south-1:123:key/platform-auth-new"
+    call_kwargs = mock_client.create_key.call_args.kwargs
+    assert call_kwargs["KeyUsage"] == "ENCRYPT_DECRYPT"
+
+
+def test_resolve_platform_auth_kek_arn_returns_configured_value():
+    from services.encryption_service import resolve_platform_auth_kek_arn
+    from config import Settings
+
+    s = Settings(app_env="development", platform_hmac_secret="dev_secret",
+                 platform_auth_kek_arn="arn:aws:kms:ap-south-1:123:key/platform-auth")
+    assert resolve_platform_auth_kek_arn(s) == "arn:aws:kms:ap-south-1:123:key/platform-auth"
+
+
+def test_resolve_platform_auth_kek_arn_empty_in_dev_is_allowed():
+    """Dev/test may legitimately be empty before the bootstrap script has been
+    run — callers (not this resolver) decide whether to fail on empty."""
+    from services.encryption_service import resolve_platform_auth_kek_arn
+    from config import Settings
+
+    s = Settings(app_env="development", platform_hmac_secret="dev_secret")
+    assert resolve_platform_auth_kek_arn(s) == ""
+
+
+def test_resolve_platform_auth_kek_arn_raises_in_production_if_unset():
+    from services.encryption_service import resolve_platform_auth_kek_arn
+    from config import Settings
+
+    s = Settings(app_env="production", platform_auth_kek_arn="")
+    with pytest.raises(RuntimeError):
+        resolve_platform_auth_kek_arn(s)

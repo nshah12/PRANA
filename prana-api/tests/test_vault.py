@@ -163,7 +163,6 @@ async def test_vault_profile_serializes_without_500(client, mock_db):
     headers = _auth_headers(client)
     mock_db.fetchrow.return_value = {
         "employee_user_id": UUID("33333333-3333-3333-3333-333333333333"),
-        "mobile": "+919000000001",
         "status": "ACTIVE",
         "created_at": datetime(2022, 1, 1, tzinfo=timezone.utc),
         "full_name": "Rahul Sharma",
@@ -176,6 +175,57 @@ async def test_vault_profile_serializes_without_500(client, mock_db):
         resp = await client.get("/v1/vault/profile", headers=headers)
     assert resp.status_code != 500
     assert resp.status_code == 200
+
+
+@pytest.mark.asyncio
+async def test_vault_profile_decrypts_mobile_when_available(client, mock_db):
+    """mobile is no longer stored in plaintext (schema.sql employee_user,
+    2026-07-18) — profile must decrypt enc_mobile via the platform auth CMK
+    (same key as totp_secret_enc), not any tenant-specific key."""
+    headers = _auth_headers(client)
+    mock_db.fetchrow.return_value = {
+        "employee_user_id": UUID("33333333-3333-3333-3333-333333333333"),
+        "status": "ACTIVE",
+        "created_at": datetime(2022, 1, 1, tzinfo=timezone.utc),
+        "full_name": "Rahul Sharma",
+        "designation": "Engineer",
+        "department": "Engineering",
+        "master_user_id": UUID("33333333-3333-3333-3333-333333333333"),
+    }
+    with patch("routers.vault.VaultService.get_employers", new_callable=AsyncMock) as mock_emp, \
+         patch("routers.vault.EmployeeService.decrypt_mobile", new_callable=AsyncMock) as mock_decrypt:
+        mock_emp.return_value = []
+        mock_decrypt.return_value = "+919000000001"
+        resp = await client.get("/v1/vault/profile", headers=headers)
+
+    assert resp.status_code == 200
+    assert resp.json()["mobile"] == "+919000000001"
+    call_args = mock_decrypt.call_args.args
+    assert call_args[0] == "33333333-3333-3333-3333-333333333333"
+    assert isinstance(call_args[1], str)   # auth_kek_arn — a KMS key ARN, not tenant-derived
+
+
+@pytest.mark.asyncio
+async def test_vault_profile_mobile_none_when_decrypt_fails(client, mock_db):
+    """A decrypt failure (e.g. corrupted ciphertext) must not 500 the whole profile."""
+    headers = _auth_headers(client)
+    mock_db.fetchrow.return_value = {
+        "employee_user_id": UUID("33333333-3333-3333-3333-333333333333"),
+        "status": "ACTIVE",
+        "created_at": datetime(2022, 1, 1, tzinfo=timezone.utc),
+        "full_name": "Rahul Sharma",
+        "designation": "Engineer",
+        "department": "Engineering",
+        "master_user_id": UUID("33333333-3333-3333-3333-333333333333"),
+    }
+    with patch("routers.vault.VaultService.get_employers", new_callable=AsyncMock) as mock_emp, \
+         patch("routers.vault.EmployeeService.decrypt_mobile", new_callable=AsyncMock) as mock_decrypt:
+        mock_emp.return_value = []
+        mock_decrypt.side_effect = Exception("decrypt failed")
+        resp = await client.get("/v1/vault/profile", headers=headers)
+
+    assert resp.status_code == 200
+    assert resp.json()["mobile"] is None
 
 
 # ── Privacy contract ───────────────────────────────────────────────────────────
@@ -191,7 +241,6 @@ async def test_vault_profile_contains_no_pan_or_salary_fields(client, mock_db):
     headers = _auth_headers(client)
     mock_db.fetchrow.return_value = {
         "employee_user_id": UUID("33333333-3333-3333-3333-333333333333"),
-        "mobile": "+919000000001",
         "status": "ACTIVE",
         "created_at": datetime(2022, 1, 1, tzinfo=timezone.utc),
         "full_name": "Rahul Sharma",

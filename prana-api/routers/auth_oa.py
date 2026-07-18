@@ -175,10 +175,11 @@ async def verify_totp(body: OATOTPIn, request: Request, response: Response, db: 
     if row["status"] == "LOCKED":
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=PranaError.ACCOUNT_LOCKED)
 
-    from services.encryption_service import resolve_auth_dek
+    from services.encryption_service import resolve_platform_auth_kek_arn
     totp_svc = TOTPService()
-    auth_dek = resolve_auth_dek(request.app.state.settings)
-    valid = totp_svc.verify(body.code, row["totp_secret_enc"], auth_dek)
+    kek_arn = resolve_platform_auth_kek_arn(request.app.state.settings)
+    secret = request.app.state.kms_service.decrypt_value(row["totp_secret_enc"], kek_arn)
+    valid = totp_svc.verify(body.code, secret)
 
     lock_threshold = await _get_config_int(db, "oa_totp_lock_threshold", 5)
     ip = _get_client_ip(request)
@@ -278,7 +279,6 @@ async def totp_setup_init(request: Request, db: DbConn):
 async def totp_setup_confirm(request: Request, response: Response, db: DbConn):
     """Confirm first TOTP code, persist secret, then issue full JWT session."""
     import json
-    from services.encryption_service import aes_encrypt
     import pyotp, datetime as _dt
 
     body = await request.json()
@@ -302,9 +302,9 @@ async def totp_setup_confirm(request: Request, response: Response, db: DbConn):
 
     await request.app.state.redis.delete(f"totp_setup:{setup_token}")
 
-    from services.encryption_service import resolve_auth_dek
-    auth_dek = resolve_auth_dek(request.app.state.settings)
-    enc_secret = aes_encrypt(secret, auth_dek)
+    from services.encryption_service import resolve_platform_auth_kek_arn
+    kek_arn = resolve_platform_auth_kek_arn(request.app.state.settings)
+    enc_secret = request.app.state.kms_service.encrypt_value(secret, kek_arn)
     now = _dt.datetime.now(tz=_dt.timezone.utc)
 
     async with db.transaction():

@@ -56,10 +56,17 @@ class EmployeeLifecycleService:
     async def provision_vault(self, *, employee_user_id: str) -> None:
         """First-time activation: PENDING_ACTIVATION -> ACTIVE. Idempotent via the
         WHERE clause — replays of this activity after a successful-but-unacknowledged
-        attempt are a no-op."""
+        attempt are a no-op.
+
+        Guarded on having a login handle: chk_eu_login_handle (schema.sql) requires
+        mobile OR email once status leaves PENDING_ACTIVATION. An employee created
+        without either (employer supplied no contact info at push time) stays
+        PENDING_ACTIVATION here rather than the UPDATE failing the CHECK constraint —
+        activation for that row waits until an OA-Admin backfills a contact handle."""
         await self._db.execute(
             "UPDATE employee_user SET status='ACTIVE', activated_at=NOW() "
-            "WHERE employee_user_id=$1 AND status='PENDING_ACTIVATION'",
+            "WHERE employee_user_id=$1 AND status='PENDING_ACTIVATION' "
+            "AND (mobile IS NOT NULL OR email IS NOT NULL)",
             employee_user_id,
         )
 

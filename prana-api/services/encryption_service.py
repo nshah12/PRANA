@@ -65,6 +65,18 @@ def compute_pan_token(nik: str, platform_secret: str, version: int = 1) -> str:
     return algo(nik, platform_secret)
 
 
+# ── Mobile token ──────────────────────────────────────────────────────────────
+
+def compute_mobile_token(mobile: str, platform_secret: str) -> str:
+    """
+    HMAC-based deterministic lookup key for employee_user.mobile_token — same role
+    as compute_pan_token but for mobile numbers, which are no longer stored in
+    plaintext (schema.sql employee_user, 2026-07-18). One-way; the plaintext
+    mobile is recovered separately via enc_mobile (AES-256-GCM, employee DEK).
+    """
+    return hmac.new(platform_secret.encode(), mobile.encode(), hashlib.sha256).hexdigest()
+
+
 # ── KMS DEK cache ─────────────────────────────────────────────────────────────
 # Caches decrypted DEK bytes in process memory to avoid a KMS round-trip on every
 # document access. TTL=300s matches the Temporal activity heartbeat window.
@@ -154,15 +166,18 @@ def generate_dek() -> bytes:
     return os.urandom(32)
 
 
-# ── Auth encryption key (TOTP secrets + HRMS signing secrets) ──────────────────
+# ── Auth encryption key (HRMS signing secrets) ──────────────────────────────
+# TOTP secrets and mobile numbers moved off this static key onto the platform
+# KMS CMK (see resolve_platform_auth_kek_arn below, 2026-07-19) — this function
+# is now scoped to HRMS API-key signing secrets only (routers/pa_admin.py).
 
 _ZERO_KEY = b"\x00" * 32
 
 
 def resolve_auth_dek(settings) -> bytes:
     """
-    Return the 32-byte AES-256 key used to encrypt/decrypt TOTP secrets and HRMS
-    signing secrets. Replaces the former hardcoded all-zero `dev_dek` (finding C1).
+    Return the 32-byte AES-256 key used to encrypt/decrypt HRMS signing secrets.
+    Replaces the former hardcoded all-zero `dev_dek` (finding C1).
 
     - If settings.auth_encryption_key is set: use it (64 hex chars or base64 → 32 bytes).
       Rejects wrong length and the all-zero key.
@@ -187,6 +202,24 @@ def resolve_auth_dek(settings) -> bytes:
 
     # Dev/test only: deterministic, non-zero derivation. NOT for production.
     return hashlib.sha256(b"prana-auth-dek-v1:" + settings.platform_hmac_secret.encode()).digest()
+
+
+# ── Platform auth CMK (mobile numbers + TOTP secrets) ────────────────────────
+
+def resolve_platform_auth_kek_arn(settings) -> str:
+    """
+    Returns settings.platform_auth_kek_arn — the ARN of the ONE platform-wide
+    KMS CMK used to encrypt mobile numbers and TOTP secrets (employee/OA/
+    Portal-Admin). Provisioned once via scripts/bootstrap_platform_auth_kek.py,
+    not per-tenant/per-employee (see KMSService.create_platform_auth_kek).
+    Raises in production if unset — there is no static-secret fallback for
+    this value, unlike resolve_auth_dek's dev derivation, because the whole
+    point of this migration was to stop relying on a static secret.
+    """
+    arn = getattr(settings, "platform_auth_kek_arn", "") or ""
+    if not arn and getattr(settings, "is_production", False):
+        raise RuntimeError("platform_auth_kek_arn is required in production")
+    return arn
 
 
 # ── AWS KMS envelope encryption ───────────────────────────────────────────────
@@ -250,6 +283,48 @@ class KMSService:
         with _DEK_LOCK:
             _DEK_CACHE[cache_key] = dek
         return dek
+
+    def create_platform_auth_kek(self) -> str:
+        """
+        Provisions the ONE platform-wide CMK used to encrypt values that must
+        stay decryptable regardless of tenant context — mobile numbers and TOTP
+        secrets (employee/OA/Portal-Admin). These can't use a per-tenant KEK
+        (that made mobile only decryptable by whichever tenant onboarded the
+        employee first — a real bug, fixed by moving off tenant KEKs) and can't
+        practically get per-record CMKs either (AWS KMS bills and rate-limits
+        per CMK; one per employee isn't viable at platform scale). A single
+        platform CMK doesn't bound blast radius the way per-tenant KEKs do —
+        if THIS CMK's decrypt capability is ever compromised, every mobile
+        number and TOTP secret is exposed — but it replaces a static app-level
+        secret (resolve_auth_dek) with real AWS KMS: decrypting now requires
+        live IAM-gated access, every call is CloudTrail-audited, and access can
+        be cut instantly by disabling the CMK. None of that is true for a
+        leaked static secret. Called once at platform bootstrap
+        (scripts/bootstrap_platform_auth_kek.py), not per-tenant/per-employee.
+        """
+        resp = self._client.create_key(
+            Description="PRANA platform auth CMK — encrypts mobile numbers and TOTP secrets",
+            KeyUsage="ENCRYPT_DECRYPT",
+            Origin="AWS_KMS",
+        )
+        return resp["KeyMetadata"]["Arn"]
+
+    def encrypt_value(self, plaintext: str, kek_arn: str) -> str:
+        """
+        Direct KMS Encrypt for small values (mobile numbers, TOTP secrets) —
+        no per-record DEK. KMS's 4KB plaintext ceiling is irrelevant at this
+        size, and skipping envelope encryption here doesn't weaken anything:
+        the actual protection comes from the CMK being real, IAM-gated AWS
+        KMS rather than a static local secret, not from an extra local-AES
+        wrapping layer around a key the CMK could unwrap anyway.
+        """
+        resp = self._client.encrypt(KeyId=kek_arn, Plaintext=plaintext.encode())
+        return b64encode(resp["CiphertextBlob"]).decode()
+
+    def decrypt_value(self, ciphertext: str, kek_arn: str) -> str:
+        """Inverse of encrypt_value."""
+        resp = self._client.decrypt(CiphertextBlob=b64decode(ciphertext), KeyId=kek_arn)
+        return resp["Plaintext"].decode()
 
     def sign_jwt(self, message: bytes, key_id: str) -> bytes:
         """RS256 sign via KMS — private key never leaves KMS."""

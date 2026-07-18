@@ -29,7 +29,7 @@ from dependencies import AuthUser, DbConn, Employee
 from services.password_service import verify_password, hash_password, needs_rehash
 from services.totp_service import TOTPService
 from services.session_service import SessionService
-from services.encryption_service import aes_encrypt, aes_decrypt
+from services.encryption_service import compute_mobile_token
 from errors import PranaError
 from messages import SuccessCode, success_response
 from limiter import limiter
@@ -214,9 +214,12 @@ async def login(body: LoginIn, request: Request, db: DbConn):
             value,
         )
     else:
+        # mobile is never stored in plaintext (schema.sql employee_user, 2026-07-18) —
+        # mobile_token is the deterministic HMAC lookup key.
+        mobile_token = compute_mobile_token(value, request.app.state.settings.platform_hmac_secret)
         row = await db.fetchrow(
-            "SELECT employee_user_id, pan_token, password_hash, status, force_reset, totp_configured_at, consent_status, failed_totp_count FROM employee_user WHERE mobile = $1",
-            value,
+            "SELECT employee_user_id, pan_token, password_hash, status, force_reset, totp_configured_at, consent_status, failed_totp_count FROM employee_user WHERE mobile_token = $1",
+            mobile_token,
         )
 
     # Constant-time guard: always hash compare even if user not found
@@ -316,10 +319,11 @@ async def verify_totp(body: TOTPVerifyIn, request: Request, response: Response, 
     if row["status"] == "LOCKED":
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=PranaError.ACCOUNT_LOCKED)
 
-    from services.encryption_service import resolve_auth_dek
+    from services.encryption_service import resolve_platform_auth_kek_arn
     totp_svc = TOTPService()
-    auth_dek = resolve_auth_dek(request.app.state.settings)
-    valid = totp_svc.verify(body.code, row["totp_secret_enc"], auth_dek)
+    kek_arn = resolve_platform_auth_kek_arn(request.app.state.settings)
+    secret = request.app.state.kms_service.decrypt_value(row["totp_secret_enc"], kek_arn)
+    valid = totp_svc.verify(body.code, secret)
 
     lock_threshold = await _get_totp_lock_threshold(db)
 
@@ -455,26 +459,29 @@ async def setup_totp_init(body: TOTPInitIn, request: Request, db: DbConn):
     if data.get("next") != "totp_setup":
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=PranaError.INVALID_STEP)
 
-    from services.encryption_service import resolve_auth_dek
+    from services.encryption_service import resolve_platform_auth_kek_arn
     totp_svc = TOTPService()
-    auth_dek = resolve_auth_dek(request.app.state.settings)
+    kms = request.app.state.kms_service
+    kek_arn = resolve_platform_auth_kek_arn(request.app.state.settings)
 
     # Generate new secret only if not already staged in a previous init call
     existing = await db.fetchval(
         "SELECT totp_secret_enc FROM employee_user WHERE employee_user_id=$1", data["user_id"],
     )
+    # Cosmetic label only — mobile is no longer stored in plaintext (schema.sql
+    # employee_user, 2026-07-18); email (if set) or user_id is enough here.
     row = await db.fetchrow(
-        "SELECT email, mobile FROM employee_user WHERE employee_user_id=$1", data["user_id"],
+        "SELECT email FROM employee_user WHERE employee_user_id=$1", data["user_id"],
     )
-    account_label = row["email"] or row["mobile"] or data["user_id"]
+    account_label = (row["email"] if row else None) or data["user_id"]
 
     if existing and existing.startswith("STAGED:"):
         # Re-use the previously staged secret (idempotent re-init)
         encrypted = existing[7:]
-        secret_b32 = aes_decrypt(encrypted, auth_dek)
+        secret_b32 = kms.decrypt_value(encrypted, kek_arn)
     else:
         secret_b32 = totp_svc.generate_secret()
-        encrypted = aes_encrypt(secret_b32, auth_dek)
+        encrypted = kms.encrypt_value(secret_b32, kek_arn)
         # Stage the encrypted secret temporarily (not yet confirmed)
         await db.execute(
             "UPDATE employee_user SET totp_secret_enc=$2 WHERE employee_user_id=$1",
@@ -501,12 +508,13 @@ async def setup_totp_confirm(body: TOTPConfirmIn, request: Request, db: DbConn):
     if not row or not row["totp_secret_enc"] or not row["totp_secret_enc"].startswith("STAGED:"):
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=PranaError.TOTP_INIT_REQUIRED)
 
-    from services.encryption_service import resolve_auth_dek
+    from services.encryption_service import resolve_platform_auth_kek_arn
     encrypted = row["totp_secret_enc"][7:]
     totp_svc = TOTPService()
-    auth_dek = resolve_auth_dek(request.app.state.settings)
+    kek_arn = resolve_platform_auth_kek_arn(request.app.state.settings)
+    secret = request.app.state.kms_service.decrypt_value(encrypted, kek_arn)
 
-    valid = totp_svc.verify(body.code, encrypted, auth_dek)
+    valid = totp_svc.verify(body.code, secret)
     if not valid:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail=PranaError.INVALID_TOTP_CODE)
 

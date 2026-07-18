@@ -147,3 +147,118 @@ async def test_share_accessed_no_employee_email_does_not_crash():
     await consumer._dispatch(event, "SHARE_ACCESSED", svc, isvc, conn)
 
     svc.notify.assert_not_awaited()
+
+
+# ── DOC_ROUTED — mobile column bug ───────────────────────────────────────────
+
+@pytest.mark.asyncio
+async def test_doc_routed_queries_mobile_column_not_phone():
+    """employee_user has no 'phone' column (schema.sql: it's 'mobile') — the old
+    query crashed with UndefinedColumnError on every real invocation."""
+    consumer = NotifConsumer.__new__(NotifConsumer)
+    svc = AsyncMock()
+    conn = AsyncMock()
+    conn.fetchrow = AsyncMock(return_value={"email": "emp@example.com", "mobile": "+919876543210"})
+
+    event = {"employee_user_id": "emp-1", "doc_type": "SALARY_SLIP", "tenant_id": "t-1"}
+    await consumer._handle_doc_routed(event, svc, conn)
+
+    query = conn.fetchrow.call_args.args[0]
+    assert "mobile" in query
+    assert "phone" not in query
+
+    whatsapp_call = next(c for c in svc.notify.call_args_list if c.kwargs["channel"] == Channel.WHATSAPP)
+    assert whatsapp_call.kwargs["recipient_phone"] == "+919876543210"
+
+
+# ── VAULT_WELCOME / VAULT_WELCOME_REJOIN / EMPLOYEE_CREDENTIALS_ISSUED ───────
+# Previously unhandled entirely — fell through to the "unhandled event_type"
+# debug log, so no employee was ever notified their account/vault was ready.
+
+@pytest.mark.asyncio
+async def test_dispatch_routes_vault_welcome_to_handler():
+    consumer = NotifConsumer.__new__(NotifConsumer)
+    svc = AsyncMock()
+    isvc = AsyncMock()
+    conn = AsyncMock()
+    conn.fetchrow = AsyncMock(return_value=None)
+
+    event = {"event_type": "VAULT_WELCOME", "recipient_id": "eu-1", "tenant_id": "t-1"}
+    await consumer._dispatch(event, "VAULT_WELCOME", svc, isvc, conn)
+
+    conn.fetchrow.assert_awaited_once()
+
+
+@pytest.mark.asyncio
+async def test_employee_welcome_notifies_via_sms_when_mobile_present():
+    consumer = NotifConsumer.__new__(NotifConsumer)
+    svc = AsyncMock()
+    conn = AsyncMock()
+    conn.fetchrow = AsyncMock(return_value={"mobile": "+919876543210", "email": None})
+
+    event = {"event_type": "VAULT_WELCOME", "recipient_id": "eu-1", "tenant_id": "t-1"}
+    await consumer._handle_employee_welcome(event, "VAULT_WELCOME", svc, conn)
+
+    svc.notify.assert_awaited_once()
+    call = svc.notify.call_args.kwargs
+    assert call["recipient_phone"] == "+919876543210"
+    assert call["channel"] == Channel.SMS
+    assert call["recipient_type"] == RecipientType.EMPLOYEE
+    assert call["template_id"] == "VAULT_WELCOME"
+
+
+@pytest.mark.asyncio
+async def test_employee_welcome_notifies_via_email_when_only_email_present():
+    consumer = NotifConsumer.__new__(NotifConsumer)
+    svc = AsyncMock()
+    conn = AsyncMock()
+    conn.fetchrow = AsyncMock(return_value={"mobile": None, "email": "emp@example.com"})
+
+    event = {"event_type": "EMPLOYEE_CREDENTIALS_ISSUED", "recipient_id": "eu-1", "tenant_id": "t-1"}
+    await consumer._handle_employee_welcome(event, "EMPLOYEE_CREDENTIALS_ISSUED", svc, conn)
+
+    svc.notify.assert_awaited_once()
+    call = svc.notify.call_args.kwargs
+    assert call["recipient_email"] == "emp@example.com"
+    assert call["channel"] == Channel.EMAIL
+
+
+@pytest.mark.asyncio
+async def test_employee_welcome_dispatches_to_both_channels_when_both_present():
+    consumer = NotifConsumer.__new__(NotifConsumer)
+    svc = AsyncMock()
+    conn = AsyncMock()
+    conn.fetchrow = AsyncMock(return_value={"mobile": "+919876543210", "email": "emp@example.com"})
+
+    event = {"event_type": "VAULT_WELCOME_REJOIN", "recipient_id": "eu-1", "tenant_id": "t-1"}
+    await consumer._handle_employee_welcome(event, "VAULT_WELCOME_REJOIN", svc, conn)
+
+    assert svc.notify.await_count == 2
+    channels = {c.kwargs["channel"] for c in svc.notify.call_args_list}
+    assert channels == {Channel.SMS, Channel.EMAIL}
+
+
+@pytest.mark.asyncio
+async def test_employee_welcome_no_delivery_channel_does_not_crash():
+    consumer = NotifConsumer.__new__(NotifConsumer)
+    svc = AsyncMock()
+    conn = AsyncMock()
+    conn.fetchrow = AsyncMock(return_value={"mobile": None, "email": None})
+
+    event = {"event_type": "VAULT_WELCOME", "recipient_id": "eu-1", "tenant_id": "t-1"}
+    await consumer._handle_employee_welcome(event, "VAULT_WELCOME", svc, conn)
+
+    svc.notify.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+async def test_employee_welcome_missing_recipient_id_does_not_crash():
+    consumer = NotifConsumer.__new__(NotifConsumer)
+    svc = AsyncMock()
+    conn = AsyncMock()
+
+    event = {"event_type": "VAULT_WELCOME", "tenant_id": "t-1"}
+    await consumer._handle_employee_welcome(event, "VAULT_WELCOME", svc, conn)
+
+    conn.fetchrow.assert_not_awaited()
+    svc.notify.assert_not_awaited()

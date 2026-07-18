@@ -17,7 +17,12 @@ CREATE TABLE employee_user (
   pan_token           VARCHAR(64)  NOT NULL UNIQUE,    -- HMAC-SHA256(NIK, platform_secret)
   enc_pan             VARCHAR(20)  NOT NULL,            -- FF3-1 FPE(NIK, emp_DEK)
   enc_dek             TEXT         NOT NULL,            -- KMS_Encrypt(emp_DEK, tenant_KEK)
-  mobile              VARCHAR(20)  UNIQUE,              -- E.164. Primary login handle.
+  mobile_token        VARCHAR(64)  UNIQUE,              -- HMAC-SHA256(mobile, platform_secret).
+                       -- Deterministic lookup key for login-by-mobile — same role as
+                       -- pan_token. Mobile itself is never stored in plaintext (2026-07-18).
+  enc_mobile          VARCHAR(100),                     -- AES-256-GCM(mobile, emp_DEK). Reversible —
+                       -- decrypted only for display (own profile, consented CHRO alumni
+                       -- export) or to actually place an SMS/WhatsApp send.
   email               VARCHAR(254) UNIQUE,              -- Optional secondary login handle.
   password_hash       TEXT,                             -- Argon2id (time=2, mem=65536, p=2)
   totp_secret_enc     TEXT,                             -- AES-256-GCM encrypted base32 seed
@@ -36,12 +41,12 @@ CREATE TABLE employee_user (
                        -- Set when this row is a duplicate merged into a canonical
                        -- employee_user_id (PA employee-merge tool). status='MERGED'.
   CONSTRAINT chk_eu_login_handle CHECK (
-    mobile IS NOT NULL OR email IS NOT NULL OR status = 'PENDING_ACTIVATION'
+    mobile_token IS NOT NULL OR email IS NOT NULL OR status = 'PENDING_ACTIVATION'
   )
 );
-CREATE INDEX idx_eu_pan_token ON employee_user(pan_token);
-CREATE INDEX idx_eu_mobile    ON employee_user(mobile) WHERE mobile IS NOT NULL;
-CREATE INDEX idx_eu_email     ON employee_user(email)  WHERE email  IS NOT NULL;
+CREATE INDEX idx_eu_pan_token    ON employee_user(pan_token);
+CREATE INDEX idx_eu_mobile_token ON employee_user(mobile_token) WHERE mobile_token IS NOT NULL;
+CREATE INDEX idx_eu_email        ON employee_user(email)  WHERE email  IS NOT NULL;
 CREATE INDEX idx_eu_merged_into ON employee_user(merged_into) WHERE merged_into IS NOT NULL;
 
 -- ============================================================
@@ -769,7 +774,10 @@ CREATE TABLE nominee (
   pan_token            VARCHAR(64)  NOT NULL UNIQUE,    -- One nominee per employee
   nominee_name         VARCHAR(100) NOT NULL,
   nominee_relation     VARCHAR(30),
-  nominee_mobile       VARCHAR(15),
+  enc_nominee_mobile   VARCHAR(100),  -- AES-256-GCM(nominee_mobile, employee's own emp_DEK,
+                                       -- looked up via pan_token). No code reads/writes this
+                                       -- column yet (2026-07-18) — encrypted at rest from the
+                                       -- start rather than plaintext-then-migrated-later.
   nominee_email        VARCHAR(100),
   activation_condition VARCHAR(15)  NOT NULL,
                         -- DEATH | INCAPACITY | BOTH

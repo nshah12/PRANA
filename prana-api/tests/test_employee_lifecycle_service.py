@@ -68,6 +68,21 @@ async def test_provision_vault_activates_pending_employee():
 
 
 @pytest.mark.asyncio
+async def test_provision_vault_guards_against_missing_login_handle():
+    """chk_eu_login_handle (schema.sql) requires mobile OR email once status leaves
+    PENDING_ACTIVATION — activating a row with neither set would fail that CHECK
+    constraint. The UPDATE's WHERE clause must guard on this rather than crash."""
+    db = _db()
+    svc = EmployeeLifecycleService(db)
+
+    await svc.provision_vault(employee_user_id="eu-3")
+
+    call = db.execute.call_args_list[0]
+    assert "mobile IS NOT NULL" in call.args[0]
+    assert "email IS NOT NULL" in call.args[0]
+
+
+@pytest.mark.asyncio
 async def test_reconcile_rejoining_employee_restores_can_push():
     db = _db()
     svc = EmployeeLifecycleService(db)

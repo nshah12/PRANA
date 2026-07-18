@@ -19,6 +19,7 @@ from pydantic import BaseModel
 from dependencies import DbConn, require_oa
 from services.employee_service import EmployeeService
 from services.elevation_service import ElevationService
+from services.encryption_service import compute_mobile_token, resolve_platform_auth_kek_arn
 from errors import PranaError
 
 _BULK_IMPORT_REQUIRED_COLUMNS = {"nik", "full_name", "doj"}
@@ -43,6 +44,8 @@ class CreateEmployeeIn(BaseModel):
     cost_centre: Optional[str] = None
     uan: Optional[str] = None
     doj: date
+    mobile: Optional[str] = None   # E.164 — employee's login handle, if known at push time
+    email: Optional[str] = None    # secondary login handle, if known at push time
 
 
 class UpdateEmployeeIn(BaseModel):
@@ -84,6 +87,22 @@ def _svc(request: Request, db: DbConn) -> EmployeeService:
         kms=request.app.state.kms_service,
         platform_hmac_secret=request.app.state.settings.platform_hmac_secret,
     )
+
+
+async def _publish_credentials_issued(kafka, *, employee_user_id: str, tenant_id: str) -> None:
+    """Fires only when EmployeeService.create() actually generated a temp password
+    (i.e. the employer supplied mobile/email at push time). Never puts the plaintext
+    temp password in the event: same privacy call NotifConsumer._handle_welcome
+    already makes for OA's temp password."""
+    if not kafka:
+        return
+    await kafka.employee_credentials_issued({
+        "event_type": "EMPLOYEE_CREDENTIALS_ISSUED",
+        "recipient_id": employee_user_id,
+        "template_id": "EMPLOYEE_CREDENTIALS_ISSUED",
+        "tenant_id": tenant_id,
+        "payload": {},
+    })
 
 
 @router.get("", status_code=status.HTTP_200_OK, dependencies=[OAOperator])
@@ -131,6 +150,9 @@ async def create_employee(
         doj=body.doj,
         created_by=current.user_id,
         kek_arn=tenant["kek_arn"],
+        mobile=body.mobile,
+        email=body.email,
+        auth_kek_arn=resolve_platform_auth_kek_arn(request.app.state.settings),
     )
     kafka = getattr(request.app.state, "kafka_producer", None)
     if kafka:
@@ -142,6 +164,10 @@ async def create_employee(
             "employment_type": body.employment_type,
             "created_by":      current.user_id,
         })
+        if result.get("temp_password"):
+            await _publish_credentials_issued(
+                kafka, employee_user_id=result["employee_user_id"], tenant_id=str(current.tenant_id),
+            )
     return result
 
 
@@ -172,6 +198,7 @@ async def bulk_import_employees(
     tenant = await db.fetchrow("SELECT kek_arn FROM tenant WHERE tenant_id=$1", current.tenant_id)
     svc = _svc(request, db)
     kafka = getattr(request.app.state, "kafka_producer", None)
+    auth_kek_arn = resolve_platform_auth_kek_arn(request.app.state.settings)
 
     created = 0
     errors: list[dict] = []
@@ -204,6 +231,9 @@ async def bulk_import_employees(
                 doj=doj,
                 created_by=current.user_id,
                 kek_arn=tenant["kek_arn"],
+                mobile=(row.get("mobile") or "").strip() or None,
+                email=(row.get("email") or "").strip() or None,
+                auth_kek_arn=auth_kek_arn,
             )
         except Exception:
             errors.append({"row": i, "error": PranaError.EMPLOYEE_CREATE_FAILED})
@@ -219,6 +249,10 @@ async def bulk_import_employees(
                 "employment_type": (row.get("employment_type") or "").strip() or "PERMANENT",
                 "created_by":      current.user_id,
             })
+            if result.get("temp_password"):
+                await _publish_credentials_issued(
+                    kafka, employee_user_id=result["employee_user_id"], tenant_id=str(current.tenant_id),
+                )
 
     return {
         "message":  SuccessCode.EMPLOYEE_BULK_IMPORT_COMPLETE,
@@ -336,7 +370,8 @@ async def reset_employee_totp(
     if col == "email":
         row = await db.fetchrow("SELECT employee_user_id FROM employee_user WHERE email = $1", value)
     else:
-        row = await db.fetchrow("SELECT employee_user_id FROM employee_user WHERE mobile = $1", value)
+        mobile_token = compute_mobile_token(value, request.app.state.settings.platform_hmac_secret)
+        row = await db.fetchrow("SELECT employee_user_id FROM employee_user WHERE mobile_token = $1", mobile_token)
     if not row:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=PranaError.EMPLOYEE_NOT_FOUND)
 
@@ -390,7 +425,8 @@ async def reset_employee_password(
     if col == "email":
         row = await db.fetchrow("SELECT employee_user_id FROM employee_user WHERE email = $1", value)
     else:
-        row = await db.fetchrow("SELECT employee_user_id FROM employee_user WHERE mobile = $1", value)
+        mobile_token = compute_mobile_token(value, request.app.state.settings.platform_hmac_secret)
+        row = await db.fetchrow("SELECT employee_user_id FROM employee_user WHERE mobile_token = $1", mobile_token)
     if not row:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=PranaError.EMPLOYEE_NOT_FOUND)
 

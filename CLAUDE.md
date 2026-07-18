@@ -37,9 +37,12 @@ All in `prana-docs/`:
 - `pan_token` = HMAC-SHA256(PAN, platform_secret) — cross-tenant deduplication key
 - `enc_pan` = FF3-1 Format-Preserving Encryption(PAN, employee_DEK)
 - `enc_dek` = KMS_Encrypt(DEK, tenant_KEK) — envelope encryption
-- `totp_secret_enc` = AES-256-GCM
+- `mobile_token` = HMAC-SHA256(mobile, platform_secret) — deterministic login-lookup key (mirrors pan_token)
+- `enc_mobile` / `totp_secret_enc` = real AWS KMS (`KMSService.encrypt_value`/`decrypt_value`,
+  ONE platform-wide auth CMK — not a tenant KEK, not a static app secret; see
+  `.claude/rules/security.md`'s Encryption stack section for why)
 - Passwords = Argon2id (time=2, memory=65536, parallelism=2)
-- AWS KMS (ap-south-1, customer-managed) for platform_secret and tenant KEKs
+- AWS KMS (ap-south-1, customer-managed) for platform_secret, tenant KEKs, and the platform auth CMK
 
 ## Database
 - YugabyteDB (PostgreSQL-compatible distributed SQL)

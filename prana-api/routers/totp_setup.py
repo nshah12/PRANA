@@ -13,7 +13,7 @@ from fastapi import APIRouter, HTTPException, Request, status
 from pydantic import BaseModel
 
 from dependencies import AuthUser, DbConn
-from services.encryption_service import aes_encrypt
+from services.encryption_service import resolve_platform_auth_kek_arn
 from services.totp_service import TOTPService
 from errors import PranaError
 
@@ -88,10 +88,10 @@ async def confirm_totp(body: TOTPConfirmIn, request: Request, db: DbConn):
 
     await request.app.state.redis.delete(f"totp_setup:{body.setup_token}")
 
-    # Encrypt secret with the resolved auth key before storing
-    from services.encryption_service import resolve_auth_dek
-    auth_dek = resolve_auth_dek(request.app.state.settings)
-    enc_secret = aes_encrypt(secret, auth_dek)
+    # Encrypt secret via the platform auth CMK before storing — real KMS, not a
+    # static local secret (2026-07-19).
+    kek_arn = resolve_platform_auth_kek_arn(request.app.state.settings)
+    enc_secret = request.app.state.kms_service.encrypt_value(secret, kek_arn)
     now = datetime.now(tz=timezone.utc)
 
     async with db.transaction():
@@ -115,8 +115,13 @@ async def _get_totp_configured_at(db, current: AuthUser):
 
 async def _get_account_label(db, current: AuthUser) -> str:
     if current.user_type == "employee":
-        row = await db.fetchrow("SELECT mobile FROM employee_user WHERE employee_user_id=$1", current.user_id)
-        return row["mobile"] or current.user_id
+        # Cosmetic label only (shown in the authenticator app during QR-scan setup).
+        # mobile is no longer stored in plaintext (schema.sql employee_user,
+        # 2026-07-18) and decrypting it here would need a tenant_id/KMS round-trip
+        # this helper doesn't have — email (if set) or employee_user_id is enough
+        # for a label that isn't itself sensitive.
+        row = await db.fetchrow("SELECT email FROM employee_user WHERE employee_user_id=$1", current.user_id)
+        return (row["email"] if row else None) or current.user_id
     elif current.user_type == "oa_user":
         row = await db.fetchrow("SELECT email FROM oa_user WHERE oa_user_id=$1", current.user_id)
         return row["email"]

@@ -24,6 +24,12 @@ Events handled:
                         raised by AuditIntegrityVerificationWorkflow when a
                         recent audit_event row no longer matches its Immudb
                         dual-write (see KAFKA_REDIS_ARCHITECTURE.md §8)
+  VAULT_WELCOME / VAULT_WELCOME_REJOIN → notify employee their vault is active
+                        (SMS to mobile + email if present) — published by
+                        workflows/employee_lifecycle.py's send_vault_welcome activity
+  EMPLOYEE_CREDENTIALS_ISSUED → notify employee an account now exists (SMS + email) —
+                        published by routers/employees.py when create/import supplied
+                        a mobile or email, so a temp password was actually generated
 """
 import json
 import logging
@@ -109,6 +115,8 @@ class NotifConsumer:
             await self._handle_digest_ready(event, svc, conn)
         elif etype == "AUDIT_INTEGRITY_MISMATCH":
             await self._handle_audit_integrity_mismatch(event, svc, conn)
+        elif etype in ("VAULT_WELCOME", "VAULT_WELCOME_REJOIN", "EMPLOYEE_CREDENTIALS_ISSUED"):
+            await self._handle_employee_welcome(event, etype, svc, conn)
         else:
             log.debug("NotifConsumer: unhandled event_type=%s", etype)
 
@@ -166,7 +174,7 @@ class NotifConsumer:
             return
 
         row = await conn.fetchrow(
-            "SELECT email, phone FROM employee_user WHERE employee_user_id = $1", emp_id
+            "SELECT email, mobile FROM employee_user WHERE employee_user_id = $1", emp_id
         )
         if not row:
             log.warning("DOC_ROUTED: employee not found employee_user_id=%s", emp_id)
@@ -188,7 +196,7 @@ class NotifConsumer:
             event_type="DOC_ROUTED",
             recipient_id=emp_id,
             recipient_type=RecipientType.EMPLOYEE,
-            recipient_phone=row["phone"],
+            recipient_phone=row["mobile"],
             channel=Channel.WHATSAPP,
             template_id="DOC_ROUTED",
             template_data={"doc_type": doc_type},
@@ -277,6 +285,55 @@ class NotifConsumer:
             template_id="OA_WELCOME",
             template_data={"login_url": login_url},
         )
+
+    async def _handle_employee_welcome(
+        self, event: dict, etype: str, svc: NotificationService, conn: asyncpg.Connection
+    ) -> None:
+        """VAULT_WELCOME/VAULT_WELCOME_REJOIN (workflows/employee_lifecycle.py's
+        send_vault_welcome, fired once a document is routed and the vault is
+        activated) and EMPLOYEE_CREDENTIALS_ISSUED (routers/employees.py, fired at
+        employee creation when the employer supplied a mobile/email) were both
+        previously unhandled here — this method used to not exist at all, so every
+        one of these events silently fell through to the `unhandled event_type`
+        debug log with no notification ever sent. mobile is the employee's primary
+        login handle (schema.sql comment on employee_user.mobile), so SMS is tried
+        first; email is a secondary/fallback channel sent in addition when present.
+        Same as OA's _handle_welcome, the temp password itself is never put in
+        template_data/notification_log — only that credentials now exist."""
+        emp_id    = event.get("recipient_id") or event.get("employee_user_id")
+        tenant_id = event.get("tenant_id")
+        if not emp_id:
+            return
+
+        row = await conn.fetchrow(
+            "SELECT mobile, email FROM employee_user WHERE employee_user_id = $1", emp_id
+        )
+        if not row or (not row["mobile"] and not row["email"]):
+            log.warning("%s: no delivery channel for employee_user_id=%s", etype, emp_id)
+            return
+
+        if row["mobile"]:
+            await svc.notify(
+                tenant_id=tenant_id,
+                event_type=etype,
+                recipient_id=emp_id,
+                recipient_type=RecipientType.EMPLOYEE,
+                recipient_phone=row["mobile"],
+                channel=Channel.SMS,
+                template_id=etype,
+                template_data={},
+            )
+        if row["email"]:
+            await svc.notify(
+                tenant_id=tenant_id,
+                event_type=etype,
+                recipient_id=emp_id,
+                recipient_type=RecipientType.EMPLOYEE,
+                recipient_email=row["email"],
+                channel=Channel.EMAIL,
+                template_id=etype,
+                template_data={},
+            )
 
     async def _handle_account_locked(
         self, event: dict, svc: NotificationService, conn: asyncpg.Connection

@@ -184,3 +184,85 @@ def test_time_since_exit():
     today = date.today()
     assert "month" in _time_since_exit(today - timedelta(days=45))
     assert "year"  in _time_since_exit(today - timedelta(days=400))
+
+
+# ── CSV export: mobile decryption ─────────────────────────────────────────────
+# mobile is no longer stored in plaintext (schema.sql employee_user, 2026-07-18) —
+# download_alumni_csv decrypts enc_mobile per row via the platform auth CMK
+# (same key as totp_secret_enc) — a real KMS call, not a static local secret.
+
+def _alumni_csv_row(enc_mobile="ciphertext-blob", email="alum@example.com"):
+    return {
+        "full_name": "Rahul Sharma", "designation": "Engineer", "department": "Eng",
+        "grade": "L4", "location": "Mumbai",
+        "doj": date(2018, 1, 1), "dol": date(2022, 6, 1),
+        "enc_mobile": enc_mobile, "email": email,
+    }
+
+
+def _make_kms(decrypt_return="+919876543210"):
+    kms = MagicMock()
+    kms.decrypt_value = MagicMock(return_value=decrypt_return)
+    return kms
+
+
+@pytest.mark.asyncio
+async def test_download_alumni_csv_decrypts_mobile_with_kms():
+    db = AsyncMock()
+    db.fetch = AsyncMock(return_value=[_alumni_csv_row()])
+    svc = _make_svc(db)
+    kms = _make_kms()
+
+    csv_content = await svc.download_alumni_csv(
+        tenant_id="t-1", kms=kms, auth_kek_arn="arn:aws:kms:ap-south-1:123:key/platform-auth",
+    )
+
+    kms.decrypt_value.assert_called_once_with("ciphertext-blob", "arn:aws:kms:ap-south-1:123:key/platform-auth")
+    assert "+919876543210" in csv_content
+    assert "ciphertext-blob" not in csv_content   # never leak raw ciphertext into the export
+
+
+@pytest.mark.asyncio
+async def test_download_alumni_csv_no_kms_falls_back_to_not_shared():
+    db = AsyncMock()
+    db.fetch = AsyncMock(return_value=[_alumni_csv_row()])
+    svc = _make_svc(db)
+
+    csv_content = await svc.download_alumni_csv(tenant_id="t-1", kms=None, auth_kek_arn=None)
+
+    assert "Not shared" in csv_content
+    assert "ciphertext-blob" not in csv_content
+
+
+@pytest.mark.asyncio
+async def test_download_alumni_csv_decrypt_failure_falls_back_without_crashing():
+    """A corrupted/undecryptable ciphertext for one alumnus must not abort the
+    whole CSV export."""
+    db = AsyncMock()
+    db.fetch = AsyncMock(return_value=[_alumni_csv_row(), _alumni_csv_row(enc_mobile=None, email=None)])
+    svc = _make_svc(db)
+    kms = MagicMock()
+    kms.decrypt_value = MagicMock(side_effect=Exception("bad ciphertext"))
+
+    csv_content = await svc.download_alumni_csv(
+        tenant_id="t-1", kms=kms, auth_kek_arn="arn:aws:kms:ap-south-1:123:key/platform-auth",
+    )
+
+    assert "Not shared" in csv_content
+    rows = csv_content.strip().split("\n")
+    assert len(rows) == 3   # header + 2 data rows — one bad decrypt didn't drop the row
+
+
+@pytest.mark.asyncio
+async def test_download_alumni_csv_no_mobile_shared_skips_decrypt():
+    db = AsyncMock()
+    db.fetch = AsyncMock(return_value=[_alumni_csv_row(enc_mobile=None)])
+    svc = _make_svc(db)
+    kms = _make_kms()
+
+    csv_content = await svc.download_alumni_csv(
+        tenant_id="t-1", kms=kms, auth_kek_arn="arn:aws:kms:ap-south-1:123:key/platform-auth",
+    )
+
+    kms.decrypt_value.assert_not_called()
+    assert "Not shared" in csv_content

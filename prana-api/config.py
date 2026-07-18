@@ -81,9 +81,17 @@ class Settings(BaseSettings):
     platform_hmac_secret: str = "dev_secret"   # DEV ONLY
 
     # Auth encryption key — 32-byte AES-256 key (64 hex chars or base64) used to encrypt
-    # TOTP secrets and HRMS signing secrets. Prod: injected from Secrets Manager/KMS.
+    # HRMS signing secrets only (TOTP + mobile moved to platform_auth_kek_arn below,
+    # 2026-07-19 — a static app secret decrypting everything platform-wide in one
+    # shot was an unacceptable blast radius for those two fields).
     # Empty in dev/test → resolve_auth_dek() derives a non-zero key from platform_hmac_secret.
     auth_encryption_key: str = ""
+
+    # Platform auth CMK — ONE real AWS KMS CMK (not a static secret) encrypting
+    # mobile numbers and TOTP secrets (employee/OA/Portal-Admin). Provisioned once
+    # via scripts/bootstrap_platform_auth_kek.py. Empty in dev before that script
+    # has been run against LocalStack.
+    platform_auth_kek_arn: str = ""
 
     # JWT — RS256. Dev/test: local PEM. Prod: KMS-signed (jwt_kms_key_id = CMK ARN).
     jwt_public_key_path: str = "keys/jwt_public.pem"
@@ -147,8 +155,9 @@ class Settings(BaseSettings):
     smtp_from:     str  = "noreply@prana.in"
     smtp_use_tls:  bool = True
 
-    # SMS gateway — Exotel (primary) or MSG91 (fallback). "dev" logs to console.
-    sms_provider:       str = "dev"         # dev | exotel | msg91
+    # SMS gateway — selectable per environment via env var. "dev" logs to console.
+    sms_provider:       str = "dev"         # dev | aws | exotel | msg91
+    sns_endpoint_url:   str = ""            # e.g. "http://localhost:4566" for LocalStack dev; empty = real AWS SNS
     exotel_sid:         str = ""
     exotel_api_key:     str = ""
     exotel_api_token:   str = ""

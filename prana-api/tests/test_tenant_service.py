@@ -29,14 +29,22 @@ def _make_db():
 
 # -- KEK ARN embedded in create_pending() ----------------------------------
 
+def _make_kms():
+    """create_pending() calls self._kms.create_kek(tenant_id) for a real KMS-
+    provisioned KEK (fixed earlier: this used to fabricate a placeholder ARN
+    string without ever calling KMS — see services/tenant_service.py's comment)."""
+    kms = MagicMock()
+    kms.create_kek = MagicMock(return_value="arn:aws:kms:ap-south-1:123456789012:key/mock-kek")
+    return kms
+
+
 @pytest.mark.asyncio
 async def test_provision_tenant_creates_kek_in_kms():
-    """create_pending() must embed a KMS KEK ARN in the INSERT.
-    In dev mode a placeholder ARN is generated from the tenant_id.
-    Verify the INSERT contains an ARN starting with 'arn:aws:kms'.
-    """
+    """create_pending() must call KMSService.create_kek(tenant_id) and embed the
+    real returned ARN in the INSERT — not a fabricated placeholder string."""
     db = _make_db()
-    svc = TenantService(db, kms=None)  # kms=None: dev mode, placeholder ARN
+    kms = _make_kms()
+    svc = TenantService(db, kms=kms)
 
     result = await svc.create_pending(
         tenant_name="Acme Corp",
@@ -56,15 +64,13 @@ async def test_provision_tenant_creates_kek_in_kms():
     assert "tenant_id" in result
     assert result["status"] == "PENDING"
 
-    # The INSERT call must have embedded a kek_arn starting with arn:aws:kms
-    all_args = str(db.execute.call_args_list)
-    assert "arn:aws:kms" in all_args, \
-        "kek_arn must be embedded in the INSERT (dev placeholder ARN)"
+    # KMSService.create_kek must be called with the newly-generated tenant_id
+    kms.create_kek.assert_called_once_with(result["tenant_id"])
 
-    # KEK must be derived from tenant_id (dev pattern: dev-{tenant_id[:8]})
-    tenant_id = result["tenant_id"]
-    assert tenant_id[:8] in all_args, \
-        "Dev KEK ARN must encode the tenant_id prefix"
+    # The INSERT call must have embedded the ARN create_kek() returned
+    all_args = str(db.execute.call_args_list)
+    assert "arn:aws:kms:ap-south-1:123456789012:key/mock-kek" in all_args, \
+        "kek_arn returned by KMSService.create_kek must be embedded in the INSERT"
 
 
 @pytest.mark.asyncio
@@ -73,7 +79,7 @@ async def test_create_pending_generates_own_tenant_id():
     Callers must never supply a tenant_id — it's always internal.
     """
     db = _make_db()
-    svc = TenantService(db, kms=None)
+    svc = TenantService(db, kms=_make_kms())
 
     result1 = await svc.create_pending(
         tenant_name="Acme", domain="acme.com", cin=None, gstin=None,

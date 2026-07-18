@@ -20,7 +20,7 @@ from __future__ import annotations
 import logging
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, Header, HTTPException, Query
+from fastapi import APIRouter, Depends, Header, HTTPException, Query, Request
 from fastapi.responses import Response
 from pydantic import BaseModel, Field
 
@@ -28,6 +28,7 @@ from db import get_db
 from kafka.producer import get_kafka_producer
 from config import settings
 from services.alumni_service import AlumniService
+from services.encryption_service import resolve_platform_auth_kek_arn
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
@@ -170,6 +171,7 @@ async def list_alumni(
 
 @router.get("/org/download")
 async def download_alumni_csv(
+    request: Request,
     city:                 str | None = Query(default=None),
     designation_contains: str | None = Query(default=None),
     min_tenure_months:    int | None = Query(default=None),
@@ -186,6 +188,8 @@ async def download_alumni_csv(
         city=city,
         designation_contains=designation_contains,
         min_tenure_months=min_tenure_months,
+        kms=request.app.state.kms_service,
+        auth_kek_arn=resolve_platform_auth_kek_arn(request.app.state.settings),
     )
     return Response(
         content=csv_content,

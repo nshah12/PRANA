@@ -132,6 +132,13 @@ class KafkaPub:
         await self.publish(TOPIC_EMPLOYEE,  event, key=event.get("tenant_id"))
         await self.publish(TOPIC_AUDIT,     event, key=event.get("tenant_id"))
 
+    async def employee_credentials_issued(self, event: dict) -> None:
+        """EMPLOYEE_CREDENTIALS_ISSUED — fired only when EmployeeService.create()
+        generated a real temp password (employer supplied mobile/email at push
+        time). Goes to TOPIC_NOTIF, same as doc_routed()'s NotifConsumer fan-out —
+        NotifConsumer._handle_employee_welcome turns this into an actual SMS/email."""
+        await self.publish(TOPIC_NOTIF, event, key=event.get("recipient_id", event.get("tenant_id")))
+
     # ── Tenant events ─────────────────────────────────────────────────────────
 
     async def tenant_event(self, event: dict) -> None:

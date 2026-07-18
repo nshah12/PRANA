@@ -307,6 +307,8 @@ class AlumniService:
         city: str | None = None,
         designation_contains: str | None = None,
         min_tenure_months: int | None = None,
+        kms=None,
+        auth_kek_arn: str | None = None,
     ) -> str:
         city_pat        = f"%{city}%"                 if city                else None
         desig_pat       = f"%{designation_contains}%" if designation_contains else None
@@ -316,7 +318,7 @@ class AlumniService:
             """
             SELECT em.full_name, em.designation, em.department, em.grade,
                    em.location, em.doj, em.dol,
-                   CASE WHEN ec.share_mobile THEN eu.mobile ELSE NULL END AS mobile,
+                   CASE WHEN ec.share_mobile THEN eu.enc_mobile ELSE NULL END AS enc_mobile,
                    CASE WHEN ec.share_email  THEN eu.email  ELSE NULL END AS email
             FROM   employee_master em
             JOIN   employee_consent ec
@@ -336,6 +338,11 @@ class AlumniService:
             """,
             tenant_id, _MIN_EXIT_DAYS, city_pat, desig_pat, min_tenure_days,
         )
+
+        # mobile is decrypted via the platform auth CMK (same key as
+        # totp_secret_enc) — no tenant-specific KEK lookup needed, since mobile
+        # is the employee's own login credential, not scoped to any one
+        # employer's KMS infrastructure.
         buf = io.StringIO()
         writer = csv.writer(buf)
         writer.writerow([
@@ -344,6 +351,12 @@ class AlumniService:
             "Tenure", "Time Since Exit",
         ])
         for r in rows:
+            mobile = None
+            if r["enc_mobile"] and kms and auth_kek_arn:
+                try:
+                    mobile = kms.decrypt_value(r["enc_mobile"], auth_kek_arn)
+                except Exception:
+                    logger.warning("alumni CSV: mobile decrypt failed for one row (tenant_id=%s)", tenant_id)
             writer.writerow([
                 r["full_name"],
                 r["designation"] or "",
@@ -352,7 +365,7 @@ class AlumniService:
                 r["location"]    or "",
                 r["doj"].isoformat() if r["doj"] else "",
                 r["dol"].isoformat() if r["dol"] else "",
-                r["mobile"] or "Not shared",
+                mobile or "Not shared",
                 r["email"]  or "Not shared",
                 _tenure_band(r["doj"], r["dol"]) if r["doj"] and r["dol"] else "",
                 _time_since_exit(r["dol"]) if r["dol"] else "",
