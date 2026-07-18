@@ -64,6 +64,7 @@ async def lifespan(app: FastAPI):
         region=settings.aws_region,
         access_key_id=settings.aws_access_key_id,
         secret_access_key=settings.aws_secret_access_key,
+        endpoint_url=settings.kms_endpoint_url,
     )
     app.state.jwt_service = JWTService(settings, app.state.redis, kms_service=app.state.kms_service)
     app.state.settings = settings

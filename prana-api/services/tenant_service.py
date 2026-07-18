@@ -74,8 +74,13 @@ class TenantService:
         import json
         tenant_id = str(uuid.uuid4())
 
-        # DEV: placeholder KEK ARN — prod provisions via TenantProvisioningWorkflow
-        kek_arn = f"arn:aws:kms:ap-south-1:123456789012:key/dev-{tenant_id[:8]}"
+        # Real per-tenant KEK, created now (not deferred to TenantProvisioningWorkflow,
+        # which never actually fires -- see services/tenant_service.py history). This
+        # used to fabricate a plausible-looking ARN string without ever calling KMS,
+        # so every tenant's kek_arn pointed at a key that never existed, in every
+        # environment including production -- the first real wrap_dek/unwrap_dek call
+        # for that tenant (e.g. creating any employee) would have failed.
+        kek_arn = self._kms.create_kek(tenant_id)
 
         reg_address_json = json.dumps(reg_address) if reg_address else None
         corp_address_json = json.dumps(corp_address) if corp_address else None

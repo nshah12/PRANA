@@ -198,12 +198,32 @@ class KMSService:
     KMS key ARN is stored in tenant.kek_arn — never hardcoded here.
     """
 
-    def __init__(self, region: str, access_key_id: str = "", secret_access_key: str = ""):
+    def __init__(self, region: str, access_key_id: str = "", secret_access_key: str = "", endpoint_url: str = ""):
         kwargs: dict = {"region_name": region}
         if access_key_id:
             kwargs["aws_access_key_id"] = access_key_id
             kwargs["aws_secret_access_key"] = secret_access_key
+        if endpoint_url:
+            # LocalStack (dev only) — real AWS always uses the regional default endpoint.
+            kwargs["endpoint_url"] = endpoint_url
         self._client = boto3.client("kms", **kwargs)
+
+    def create_kek(self, tenant_id: str) -> str:
+        """
+        Provision a real per-tenant KEK. Called once at tenant creation
+        (TenantService.create_pending) — previously that fabricated a
+        plausible-looking ARN string without ever calling KMS, so every
+        tenant's kek_arn pointed at a key that never existed, in every
+        environment including production. Every later wrap_dek/unwrap_dek
+        call for that tenant would have failed the first time anything
+        actually tried to encrypt/decrypt an employee DEK.
+        """
+        resp = self._client.create_key(
+            Description=f"PRANA tenant KEK — tenant_id={tenant_id}",
+            KeyUsage="ENCRYPT_DECRYPT",
+            Origin="AWS_KMS",
+        )
+        return resp["KeyMetadata"]["Arn"]
 
     def wrap_dek(self, dek: bytes, kek_arn: str) -> str:
         """KMS_Encrypt(DEK, KEK) → base64 ciphertext stored as enc_dek."""

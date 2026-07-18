@@ -15,6 +15,14 @@ This script instead drives the REAL HTTP APIs, at realistic volume:
   -> first OA-Admin per tenant completes the real password-reset + TOTP-setup
      dance (same flow a real customer's admin goes through)
   -> optionally creates the other 4 OA roles per tenant (chro/cfo/ciso/operator)
+  -> bulk-imports M employees per tenant via POST /v1/org/employees/import
+     (real EmployeeService.create() per row -- real KMS-encrypted NIK via the
+     tenant's actual KEK, real EMPLOYEE_ONBOARDED Kafka event per employee.
+     This does NOT need prana-ai/GPU: identity resolution during document
+     pipeline processing is a separate concern from employee master data.)
+  -> marks a configurable fraction of employees as alumni via
+     POST /v1/org/employees/{uuid}/alumni (real EMPLOYEE_EXITED Kafka event,
+     real push_window_months-gated vault visibility change)
   -> uploads real, well-formed synthetic PDFs per document type via
      POST /v1/ingest/upload (real S3 put, real DOC_INGESTED Kafka event, real
      6-stage pipeline if prana-ai is deployed and reachable in this environment)
@@ -142,9 +150,16 @@ class RunStats:
     tenants_created: int = 0
     tenants_failed: int = 0
     oa_users_created: int = 0
+    employees_created: int = 0
+    employees_failed: int = 0
+    employees_exited: int = 0
     documents_uploaded: int = 0
     documents_failed: int = 0
     errors: list[str] = field(default_factory=list)
+
+
+def _synthetic_nik() -> str:
+    return _synthetic_pan()  # NIK == PAN for India tenants (nik_type default)
 
 
 def _extract_totp_secret(provisioning_uri: str) -> str:
@@ -272,6 +287,80 @@ class PreprodLoader:
                 continue
             self.stats.oa_users_created += 1
 
+    # ── Employee bulk import (real EmployeeService.create() per row, real ──
+    # KMS-encrypted NIK via the tenant's own KEK, real EMPLOYEE_ONBOARDED Kafka
+    # event per row). Independent of prana-ai -- this is employee MASTER data,
+    # not document-driven identity resolution.
+
+    def import_employees(self, oa_token: str, count: int) -> list[str]:
+        """Returns the list of emp_id_org values actually created (best-effort:
+        the API doesn't return employee_uuid per row, so exit-marking below
+        looks them up by emp_id_org instead)."""
+        headers = {"Authorization": f"Bearer {oa_token}"}
+        rows = []
+        for i in range(count):
+            name = f"{random.choice(FIRST_NAMES)} {random.choice(LAST_NAMES)}"
+            doj_year = random.randint(2015, 2025)
+            rows.append({
+                "nik": _synthetic_nik(),
+                "full_name": name,
+                "doj": f"{doj_year}-{random.randint(1,12):02d}-01",
+                "emp_id_org": f"{self.run_tag}-{i:04d}",
+                "designation": random.choice(DESIGNATIONS),
+                "department": random.choice(DEPARTMENTS),
+                "employment_type": "PERMANENT",
+            })
+
+        csv_lines = ["nik,full_name,doj,emp_id_org,designation,department,employment_type"]
+        for row in rows:
+            csv_lines.append(",".join(row[k] for k in
+                              ("nik", "full_name", "doj", "emp_id_org", "designation", "department", "employment_type")))
+        csv_bytes = ("\n".join(csv_lines) + "\n").encode("utf-8")
+
+        files = {"file": ("employees.csv", csv_bytes, "text/csv")}
+        r = self.client.post("/v1/org/employees/import", files=files, headers=headers)
+        if r.status_code >= 400:
+            self.stats.employees_failed += count
+            self.stats.errors.append(f"bulk import employees: {r.status_code} {r.text[:200]}")
+            return []
+        body = r.json()
+        self.stats.employees_created += body.get("created", 0)
+        self.stats.employees_failed += body.get("failed", 0)
+        for e in body.get("errors", []):
+            self.stats.errors.append(f"employee import row {e.get('row')}: {e.get('error')}")
+        return [row["emp_id_org"] for row in rows]
+
+    # ── Employee exit / alumni marking (real EMPLOYEE_EXITED Kafka event) ───
+
+    def mark_alumni_exits(self, oa_token: str, tenant_id: str, emp_id_orgs: list[str], fraction: float) -> None:
+        headers = {"Authorization": f"Bearer {oa_token}"}
+        sample_size = max(0, int(len(emp_id_orgs) * fraction))
+        for emp_id_org in random.sample(emp_id_orgs, sample_size) if sample_size else []:
+            row = self.client.get(
+                "/v1/org/employees", params={"emp_id_org": emp_id_org}, headers=headers,
+            )
+            employee_uuid = None
+            if row.status_code < 400:
+                # NOTE: this endpoint currently returns a bare array, not the
+                # documented {"items": [...]} shape (api.md response-shape
+                # contract) -- handling both defensively in case it's fixed later.
+                body = row.json()
+                items = body if isinstance(body, list) else (body.get("employees") or body.get("items") or [])
+                if items:
+                    employee_uuid = items[0].get("employee_uuid")
+            if not employee_uuid:
+                self.stats.errors.append(f"exit lookup failed for emp_id_org={emp_id_org}")
+                continue
+
+            dol = f"{random.randint(2023, 2026)}-{random.randint(1,12):02d}-{random.randint(1,28):02d}"
+            r = self.client.post(
+                f"/v1/org/employees/{employee_uuid}/alumni", json={"dol": dol}, headers=headers,
+            )
+            if r.status_code >= 400:
+                self.stats.errors.append(f"mark alumni {employee_uuid}: {r.status_code} {r.text[:200]}")
+                continue
+            self.stats.employees_exited += 1
+
     # ── Document upload (real S3 put + real DOC_INGESTED Kafka event) ───────
 
     def upload_documents(self, oa_token: str, tenant_domain: str, count: int) -> None:
@@ -297,7 +386,10 @@ def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument("--base-url", required=True, help="e.g. https://preprod-api.prana.in")
     parser.add_argument("--pa-email", required=True)
-    parser.add_argument("--tenants", type=int, default=13)
+    parser.add_argument("--tenants", type=int, default=10)
+    parser.add_argument("--employees-per-tenant", type=int, default=40)
+    parser.add_argument("--exit-fraction", type=float, default=0.15,
+                         help="Fraction of each tenant's employees marked as alumni via the real exit endpoint (default 0.15)")
     parser.add_argument("--docs-per-tenant", type=int, default=60)
     parser.add_argument("--create-extra-oa-roles", action="store_true",
                          help="Also create oa_operator/chro/cfo/ciso per tenant (slower: full TOTP dance skipped for these -- temp password only, matching real welcome-email flow)")
@@ -328,6 +420,13 @@ def main() -> None:
             if args.create_extra_oa_roles:
                 loader.create_extra_oa_users(admin_token, result["domain"])
 
+            print(f"  -> bulk-importing {args.employees_per_tenant} employees...")
+            emp_id_orgs = loader.import_employees(admin_token, args.employees_per_tenant)
+
+            if emp_id_orgs and args.exit_fraction > 0:
+                print(f"  -> marking ~{int(len(emp_id_orgs) * args.exit_fraction)} employees as exited (alumni)...")
+                loader.mark_alumni_exits(admin_token, result["tenant_id"], emp_id_orgs, args.exit_fraction)
+
             print(f"  -> uploading {args.docs_per_tenant} documents...")
             loader.upload_documents(admin_token, result["domain"], args.docs_per_tenant)
 
@@ -337,6 +436,8 @@ def main() -> None:
         print("=" * 60)
         print(f"Tenants created:      {s.tenants_created} (failed: {s.tenants_failed})")
         print(f"Extra OA users:       {s.oa_users_created}")
+        print(f"Employees created:    {s.employees_created} (failed: {s.employees_failed})")
+        print(f"Employees exited:     {s.employees_exited}")
         print(f"Documents uploaded:   {s.documents_uploaded} (failed: {s.documents_failed})")
         if s.errors:
             print(f"\n{len(s.errors)} error(s):")

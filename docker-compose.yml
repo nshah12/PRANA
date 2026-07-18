@@ -48,6 +48,11 @@ x-prana-env: &prana-env
   S3_ACCESS_KEY_ID: minioadmin
   S3_SECRET_ACCESS_KEY: minioadmin
   AWS_REGION: ap-south-1
+  # Dummy creds for LocalStack (KMS mock) — LocalStack accepts any non-empty
+  # string; never used against real AWS since kms_endpoint_url is only set here.
+  AWS_ACCESS_KEY_ID: test
+  AWS_SECRET_ACCESS_KEY: test
+  KMS_ENDPOINT_URL: http://localstack:4566
   IMMUDB_HOST: immudb
   IMMUDB_PORT: "3322"
   IMMUDB_USER: immudb
@@ -197,6 +202,27 @@ services:
       retries: 5
     restart: unless-stopped
 
+  # ── LocalStack — KMS mock (dev only) ────────────────────────────────────────
+  # Real AWS KMS has no dev equivalent the way S3 has MinIO; this is that gap
+  # closed the same way. KMSService.create_kek()/wrap_dek()/unwrap_dek() all
+  # go through this in dev via KMS_ENDPOINT_URL — same boto3 calls as real AWS,
+  # pointed at a different endpoint. Never set KMS_ENDPOINT_URL in pre-prod/prod.
+  localstack:
+    image: localstack/localstack:3.4
+    container_name: prana-localstack
+    ports:
+      - "4566:4566"
+    environment:
+      SERVICES: kms
+      DEBUG: "0"
+    healthcheck:
+      test: ["CMD-SHELL", "curl -sf http://localhost:4566/_localstack/health | grep -q '\"kms\": \"available\"'"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+      start_period: 15s
+    restart: unless-stopped
+
   # ── MinIO bucket init ───────────────────────────────────────────────────────
   minio-init:
     image: minio/mc:RELEASE.2024-04-29T09-56-05Z
@@ -318,6 +344,8 @@ services:
       temporal:
         condition: service_healthy
       immudb:
+        condition: service_healthy
+      localstack:
         condition: service_healthy
     restart: unless-stopped
 

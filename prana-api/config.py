@@ -73,6 +73,7 @@ class Settings(BaseSettings):
     aws_region: str = "ap-south-1"
     aws_access_key_id: str = ""           # Empty = use IAM role in production
     aws_secret_access_key: str = ""
+    kms_endpoint_url: str = ""            # e.g. "http://localhost:4566" for LocalStack dev; empty = real AWS KMS
 
     # Platform HMAC secret — PAN/NIK tokenization key.
     # Prod: injected from AWS Secrets Manager / KMS via env; MUST NOT be the dev default.
