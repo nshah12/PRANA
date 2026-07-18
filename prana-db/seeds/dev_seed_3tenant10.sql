@@ -1,15 +1,18 @@
 -- dev_seed_3tenant10.sql
--- 10 new employees (emp011-020), each spanning exactly 3 tenants.
+-- 10 new employees (emp501-510), each spanning exactly 3 tenants.
 -- 3 new tenants: Vertex Technologies (T11), Indigo Capital (T12), Bluestar Pharma (T13).
 -- Full OA staff per tenant: OA-Admin, OA-Operator, CHRO, CFO, CISO (15 users total).
 -- ~310 documents seeded across all 30 stints.
--- Run AFTER dev_seed.sql, dev_seed_emp_auth.sql, dev_seed_rich10.sql.
+-- Run AFTER dev_seed.sql (any order relative to dev_seed_emp_auth.sql / dev_seed_rich10.sql).
+-- Employee range is 501-510 -- deliberately outside dev_seed.sql's own 1-500 range
+-- (dev_seed.sql bulk-creates employee_user rows 1-500; this file used to reuse 11-20,
+-- which collided with those already-claimed rows -- see CREDENTIALS.md history note).
 -- NEVER run against staging or production.
 --
 -- Career rotation (each employee spans all 3 tenants):
---   Group A (emp011-014): Vertex(2016-19) → Indigo(2020-22) → Bluestar(2023-cur)
---   Group B (emp015-017): Indigo(2016-19) → Bluestar(2020-22) → Vertex(2023-cur)
---   Group C (emp018-020): Bluestar(2016-19) → Vertex(2020-22) → Indigo(2023-cur)
+--   Group A (emp501-504): Vertex(2016-19) → Indigo(2020-22) → Bluestar(2023-cur)
+--   Group B (emp505-507): Indigo(2016-19) → Bluestar(2020-22) → Vertex(2023-cur)
+--   Group C (emp508-510): Bluestar(2016-19) → Vertex(2020-22) → Indigo(2023-cur)
 --
 -- Doc count per stint: Offer+Join+3×Salary+F16+PF+Increment+Promotion = 9 (current)
 --   Alumni stints add: Relieving+Experience = 11 each
@@ -50,72 +53,72 @@ INSERT INTO oa_user (
   -- ── Vertex Technologies ──────────────────────────────────────────────────
   ('20000000-0000-0011-0001-000000000001', '10000000-0000-0000-0000-000000000011',
    'admin@vertex.in',    'oa_admin',
-   '$argon2id$v=19$m=65536,t=2,p=2$baYcXT1/UniSJz2fTYDqFw$GDKNb23LwWjCbZLx8aH9yyifEEL9CG6cClG6dk3Xsgk',
+   '$argon2id$v=19$m=65536,t=2,p=2$s/wcmu2iiTnuggfacxGIbQ$srpd2ll08Cj3dFCzCZuK6fHX7kLeetqwVMKq1nssDTo',
    NULL, FALSE, 'ACTIVE'),
   ('20000000-0000-0011-0002-000000000001', '10000000-0000-0000-0000-000000000011',
    'ops@vertex.in',      'oa_operator',
-   '$argon2id$v=19$m=65536,t=2,p=2$baYcXT1/UniSJz2fTYDqFw$GDKNb23LwWjCbZLx8aH9yyifEEL9CG6cClG6dk3Xsgk',
+   '$argon2id$v=19$m=65536,t=2,p=2$s/wcmu2iiTnuggfacxGIbQ$srpd2ll08Cj3dFCzCZuK6fHX7kLeetqwVMKq1nssDTo',
    NULL, FALSE, 'ACTIVE'),
   ('20000000-0000-0011-0003-000000000001', '10000000-0000-0000-0000-000000000011',
    'chro@vertex.in',     'chro',
-   '$argon2id$v=19$m=65536,t=2,p=2$baYcXT1/UniSJz2fTYDqFw$GDKNb23LwWjCbZLx8aH9yyifEEL9CG6cClG6dk3Xsgk',
+   '$argon2id$v=19$m=65536,t=2,p=2$s/wcmu2iiTnuggfacxGIbQ$srpd2ll08Cj3dFCzCZuK6fHX7kLeetqwVMKq1nssDTo',
    NULL, FALSE, 'ACTIVE'),
   ('20000000-0000-0011-0004-000000000001', '10000000-0000-0000-0000-000000000011',
    'cfo@vertex.in',      'cfo',
-   '$argon2id$v=19$m=65536,t=2,p=2$baYcXT1/UniSJz2fTYDqFw$GDKNb23LwWjCbZLx8aH9yyifEEL9CG6cClG6dk3Xsgk',
+   '$argon2id$v=19$m=65536,t=2,p=2$s/wcmu2iiTnuggfacxGIbQ$srpd2ll08Cj3dFCzCZuK6fHX7kLeetqwVMKq1nssDTo',
    NULL, FALSE, 'ACTIVE'),
   ('20000000-0000-0011-0005-000000000001', '10000000-0000-0000-0000-000000000011',
    'ciso@vertex.in',     'ciso',
-   '$argon2id$v=19$m=65536,t=2,p=2$baYcXT1/UniSJz2fTYDqFw$GDKNb23LwWjCbZLx8aH9yyifEEL9CG6cClG6dk3Xsgk',
+   '$argon2id$v=19$m=65536,t=2,p=2$s/wcmu2iiTnuggfacxGIbQ$srpd2ll08Cj3dFCzCZuK6fHX7kLeetqwVMKq1nssDTo',
    NULL, FALSE, 'ACTIVE'),
 
   -- ── Indigo Capital ───────────────────────────────────────────────────────
   ('20000000-0000-0012-0001-000000000001', '10000000-0000-0000-0000-000000000012',
    'admin@indigocapital.in',  'oa_admin',
-   '$argon2id$v=19$m=65536,t=2,p=2$baYcXT1/UniSJz2fTYDqFw$GDKNb23LwWjCbZLx8aH9yyifEEL9CG6cClG6dk3Xsgk',
+   '$argon2id$v=19$m=65536,t=2,p=2$s/wcmu2iiTnuggfacxGIbQ$srpd2ll08Cj3dFCzCZuK6fHX7kLeetqwVMKq1nssDTo',
    NULL, FALSE, 'ACTIVE'),
   ('20000000-0000-0012-0002-000000000001', '10000000-0000-0000-0000-000000000012',
    'ops@indigocapital.in',    'oa_operator',
-   '$argon2id$v=19$m=65536,t=2,p=2$baYcXT1/UniSJz2fTYDqFw$GDKNb23LwWjCbZLx8aH9yyifEEL9CG6cClG6dk3Xsgk',
+   '$argon2id$v=19$m=65536,t=2,p=2$s/wcmu2iiTnuggfacxGIbQ$srpd2ll08Cj3dFCzCZuK6fHX7kLeetqwVMKq1nssDTo',
    NULL, FALSE, 'ACTIVE'),
   ('20000000-0000-0012-0003-000000000001', '10000000-0000-0000-0000-000000000012',
    'chro@indigocapital.in',   'chro',
-   '$argon2id$v=19$m=65536,t=2,p=2$baYcXT1/UniSJz2fTYDqFw$GDKNb23LwWjCbZLx8aH9yyifEEL9CG6cClG6dk3Xsgk',
+   '$argon2id$v=19$m=65536,t=2,p=2$s/wcmu2iiTnuggfacxGIbQ$srpd2ll08Cj3dFCzCZuK6fHX7kLeetqwVMKq1nssDTo',
    NULL, FALSE, 'ACTIVE'),
   ('20000000-0000-0012-0004-000000000001', '10000000-0000-0000-0000-000000000012',
    'cfo@indigocapital.in',    'cfo',
-   '$argon2id$v=19$m=65536,t=2,p=2$baYcXT1/UniSJz2fTYDqFw$GDKNb23LwWjCbZLx8aH9yyifEEL9CG6cClG6dk3Xsgk',
+   '$argon2id$v=19$m=65536,t=2,p=2$s/wcmu2iiTnuggfacxGIbQ$srpd2ll08Cj3dFCzCZuK6fHX7kLeetqwVMKq1nssDTo',
    NULL, FALSE, 'ACTIVE'),
   ('20000000-0000-0012-0005-000000000001', '10000000-0000-0000-0000-000000000012',
    'ciso@indigocapital.in',   'ciso',
-   '$argon2id$v=19$m=65536,t=2,p=2$baYcXT1/UniSJz2fTYDqFw$GDKNb23LwWjCbZLx8aH9yyifEEL9CG6cClG6dk3Xsgk',
+   '$argon2id$v=19$m=65536,t=2,p=2$s/wcmu2iiTnuggfacxGIbQ$srpd2ll08Cj3dFCzCZuK6fHX7kLeetqwVMKq1nssDTo',
    NULL, FALSE, 'ACTIVE'),
 
   -- ── Bluestar Pharma ──────────────────────────────────────────────────────
   ('20000000-0000-0013-0001-000000000001', '10000000-0000-0000-0000-000000000013',
    'admin@bluestarpharma.in', 'oa_admin',
-   '$argon2id$v=19$m=65536,t=2,p=2$baYcXT1/UniSJz2fTYDqFw$GDKNb23LwWjCbZLx8aH9yyifEEL9CG6cClG6dk3Xsgk',
+   '$argon2id$v=19$m=65536,t=2,p=2$s/wcmu2iiTnuggfacxGIbQ$srpd2ll08Cj3dFCzCZuK6fHX7kLeetqwVMKq1nssDTo',
    NULL, FALSE, 'ACTIVE'),
   ('20000000-0000-0013-0002-000000000001', '10000000-0000-0000-0000-000000000013',
    'ops@bluestarpharma.in',   'oa_operator',
-   '$argon2id$v=19$m=65536,t=2,p=2$baYcXT1/UniSJz2fTYDqFw$GDKNb23LwWjCbZLx8aH9yyifEEL9CG6cClG6dk3Xsgk',
+   '$argon2id$v=19$m=65536,t=2,p=2$s/wcmu2iiTnuggfacxGIbQ$srpd2ll08Cj3dFCzCZuK6fHX7kLeetqwVMKq1nssDTo',
    NULL, FALSE, 'ACTIVE'),
   ('20000000-0000-0013-0003-000000000001', '10000000-0000-0000-0000-000000000013',
    'chro@bluestarpharma.in',  'chro',
-   '$argon2id$v=19$m=65536,t=2,p=2$baYcXT1/UniSJz2fTYDqFw$GDKNb23LwWjCbZLx8aH9yyifEEL9CG6cClG6dk3Xsgk',
+   '$argon2id$v=19$m=65536,t=2,p=2$s/wcmu2iiTnuggfacxGIbQ$srpd2ll08Cj3dFCzCZuK6fHX7kLeetqwVMKq1nssDTo',
    NULL, FALSE, 'ACTIVE'),
   ('20000000-0000-0013-0004-000000000001', '10000000-0000-0000-0000-000000000013',
    'cfo@bluestarpharma.in',   'cfo',
-   '$argon2id$v=19$m=65536,t=2,p=2$baYcXT1/UniSJz2fTYDqFw$GDKNb23LwWjCbZLx8aH9yyifEEL9CG6cClG6dk3Xsgk',
+   '$argon2id$v=19$m=65536,t=2,p=2$s/wcmu2iiTnuggfacxGIbQ$srpd2ll08Cj3dFCzCZuK6fHX7kLeetqwVMKq1nssDTo',
    NULL, FALSE, 'ACTIVE'),
   ('20000000-0000-0013-0005-000000000001', '10000000-0000-0000-0000-000000000013',
    'ciso@bluestarpharma.in',  'ciso',
-   '$argon2id$v=19$m=65536,t=2,p=2$baYcXT1/UniSJz2fTYDqFw$GDKNb23LwWjCbZLx8aH9yyifEEL9CG6cClG6dk3Xsgk',
+   '$argon2id$v=19$m=65536,t=2,p=2$s/wcmu2iiTnuggfacxGIbQ$srpd2ll08Cj3dFCzCZuK6fHX7kLeetqwVMKq1nssDTo',
    NULL, FALSE, 'ACTIVE');
 
 -- ============================================================
--- EMPLOYEE USERS (emp011-020)
--- mobile: +91900000001{n}   email: emp0{n}@test.prana   pwd: DevEmp@123
+-- EMPLOYEE USERS (emp501-510)
+-- mobile: +919000000{n}   email: emp{n}@test.prana   pwd: Prana@Admin0124
 -- OTP: 123456 (dev bypass)
 -- ============================================================
 INSERT INTO employee_user (
@@ -130,12 +133,12 @@ SELECT
   'DEV_ENC_DEK_' || LPAD(n::text, 3, '0'),
   '+91900000' || LPAD(n::text, 4, '0'),
   'emp' || LPAD(n::text, 3, '0') || '@test.prana',
-  '$argon2id$v=19$m=65536,t=2,p=2$baYcXT1/UniSJz2fTYDqFw$GDKNb23LwWjCbZLx8aH9yyifEEL9CG6cClG6dk3Xsgk',
+  '$argon2id$v=19$m=65536,t=2,p=2$s/wcmu2iiTnuggfacxGIbQ$srpd2ll08Cj3dFCzCZuK6fHX7kLeetqwVMKq1nssDTo',
   'GRANTED', 'ACTIVE', FALSE
-FROM generate_series(11, 20) AS n;
+FROM generate_series(501, 510) AS n;
 
 -- ============================================================
--- EMPLOYEE MASTER — 30 rows (10 employees × 3 stints each)
+-- EMPLOYEE MASTER -- 30 rows (10 employees x 3 stints each)
 -- UUID scheme: 50000000-00{emp}-00{tenant}-0000-000000000001
 -- Group A (011-014): T11(old) → T12(mid) → T13(cur)
 -- Group B (015-017): T12(old) → T13(mid) → T11(cur)
@@ -148,143 +151,143 @@ INSERT INTO employee_master (
   grade, location, employment_type, doj, dol, status
 ) VALUES
 
-  -- ── Emp 011 Arjun Kapoor ────────────────────────────────────────────────
-  ('50000000-0011-0011-0000-000000000001','30000000-0000-0000-0000-000000000011','10000000-0000-0000-0000-000000000011',
-   encode(hmac('SYNTHETIC_PAN_011','dev_secret','sha256'),'hex'),'DEV_ENC_PAN_011','DEV_ENC_DEK_011',
+  -- ── Emp 501 Arjun Kapoor ────────────────────────────────────────────────
+  ('50000000-0501-0011-0000-000000000001','30000000-0000-0000-0000-000000000501','10000000-0000-0000-0000-000000000011',
+   encode(hmac('SYNTHETIC_PAN_501','dev_secret','sha256'),'hex'),'DEV_ENC_PAN_501','DEV_ENC_DEK_501',
    'VTX0011','Arjun Kapoor','Software Engineer','Engineering',
    'L1','Mumbai','PERMANENT','2016-01-01','2019-12-31','ALUMNI'),
-  ('50000000-0011-0012-0000-000000000001','30000000-0000-0000-0000-000000000011','10000000-0000-0000-0000-000000000012',
-   encode(hmac('SYNTHETIC_PAN_011','dev_secret','sha256'),'hex'),'DEV_ENC_PAN_011','DEV_ENC_DEK_011',
+  ('50000000-0501-0012-0000-000000000001','30000000-0000-0000-0000-000000000501','10000000-0000-0000-0000-000000000012',
+   encode(hmac('SYNTHETIC_PAN_501','dev_secret','sha256'),'hex'),'DEV_ENC_PAN_501','DEV_ENC_DEK_501',
    'IDC0011','Arjun Kapoor','Senior Financial Analyst','Finance',
    'A2','Mumbai','PERMANENT','2020-01-01','2022-12-31','ALUMNI'),
-  ('50000000-0011-0013-0000-000000000001','30000000-0000-0000-0000-000000000011','10000000-0000-0000-0000-000000000013',
-   encode(hmac('SYNTHETIC_PAN_011','dev_secret','sha256'),'hex'),'DEV_ENC_PAN_011','DEV_ENC_DEK_011',
+  ('50000000-0501-0013-0000-000000000001','30000000-0000-0000-0000-000000000501','10000000-0000-0000-0000-000000000013',
+   encode(hmac('SYNTHETIC_PAN_501','dev_secret','sha256'),'hex'),'DEV_ENC_PAN_501','DEV_ENC_DEK_501',
    'BSP0011','Arjun Kapoor','Research Lead','R&D',
    'M2','Hyderabad','PERMANENT','2023-01-01',NULL,'ACTIVE'),
 
-  -- ── Emp 012 Meera Krishnan ──────────────────────────────────────────────
-  ('50000000-0012-0011-0000-000000000001','30000000-0000-0000-0000-000000000012','10000000-0000-0000-0000-000000000011',
-   encode(hmac('SYNTHETIC_PAN_012','dev_secret','sha256'),'hex'),'DEV_ENC_PAN_012','DEV_ENC_DEK_012',
+  -- ── Emp 502 Meera Krishnan ──────────────────────────────────────────────
+  ('50000000-0502-0011-0000-000000000001','30000000-0000-0000-0000-000000000502','10000000-0000-0000-0000-000000000011',
+   encode(hmac('SYNTHETIC_PAN_502','dev_secret','sha256'),'hex'),'DEV_ENC_PAN_502','DEV_ENC_DEK_502',
    'VTX0012','Meera Krishnan','Data Engineer','Data Engineering',
    'L1','Bengaluru','PERMANENT','2016-01-01','2019-12-31','ALUMNI'),
-  ('50000000-0012-0012-0000-000000000001','30000000-0000-0000-0000-000000000012','10000000-0000-0000-0000-000000000012',
-   encode(hmac('SYNTHETIC_PAN_012','dev_secret','sha256'),'hex'),'DEV_ENC_PAN_012','DEV_ENC_DEK_012',
+  ('50000000-0502-0012-0000-000000000001','30000000-0000-0000-0000-000000000502','10000000-0000-0000-0000-000000000012',
+   encode(hmac('SYNTHETIC_PAN_502','dev_secret','sha256'),'hex'),'DEV_ENC_PAN_502','DEV_ENC_DEK_502',
    'IDC0012','Meera Krishnan','Senior Risk Analyst','Risk',
    'A2','Mumbai','PERMANENT','2020-01-01','2022-12-31','ALUMNI'),
-  ('50000000-0012-0013-0000-000000000001','30000000-0000-0000-0000-000000000012','10000000-0000-0000-0000-000000000013',
-   encode(hmac('SYNTHETIC_PAN_012','dev_secret','sha256'),'hex'),'DEV_ENC_PAN_012','DEV_ENC_DEK_012',
+  ('50000000-0502-0013-0000-000000000001','30000000-0000-0000-0000-000000000502','10000000-0000-0000-0000-000000000013',
+   encode(hmac('SYNTHETIC_PAN_502','dev_secret','sha256'),'hex'),'DEV_ENC_PAN_502','DEV_ENC_DEK_502',
    'BSP0012','Meera Krishnan','Clinical Data Lead','Clinical Operations',
    'M2','Hyderabad','PERMANENT','2023-01-01',NULL,'ACTIVE'),
 
-  -- ── Emp 013 Siddharth Rao ──────────────────────────────────────────────
-  ('50000000-0013-0011-0000-000000000001','30000000-0000-0000-0000-000000000013','10000000-0000-0000-0000-000000000011',
-   encode(hmac('SYNTHETIC_PAN_013','dev_secret','sha256'),'hex'),'DEV_ENC_PAN_013','DEV_ENC_DEK_013',
+  -- ── Emp 503 Siddharth Rao ──────────────────────────────────────────────
+  ('50000000-0503-0011-0000-000000000001','30000000-0000-0000-0000-000000000503','10000000-0000-0000-0000-000000000011',
+   encode(hmac('SYNTHETIC_PAN_503','dev_secret','sha256'),'hex'),'DEV_ENC_PAN_503','DEV_ENC_DEK_503',
    'VTX0013','Siddharth Rao','DevOps Engineer','Infrastructure',
    'L2','Pune','PERMANENT','2016-01-01','2019-12-31','ALUMNI'),
-  ('50000000-0013-0012-0000-000000000001','30000000-0000-0000-0000-000000000013','10000000-0000-0000-0000-000000000012',
-   encode(hmac('SYNTHETIC_PAN_013','dev_secret','sha256'),'hex'),'DEV_ENC_PAN_013','DEV_ENC_DEK_013',
+  ('50000000-0503-0012-0000-000000000001','30000000-0000-0000-0000-000000000503','10000000-0000-0000-0000-000000000012',
+   encode(hmac('SYNTHETIC_PAN_503','dev_secret','sha256'),'hex'),'DEV_ENC_PAN_503','DEV_ENC_DEK_503',
    'IDC0013','Siddharth Rao','Compliance Analyst','Compliance',
    'A2','Mumbai','PERMANENT','2020-01-01','2022-12-31','ALUMNI'),
-  ('50000000-0013-0013-0000-000000000001','30000000-0000-0000-0000-000000000013','10000000-0000-0000-0000-000000000013',
-   encode(hmac('SYNTHETIC_PAN_013','dev_secret','sha256'),'hex'),'DEV_ENC_PAN_013','DEV_ENC_DEK_013',
+  ('50000000-0503-0013-0000-000000000001','30000000-0000-0000-0000-000000000503','10000000-0000-0000-0000-000000000013',
+   encode(hmac('SYNTHETIC_PAN_503','dev_secret','sha256'),'hex'),'DEV_ENC_PAN_503','DEV_ENC_DEK_503',
    'BSP0013','Siddharth Rao','Regulatory Affairs Manager','Regulatory',
    'M3','Hyderabad','PERMANENT','2023-01-01',NULL,'ACTIVE'),
 
-  -- ── Emp 014 Natasha Verma ──────────────────────────────────────────────
-  ('50000000-0014-0011-0000-000000000001','30000000-0000-0000-0000-000000000014','10000000-0000-0000-0000-000000000011',
-   encode(hmac('SYNTHETIC_PAN_014','dev_secret','sha256'),'hex'),'DEV_ENC_PAN_014','DEV_ENC_DEK_014',
+  -- ── Emp 504 Natasha Verma ──────────────────────────────────────────────
+  ('50000000-0504-0011-0000-000000000001','30000000-0000-0000-0000-000000000504','10000000-0000-0000-0000-000000000011',
+   encode(hmac('SYNTHETIC_PAN_504','dev_secret','sha256'),'hex'),'DEV_ENC_PAN_504','DEV_ENC_DEK_504',
    'VTX0014','Natasha Verma','Product Analyst','Product',
    'L2','Bengaluru','PERMANENT','2016-01-01','2019-12-31','ALUMNI'),
-  ('50000000-0014-0012-0000-000000000001','30000000-0000-0000-0000-000000000014','10000000-0000-0000-0000-000000000012',
-   encode(hmac('SYNTHETIC_PAN_014','dev_secret','sha256'),'hex'),'DEV_ENC_PAN_014','DEV_ENC_DEK_014',
+  ('50000000-0504-0012-0000-000000000001','30000000-0000-0000-0000-000000000504','10000000-0000-0000-0000-000000000012',
+   encode(hmac('SYNTHETIC_PAN_504','dev_secret','sha256'),'hex'),'DEV_ENC_PAN_504','DEV_ENC_DEK_504',
    'IDC0014','Natasha Verma','Investment Analyst','Investment Banking',
    'A2','Mumbai','PERMANENT','2020-01-01','2022-12-31','ALUMNI'),
-  ('50000000-0014-0013-0000-000000000001','30000000-0000-0000-0000-000000000014','10000000-0000-0000-0000-000000000013',
-   encode(hmac('SYNTHETIC_PAN_014','dev_secret','sha256'),'hex'),'DEV_ENC_PAN_014','DEV_ENC_DEK_014',
+  ('50000000-0504-0013-0000-000000000001','30000000-0000-0000-0000-000000000504','10000000-0000-0000-0000-000000000013',
+   encode(hmac('SYNTHETIC_PAN_504','dev_secret','sha256'),'hex'),'DEV_ENC_PAN_504','DEV_ENC_DEK_504',
    'BSP0014','Natasha Verma','QA Lead','Quality Assurance',
    'M2','Hyderabad','PERMANENT','2023-01-01',NULL,'ACTIVE'),
 
-  -- ── Emp 015 Rajesh Pillai ──────────────────────────────────────────────
-  ('50000000-0015-0012-0000-000000000001','30000000-0000-0000-0000-000000000015','10000000-0000-0000-0000-000000000012',
-   encode(hmac('SYNTHETIC_PAN_015','dev_secret','sha256'),'hex'),'DEV_ENC_PAN_015','DEV_ENC_DEK_015',
+  -- ── Emp 505 Rajesh Pillai ──────────────────────────────────────────────
+  ('50000000-0505-0012-0000-000000000001','30000000-0000-0000-0000-000000000505','10000000-0000-0000-0000-000000000012',
+   encode(hmac('SYNTHETIC_PAN_505','dev_secret','sha256'),'hex'),'DEV_ENC_PAN_505','DEV_ENC_DEK_505',
    'IDC0015','Rajesh Pillai','Financial Analyst','Finance',
    'A1','Chennai','PERMANENT','2016-01-01','2019-12-31','ALUMNI'),
-  ('50000000-0015-0013-0000-000000000001','30000000-0000-0000-0000-000000000015','10000000-0000-0000-0000-000000000013',
-   encode(hmac('SYNTHETIC_PAN_015','dev_secret','sha256'),'hex'),'DEV_ENC_PAN_015','DEV_ENC_DEK_015',
+  ('50000000-0505-0013-0000-000000000001','30000000-0000-0000-0000-000000000505','10000000-0000-0000-0000-000000000013',
+   encode(hmac('SYNTHETIC_PAN_505','dev_secret','sha256'),'hex'),'DEV_ENC_PAN_505','DEV_ENC_DEK_505',
    'BSP0015','Rajesh Pillai','Senior Research Scientist','R&D',
    'M2','Hyderabad','PERMANENT','2020-01-01','2022-12-31','ALUMNI'),
-  ('50000000-0015-0011-0000-000000000001','30000000-0000-0000-0000-000000000015','10000000-0000-0000-0000-000000000011',
-   encode(hmac('SYNTHETIC_PAN_015','dev_secret','sha256'),'hex'),'DEV_ENC_PAN_015','DEV_ENC_DEK_015',
+  ('50000000-0505-0011-0000-000000000001','30000000-0000-0000-0000-000000000505','10000000-0000-0000-0000-000000000011',
+   encode(hmac('SYNTHETIC_PAN_505','dev_secret','sha256'),'hex'),'DEV_ENC_PAN_505','DEV_ENC_DEK_505',
    'VTX0015','Rajesh Pillai','Senior Software Engineer','Engineering',
    'L3','Bengaluru','PERMANENT','2023-01-01',NULL,'ACTIVE'),
 
-  -- ── Emp 016 Divya Menon ────────────────────────────────────────────────
-  ('50000000-0016-0012-0000-000000000001','30000000-0000-0000-0000-000000000016','10000000-0000-0000-0000-000000000012',
-   encode(hmac('SYNTHETIC_PAN_016','dev_secret','sha256'),'hex'),'DEV_ENC_PAN_016','DEV_ENC_DEK_016',
+  -- ── Emp 506 Divya Menon ────────────────────────────────────────────────
+  ('50000000-0506-0012-0000-000000000001','30000000-0000-0000-0000-000000000506','10000000-0000-0000-0000-000000000012',
+   encode(hmac('SYNTHETIC_PAN_506','dev_secret','sha256'),'hex'),'DEV_ENC_PAN_506','DEV_ENC_DEK_506',
    'IDC0016','Divya Menon','Risk Analyst','Risk',
    'A1','Kochi','PERMANENT','2016-01-01','2019-12-31','ALUMNI'),
-  ('50000000-0016-0013-0000-000000000001','30000000-0000-0000-0000-000000000016','10000000-0000-0000-0000-000000000013',
-   encode(hmac('SYNTHETIC_PAN_016','dev_secret','sha256'),'hex'),'DEV_ENC_PAN_016','DEV_ENC_DEK_016',
+  ('50000000-0506-0013-0000-000000000001','30000000-0000-0000-0000-000000000506','10000000-0000-0000-0000-000000000013',
+   encode(hmac('SYNTHETIC_PAN_506','dev_secret','sha256'),'hex'),'DEV_ENC_PAN_506','DEV_ENC_DEK_506',
    'BSP0016','Divya Menon','Clinical Data Analyst','Clinical Operations',
    'M1','Hyderabad','PERMANENT','2020-01-01','2022-12-31','ALUMNI'),
-  ('50000000-0016-0011-0000-000000000001','30000000-0000-0000-0000-000000000016','10000000-0000-0000-0000-000000000011',
-   encode(hmac('SYNTHETIC_PAN_016','dev_secret','sha256'),'hex'),'DEV_ENC_PAN_016','DEV_ENC_DEK_016',
+  ('50000000-0506-0011-0000-000000000001','30000000-0000-0000-0000-000000000506','10000000-0000-0000-0000-000000000011',
+   encode(hmac('SYNTHETIC_PAN_506','dev_secret','sha256'),'hex'),'DEV_ENC_PAN_506','DEV_ENC_DEK_506',
    'VTX0016','Divya Menon','Senior Data Engineer','Data Engineering',
    'L3','Bengaluru','PERMANENT','2023-01-01',NULL,'ACTIVE'),
 
-  -- ── Emp 017 Aditya Gupta ──────────────────────────────────────────────
-  ('50000000-0017-0012-0000-000000000001','30000000-0000-0000-0000-000000000017','10000000-0000-0000-0000-000000000012',
-   encode(hmac('SYNTHETIC_PAN_017','dev_secret','sha256'),'hex'),'DEV_ENC_PAN_017','DEV_ENC_DEK_017',
+  -- ── Emp 507 Aditya Gupta ──────────────────────────────────────────────
+  ('50000000-0507-0012-0000-000000000001','30000000-0000-0000-0000-000000000507','10000000-0000-0000-0000-000000000012',
+   encode(hmac('SYNTHETIC_PAN_507','dev_secret','sha256'),'hex'),'DEV_ENC_PAN_507','DEV_ENC_DEK_507',
    'IDC0017','Aditya Gupta','Compliance Analyst','Compliance',
    'A2','Delhi','PERMANENT','2016-01-01','2019-12-31','ALUMNI'),
-  ('50000000-0017-0013-0000-000000000001','30000000-0000-0000-0000-000000000017','10000000-0000-0000-0000-000000000013',
-   encode(hmac('SYNTHETIC_PAN_017','dev_secret','sha256'),'hex'),'DEV_ENC_PAN_017','DEV_ENC_DEK_017',
+  ('50000000-0507-0013-0000-000000000001','30000000-0000-0000-0000-000000000507','10000000-0000-0000-0000-000000000013',
+   encode(hmac('SYNTHETIC_PAN_507','dev_secret','sha256'),'hex'),'DEV_ENC_PAN_507','DEV_ENC_DEK_507',
    'BSP0017','Aditya Gupta','Regulatory Affairs Associate','Regulatory',
    'M1','Hyderabad','PERMANENT','2020-01-01','2022-12-31','ALUMNI'),
-  ('50000000-0017-0011-0000-000000000001','30000000-0000-0000-0000-000000000017','10000000-0000-0000-0000-000000000011',
-   encode(hmac('SYNTHETIC_PAN_017','dev_secret','sha256'),'hex'),'DEV_ENC_PAN_017','DEV_ENC_DEK_017',
+  ('50000000-0507-0011-0000-000000000001','30000000-0000-0000-0000-000000000507','10000000-0000-0000-0000-000000000011',
+   encode(hmac('SYNTHETIC_PAN_507','dev_secret','sha256'),'hex'),'DEV_ENC_PAN_507','DEV_ENC_DEK_507',
    'VTX0017','Aditya Gupta','Staff Engineer','Platform Engineering',
    'L4','Bengaluru','PERMANENT','2023-01-01',NULL,'ACTIVE'),
 
-  -- ── Emp 018 Preethi Nambiar ───────────────────────────────────────────
-  ('50000000-0018-0013-0000-000000000001','30000000-0000-0000-0000-000000000018','10000000-0000-0000-0000-000000000013',
-   encode(hmac('SYNTHETIC_PAN_018','dev_secret','sha256'),'hex'),'DEV_ENC_PAN_018','DEV_ENC_DEK_018',
+  -- ── Emp 508 Preethi Nambiar ───────────────────────────────────────────
+  ('50000000-0508-0013-0000-000000000001','30000000-0000-0000-0000-000000000508','10000000-0000-0000-0000-000000000013',
+   encode(hmac('SYNTHETIC_PAN_508','dev_secret','sha256'),'hex'),'DEV_ENC_PAN_508','DEV_ENC_DEK_508',
    'BSP0018','Preethi Nambiar','Research Associate','R&D',
    'M1','Bengaluru','PERMANENT','2016-01-01','2019-12-31','ALUMNI'),
-  ('50000000-0018-0011-0000-000000000001','30000000-0000-0000-0000-000000000018','10000000-0000-0000-0000-000000000011',
-   encode(hmac('SYNTHETIC_PAN_018','dev_secret','sha256'),'hex'),'DEV_ENC_PAN_018','DEV_ENC_DEK_018',
+  ('50000000-0508-0011-0000-000000000001','30000000-0000-0000-0000-000000000508','10000000-0000-0000-0000-000000000011',
+   encode(hmac('SYNTHETIC_PAN_508','dev_secret','sha256'),'hex'),'DEV_ENC_PAN_508','DEV_ENC_DEK_508',
    'VTX0018','Preethi Nambiar','Senior Software Engineer','Engineering',
    'L3','Bengaluru','PERMANENT','2020-01-01','2022-12-31','ALUMNI'),
-  ('50000000-0018-0012-0000-000000000001','30000000-0000-0000-0000-000000000018','10000000-0000-0000-0000-000000000012',
-   encode(hmac('SYNTHETIC_PAN_018','dev_secret','sha256'),'hex'),'DEV_ENC_PAN_018','DEV_ENC_DEK_018',
+  ('50000000-0508-0012-0000-000000000001','30000000-0000-0000-0000-000000000508','10000000-0000-0000-0000-000000000012',
+   encode(hmac('SYNTHETIC_PAN_508','dev_secret','sha256'),'hex'),'DEV_ENC_PAN_508','DEV_ENC_DEK_508',
    'IDC0018','Preethi Nambiar','Finance Manager','Finance',
    'B1','Mumbai','PERMANENT','2023-01-01',NULL,'ACTIVE'),
 
-  -- ── Emp 019 Suresh Babu ───────────────────────────────────────────────
-  ('50000000-0019-0013-0000-000000000001','30000000-0000-0000-0000-000000000019','10000000-0000-0000-0000-000000000013',
-   encode(hmac('SYNTHETIC_PAN_019','dev_secret','sha256'),'hex'),'DEV_ENC_PAN_019','DEV_ENC_DEK_019',
+  -- ── Emp 509 Suresh Babu ───────────────────────────────────────────────
+  ('50000000-0509-0013-0000-000000000001','30000000-0000-0000-0000-000000000509','10000000-0000-0000-0000-000000000013',
+   encode(hmac('SYNTHETIC_PAN_509','dev_secret','sha256'),'hex'),'DEV_ENC_PAN_509','DEV_ENC_DEK_509',
    'BSP0019','Suresh Babu','Clinical Data Analyst','Clinical Operations',
    'M1','Chennai','PERMANENT','2016-01-01','2019-12-31','ALUMNI'),
-  ('50000000-0019-0011-0000-000000000001','30000000-0000-0000-0000-000000000019','10000000-0000-0000-0000-000000000011',
-   encode(hmac('SYNTHETIC_PAN_019','dev_secret','sha256'),'hex'),'DEV_ENC_PAN_019','DEV_ENC_DEK_019',
+  ('50000000-0509-0011-0000-000000000001','30000000-0000-0000-0000-000000000509','10000000-0000-0000-0000-000000000011',
+   encode(hmac('SYNTHETIC_PAN_509','dev_secret','sha256'),'hex'),'DEV_ENC_PAN_509','DEV_ENC_DEK_509',
    'VTX0019','Suresh Babu','Senior Data Engineer','Data Engineering',
    'L3','Bengaluru','PERMANENT','2020-01-01','2022-12-31','ALUMNI'),
-  ('50000000-0019-0012-0000-000000000001','30000000-0000-0000-0000-000000000019','10000000-0000-0000-0000-000000000012',
-   encode(hmac('SYNTHETIC_PAN_019','dev_secret','sha256'),'hex'),'DEV_ENC_PAN_019','DEV_ENC_DEK_019',
+  ('50000000-0509-0012-0000-000000000001','30000000-0000-0000-0000-000000000509','10000000-0000-0000-0000-000000000012',
+   encode(hmac('SYNTHETIC_PAN_509','dev_secret','sha256'),'hex'),'DEV_ENC_PAN_509','DEV_ENC_DEK_509',
    'IDC0019','Suresh Babu','Risk Manager','Risk',
    'B1','Mumbai','PERMANENT','2023-01-01',NULL,'ACTIVE'),
 
-  -- ── Emp 020 Kavya Reddy ───────────────────────────────────────────────
-  ('50000000-0020-0013-0000-000000000001','30000000-0000-0000-0000-000000000020','10000000-0000-0000-0000-000000000013',
-   encode(hmac('SYNTHETIC_PAN_020','dev_secret','sha256'),'hex'),'DEV_ENC_PAN_020','DEV_ENC_DEK_020',
+  -- ── Emp 510 Kavya Reddy ───────────────────────────────────────────────
+  ('50000000-0510-0013-0000-000000000001','30000000-0000-0000-0000-000000000510','10000000-0000-0000-0000-000000000013',
+   encode(hmac('SYNTHETIC_PAN_510','dev_secret','sha256'),'hex'),'DEV_ENC_PAN_510','DEV_ENC_DEK_510',
    'BSP0020','Kavya Reddy','Regulatory Affairs Associate','Regulatory',
    'M2','Hyderabad','PERMANENT','2016-01-01','2019-12-31','ALUMNI'),
-  ('50000000-0020-0011-0000-000000000001','30000000-0000-0000-0000-000000000020','10000000-0000-0000-0000-000000000011',
-   encode(hmac('SYNTHETIC_PAN_020','dev_secret','sha256'),'hex'),'DEV_ENC_PAN_020','DEV_ENC_DEK_020',
+  ('50000000-0510-0011-0000-000000000001','30000000-0000-0000-0000-000000000510','10000000-0000-0000-0000-000000000011',
+   encode(hmac('SYNTHETIC_PAN_510','dev_secret','sha256'),'hex'),'DEV_ENC_PAN_510','DEV_ENC_DEK_510',
    'VTX0020','Kavya Reddy','Lead Engineer','Engineering',
    'L4','Bengaluru','PERMANENT','2020-01-01','2022-12-31','ALUMNI'),
-  ('50000000-0020-0012-0000-000000000001','30000000-0000-0000-0000-000000000020','10000000-0000-0000-0000-000000000012',
-   encode(hmac('SYNTHETIC_PAN_020','dev_secret','sha256'),'hex'),'DEV_ENC_PAN_020','DEV_ENC_DEK_020',
+  ('50000000-0510-0012-0000-000000000001','30000000-0000-0000-0000-000000000510','10000000-0000-0000-0000-000000000012',
+   encode(hmac('SYNTHETIC_PAN_510','dev_secret','sha256'),'hex'),'DEV_ENC_PAN_510','DEV_ENC_DEK_510',
    'IDC0020','Kavya Reddy','Investment Manager','Investment Banking',
    'B2','Mumbai','PERMANENT','2023-01-01',NULL,'ACTIVE');
 
@@ -306,51 +309,51 @@ CREATE TEMP TABLE _stints_b (
 );
 
 INSERT INTO _stints_b VALUES
-  -- ── Emp 011 Arjun Kapoor ────────────────────────────────────────────────
-  (11,'Arjun Kapoor',   '30000000-0000-0000-0000-000000000011','50000000-0011-0011-0000-000000000001','10000000-0000-0000-0000-000000000011','Vertex Technologies Pvt Ltd', 'Software Engineer',          '2016-01-01','2019-12-31',TRUE),
-  (11,'Arjun Kapoor',   '30000000-0000-0000-0000-000000000011','50000000-0011-0012-0000-000000000001','10000000-0000-0000-0000-000000000012','Indigo Capital Ltd',           'Senior Financial Analyst',   '2020-01-01','2022-12-31',TRUE),
-  (11,'Arjun Kapoor',   '30000000-0000-0000-0000-000000000011','50000000-0011-0013-0000-000000000001','10000000-0000-0000-0000-000000000013','Bluestar Pharma Pvt Ltd',      'Research Lead',              '2023-01-01',NULL,        FALSE),
-  -- ── Emp 012 Meera Krishnan ──────────────────────────────────────────────
-  (12,'Meera Krishnan', '30000000-0000-0000-0000-000000000012','50000000-0012-0011-0000-000000000001','10000000-0000-0000-0000-000000000011','Vertex Technologies Pvt Ltd', 'Data Engineer',              '2016-01-01','2019-12-31',TRUE),
-  (12,'Meera Krishnan', '30000000-0000-0000-0000-000000000012','50000000-0012-0012-0000-000000000001','10000000-0000-0000-0000-000000000012','Indigo Capital Ltd',           'Senior Risk Analyst',        '2020-01-01','2022-12-31',TRUE),
-  (12,'Meera Krishnan', '30000000-0000-0000-0000-000000000012','50000000-0012-0013-0000-000000000001','10000000-0000-0000-0000-000000000013','Bluestar Pharma Pvt Ltd',      'Clinical Data Lead',         '2023-01-01',NULL,        FALSE),
-  -- ── Emp 013 Siddharth Rao ───────────────────────────────────────────────
-  (13,'Siddharth Rao',  '30000000-0000-0000-0000-000000000013','50000000-0013-0011-0000-000000000001','10000000-0000-0000-0000-000000000011','Vertex Technologies Pvt Ltd', 'DevOps Engineer',            '2016-01-01','2019-12-31',TRUE),
-  (13,'Siddharth Rao',  '30000000-0000-0000-0000-000000000013','50000000-0013-0012-0000-000000000001','10000000-0000-0000-0000-000000000012','Indigo Capital Ltd',           'Compliance Analyst',         '2020-01-01','2022-12-31',TRUE),
-  (13,'Siddharth Rao',  '30000000-0000-0000-0000-000000000013','50000000-0013-0013-0000-000000000001','10000000-0000-0000-0000-000000000013','Bluestar Pharma Pvt Ltd',      'Regulatory Affairs Manager', '2023-01-01',NULL,        FALSE),
-  -- ── Emp 014 Natasha Verma ───────────────────────────────────────────────
-  (14,'Natasha Verma',  '30000000-0000-0000-0000-000000000014','50000000-0014-0011-0000-000000000001','10000000-0000-0000-0000-000000000011','Vertex Technologies Pvt Ltd', 'Product Analyst',            '2016-01-01','2019-12-31',TRUE),
-  (14,'Natasha Verma',  '30000000-0000-0000-0000-000000000014','50000000-0014-0012-0000-000000000001','10000000-0000-0000-0000-000000000012','Indigo Capital Ltd',           'Investment Analyst',         '2020-01-01','2022-12-31',TRUE),
-  (14,'Natasha Verma',  '30000000-0000-0000-0000-000000000014','50000000-0014-0013-0000-000000000001','10000000-0000-0000-0000-000000000013','Bluestar Pharma Pvt Ltd',      'QA Lead',                    '2023-01-01',NULL,        FALSE),
-  -- ── Emp 015 Rajesh Pillai ───────────────────────────────────────────────
-  (15,'Rajesh Pillai',  '30000000-0000-0000-0000-000000000015','50000000-0015-0012-0000-000000000001','10000000-0000-0000-0000-000000000012','Indigo Capital Ltd',           'Financial Analyst',          '2016-01-01','2019-12-31',TRUE),
-  (15,'Rajesh Pillai',  '30000000-0000-0000-0000-000000000015','50000000-0015-0013-0000-000000000001','10000000-0000-0000-0000-000000000013','Bluestar Pharma Pvt Ltd',      'Senior Research Scientist',  '2020-01-01','2022-12-31',TRUE),
-  (15,'Rajesh Pillai',  '30000000-0000-0000-0000-000000000015','50000000-0015-0011-0000-000000000001','10000000-0000-0000-0000-000000000011','Vertex Technologies Pvt Ltd', 'Senior Software Engineer',   '2023-01-01',NULL,        FALSE),
-  -- ── Emp 016 Divya Menon ─────────────────────────────────────────────────
-  (16,'Divya Menon',    '30000000-0000-0000-0000-000000000016','50000000-0016-0012-0000-000000000001','10000000-0000-0000-0000-000000000012','Indigo Capital Ltd',           'Risk Analyst',               '2016-01-01','2019-12-31',TRUE),
-  (16,'Divya Menon',    '30000000-0000-0000-0000-000000000016','50000000-0016-0013-0000-000000000001','10000000-0000-0000-0000-000000000013','Bluestar Pharma Pvt Ltd',      'Clinical Data Analyst',      '2020-01-01','2022-12-31',TRUE),
-  (16,'Divya Menon',    '30000000-0000-0000-0000-000000000016','50000000-0016-0011-0000-000000000001','10000000-0000-0000-0000-000000000011','Vertex Technologies Pvt Ltd', 'Senior Data Engineer',       '2023-01-01',NULL,        FALSE),
-  -- ── Emp 017 Aditya Gupta ────────────────────────────────────────────────
-  (17,'Aditya Gupta',   '30000000-0000-0000-0000-000000000017','50000000-0017-0012-0000-000000000001','10000000-0000-0000-0000-000000000012','Indigo Capital Ltd',           'Compliance Analyst',         '2016-01-01','2019-12-31',TRUE),
-  (17,'Aditya Gupta',   '30000000-0000-0000-0000-000000000017','50000000-0017-0013-0000-000000000001','10000000-0000-0000-0000-000000000013','Bluestar Pharma Pvt Ltd',      'Regulatory Affairs Associate','2020-01-01','2022-12-31',TRUE),
-  (17,'Aditya Gupta',   '30000000-0000-0000-0000-000000000017','50000000-0017-0011-0000-000000000001','10000000-0000-0000-0000-000000000011','Vertex Technologies Pvt Ltd', 'Staff Engineer',             '2023-01-01',NULL,        FALSE),
-  -- ── Emp 018 Preethi Nambiar ─────────────────────────────────────────────
-  (18,'Preethi Nambiar','30000000-0000-0000-0000-000000000018','50000000-0018-0013-0000-000000000001','10000000-0000-0000-0000-000000000013','Bluestar Pharma Pvt Ltd',      'Research Associate',         '2016-01-01','2019-12-31',TRUE),
-  (18,'Preethi Nambiar','30000000-0000-0000-0000-000000000018','50000000-0018-0011-0000-000000000001','10000000-0000-0000-0000-000000000011','Vertex Technologies Pvt Ltd', 'Senior Software Engineer',   '2020-01-01','2022-12-31',TRUE),
-  (18,'Preethi Nambiar','30000000-0000-0000-0000-000000000018','50000000-0018-0012-0000-000000000001','10000000-0000-0000-0000-000000000012','Indigo Capital Ltd',           'Finance Manager',            '2023-01-01',NULL,        FALSE),
-  -- ── Emp 019 Suresh Babu ─────────────────────────────────────────────────
-  (19,'Suresh Babu',    '30000000-0000-0000-0000-000000000019','50000000-0019-0013-0000-000000000001','10000000-0000-0000-0000-000000000013','Bluestar Pharma Pvt Ltd',      'Clinical Data Analyst',      '2016-01-01','2019-12-31',TRUE),
-  (19,'Suresh Babu',    '30000000-0000-0000-0000-000000000019','50000000-0019-0011-0000-000000000001','10000000-0000-0000-0000-000000000011','Vertex Technologies Pvt Ltd', 'Senior Data Engineer',       '2020-01-01','2022-12-31',TRUE),
-  (19,'Suresh Babu',    '30000000-0000-0000-0000-000000000019','50000000-0019-0012-0000-000000000001','10000000-0000-0000-0000-000000000012','Indigo Capital Ltd',           'Risk Manager',               '2023-01-01',NULL,        FALSE),
-  -- ── Emp 020 Kavya Reddy ─────────────────────────────────────────────────
-  (20,'Kavya Reddy',    '30000000-0000-0000-0000-000000000020','50000000-0020-0013-0000-000000000001','10000000-0000-0000-0000-000000000013','Bluestar Pharma Pvt Ltd',      'Regulatory Affairs Associate','2016-01-01','2019-12-31',TRUE),
-  (20,'Kavya Reddy',    '30000000-0000-0000-0000-000000000020','50000000-0020-0011-0000-000000000001','10000000-0000-0000-0000-000000000011','Vertex Technologies Pvt Ltd', 'Lead Engineer',              '2020-01-01','2022-12-31',TRUE),
-  (20,'Kavya Reddy',    '30000000-0000-0000-0000-000000000020','50000000-0020-0012-0000-000000000001','10000000-0000-0000-0000-000000000012','Indigo Capital Ltd',           'Investment Manager',         '2023-01-01',NULL,        FALSE);
+  -- ── Emp 501 Arjun Kapoor ────────────────────────────────────────────────
+  (501,'Arjun Kapoor',   '30000000-0000-0000-0000-000000000501','50000000-0501-0011-0000-000000000001','10000000-0000-0000-0000-000000000011','Vertex Technologies Pvt Ltd', 'Software Engineer',          '2016-01-01','2019-12-31',TRUE),
+  (501,'Arjun Kapoor',   '30000000-0000-0000-0000-000000000501','50000000-0501-0012-0000-000000000001','10000000-0000-0000-0000-000000000012','Indigo Capital Ltd',           'Senior Financial Analyst',   '2020-01-01','2022-12-31',TRUE),
+  (501,'Arjun Kapoor',   '30000000-0000-0000-0000-000000000501','50000000-0501-0013-0000-000000000001','10000000-0000-0000-0000-000000000013','Bluestar Pharma Pvt Ltd',      'Research Lead',              '2023-01-01',NULL,        FALSE),
+  -- ── Emp 502 Meera Krishnan ──────────────────────────────────────────────
+  (502,'Meera Krishnan', '30000000-0000-0000-0000-000000000502','50000000-0502-0011-0000-000000000001','10000000-0000-0000-0000-000000000011','Vertex Technologies Pvt Ltd', 'Data Engineer',              '2016-01-01','2019-12-31',TRUE),
+  (502,'Meera Krishnan', '30000000-0000-0000-0000-000000000502','50000000-0502-0012-0000-000000000001','10000000-0000-0000-0000-000000000012','Indigo Capital Ltd',           'Senior Risk Analyst',        '2020-01-01','2022-12-31',TRUE),
+  (502,'Meera Krishnan', '30000000-0000-0000-0000-000000000502','50000000-0502-0013-0000-000000000001','10000000-0000-0000-0000-000000000013','Bluestar Pharma Pvt Ltd',      'Clinical Data Lead',         '2023-01-01',NULL,        FALSE),
+  -- ── Emp 503 Siddharth Rao ───────────────────────────────────────────────
+  (503,'Siddharth Rao',  '30000000-0000-0000-0000-000000000503','50000000-0503-0011-0000-000000000001','10000000-0000-0000-0000-000000000011','Vertex Technologies Pvt Ltd', 'DevOps Engineer',            '2016-01-01','2019-12-31',TRUE),
+  (503,'Siddharth Rao',  '30000000-0000-0000-0000-000000000503','50000000-0503-0012-0000-000000000001','10000000-0000-0000-0000-000000000012','Indigo Capital Ltd',           'Compliance Analyst',         '2020-01-01','2022-12-31',TRUE),
+  (503,'Siddharth Rao',  '30000000-0000-0000-0000-000000000503','50000000-0503-0013-0000-000000000001','10000000-0000-0000-0000-000000000013','Bluestar Pharma Pvt Ltd',      'Regulatory Affairs Manager', '2023-01-01',NULL,        FALSE),
+  -- ── Emp 504 Natasha Verma ───────────────────────────────────────────────
+  (504,'Natasha Verma',  '30000000-0000-0000-0000-000000000504','50000000-0504-0011-0000-000000000001','10000000-0000-0000-0000-000000000011','Vertex Technologies Pvt Ltd', 'Product Analyst',            '2016-01-01','2019-12-31',TRUE),
+  (504,'Natasha Verma',  '30000000-0000-0000-0000-000000000504','50000000-0504-0012-0000-000000000001','10000000-0000-0000-0000-000000000012','Indigo Capital Ltd',           'Investment Analyst',         '2020-01-01','2022-12-31',TRUE),
+  (504,'Natasha Verma',  '30000000-0000-0000-0000-000000000504','50000000-0504-0013-0000-000000000001','10000000-0000-0000-0000-000000000013','Bluestar Pharma Pvt Ltd',      'QA Lead',                    '2023-01-01',NULL,        FALSE),
+  -- ── Emp 505 Rajesh Pillai ───────────────────────────────────────────────
+  (505,'Rajesh Pillai',  '30000000-0000-0000-0000-000000000505','50000000-0505-0012-0000-000000000001','10000000-0000-0000-0000-000000000012','Indigo Capital Ltd',           'Financial Analyst',          '2016-01-01','2019-12-31',TRUE),
+  (505,'Rajesh Pillai',  '30000000-0000-0000-0000-000000000505','50000000-0505-0013-0000-000000000001','10000000-0000-0000-0000-000000000013','Bluestar Pharma Pvt Ltd',      'Senior Research Scientist',  '2020-01-01','2022-12-31',TRUE),
+  (505,'Rajesh Pillai',  '30000000-0000-0000-0000-000000000505','50000000-0505-0011-0000-000000000001','10000000-0000-0000-0000-000000000011','Vertex Technologies Pvt Ltd', 'Senior Software Engineer',   '2023-01-01',NULL,        FALSE),
+  -- ── Emp 506 Divya Menon ─────────────────────────────────────────────────
+  (506,'Divya Menon',    '30000000-0000-0000-0000-000000000506','50000000-0506-0012-0000-000000000001','10000000-0000-0000-0000-000000000012','Indigo Capital Ltd',           'Risk Analyst',               '2016-01-01','2019-12-31',TRUE),
+  (506,'Divya Menon',    '30000000-0000-0000-0000-000000000506','50000000-0506-0013-0000-000000000001','10000000-0000-0000-0000-000000000013','Bluestar Pharma Pvt Ltd',      'Clinical Data Analyst',      '2020-01-01','2022-12-31',TRUE),
+  (506,'Divya Menon',    '30000000-0000-0000-0000-000000000506','50000000-0506-0011-0000-000000000001','10000000-0000-0000-0000-000000000011','Vertex Technologies Pvt Ltd', 'Senior Data Engineer',       '2023-01-01',NULL,        FALSE),
+  -- ── Emp 507 Aditya Gupta ────────────────────────────────────────────────
+  (507,'Aditya Gupta',   '30000000-0000-0000-0000-000000000507','50000000-0507-0012-0000-000000000001','10000000-0000-0000-0000-000000000012','Indigo Capital Ltd',           'Compliance Analyst',         '2016-01-01','2019-12-31',TRUE),
+  (507,'Aditya Gupta',   '30000000-0000-0000-0000-000000000507','50000000-0507-0013-0000-000000000001','10000000-0000-0000-0000-000000000013','Bluestar Pharma Pvt Ltd',      'Regulatory Affairs Associate','2020-01-01','2022-12-31',TRUE),
+  (507,'Aditya Gupta',   '30000000-0000-0000-0000-000000000507','50000000-0507-0011-0000-000000000001','10000000-0000-0000-0000-000000000011','Vertex Technologies Pvt Ltd', 'Staff Engineer',             '2023-01-01',NULL,        FALSE),
+  -- ── Emp 508 Preethi Nambiar ─────────────────────────────────────────────
+  (508,'Preethi Nambiar','30000000-0000-0000-0000-000000000508','50000000-0508-0013-0000-000000000001','10000000-0000-0000-0000-000000000013','Bluestar Pharma Pvt Ltd',      'Research Associate',         '2016-01-01','2019-12-31',TRUE),
+  (508,'Preethi Nambiar','30000000-0000-0000-0000-000000000508','50000000-0508-0011-0000-000000000001','10000000-0000-0000-0000-000000000011','Vertex Technologies Pvt Ltd', 'Senior Software Engineer',   '2020-01-01','2022-12-31',TRUE),
+  (508,'Preethi Nambiar','30000000-0000-0000-0000-000000000508','50000000-0508-0012-0000-000000000001','10000000-0000-0000-0000-000000000012','Indigo Capital Ltd',           'Finance Manager',            '2023-01-01',NULL,        FALSE),
+  -- ── Emp 509 Suresh Babu ─────────────────────────────────────────────────
+  (509,'Suresh Babu',    '30000000-0000-0000-0000-000000000509','50000000-0509-0013-0000-000000000001','10000000-0000-0000-0000-000000000013','Bluestar Pharma Pvt Ltd',      'Clinical Data Analyst',      '2016-01-01','2019-12-31',TRUE),
+  (509,'Suresh Babu',    '30000000-0000-0000-0000-000000000509','50000000-0509-0011-0000-000000000001','10000000-0000-0000-0000-000000000011','Vertex Technologies Pvt Ltd', 'Senior Data Engineer',       '2020-01-01','2022-12-31',TRUE),
+  (509,'Suresh Babu',    '30000000-0000-0000-0000-000000000509','50000000-0509-0012-0000-000000000001','10000000-0000-0000-0000-000000000012','Indigo Capital Ltd',           'Risk Manager',               '2023-01-01',NULL,        FALSE),
+  -- ── Emp 510 Kavya Reddy ─────────────────────────────────────────────────
+  (510,'Kavya Reddy',    '30000000-0000-0000-0000-000000000510','50000000-0510-0013-0000-000000000001','10000000-0000-0000-0000-000000000013','Bluestar Pharma Pvt Ltd',      'Regulatory Affairs Associate','2016-01-01','2019-12-31',TRUE),
+  (510,'Kavya Reddy',    '30000000-0000-0000-0000-000000000510','50000000-0510-0011-0000-000000000001','10000000-0000-0000-0000-000000000011','Vertex Technologies Pvt Ltd', 'Lead Engineer',              '2020-01-01','2022-12-31',TRUE),
+  (510,'Kavya Reddy',    '30000000-0000-0000-0000-000000000510','50000000-0510-0012-0000-000000000001','10000000-0000-0000-0000-000000000012','Indigo Capital Ltd',           'Investment Manager',         '2023-01-01',NULL,        FALSE);
 
--- Pan token lookup for emp011-020
+-- Pan token lookup for emp501-510
 CREATE TEMP TABLE _pan_b AS
   SELECT n, encode(hmac('SYNTHETIC_PAN_' || LPAD(n::text, 3, '0'), 'dev_secret', 'sha256'), 'hex') AS pan_token
-  FROM generate_series(11, 20) AS n;
+  FROM generate_series(501, 510) AS n;
 
 -- ============================================================
 -- DOCUMENTS

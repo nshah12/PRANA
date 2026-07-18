@@ -88,25 +88,41 @@ Login URL: `http://localhost:3000/org/login`
 
 ---
 
-## 3-Tenant Cross-Tenant Test Employees (emp011–020)
+## 3-Tenant Cross-Tenant Test Employees (emp501–510)
 
 **Seed file:** `prana-db/seeds/dev_seed_3tenant10.sql`  
 All 10 employees span exactly **3 tenants** — designed for cross-tenant testing.  
 Login flow: enter mobile → OTP (`123456`) → vault opens  
-Password: `DevEmp@123`
+Password: `Prana@Admin0124`
+
+> **2026-07-18 history note:** this file used to number these employees 011–020,
+> which silently collided with `dev_seed.sql`'s own bulk 1–500 `employee_user`
+> range (dev_seed.sql runs first and always creates 500 base identities — see
+> its own header, "1 platform, 2 tenants, ..." in `prana-db/CLAUDE.md` is stale
+> too). Running this file against a DB that already had `dev_seed.sql` applied
+> always failed with `duplicate key value violates unique constraint
+> "employee_user_pkey"` and rolled back — meaning this file could only ever
+> have succeeded against a DB state that predates dev_seed.sql's expansion to
+> 500 rows. Renumbered to 501–510 (first free block after the base range) so
+> it now applies cleanly on top of the current seed set. Separately, this
+> file's own hardcoded OA/employee password hash was found to actually decode
+> to the old `DevEmp@123` password, not `Prana@Admin0124` as its own comments
+> claimed — fixed to a freshly generated, verified `Prana@Admin0124` hash, and
+> `reset_dev.py`'s `RICH_ORGS` scope now includes these 3 tenants so future
+> resets normalize them like every other org.
 
 | # | Name | Mobile | Email | Current Tenant | Career (oldest → current) |
 |---|------|--------|-------|----------------|--------------------------|
-| 011 | Arjun Kapoor | `+919000000011` | emp011@test.prana | Bluestar Pharma | Vertex(2016-19) → Indigo(2020-22) → **Bluestar** |
-| 012 | Meera Krishnan | `+919000000012` | emp012@test.prana | Bluestar Pharma | Vertex(2016-19) → Indigo(2020-22) → **Bluestar** |
-| 013 | Siddharth Rao | `+919000000013` | emp013@test.prana | Bluestar Pharma | Vertex(2016-19) → Indigo(2020-22) → **Bluestar** |
-| 014 | Natasha Verma | `+919000000014` | emp014@test.prana | Bluestar Pharma | Vertex(2016-19) → Indigo(2020-22) → **Bluestar** |
-| 015 | Rajesh Pillai | `+919000000015` | emp015@test.prana | Vertex Technologies | Indigo(2016-19) → Bluestar(2020-22) → **Vertex** |
-| 016 | Divya Menon | `+919000000016` | emp016@test.prana | Vertex Technologies | Indigo(2016-19) → Bluestar(2020-22) → **Vertex** |
-| 017 | Aditya Gupta | `+919000000017` | emp017@test.prana | Vertex Technologies | Indigo(2016-19) → Bluestar(2020-22) → **Vertex** |
-| 018 | Preethi Nambiar | `+919000000018` | emp018@test.prana | Indigo Capital | Bluestar(2016-19) → Vertex(2020-22) → **Indigo** |
-| 019 | Suresh Babu | `+919000000019` | emp019@test.prana | Indigo Capital | Bluestar(2016-19) → Vertex(2020-22) → **Indigo** |
-| 020 | Kavya Reddy | `+919000000020` | emp020@test.prana | Indigo Capital | Bluestar(2016-19) → Vertex(2020-22) → **Indigo** |
+| 501 | Arjun Kapoor | `+919000000501` | emp501@test.prana | Bluestar Pharma | Vertex(2016-19) → Indigo(2020-22) → **Bluestar** |
+| 502 | Meera Krishnan | `+919000000502` | emp502@test.prana | Bluestar Pharma | Vertex(2016-19) → Indigo(2020-22) → **Bluestar** |
+| 503 | Siddharth Rao | `+919000000503` | emp503@test.prana | Bluestar Pharma | Vertex(2016-19) → Indigo(2020-22) → **Bluestar** |
+| 504 | Natasha Verma | `+919000000504` | emp504@test.prana | Bluestar Pharma | Vertex(2016-19) → Indigo(2020-22) → **Bluestar** |
+| 505 | Rajesh Pillai | `+919000000505` | emp505@test.prana | Vertex Technologies | Indigo(2016-19) → Bluestar(2020-22) → **Vertex** |
+| 506 | Divya Menon | `+919000000506` | emp506@test.prana | Vertex Technologies | Indigo(2016-19) → Bluestar(2020-22) → **Vertex** |
+| 507 | Aditya Gupta | `+919000000507` | emp507@test.prana | Vertex Technologies | Indigo(2016-19) → Bluestar(2020-22) → **Vertex** |
+| 508 | Preethi Nambiar | `+919000000508` | emp508@test.prana | Indigo Capital | Bluestar(2016-19) → Vertex(2020-22) → **Indigo** |
+| 509 | Suresh Babu | `+919000000509` | emp509@test.prana | Indigo Capital | Bluestar(2016-19) → Vertex(2020-22) → **Indigo** |
+| 510 | Kavya Reddy | `+919000000510` | emp510@test.prana | Indigo Capital | Bluestar(2016-19) → Vertex(2020-22) → **Indigo** |
 
 Each employee: 31 documents total (11 alumni-stint 1 + 11 alumni-stint 2 + 9 current-stint)
 
@@ -127,8 +143,8 @@ First login: scan TOTP QR → register in authenticator → subsequent logins ne
 | CFO | cfo@vertex.in | Prana@Admin0124 |
 | CISO | ciso@vertex.in | Prana@Admin0124 |
 
-Current employees at Vertex: emp015, emp016, emp017 (Group B current)  
-Past employees who have docs at Vertex: emp011-014 (old stint), emp018-020 (mid stint)
+Current employees at Vertex: emp505, emp506, emp507 (Group B current)  
+Past employees who have docs at Vertex: emp501-504 (old stint), emp508-510 (mid stint)
 
 ### Indigo Capital Ltd (T12)
 
@@ -140,8 +156,8 @@ Past employees who have docs at Vertex: emp011-014 (old stint), emp018-020 (mid 
 | CFO | cfo@indigocapital.in | Prana@Admin0124 |
 | CISO | ciso@indigocapital.in | Prana@Admin0124 |
 
-Current employees at Indigo: emp018, emp019, emp020 (Group C current)  
-Past employees who have docs at Indigo: emp011-014 (mid stint), emp015-017 (old stint)
+Current employees at Indigo: emp508, emp509, emp510 (Group C current)  
+Past employees who have docs at Indigo: emp501-504 (mid stint), emp505-507 (old stint)
 
 ### Bluestar Pharma Pvt Ltd (T13)
 
@@ -153,19 +169,19 @@ Past employees who have docs at Indigo: emp011-014 (mid stint), emp015-017 (old 
 | CFO | cfo@bluestarpharma.in | Prana@Admin0124 |
 | CISO | ciso@bluestarpharma.in | Prana@Admin0124 |
 
-Current employees at Bluestar: emp011, emp012, emp013, emp014 (Group A current)  
-Past employees who have docs at Bluestar: emp015-017 (mid stint), emp018-020 (old stint)
+Current employees at Bluestar: emp501, emp502, emp503, emp504 (Group A current)  
+Past employees who have docs at Bluestar: emp505-507 (mid stint), emp508-510 (old stint)
 
 ---
 
-## Cross-Tenant Test Scenarios (emp011-020)
+## Cross-Tenant Test Scenarios (emp501-510)
 
 | Scenario | What to do |
 |----------|-----------|
-| Same employee, different portals | Login to `admin@vertex.in` + `admin@indigocapital.in` — both see docs for emp015 (was at Indigo old, now at Vertex) |
-| Cross-tenant upload detection | Login as `ops@vertex.in`, try uploading doc with emp011's PAN → anomaly_event written, CISO alerted |
+| Same employee, different portals | Login to `admin@vertex.in` + `admin@indigocapital.in` — both see docs for emp505 (was at Indigo old, now at Vertex) |
+| Cross-tenant upload detection | Login as `ops@vertex.in`, try uploading doc with emp501's PAN → anomaly_event written, CISO alerted |
 | CISO cross-tenant alert | After upload attempt, login as `ciso@vertex.in` → portal bell shows CROSS_TENANT_UPLOAD alert |
-| Employee with 3-org vault | Login emp011 on mobile (+919000000011) → vault shows docs from Vertex + Indigo + Bluestar |
+| Employee with 3-org vault | Login emp501 on mobile (+919000000501) → vault shows docs from Vertex + Indigo + Bluestar |
 
 ---
 
@@ -183,7 +199,7 @@ Login URL: `http://localhost:3000/admin/login`
 
 Each OA user gets their own unique TOTP secret generated by PRANA on first login. The portal shows a QR code — scan it, the authenticator app stores that user's private secret, and from then on supplies the rolling 6-digit code at login.
 
-There is no shared secret and no bypass. Each of the 16 OA users has their own authenticator entry.
+There is no shared secret and no bypass. Each of the 31 OA users (16 base + 15 across Vertex/Indigo/Bluestar) has their own authenticator entry.
 
 ---
 

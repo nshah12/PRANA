@@ -68,6 +68,13 @@ RICH_ORGS = [
     ("10000000-0000-0000-0000-000000000010", "Cascade",    "cascaderetail.in",       33),
     ("10000000-0000-0000-0000-000000000002", "ABCDBank",   "abcdbank.in",            22),
     ("10000000-0000-0000-0000-000000000003", "PQRSFin",    "pqrsfintech.in",         11),
+    # 3-tenant multi-org rotation seed (dev_seed_3tenant10.sql) — 5 OA roles each,
+    # ~103 docs per tenant. Added here so their oa_user rows get normalized to
+    # Prana@Admin0124 like every other org; previously out of scope, so these 15
+    # OA users kept the seed file's own (stale) hardcoded hash indefinitely.
+    ("10000000-0000-0000-0000-000000000011", "Vertex",     "vertex.in",             103),
+    ("10000000-0000-0000-0000-000000000012", "Indigo",     "indigocapital.in",      103),
+    ("10000000-0000-0000-0000-000000000013", "Bluestar",   "bluestarpharma.in",     104),
 ]
 
 # TechCorp gets all 5 roles; others get oa_admin only
@@ -218,6 +225,11 @@ async def reset():
     print("  admin@cascaderetail.in  /  Prana@Admin0124  (33 docs)")
     print("  admin@abcdbank.in       /  Prana@Admin0124  (22 docs)")
     print("  admin@pqrsfintech.in    /  Prana@Admin0124  (11 docs)")
+    print()
+    print("3-Tenant Multi-Org Rotation (dev_seed_3tenant10.sql, emp501-510, all 5 roles each):")
+    print("  admin@vertex.in         /  Prana@Admin0124  (ops/chro/cfo/ciso@vertex.in too)")
+    print("  admin@indigocapital.in  /  Prana@Admin0124  (ops/chro/cfo/ciso@indigocapital.in too)")
+    print("  admin@bluestarpharma.in /  Prana@Admin0124  (ops/chro/cfo/ciso@bluestarpharma.in too)")
     print()
     print("Employee Mobile OTP: use 123456 (dev bypass)")
     print("TOTP: QR code shown on first login — scan with any authenticator app")
