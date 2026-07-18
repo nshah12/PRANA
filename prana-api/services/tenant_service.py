@@ -119,14 +119,17 @@ class TenantService:
             sla_tier, onboarding_tier, contract_type, account_manager,
         )
 
-        await self._db.execute(
-            """
-            INSERT INTO audit_event (event_type, actor_type, actor_id, tenant_id, event_metadata, occurred_at)
-            VALUES ('TENANT_PROVISIONED', 'PA', $1, $2, $3, NOW())
-            """,
-            created_by_pa, tenant_id,
-            {"action": "CREATE_PENDING", "domain": domain},
-        )
+        # No inline audit_event INSERT here: HTTP-path handlers never write
+        # audit_event directly (api.md's rule) -- AuditConsumer owns that, off
+        # the Kafka event the router already publishes. This INSERT used to
+        # sit here passing a raw dict where asyncpg needs a JSON string/cast,
+        # so every real call crashed with 500 before reaching this point --
+        # tenant creation had never once completed successfully. Removing it
+        # doesn't regress a working audit trail; it removes the only thing
+        # blocking the endpoint from running at all. See KAFKA_REDIS_ARCHITECTURE.md
+        # for a real gap this surfaced: AuditConsumer doesn't currently
+        # subscribe to prana.tenant.events at all -- tenant lifecycle events
+        # have no audit trail yet regardless of this fix.
 
         return {"tenant_id": tenant_id, "status": "PENDING"}
 
