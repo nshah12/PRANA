@@ -27,7 +27,7 @@ async def test_run_hrms_pull_uses_real_kafka_producer_not_nonexistent_class():
          patch("asyncpg.connect", new_callable=AsyncMock, return_value=mock_conn), \
          patch("boto3.client", return_value=MagicMock()), \
          patch("kafka.producer.get_kafka_producer", new_callable=AsyncMock, return_value=fake_kafka) as mock_get_kafka, \
-         patch("workflows.hrms_sync._svc.run_pull_sync", new_callable=AsyncMock,
+         patch("services.hrms_sync_service.HRMSSyncService.run_pull_sync", new_callable=AsyncMock,
                return_value={"records_pulled": 0}) as mock_pull:
         result = await run_hrms_pull(str(uuid.uuid4()), str(uuid.uuid4()))
 
@@ -56,7 +56,7 @@ async def test_run_hrms_pull_temporal_run_id_defaults_to_none_outside_activity_c
          patch("asyncpg.connect", new_callable=AsyncMock, return_value=mock_conn), \
          patch("boto3.client", return_value=MagicMock()), \
          patch("kafka.producer.get_kafka_producer", new_callable=AsyncMock, return_value=AsyncMock()), \
-         patch("workflows.hrms_sync._svc.run_pull_sync", new_callable=AsyncMock,
+         patch("services.hrms_sync_service.HRMSSyncService.run_pull_sync", new_callable=AsyncMock,
                return_value={}) as mock_pull:
         await run_hrms_pull(str(uuid.uuid4()), str(uuid.uuid4()))
 

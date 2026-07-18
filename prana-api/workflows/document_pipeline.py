@@ -7,22 +7,34 @@ implementation (see scripts/enforce_rules.py's ACTIVITY-01 check, added after
 exactly that bug shipped in workflows/compliance.py). Stages 03-06 call
 prana-ai via HTTP internally; stage02 (encryption) runs locally since it needs
 KMS access, which prana-ai does not have.
+
+workflows.activities imports boto3 at module level. Temporal's workflow
+sandbox re-imports, in a restricted/deterministic environment, every module
+that contains a @workflow.defn class — including this one — and boto3's
+import chain (via urllib3/http.client) trips the sandbox's restrictions,
+raising RuntimeError: Failed validating workflow DocumentPipelineWorkflow the
+moment a real worker process starts (not caught by any test: pytest imports
+this module directly, never through Temporal's sandboxed worker startup path).
+imports_passed_through() tells the sandbox not to re-validate this import —
+correct here because activities never execute inside the workflow sandbox in
+the first place, only @workflow.run code does.
 """
 from datetime import timedelta
 from temporalio import workflow, activity
 from temporalio.common import RetryPolicy
 
-from workflows.activities import (
-    stage02_encrypt,
-    stage03_scan,
-    stage04_extract,
-    stage04_write_unclassified,
-    stage05_resolve,
-    stage05_handle_cross_tenant_violation,
-    stage06_route,
-    stage06_raise_exception,
-    update_pipeline_status,
-)
+with workflow.unsafe.imports_passed_through():
+    from workflows.activities import (
+        stage02_encrypt,
+        stage03_scan,
+        stage04_extract,
+        stage04_write_unclassified,
+        stage05_resolve,
+        stage05_handle_cross_tenant_violation,
+        stage06_route,
+        stage06_raise_exception,
+        update_pipeline_status,
+    )
 
 # Must match worker.py's WORKERS dict key exactly — this constant is imported by
 # workflow_consumer.py (DocumentPipelineWorkflow/BatchTimeoutMonitorWorkflow starts)

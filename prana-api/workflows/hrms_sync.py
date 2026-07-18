@@ -13,9 +13,15 @@ from datetime import timedelta
 
 from temporalio import activity, workflow
 
-from services.hrms_sync_service import HRMSSyncService
-
-_svc = HRMSSyncService()
+# HRMSSyncService (and its connectors, which import httpx) is intentionally NOT
+# imported at module level: this module also defines HRMSSyncWorkflow, and
+# Temporal's workflow sandbox re-imports every module containing a
+# @workflow.defn class in a restricted, deterministic environment. httpx's
+# import chain (via sniffio) trips that sandbox — RuntimeError: Failed
+# validating workflow HRMSSyncWorkflow — the moment a real worker starts (not
+# caught by pytest, which imports this module directly, bypassing Temporal's
+# sandboxed worker startup path entirely). Imported lazily inside
+# run_hrms_pull instead, matching every other activity in this codebase.
 
 
 @dataclass
@@ -34,6 +40,9 @@ async def run_hrms_pull(connector_id: str, tenant_id: str) -> dict:
     from uuid import UUID
     import boto3
 
+    from services.hrms_sync_service import HRMSSyncService
+
+    svc    = HRMSSyncService()
     conn   = await asyncpg.connect(os.environ["DATABASE_URL"])
     kms    = boto3.client("kms", region_name="ap-south-1")
 
@@ -55,7 +64,7 @@ async def run_hrms_pull(connector_id: str, tenant_id: str) -> dict:
         temporal_run_id = None
 
     try:
-        return await _svc.run_pull_sync(
+        return await svc.run_pull_sync(
             connector_id=UUID(connector_id),
             tenant_id=UUID(tenant_id),
             db=conn,
