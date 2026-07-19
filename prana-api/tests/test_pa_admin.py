@@ -151,3 +151,20 @@ def test_pa_admin_has_no_duplicate_suspend_route():
         if getattr(r, "path", None) == "/tenants/{tenant_id}/suspend"
     ]
     assert matching == []
+
+
+def test_pa_admin_has_no_duplicate_activate_route():
+    """pa_admin.py must not define /tenants/{tenant_id}/activate.
+
+    Same collision as suspend: pa_admin's "/tenants/{tenant_id}/activate"
+    resolves to the same /admin/tenants/{tenant_id}/activate path as
+    tenants.py's "/{tenant_id}/activate", and tenants.router wins because
+    it's included first in main.py. This duplicate was unreachable dead code.
+    """
+    from routers import pa_admin
+
+    matching = [
+        r for r in pa_admin.router.routes
+        if getattr(r, "path", None) == "/tenants/{tenant_id}/activate"
+    ]
+    assert matching == []

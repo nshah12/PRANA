@@ -125,49 +125,6 @@ async def list_tenants(
     return {"tenants": [dict(r) for r in rows]}
 
 
-class ActivateTenantIn(BaseModel):
-    home_region_override: Optional[str] = None
-    override_reason: Optional[str] = None
-
-
-@router.post("/tenants/{tenant_id}/activate")
-async def activate_tenant(
-    tenant_id: str,
-    body: ActivateTenantIn,
-    request: Request,
-    db: DbConn,
-    current=PA,
-):
-    row = await db.fetchrow(
-        "SELECT tenant_id, status FROM tenant WHERE tenant_id=$1", tenant_id
-    )
-    if not row:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="TENANT_NOT_FOUND")
-    if row["status"] not in ("PENDING", "PENDING_VERIFICATION"):
-        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="ALREADY_ACTIVATED")
-
-    if body.home_region_override and not body.override_reason:
-        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail="OVERRIDE_REASON_REQUIRED")
-
-    update_region = f", home_region='{body.home_region_override}'" if body.home_region_override else ""
-    await db.execute(
-        f"UPDATE tenant SET status='ACTIVE'{update_region} WHERE tenant_id=$1", tenant_id
-    )
-    kafka = getattr(request.app.state, "kafka_producer", None)
-    if kafka:
-        await kafka.publish("prana.audit.events", {
-            "event_type": "TENANT_ACTIVATED",
-            "event_id": str(uuid.uuid4()),
-            "occurred_at": datetime.datetime.utcnow().isoformat(),
-            "tenant_id": tenant_id,
-            "actor_id": str(current.user_id),
-            "actor_type": "PORTAL_ADMIN",
-            "override_region": body.home_region_override,
-            "reason": body.override_reason,
-        }, key=tenant_id)
-    return {"message": "Tenant activated", "tenant_id": tenant_id}
-
-
 @router.post("/tenants/{tenant_id}/reject")
 async def reject_tenant(tenant_id: str, db: DbConn, current=PA):
     await db.execute(
