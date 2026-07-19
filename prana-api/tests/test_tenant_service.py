@@ -113,19 +113,65 @@ def test_offboard_tenant_does_not_delete_audit_events():
 
 @pytest.mark.asyncio
 async def test_suspend_does_not_insert_audit_event_directly():
-    """TenantService.suspend() must only update tenant.status.
-    It must NOT INSERT into audit_event itself — AuditConsumer owns that,
-    fed by a Kafka publish from the router (see routers/tenants.py).
+    """TenantService.suspend() must not INSERT into audit_event itself —
+    AuditConsumer owns that, fed by a Kafka publish from the router
+    (see routers/tenants.py).
     """
     db = _make_db()
     svc = TenantService(db, None)
 
-    await svc.suspend("tenant-xyz")
+    await svc.suspend("tenant-xyz", "Non-payment", "pa-uuid-001")
 
-    assert db.execute.call_count == 1
-    executed_sql = db.execute.call_args[0][0].upper()
-    assert "AUDIT_EVENT" not in executed_sql
-    assert "UPDATE TENANT" in executed_sql
+    executed_sql_calls = [c[0][0].upper() for c in db.execute.call_args_list]
+    assert not any("AUDIT_EVENT" in sql for sql in executed_sql_calls)
+
+
+@pytest.mark.asyncio
+async def test_suspend_writes_account_status_event():
+    """TenantService.suspend() must record the transition in account_status_event —
+    PRANA_UserMgmt_DataArchitecture_v25.html lists TENANT_SUSPENDED as a tracked
+    event type there, and every other lock/suspend path (see oa_user_service.py)
+    already follows this pattern.
+    """
+    db = _make_db()
+    svc = TenantService(db, None)
+
+    await svc.suspend("tenant-xyz", "Non-payment", "pa-uuid-001")
+
+    insert_calls = [c for c in db.execute.call_args_list
+                    if "account_status_event" in c[0][0].lower()]
+    assert len(insert_calls) == 1
+    sql = insert_calls[0].args[0]
+    values = insert_calls[0].args[1:]
+    assert "'tenant'" in sql
+    assert "TENANT_SUSPENDED" in sql
+    assert "SUSPENDED" in sql
+    assert "tenant-xyz" in values
+    assert "Non-payment" in values
+    assert "pa-uuid-001" in values
+
+
+@pytest.mark.asyncio
+async def test_activate_writes_account_status_event():
+    """TenantService.activate() must record TENANT_ACTIVATED in account_status_event
+    for the same lock/lifecycle history the CISO/PA views read.
+    """
+    db = _make_db()
+    db.fetchrow = AsyncMock(return_value={"status": "PENDING"})
+    svc = TenantService(db, None)
+
+    await svc.activate("tenant-xyz", "admin@acme.com", "pa-uuid-001")
+
+    insert_calls = [c for c in db.execute.call_args_list
+                    if "account_status_event" in c[0][0].lower()]
+    assert len(insert_calls) == 1
+    sql = insert_calls[0].args[0]
+    values = insert_calls[0].args[1:]
+    assert "'tenant'" in sql
+    assert "TENANT_ACTIVATED" in sql
+    assert "tenant-xyz" in values
+    assert "PENDING" in values
+    assert "pa-uuid-001" in values
 
 
 # -- tenant_id never from request body -------------------------------------

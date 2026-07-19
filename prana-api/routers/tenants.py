@@ -276,7 +276,7 @@ async def activate_tenant(tenant_id: str, current: PortalAdmin, request: Request
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="MISSING_OA_ADMIN_EMAIL")
 
     svc = TenantService(db, request.app.state.kms_service)
-    result = await svc.activate(tenant_id, email)
+    result = await svc.activate(tenant_id, email, current.user_id)
     await invalidate_tenants()
     return result
 
@@ -284,7 +284,7 @@ async def activate_tenant(tenant_id: str, current: PortalAdmin, request: Request
 @router.post("/{tenant_id}/suspend", status_code=status.HTTP_200_OK)
 async def suspend_tenant(tenant_id: str, body: SuspendIn, current: PortalAdmin, request: Request, db: DbConn):
     svc = TenantService(db, None)
-    await svc.suspend(tenant_id)
+    await svc.suspend(tenant_id, body.reason, current.user_id)
     await invalidate_tenants()
     kafka = getattr(request.app.state, "kafka_producer", None)
     if kafka:

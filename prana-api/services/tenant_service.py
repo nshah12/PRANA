@@ -130,7 +130,7 @@ class TenantService:
 
         return {"tenant_id": tenant_id, "status": "PENDING"}
 
-    async def activate(self, tenant_id: str, first_oa_admin_email: str) -> dict:
+    async def activate(self, tenant_id: str, first_oa_admin_email: str, pa_id: str) -> dict:
         """
         Called by TenantProvisioningWorkflow after domain verification passes.
         Creates first OA-Admin account with force_reset=TRUE.
@@ -139,6 +139,11 @@ class TenantService:
         temp_password = secrets.token_urlsafe(16)
 
         async with self._db.transaction():
+            existing = await self._db.fetchrow(
+                "SELECT status FROM tenant WHERE tenant_id=$1", tenant_id,
+            )
+            from_status = existing["status"] if existing else "PENDING"
+
             await self._db.execute(
                 "UPDATE tenant SET status='ACTIVE' WHERE tenant_id=$1",
                 tenant_id,
@@ -153,6 +158,15 @@ class TenantService:
                 oa_user_id, tenant_id, first_oa_admin_email,
                 hash_password(temp_password),
             )
+            await self._db.execute(
+                """
+                INSERT INTO account_status_event
+                  (user_type, user_id, tenant_id, event_type, from_status, to_status,
+                   reason_code, actor_type, actor_id, occurred_at)
+                VALUES ('tenant',$1,$1,'TENANT_ACTIVATED',$2,'ACTIVE','PA_ACTIVATE','PORTAL_ADMIN',$3,NOW())
+                """,
+                tenant_id, from_status, pa_id,
+            )
 
         return {
             "tenant_id": tenant_id,
@@ -160,9 +174,18 @@ class TenantService:
             "temp_password": temp_password,
         }
 
-    async def suspend(self, tenant_id: str) -> None:
+    async def suspend(self, tenant_id: str, reason: str, pa_id: str) -> None:
         await self._db.execute(
             "UPDATE tenant SET status='SUSPENDED' WHERE tenant_id=$1", tenant_id,
+        )
+        await self._db.execute(
+            """
+            INSERT INTO account_status_event
+              (user_type, user_id, tenant_id, event_type, from_status, to_status,
+               reason_code, reason_note, actor_type, actor_id, occurred_at)
+            VALUES ('tenant',$1,$1,'TENANT_SUSPENDED','ACTIVE','SUSPENDED','PA_SUSPEND',$2,'PORTAL_ADMIN',$3,NOW())
+            """,
+            tenant_id, reason, pa_id,
         )
 
     async def get(self, tenant_id: str) -> Optional[dict]:

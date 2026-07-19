@@ -61,6 +61,9 @@
 |------|------|---------|--------|
 | 2025-06-17 | 🟢 ADDED | `/v1/ingest/stats` | New dashboard stats endpoint |
 | 2025-06-17 | ⚪ INTERNAL | All endpoints | Added `DeprecationMiddleware` — no client impact |
+| 2026-07-19 | ⚪ INTERNAL | `/admin/tenants/{id}/suspend`, `/admin/tenants/{id}/activate` | Removed unreachable duplicate route definitions in `pa_admin.py` (shadowed by `tenants.py`, which was always the route FastAPI dispatched to) — no client impact |
+| 2026-07-19 | ⚪ INTERNAL | `/admin/tenants/{id}/suspend`, `/admin/tenants/{id}/activate` | Suspend/activate now publish an audit Kafka event (`TENANT_SUSPENDED`/`TENANT_ACTIVATED`) and record the transition in `account_status_event`; previously only `tenant.status` was updated, so this history was invisible to CISO/PA views — no response shape change |
+| 2026-07-19 | ⚪ INTERNAL | `/v1/manifests/*`, `/v1/unclassified/*`, `/admin/manifests/*` | Fixed auth and DB wiring that referenced `request.state.jwt_claims` and `request.app.state.db`, neither of which any middleware or dependency ever set — every one of these endpoints always returned 401 or raised an unhandled exception regardless of a valid token. Rewired to the standard `dependencies.py` DI pattern (`AuthUser`/`require_oa`/`PortalAdmin`/`DbConn`) used by every other router. This restores previously non-functional behavior; it is not a contract change |
 
 ---
 

@@ -74,11 +74,14 @@ Never put business logic inside `@workflow.run` or `@workflow.defn` methods dire
 - `tenant_id` always derived from auth context, never from request payload
 - Zero hardcoded durations — all from `platform_config` / `tenant_config` at runtime
 - Schema: `db/schema.sql` (YugabyteDB DDL, 19 tables)
+- **`request.app.state.db` does not exist** — only `request.app.state.db_pool` (an `asyncpg.Pool`) does. Handlers get a connection via the `DbConn` dependency (`Depends(get_db)`, which acquires-and-releases from the pool per request) — never reach for `app.state.db` directly.
+- Account/tenant lock-lifecycle changes (suspend, disable, unlock, reinstate — see `account_status_event` in `PRANA_UserMgmt_DataArchitecture_v25.html`) must INSERT a row there, following the pattern in `oa_user_service.py`. This is separate from the Kafka audit-event flow — `account_status_event` is what CISO/PA lock-history screens actually query.
 
 ## Auth Middleware
 - JWT validation at Kong API gateway (signature + `revoked` flag check via user_session)
 - JWT JTI = `user_session.session_id`
 - Session revocation: `UPDATE user_session SET revoked=TRUE` — instant, no TTL games
+- **Every router authenticates via `dependencies.py`'s DI chain** — `AuthUser`, `PortalAdmin`, `Employee`, or `Depends(require_oa(...))`/`Depends(require_pa)`. Never invent a router-local auth helper that reads `request.state.jwt_claims` or similar — nothing in the app sets that attribute, so it silently returns 401/crashes for every caller regardless of token validity. (This exact bug shipped in `doc_manifest.py` and went undetected because its own tests mocked around the broken helper instead of authenticating for real.)
 
 ## Encryption in Code
 ```python
