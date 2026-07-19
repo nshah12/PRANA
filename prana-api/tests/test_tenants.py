@@ -112,6 +112,35 @@ async def test_domain_verification_publishes_to_kafka_not_direct_workflow(
     assert "tenant_id" in payload
 
 
+# -- Suspend publishes audit event, never writes audit_event directly ------
+
+@pytest.mark.asyncio
+async def test_suspend_tenant_publishes_audit_event_to_kafka(client, mock_db, mock_kafka):
+    """POST /admin/tenants/{id}/suspend must publish TENANT_SUSPENDED to Kafka.
+    AuditConsumer (not the HTTP handler/service) writes the audit_event row.
+    """
+    _set_pa_auth(client)
+
+    with patch(
+        "routers.tenants.TenantService.suspend",
+        new_callable=AsyncMock,
+        return_value=None,
+    ):
+        resp = await client.post(
+            "/admin/tenants/tenant-xyz/suspend",
+            headers=AUTH_HEADER,
+            json={"reason": "Non-payment"},
+        )
+
+    assert resp.status_code == 200
+
+    mock_kafka.publish.assert_called_once()
+    topic, payload = mock_kafka.publish.call_args[0][:2]
+    assert topic == "prana.audit.events"
+    assert payload["event_type"] == "TENANT_SUSPENDED"
+    assert payload["tenant_id"] == "tenant-xyz"
+
+
 # -- Response shape --------------------------------------------------------
 
 @pytest.mark.asyncio

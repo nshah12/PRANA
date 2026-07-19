@@ -177,12 +177,6 @@ async def reject_tenant(tenant_id: str, db: DbConn, current=PA):
     return {"message": "Tenant rejected"}
 
 
-@router.post("/tenants/{tenant_id}/suspend")
-async def suspend_tenant(tenant_id: str, db: DbConn, current=PA):
-    await db.execute("UPDATE tenant SET status='SUSPENDED' WHERE tenant_id=$1", tenant_id)
-    return {"message": "Tenant suspended"}
-
-
 # ── OA Emergency Override ─────────────────────────────────────────────────────
 
 class OaEmergencyIn(BaseModel):

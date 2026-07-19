@@ -109,6 +109,25 @@ def test_offboard_tenant_does_not_delete_audit_events():
         "tenant_service.py must not TRUNCATE audit_event"
 
 
+# -- suspend() never writes audit_event directly ----------------------------
+
+@pytest.mark.asyncio
+async def test_suspend_does_not_insert_audit_event_directly():
+    """TenantService.suspend() must only update tenant.status.
+    It must NOT INSERT into audit_event itself — AuditConsumer owns that,
+    fed by a Kafka publish from the router (see routers/tenants.py).
+    """
+    db = _make_db()
+    svc = TenantService(db, None)
+
+    await svc.suspend("tenant-xyz")
+
+    assert db.execute.call_count == 1
+    executed_sql = db.execute.call_args[0][0].upper()
+    assert "AUDIT_EVENT" not in executed_sql
+    assert "UPDATE TENANT" in executed_sql
+
+
 # -- tenant_id never from request body -------------------------------------
 
 @pytest.mark.asyncio

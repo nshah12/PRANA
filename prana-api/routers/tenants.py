@@ -282,10 +282,22 @@ async def activate_tenant(tenant_id: str, current: PortalAdmin, request: Request
 
 
 @router.post("/{tenant_id}/suspend", status_code=status.HTTP_200_OK)
-async def suspend_tenant(tenant_id: str, body: SuspendIn, current: PortalAdmin, db: DbConn):
+async def suspend_tenant(tenant_id: str, body: SuspendIn, current: PortalAdmin, request: Request, db: DbConn):
     svc = TenantService(db, None)
-    await svc.suspend(tenant_id, body.reason, current.user_id)
+    await svc.suspend(tenant_id)
     await invalidate_tenants()
+    kafka = getattr(request.app.state, "kafka_producer", None)
+    if kafka:
+        import uuid, datetime
+        await kafka.publish("prana.audit.events", {
+            "event_type": "TENANT_SUSPENDED",
+            "event_id": str(uuid.uuid4()),
+            "occurred_at": datetime.datetime.utcnow().isoformat(),
+            "tenant_id": tenant_id,
+            "reason": body.reason,
+            "actor_type": "PORTAL_ADMIN",
+            "actor_id": current.user_id,
+        }, key=tenant_id)
     return {"message": "Tenant suspended"}
 
 

@@ -129,3 +129,25 @@ async def test_pa_admin_can_target_any_tenant_cross_tenant_ok(client, mock_db, m
 
     # Must succeed — PA is not scoped to any tenant
     assert resp.status_code == 200
+
+
+# -- No duplicate route registrations ---------------------------------------
+
+def test_pa_admin_has_no_duplicate_suspend_route():
+    """pa_admin.py must not define /tenants/{tenant_id}/suspend.
+
+    tenants.router is mounted at /admin/tenants and pa_admin.router at /admin,
+    so pa_admin's own "/tenants/{tenant_id}/suspend" resolves to the same
+    /admin/tenants/{tenant_id}/suspend path as tenants.py's "/{tenant_id}/suspend".
+    tenants.router is included first in main.py, so it always wins — a
+    duplicate definition here is unreachable dead code that only invites
+    drift (e.g. it never published the audit Kafka event tenants.py's
+    version does).
+    """
+    from routers import pa_admin
+
+    matching = [
+        r for r in pa_admin.router.routes
+        if getattr(r, "path", None) == "/tenants/{tenant_id}/suspend"
+    ]
+    assert matching == []

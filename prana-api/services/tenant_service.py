@@ -160,14 +160,9 @@ class TenantService:
             "temp_password": temp_password,
         }
 
-    async def suspend(self, tenant_id: str, reason: str, pa_id: str) -> None:
+    async def suspend(self, tenant_id: str) -> None:
         await self._db.execute(
             "UPDATE tenant SET status='SUSPENDED' WHERE tenant_id=$1", tenant_id,
-        )
-        await self._db.execute(
-            "INSERT INTO audit_event (event_type,actor_type,actor_id,tenant_id,event_metadata,occurred_at) "
-            "VALUES ('TENANT_PROVISIONED','PA',$1,$2,$3,NOW())",
-            pa_id, tenant_id, {"action": "SUSPEND", "reason": reason},
         )
 
     async def get(self, tenant_id: str) -> Optional[dict]:
