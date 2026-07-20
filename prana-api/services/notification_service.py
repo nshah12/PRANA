@@ -38,6 +38,9 @@ _SUBJECT_MAP: dict[str, str] = {
     "INCIDENT_SLA_BREACH": "PRANA Incident SLA breached",
     "CSAM_ALERT":        "[URGENT] PRANA content alert — immediate action",
     "DIGEST_WEEKLY":     "Your PRANA weekly digest is ready",
+    "VAULT_WELCOME":         "Your PRANA vault is ready",
+    "VAULT_WELCOME_REJOIN":  "Welcome back to PRANA",
+    "EMPLOYEE_CREDENTIALS_ISSUED": "Your PRANA account is ready — set up your login",
 }
 
 

@@ -19,6 +19,7 @@ HTTP handler contract (NEVER violate):
   No direct Temporal calls in HTTP path except Temporal signals (targeting specific in-flight instances).
 """
 import uuid
+from messages import SuccessCode, success_response
 import json
 import logging
 from typing import Optional
@@ -27,6 +28,7 @@ from fastapi import APIRouter, Depends, HTTPException, Request, status
 from pydantic import BaseModel, Field
 
 from dependencies import require_employee, DbConn
+from errors import PranaError
 
 log = logging.getLogger(__name__)
 router = APIRouter()
@@ -101,7 +103,7 @@ async def withdraw_consent_purpose(
         purpose = consent_id.removeprefix("implicit-")
         valid_purposes = [p for p, _ in CONSENT_PURPOSES]
         if purpose not in valid_purposes:
-            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="INVALID_PURPOSE")
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=PranaError.INVALID_PURPOSE)
         await db.execute(
             """
             INSERT INTO employee_consent
@@ -118,7 +120,7 @@ async def withdraw_consent_purpose(
             uuid.UUID(consent_id),
         )
         if not row or str(row["employee_user_id"]) != str(current.user_id):
-            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="NOT_FOUND")
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=PranaError.NOT_FOUND)
         await db.execute(
             "UPDATE employee_consent SET is_active=FALSE, updated_at=NOW() WHERE consent_id=$1",
             uuid.UUID(consent_id),
@@ -128,14 +130,14 @@ async def withdraw_consent_purpose(
     # Publish audit event via Kafka (AuditConsumer writes to audit_event table)
     kafka = getattr(request.app.state, "kafka_producer", None)
     if kafka:
-        await kafka.publish("prana.audit.events", {
+        await kafka.compliance_event({
             "event_type": "CONSENT_WITHDRAWN",
-            "actor_user_id": str(current.user_id),
-            "actor_type": "employee",
-            "metadata": {"purpose": purpose},
-        }, key=str(current.tenant_id or current.user_id))
+            "employee_user_id": str(current.user_id),
+            "tenant_id": str(current.tenant_id) if current.tenant_id else None,
+            "purpose": purpose,
+        })
 
-    return {"message": "Consent withdrawn for this purpose.", "purpose": purpose}
+    return {"message": SuccessCode.CONSENT_WITHDRAWN, "purpose": purpose}
 
 
 # ── Data export ───────────────────────────────────────────────────────────────
@@ -163,16 +165,17 @@ async def request_export(request: Request, db: DbConn, current=Employee):
 
     kafka = getattr(request.app.state, "kafka_producer", None)
     if kafka:
-        await kafka.publish("prana.ingest.events", {
+        await kafka.compliance_event({
             "event_type": "DATA_EXPORT_REQUESTED",
             "export_id": job_id,
             "employee_user_id": str(current.user_id),
             "tenant_id": str(current.tenant_id) if current.tenant_id else None,
-        }, key=str(current.tenant_id or current.user_id))
+            "workflow_id": f"export-{current.user_id}-{job_id}",
+        })
 
     return {
         "job_id": job_id,
-        "message": "Export request received. A download link will be sent to your registered number within 24 hours.",
+        "message": SuccessCode.EXPORT_REQUESTED,
     }
 
 
@@ -215,22 +218,21 @@ async def request_correction(
         body.evidence_note,
     )
 
-    # WorkflowConsumer will start DataCorrectionWorkflow on consuming this event
     kafka = getattr(request.app.state, "kafka_producer", None)
     if kafka:
-        await kafka.publish("prana.ingest.events", {
+        await kafka.compliance_event({
             "event_type": "DATA_CORRECTION_REQUESTED",
             "correction_id": correction_id,
             "employee_user_id": str(current.user_id),
             "tenant_id": str(current.tenant_id) if current.tenant_id else None,
             "field": body.field,
             "correct_value": body.correct_value,
-        }, key=str(current.tenant_id or current.user_id))
+        })
 
     return {
         "correction_id": correction_id,
         "status": "PENDING",
-        "message": "Correction request submitted. Our team will review within 7 working days.",
+        "message": SuccessCode.CORRECTION_REQUESTED,
     }
 
 
@@ -255,7 +257,7 @@ async def request_erasure(
     # Check if erasure already pending
     existing = await db.fetchrow(
         """
-        SELECT workflow_id FROM erasure_request
+        SELECT erasure_id FROM erasure_request
         WHERE employee_user_id=$1 AND status='PENDING'
         """,
         current.user_id,
@@ -263,7 +265,7 @@ async def request_erasure(
     if existing:
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
-            detail="ERASURE_ALREADY_PENDING",
+            detail=PranaError.ERASURE_ALREADY_PENDING,
         )
 
     erasure_id = str(uuid.uuid4())
@@ -281,18 +283,53 @@ async def request_erasure(
 
     kafka = getattr(request.app.state, "kafka_producer", None)
     if kafka:
-        await kafka.publish("prana.ingest.events", {
+        await kafka.compliance_event({
             "event_type": "ERASURE_REQUESTED",
             "erasure_id": erasure_id,
             "employee_user_id": str(current.user_id),
             "tenant_id": str(current.tenant_id) if current.tenant_id else None,
             "reason": body.reason,
-        }, key=str(current.tenant_id or current.user_id))
+            "workflow_id": f"erasure-{current.user_id}",
+        })
 
     return {
         "erasure_id": erasure_id,
-        "message": "Erasure request received. Your account will be deleted in 30 days unless you cancel.",
+        "message": SuccessCode.ERASURE_REQUESTED,
         "cancel_before_days": 30,
+    }
+
+
+@router.get("/erasure", status_code=status.HTTP_200_OK)
+async def get_erasure_status(db: DbConn, current=Employee):
+    """Check if an erasure request is pending and how many days remain."""
+    row = await db.fetchrow(
+        """
+        SELECT erasure_id, status, requested_at, confirmed_at, completed_at
+        FROM erasure_request
+        WHERE employee_user_id=$1
+        ORDER BY requested_at DESC
+        LIMIT 1
+        """,
+        current.user_id,
+    )
+    if not row:
+        return {"pending": False}
+    import datetime
+    days_remaining = None
+    if row["status"] == "PENDING":
+        elapsed = (datetime.datetime.now(datetime.timezone.utc) - row["requested_at"]).days
+        sla_days_raw = await db.fetchval(
+            "SELECT config_value FROM platform_config WHERE config_key='dpdp_erasure_confirmation_days'"
+        )
+        sla_days = int(sla_days_raw) if sla_days_raw else 30
+        days_remaining = max(0, sla_days - elapsed)
+    return {
+        "pending": row["status"] == "PENDING",
+        "erasure_id": str(row["erasure_id"]),
+        "status": row["status"],
+        "requested_at": row["requested_at"].isoformat() if row["requested_at"] else None,
+        "days_remaining": days_remaining,
+        "completed_at": row["completed_at"].isoformat() if row["completed_at"] else None,
     }
 
 
@@ -304,7 +341,7 @@ async def cancel_erasure(request: Request, db: DbConn, current=Employee):
         current.user_id,
     )
     if not row:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="NO_PENDING_ERASURE")
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=PranaError.NO_PENDING_ERASURE)
 
     temporal = getattr(request.app.state, "temporal_client", None)
     if temporal:
@@ -318,7 +355,7 @@ async def cancel_erasure(request: Request, db: DbConn, current=Employee):
         "UPDATE erasure_request SET status='CANCELLED', updated_at=NOW() WHERE employee_user_id=$1 AND status='PENDING'",
         current.user_id,
     )
-    return {"message": "Erasure cancelled. Your account is safe."}
+    return {"message": SuccessCode.ERASURE_CANCELLED}
 
 
 # ── Grievance ─────────────────────────────────────────────────────────────────
@@ -344,8 +381,8 @@ async def file_grievance(
     await db.execute(
         """
         INSERT INTO dpdp_grievance
-          (grievance_id, employee_user_id, tenant_id, category, description, status, filed_at)
-        VALUES ($1, $2, $3, 'GENERAL', $4, 'OPEN', NOW())
+          (grievance_id, employee_user_id, tenant_id, grievance_type, category, description, status, raised_at)
+        VALUES ($1, $2, $3, 'OTHER', 'GENERAL', $4, 'RAISED', NOW())
         """,
         uuid.UUID(grievance_id),
         current.user_id,
@@ -355,18 +392,18 @@ async def file_grievance(
 
     kafka = getattr(request.app.state, "kafka_producer", None)
     if kafka:
-        await kafka.publish("prana.ingest.events", {
+        await kafka.compliance_event({
             "event_type": "GRIEVANCE_FILED",
             "grievance_id": grievance_id,
             "employee_user_id": str(current.user_id),
             "tenant_id": str(current.tenant_id) if current.tenant_id else None,
             "subject": body.subject,
-        }, key=str(current.tenant_id or current.user_id))
+        })
 
     return {
         "grievance_id": grievance_id,
-        "status": "OPEN",
-        "message": "Grievance filed. Our Grievance Officer will respond within 30 days as required by DPDP Act 2023.",
+        "status": "RAISED",
+        "message": SuccessCode.GRIEVANCE_SUBMITTED,
         "sla_days": 30,
     }
 
@@ -375,11 +412,12 @@ async def file_grievance(
 async def list_grievances(db: DbConn, current=Employee):
     rows = await db.fetch(
         """
-        SELECT grievance_id, category, description, status,
-               filed_at, resolved_at, resolution_note
+        SELECT grievance_id, grievance_type, category, description, status,
+               raised_at, acknowledged_at, resolved_at, resolution_note, dpb_escalated
         FROM dpdp_grievance
         WHERE employee_user_id=$1
-        ORDER BY filed_at DESC
+        ORDER BY raised_at DESC
+        LIMIT 100
         """,
         current.user_id,
     )
@@ -387,12 +425,15 @@ async def list_grievances(db: DbConn, current=Employee):
         "grievances": [
             {
                 "grievance_id": str(r["grievance_id"]),
+                "grievance_type": r["grievance_type"],
                 "category": r["category"],
                 "description": r["description"],
                 "status": r["status"],
-                "filed_at": r["filed_at"].isoformat() if r["filed_at"] else None,
+                "raised_at": r["raised_at"].isoformat() if r["raised_at"] else None,
+                "acknowledged_at": r["acknowledged_at"].isoformat() if r["acknowledged_at"] else None,
                 "resolved_at": r["resolved_at"].isoformat() if r["resolved_at"] else None,
                 "resolution_note": r["resolution_note"],
+                "dpb_escalated": r["dpb_escalated"],
             }
             for r in rows
         ]

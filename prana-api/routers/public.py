@@ -1,32 +1,39 @@
 """
-Public endpoints — no auth required.
+Public endpoints — no auth required. Mounted twice in main.py: at /public
+(legacy path, kept working indefinitely) and at /v1/public (the versioned
+path per .claude/rules/api-versioning.md — "only public/HRMS/mobile APIs
+are versioned"). Same router object, same handlers, no duplicated logic.
 
 Contact form:
-  POST /public/contact               — submit a contact message
+  POST /(v1/)public/contact               — submit a contact message
 
 Org self-registration (3-step):
-  POST /public/org-register/init     — step 1: collect email + basics, send OTP
-  POST /public/org-register/verify   — step 2: verify OTP, get verified_token
-  POST /public/org-register/complete — step 3: submit full form
+  POST /(v1/)public/org-register/init     — step 1: collect email + basics, send OTP
+  POST /(v1/)public/org-register/verify   — step 2: verify OTP, get verified_token
+  POST /(v1/)public/org-register/complete — step 3: submit full form
 
-PA read endpoints (auth required — Portal Admin only):
-  GET  /public/contact-inquiries     — all contact submissions
-  GET  /public/org-applications      — all self-registration applications
-  PATCH /public/org-applications/{id} — mark reviewed / set status
+Credential verification (no auth — for recruiters / banks):
+  GET  /(v1/)public/verify/{code}         — verify a PRANA-XXXXXX-XXXXXX document code
+
+The 3 PA-only read/review endpoints that used to live here (contact-inquiries,
+org-applications) moved to routers/pa_admin.py under /admin/* — they're
+admin-authenticated reads, not public endpoints, and don't belong under a
+path literally named "public" regardless of versioning.
 """
 import hashlib
+import io
+from errors import PranaError, prana_error
 import random
 import string
 import json
 from datetime import datetime, timezone, timedelta
-from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Request, status
 from pydantic import BaseModel, EmailStr
+from limiter import limiter
 import asyncpg
 
 from db import get_db as get_conn
-from dependencies import PortalAdmin, DbConn
 from lib.email import send_otp_email, send_contact_confirmation, send_pa_contact_alert
 
 router = APIRouter(prefix="/public", tags=["public"])
@@ -123,7 +130,7 @@ async def org_register_init(
     if count and int(count) >= 3:
         raise HTTPException(
             status_code=status.HTTP_429_TOO_MANY_REQUESTS,
-            detail="Too many OTP requests for this email. Please wait 10 minutes.",
+            detail=PranaError.OTP_RATE_LIMITED,
         )
 
     otp = _gen_otp()
@@ -174,16 +181,16 @@ async def org_register_verify(
         body.session_token,
     )
     if not row:
-        raise HTTPException(status_code=404, detail="Session not found. Please restart registration.")
+        raise HTTPException(status_code=404, detail=PranaError.SESSION_NOT_FOUND)
 
     if row["verified"]:
-        raise HTTPException(status_code=400, detail="OTP already used.")
+        raise HTTPException(status_code=400, detail=PranaError.OTP_ALREADY_USED)
 
     if row["expires_at"] < datetime.now(timezone.utc):
-        raise HTTPException(status_code=400, detail="OTP expired. Please restart registration.")
+        raise HTTPException(status_code=400, detail=PranaError.REGISTRATION_OTP_EXPIRED)
 
     if row["otp_hash"] != _hash_otp(body.otp.strip()):
-        raise HTTPException(status_code=400, detail="Incorrect code. Please try again.")
+        raise HTTPException(status_code=400, detail=PranaError.REGISTRATION_CODE_INVALID)
 
     # Mark as verified — the same token becomes the verified_token for step 3
     await conn.execute(
@@ -214,15 +221,15 @@ async def org_register_complete(
     if not row:
         raise HTTPException(
             status_code=400,
-            detail="Email verification required. Please complete the OTP step first.",
+            detail=PranaError.EMAIL_VERIFICATION_REQUIRED,
         )
 
     # Token expires 10 min after creation — verified session must be used promptly
     if row["expires_at"] < datetime.now(timezone.utc) - timedelta(minutes=30):
-        raise HTTPException(status_code=400, detail="Verification session expired. Please restart.")
+        raise HTTPException(status_code=400, detail=PranaError.VERIFICATION_SESSION_EXPIRED)
 
     if not body.agreed_to_dpa:
-        raise HTTPException(status_code=400, detail="Data Processing Agreement acceptance is required.")
+        raise HTTPException(status_code=400, detail=PranaError.DPA_REQUIRED)
 
     app_id = await conn.fetchval(
         """
@@ -247,101 +254,125 @@ async def org_register_complete(
     return {"status": "received", "application_id": str(app_id)}
 
 
-# ── PA read endpoints ─────────────────────────────────────────────────────────
+# ── Credential verification (no auth) ─────────────────────────────────────────
 
-@router.get("/contact-inquiries", status_code=200)
-async def list_contact_inquiries(
-    current: PortalAdmin,
+@router.get("/qr/{code}")
+async def credential_qr(code: str):
+    """
+    Generate a QR code PNG for a PRANA verification code.
+    No auth required — intended to be embedded in share cards and emails.
+    The QR encodes the public verify URL so recruiters can scan and verify.
+    """
+    if not code.startswith("PRANA-") or len(code) != 19:
+        raise HTTPException(status_code=400, detail=PranaError.NOT_FOUND)
+
+    import qrcode  # installed as qrcode[pil]
+    from fastapi.responses import Response
+
+    verify_url = f"https://verify.prana.in/{code}"
+    qr = qrcode.QRCode(version=None, error_correction=qrcode.constants.ERROR_CORRECT_M, box_size=8, border=2)
+    qr.add_data(verify_url)
+    qr.make(fit=True)
+    img = qr.make_image(fill_color="#04261C", back_color="#FFFFFF")
+
+    buf = io.BytesIO()
+    img.save(buf, format="PNG")
+    buf.seek(0)
+
+    return Response(
+        content=buf.read(),
+        media_type="image/png",
+        headers={"Cache-Control": "public, max-age=86400"},
+    )
+
+
+@router.get("/verify/{code}")
+@limiter.limit("10/minute")
+async def verify_credential(
+    code: str,
+    request: Request,
     conn: asyncpg.Connection = Depends(get_conn),
-    page: int = 1,
-    limit: int = 50,
 ):
-    offset = (page - 1) * limit
-    rows = await conn.fetch(
+    """
+    Public credential verification endpoint — no auth required.
+    Recruiters, banks, and new employers call this to confirm a document
+    is genuine and was pushed by a verified employer.
+
+    Privacy: returns only metadata — no document content, no raw salary,
+    no full PAN, no employee full name. Employee shown as first-initial + last name.
+
+    Also writes a VERIFICATION_CHECK entry to document_access_log so the
+    employee can see who verified their credentials.
+    """
+    if not code.startswith("PRANA-") or len(code) != 19:
+        raise HTTPException(
+            status_code=400,
+            detail=PranaError.NOT_FOUND,
+        )
+
+    row = await conn.fetchrow(
         """
-        SELECT id, name, email, org, enquiry_type, message, status, submitted_at
-        FROM contact_inquiry
-        ORDER BY submitted_at DESC
-        LIMIT $1 OFFSET $2
+        SELECT d.document_id, d.doc_type, d.doc_period, d.pushed_at, d.routed_at,
+               d.file_hash_sha256, d.verification_code, d.tenant_id, d.employee_uuid,
+               d.is_deleted,
+               t.company_name,
+               eu.full_name
+        FROM document d
+        JOIN tenant t ON t.tenant_id = d.tenant_id
+        LEFT JOIN employee_master em ON em.employee_uuid = d.employee_uuid
+        LEFT JOIN employee_user eu ON eu.employee_user_id = em.employee_user_id
+        WHERE d.verification_code = $1
+          AND d.pipeline_status   = 'ROUTED'
+          AND d.is_deleted        = FALSE
+        LIMIT 1
         """,
-        limit, offset,
+        code,
     )
-    total = await conn.fetchval("SELECT COUNT(*) FROM contact_inquiry")
+
+    if not row:
+        raise HTTPException(status_code=404, detail=PranaError.DOCUMENT_NOT_FOUND)
+
+    # Employee display: first initial + last name only (privacy)
+    full_name: str = row["full_name"] or ""
+    parts = full_name.strip().split()
+    if len(parts) >= 2:
+        display_name = f"{parts[0][0]}. {parts[-1]}"
+    elif parts:
+        display_name = parts[0]
+    else:
+        display_name = "—"
+
+    # Log verification access via Kafka — AuditConsumer writes document_access_log
+    kafka_producer = getattr(request.app.state, "kafka_producer", None)
+    if kafka_producer:
+        try:
+            ip = request.client.host if request.client else "unknown"
+            await kafka_producer.doc_accessed({
+                "event_type":       "DOC_ACCESSED",
+                "document_id":      str(row["document_id"]),
+                "tenant_id":        str(row["tenant_id"]),
+                "employee_uuid":    str(row["employee_uuid"]),
+                "actor_type":       "VERIFIER",
+                "actor_id":         str(row["tenant_id"]),
+                "access_type":      "VERIFY",
+                "access_channel":   "SHARE_LINK",
+                "ip_address":       ip,
+                "watermark_applied": False,
+            })
+        except Exception:
+            pass  # logging failure must never block the verification response
+
+    now_iso = datetime.now(timezone.utc).isoformat()
+
     return {
-        "total": total,
-        "page": page,
-        "items": [
-            {
-                "id":           str(r["id"]),
-                "name":         r["name"],
-                "email":        r["email"],
-                "org":          r["org"],
-                "enquiry_type": r["enquiry_type"],
-                "message":      r["message"],
-                "status":       r["status"],
-                "submitted_at": r["submitted_at"].isoformat(),
-            }
-            for r in rows
-        ],
+        "verified":           True,
+        "verification_code":  code,
+        "doc_type":           row["doc_type"],
+        "doc_period":         row["doc_period"],
+        "pushed_by":          row["company_name"],
+        "pushed_at":          row["pushed_at"].isoformat() if row["pushed_at"] else None,
+        "routed_at":          row["routed_at"].isoformat() if row["routed_at"] else None,
+        "employee_display":   display_name,
+        "file_hash_sha256":   row["file_hash_sha256"],
+        "verified_at":        now_iso,
     }
-
-
-@router.get("/org-applications", status_code=200)
-async def list_org_applications(
-    current: PortalAdmin,
-    conn: asyncpg.Connection = Depends(get_conn),
-    page: int = 1,
-    limit: int = 50,
-    app_status: Optional[str] = None,
-):
-    offset = (page - 1) * limit
-    where = "WHERE status = $3" if app_status else ""
-    params: list = [limit, offset]
-    if app_status:
-        params.append(app_status)
-
-    rows = await conn.fetch(
-        f"""
-        SELECT id, org_name, domain, entity_type, industry, headcount_band,
-               contact_name, contact_email, contact_mobile,
-               message, how_heard, agreed_to_dpa, email_verified,
-               status, review_notes, submitted_at, reviewed_at
-        FROM self_service_application
-        {where}
-        ORDER BY submitted_at DESC
-        LIMIT $1 OFFSET $2
-        """,
-        *params,
-    )
-    total = await conn.fetchval(
-        f"SELECT COUNT(*) FROM self_service_application {where}",
-        *params[2:],
-    )
-    return {
-        "total": total,
-        "page": page,
-        "items": [dict(r) | {"id": str(r["id"]), "submitted_at": r["submitted_at"].isoformat()} for r in rows],
-    }
-
-
-class ReviewIn(BaseModel):
-    status:       str            # REVIEWED | APPROVED | REJECTED
-    review_notes: str = ""
-
-
-@router.patch("/org-applications/{app_id}", status_code=200)
-async def review_application(
-    app_id: str,
-    body: ReviewIn,
-    current: PortalAdmin,
-    conn: asyncpg.Connection = Depends(get_conn),
-):
-    await conn.execute(
-        """
-        UPDATE self_service_application
-        SET status = $1, review_notes = $2, reviewed_at = NOW()
-        WHERE id = $3::uuid
-        """,
-        body.status, body.review_notes, app_id,
-    )
-    return {"status": body.status}

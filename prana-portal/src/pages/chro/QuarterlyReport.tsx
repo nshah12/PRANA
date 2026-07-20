@@ -1,6 +1,7 @@
 import { Download } from 'lucide-react'
 import { api } from '@/lib/api'
 import { useState } from 'react'
+import { tUi } from '@/i18n'
 
 export function QuarterlyReport() {
   const [generating, setGenerating] = useState(false)
@@ -25,7 +26,7 @@ export function QuarterlyReport() {
   return (
     <div className="space-y-6 max-w-xl">
       <div className="flex items-center justify-between">
-        <h1 className="text-xl font-semibold text-slate-800">Quarterly Report</h1>
+        <h1 className="text-xl font-semibold text-slate-800">{tUi('CHRO_QUARTERLY_TITLE')}</h1>
         <button onClick={download} disabled={generating}
                 className="flex items-center gap-2 px-4 py-2 bg-pink-600 text-white
                            rounded-lg text-sm font-medium hover:bg-pink-700 disabled:opacity-40">

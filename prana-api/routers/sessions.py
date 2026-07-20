@@ -2,15 +2,17 @@
 Session management.
 
 Employee endpoints (JWT required):
-  GET  /auth/sessions/devices          — list trusted devices for the logged-in employee
-  DELETE /auth/sessions/devices/{id}  — revoke a trusted device
+  GET  /auth/sessions/devices         -- list trusted devices for the logged-in employee
+  DELETE /auth/sessions/devices/{id}  -- revoke a trusted device
 
 CISO / OA-Admin endpoints:
-  POST /auth/sessions/{session_id}/revoke — force-revoke any session in this tenant
+  POST /auth/sessions/{session_id}/revoke -- force-revoke any session in this tenant
 """
 from fastapi import APIRouter, Depends, HTTPException, Request, status
+from messages import SuccessCode, success_response
 
 from dependencies import AuthUser, DbConn, require_oa
+from errors import PranaError
 
 router = APIRouter()
 
@@ -20,7 +22,6 @@ CISO_OR_ADMIN = Depends(require_oa("ciso", "oa_admin"))
 @router.get("/devices", status_code=status.HTTP_200_OK)
 async def list_devices(db: DbConn, current: AuthUser, request: Request):
     """Return trusted devices for the logged-in employee."""
-    # current_jti is the JWT JTI claim — identifies the current session
     current_jti = getattr(current, "session_id", None)
     rows = await db.fetch(
         """
@@ -38,16 +39,18 @@ async def list_devices(db: DbConn, current: AuthUser, request: Request):
         """,
         current.user_id,
     )
-    # Mark the device associated with the current session
     current_fp = request.headers.get("X-Device-Fingerprint")
     result = []
     for r in rows:
-        d = dict(r)
-        # A device is "current" if the fingerprint header matches (best-effort)
-        d["is_current"] = False
+        d = {
+            "id": str(r["id"]),
+            "name": r["name"],
+            "platform": r["platform"],
+            "trusted_at": r["trusted_at"].isoformat() if r["trusted_at"] else None,
+            "is_current": False,
+        }
         result.append(d)
     if result and current_fp:
-        # Fetch fingerprint for current device to mark it
         td_row = await db.fetchrow(
             "SELECT trusted_device_id FROM trusted_device WHERE user_type='employee' AND user_id=$1 AND device_fingerprint_hash=$2",
             current.user_id, current_fp,
@@ -62,18 +65,18 @@ async def list_devices(db: DbConn, current: AuthUser, request: Request):
 
 @router.delete("/devices/{device_id}", status_code=status.HTTP_200_OK)
 async def remove_device(device_id: str, db: DbConn, current: AuthUser):
-    """Revoke a trusted device — prevents biometric login from that device."""
+    """Revoke a trusted device -- prevents biometric login from that device."""
     row = await db.fetchrow(
         "SELECT trusted_device_id FROM trusted_device WHERE trusted_device_id=$1 AND user_id=$2 AND user_type='employee' AND revoked=FALSE",
         device_id, current.user_id,
     )
     if not row:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="DEVICE_NOT_FOUND")
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=PranaError.DEVICE_NOT_FOUND)
     await db.execute(
         "UPDATE trusted_device SET revoked=TRUE, revoked_at=NOW() WHERE trusted_device_id=$1",
         device_id,
     )
-    return {"message": "Device removed"}
+    return {"message": SuccessCode.DEVICE_REMOVED}
 
 
 @router.post("/{session_id}/revoke", status_code=status.HTTP_200_OK)
@@ -83,43 +86,47 @@ async def revoke_session(
     db: DbConn,
     current=CISO_OR_ADMIN,
 ):
-    # Verify session belongs to this tenant
+    # user_id is in a different ID space per user_type (employee_user_id vs.
+    # oa_user_id) — tenant scoping must check the matching table for each.
     row = await db.fetchrow(
         """
         SELECT us.session_id, us.user_id, us.revoked
         FROM user_session us
         WHERE us.session_id = $1
-          AND us.tenant_id = $2
+          AND (
+            (us.user_type = 'oa_user' AND EXISTS (
+              SELECT 1 FROM oa_user ou WHERE ou.oa_user_id = us.user_id AND ou.tenant_id = $2
+            ))
+            OR
+            (us.user_type = 'employee' AND EXISTS (
+              SELECT 1 FROM employee_master em WHERE em.employee_user_id = us.user_id AND em.tenant_id = $2
+            ))
+          )
         """,
         session_id, current.tenant_id,
     )
     if not row:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="SESSION_NOT_FOUND")
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=PranaError.SESSION_NOT_FOUND)
     if row["revoked"]:
-        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="ALREADY_REVOKED")
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=PranaError.ALREADY_REVOKED)
 
     async with db.transaction():
         await db.execute(
-            "UPDATE user_session SET revoked=TRUE, revoked_at=NOW(), revoke_reason='CISO_FORCE_LOGOUT' WHERE session_id=$1",
+            "UPDATE user_session SET revoked=TRUE, revoked_reason='FORCE_LOGOUT' WHERE session_id=$1",
             session_id,
         )
-        # Blocklist in Redis so JWT is immediately invalid (TTL 7 days)
         jwt_svc = request.app.state.jwt_service
         await jwt_svc.revoke(session_id)
 
-    # Audit via Kafka — AuditConsumer writes to audit_event table
-    import uuid, datetime
     kafka = getattr(request.app.state, "kafka_producer", None)
     if kafka:
-        await kafka.publish("prana.audit.events", {
+        await kafka.auth_event({
             "event_type": "SESSION_FORCE_REVOKED",
-            "event_id": str(uuid.uuid4()),
-            "occurred_at": datetime.datetime.utcnow().isoformat(),
-            "tenant_id": str(current.tenant_id),
             "actor_id": str(current.user_id),
             "actor_type": "CISO" if current.role == "ciso" else "OA_ADMIN",
+            "tenant_id": str(current.tenant_id),
             "revoked_session": session_id,
             "target_user": str(row["user_id"]),
-        }, key=str(current.tenant_id))
+        })
 
-    return {"message": "Session revoked"}
+    return {"message": SuccessCode.SESSION_REVOKED}

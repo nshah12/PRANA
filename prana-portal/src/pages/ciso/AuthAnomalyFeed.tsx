@@ -2,10 +2,11 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { LogOut, AlertTriangle, RefreshCw } from 'lucide-react'
 import { api } from '@/lib/api'
 import { fmtDateTime } from '@/lib/utils'
+import { tUi } from '@/i18n'
 
 export function AuthAnomalyFeed() {
   const qc = useQueryClient()
-  const { data, isLoading } = useQuery({
+  const { data, isLoading, isError } = useQuery({
     queryKey: ['ciso-auth-anomalies'],
     queryFn: () => api.get('/v1/ciso/auth-anomalies').then(r => r.data),
     refetchInterval: 20_000,
@@ -19,18 +20,23 @@ export function AuthAnomalyFeed() {
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
-        <h1 className="text-xl font-semibold text-slate-800">Auth Anomaly Feed</h1>
+        <h1 className="text-xl font-semibold text-slate-800">{tUi('CISO_AUTH_ANOMALY_TITLE')}</h1>
         <button onClick={() => qc.invalidateQueries({ queryKey: ['ciso-auth-anomalies'] })}
                 className="flex items-center gap-1.5 text-xs text-slate-500 hover:text-slate-800">
-          <RefreshCw size={12}/> Refresh
+          <RefreshCw size={12}/> {tUi('CISO_AUTH_ANOMALY_REFRESH')}
         </button>
       </div>
 
       <div className="space-y-3">
-        {isLoading && <p className="text-sm text-slate-400">Loading…</p>}
-        {data?.anomalies?.length === 0 && (
+        {isLoading && <p className="text-sm text-slate-400">{tUi('CFO_DIGEST_LOADING')}</p>}
+        {isError && (
+          <div className="bg-white rounded-xl border border-red-100 p-12 text-center">
+            <p className="text-red-500">{tUi('CISO_AUTH_ANOMALY_LOAD_FAILED')}</p>
+          </div>
+        )}
+        {!isLoading && !isError && data?.anomalies?.length === 0 && (
           <div className="bg-white rounded-xl border border-slate-100 p-12 text-center">
-            <p className="text-slate-500">No auth anomalies detected.</p>
+            <p className="text-slate-500">{tUi('CISO_AUTH_ANOMALY_NONE')}</p>
           </div>
         )}
         {data?.anomalies?.map((a: any) => (

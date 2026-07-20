@@ -3,6 +3,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { AlertTriangle, Search, CheckCircle2, X, Clock, ChevronRight, UserSearch } from 'lucide-react'
 import { api } from '@/lib/api'
 import { useAuthStore } from '@/store/auth'
+import { tUi } from '@/i18n'
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -95,7 +96,7 @@ function ExceptionCard({
           {slaBreach && (
             <span className="flex-shrink-0 inline-flex items-center gap-1 text-[10px] font-bold
                              bg-red-100 text-red-600 rounded-full px-2.5 py-1">
-              <AlertTriangle size={9}/> SLA BREACH — {hrs}hr
+              <AlertTriangle size={9}/> {tUi('OA_EXC_SLA_BREACH_BADGE', { hrs })}
             </span>
           )}
           {slaWarning && (
@@ -105,7 +106,7 @@ function ExceptionCard({
             </span>
           )}
           {!slaBreach && !slaWarning && (
-            <span className="flex-shrink-0 text-[10px] text-slate-400">{hrs}hr ago</span>
+            <span className="flex-shrink-0 text-[10px] text-slate-400">{tUi('OA_EXC_HRS_AGO', { hrs })}</span>
           )}
           <span className="text-sm font-semibold text-slate-800 truncate">
             {DOC_TYPE_LABEL[item.doc_type] ?? item.doc_type}
@@ -123,7 +124,7 @@ function ExceptionCard({
 
           {/* Extracted fields */}
           <div>
-            <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-2">Extracted fields</p>
+            <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-2">{tUi('OA_EXC_EXTRACTED_FIELDS_LABEL')}</p>
             <div className="space-y-1">
               {Object.entries(item.extracted_fields).map(([k, v]) => (
                 <div key={k} className="flex gap-1.5 text-xs">
@@ -132,13 +133,13 @@ function ExceptionCard({
                   </span>
                   <span className="text-slate-700 font-medium">
                     {/* PAN always redacted in UI — privacy contract */}
-                    {k.toLowerCase().includes('pan') ? '[REDACTED]' : String(v)}
+                    {k.toLowerCase().includes('pan') ? tUi('OA_EXC_PAN_REDACTED') : String(v)}
                   </span>
                 </div>
               ))}
               {item.doc_period && (
                 <div className="flex gap-1.5 text-xs">
-                  <span className="text-slate-400">Period:</span>
+                  <span className="text-slate-400">{tUi('OA_EXC_PERIOD_LABEL')}</span>
                   <span className="text-slate-700 font-medium">{item.doc_period}</span>
                 </div>
               )}
@@ -148,9 +149,9 @@ function ExceptionCard({
           {/* Candidates */}
           <div>
             <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-2">
-              Candidates
+              {tUi('OA_EXC_CANDIDATES_LABEL')}
               {item.candidate_matches.length === 0 && (
-                <span className="ml-1 text-amber-500 normal-case font-normal">— no matches</span>
+                <span className="ml-1 text-amber-500 normal-case font-normal">{tUi('OA_EXC_NO_MATCHES_SUFFIX')}</span>
               )}
             </p>
             {item.candidate_matches.length > 0 ? (
@@ -175,7 +176,7 @@ function ExceptionCard({
               </div>
             ) : (
               <p className="text-xs text-amber-600">
-                No employees matched at any resolution level
+                {tUi('OA_EXC_NO_CANDIDATES')}
               </p>
             )}
           </div>
@@ -184,18 +185,18 @@ function ExceptionCard({
         {/* Search & assign panel */}
         {searchMode && isAdmin && (
           <div className="mb-4 bg-slate-50 rounded-xl p-4 space-y-3">
-            <p className="text-xs font-semibold text-slate-600">Search employee master</p>
+            <p className="text-xs font-semibold text-slate-600">{tUi('OA_EXC_SEARCH_EMPLOYEE_MASTER')}</p>
             <div className="flex gap-2">
               <input
                 value={searchQ} onChange={e => setSearchQ(e.target.value)}
                 onKeyDown={e => e.key === 'Enter' && runSearch()}
-                placeholder="Name, Emp ID, email…"
+                placeholder={tUi('OA_EXC_SEARCH_PLACEHOLDER')}
                 className="flex-1 border border-slate-200 rounded-xl px-3 py-2 text-xs
                            focus:outline-none focus:ring-2 focus:ring-violet-400" />
               <button onClick={runSearch}
                 className="px-4 py-2 bg-violet-600 text-white text-xs font-semibold rounded-xl
                            hover:bg-violet-700 flex items-center gap-1.5">
-                {searching ? '…' : <><Search size={12}/>Search</>}
+                {searching ? '…' : <><Search size={12}/>{tUi('OA_EXC_SEARCH_BTN')}</>}
               </button>
             </div>
             {searchResults.length > 0 && (
@@ -208,14 +209,14 @@ function ExceptionCard({
                                hover:bg-violet-50 transition-all">
                     <span className="text-slate-700 font-medium">{r.name} · <span className="text-slate-400">{r.emp_id}</span></span>
                     <span className="text-violet-600 font-semibold flex items-center gap-1">
-                      Assign <ChevronRight size={12}/>
+                      {tUi('OA_EXC_ASSIGN_BTN')} <ChevronRight size={12}/>
                     </span>
                   </button>
                 ))}
               </div>
             )}
             {searchResults.length === 0 && !searching && searchQ && (
-              <p className="text-xs text-slate-400">No results for "{searchQ}"</p>
+              <p className="text-xs text-slate-400">{tUi('OA_EXC_NO_RESULTS_FOR', { q: searchQ })}</p>
             )}
           </div>
         )}
@@ -229,7 +230,7 @@ function ExceptionCard({
                 className="px-4 py-2 bg-sky-500 hover:bg-sky-600 text-white text-xs font-semibold
                            rounded-xl transition-colors flex items-center gap-1.5">
                 <CheckCircle2 size={12}/>
-                Assign to {item.candidate_matches[0]?.name?.split(' ')[0]}
+                {tUi('OA_EXC_ASSIGN_TO_PREFIX')} {item.candidate_matches[0]?.name?.split(' ')[0]}
               </button>
             )}
             <button
@@ -237,19 +238,19 @@ function ExceptionCard({
               className="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-semibold
                          rounded-xl transition-colors flex items-center gap-1.5">
               <UserSearch size={12}/>
-              {searchMode ? 'Cancel search' : 'Search & Assign'}
+              {searchMode ? tUi('OA_EXC_CANCEL_SEARCH') : tUi('OA_EXC_SEARCH_AND_ASSIGN')}
             </button>
             <button
               onClick={() => onDismiss(item.exception_id)}
               className="ml-auto px-4 py-2 bg-red-50 hover:bg-red-100 text-red-600 text-xs font-semibold
                          rounded-xl transition-colors flex items-center gap-1.5">
               <X size={12}/>
-              Dismiss
+              {tUi('OA_EXC_DISMISS')}
             </button>
           </div>
         ) : (
           <p className="text-xs text-slate-400 bg-slate-50 rounded-xl px-4 py-2.5">
-            Identity resolution requires OA-Admin access. Contact your OA-Admin to assign this document.
+            {tUi('OA_EXC_ADMIN_ONLY_NOTE')}
           </p>
         )}
       </div>
@@ -296,15 +297,15 @@ export function ExceptionQueue() {
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-xl font-semibold text-slate-800">Exception Queue</h1>
+          <h1 className="text-xl font-semibold text-slate-800">{tUi('OA_EXC_TITLE')}</h1>
           <p className="text-xs text-slate-400 mt-0.5">
-            Documents that failed all 4 resolution levels — requires manual assignment
+            {tUi('OA_EXC_SUB')}
           </p>
         </div>
         <div className="text-xs text-slate-400">
-          {items.length} open
+          {tUi('OA_EXC_OPEN_COUNT', { count: items.length })}
           {breaching.length > 0 && (
-            <span className="ml-2 text-red-500 font-semibold">· {breaching.length} breaching SLA</span>
+            <span className="ml-2 text-red-500 font-semibold">{tUi('OA_EXC_BREACHING_SLA', { count: breaching.length })}</span>
           )}
         </div>
       </div>
@@ -345,13 +346,13 @@ export function ExceptionQueue() {
       {/* Queue */}
       {isLoading ? (
         <div className="flex items-center justify-center py-20 text-slate-400 text-sm">
-          Loading exceptions…
+          {tUi('OA_EXC_LOADING')}
         </div>
       ) : filtered.length === 0 ? (
         <div className="flex flex-col items-center justify-center py-20 text-center">
           <CheckCircle2 size={36} className="text-emerald-400 mb-3" />
-          <p className="text-sm font-semibold text-slate-700">No open exceptions</p>
-          <p className="text-xs text-slate-400 mt-1">All documents resolved — vault is clean</p>
+          <p className="text-sm font-semibold text-slate-700">{tUi('OA_EXC_NONE_TITLE')}</p>
+          <p className="text-xs text-slate-400 mt-1">{tUi('OA_EXC_NONE_SUB')}</p>
         </div>
       ) : (
         <div className="space-y-4">

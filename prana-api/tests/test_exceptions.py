@@ -264,11 +264,34 @@ async def test_resolve_exception_publishes_kafka_audit(client, mock_db):
 
     assert resp.status_code == 200
     kafka = client.app.state.kafka_producer
-    assert kafka.publish.called, "Must publish audit event to Kafka on resolve"
+    assert kafka.exception_resolved.called, "Must publish audit event to Kafka on resolve"
     # Verify audit event type
-    call_args = kafka.publish.call_args_list
-    event_types = [c[0][1].get("event_type") for c in call_args if isinstance(c[0][1], dict)]
-    assert "EXCEPTION_RESOLVED" in event_types
+    payload = kafka.exception_resolved.call_args[0][0]
+    assert payload.get("event_type") == "EXCEPTION_RESOLVED"
+
+
+@pytest.mark.asyncio
+async def test_resolve_exception_employee_not_found_checks_cross_tenant_anomaly(client, mock_db):
+    """A 404 on the employee ownership check must trigger the tenant-isolation guard —
+    see prana-docs/SEVERITY_SLA_POLICY_DESIGN.md §3.2 (CROSS_TENANT_QUERY)."""
+    from unittest.mock import AsyncMock, patch
+    headers = _oa_admin_headers(client)
+    mock_db.fetchrow.return_value = _open_exception()
+    mock_db.fetchval.return_value = None  # employee not found under this tenant
+
+    with patch("services.tenant_isolation_guard.TenantIsolationGuard.check_employee_access",
+               new_callable=AsyncMock) as mock_check:
+        resp = await client.post(
+            "/v1/org/exceptions/exc-001/resolve",
+            headers=headers,
+            json={"employee_uuid": "emp-from-another-tenant"},
+        )
+
+    assert resp.status_code == 404
+    mock_check.assert_awaited_once_with(
+        employee_uuid="emp-from-another-tenant", requesting_tenant_id="tenant-001",
+        actor_id="oa-admin-001",
+    )
 
 
 @pytest.mark.asyncio

@@ -21,6 +21,9 @@ from datetime import timedelta
 from temporalio.client import Client
 from temporalio.worker import Worker
 
+from workflows.error_capture_interceptor import ErrorObservabilityInterceptor
+from workflows.error_threshold import ErrorThresholdEvaluationWorkflow, evaluate_error_thresholds
+
 from config import get_settings
 
 # ── Workflow imports ───────────────────────────────────────────────────────────
@@ -49,8 +52,9 @@ from workflows.compliance import (
     RetentionWorkflow,
     AuditArchivalWorkflow,
     LegalHoldWorkflow,
+    StatutoryComplianceWorkflow,
 )
-from workflows.insight_refresh import InsightRefreshWorkflow
+from workflows.insight_refresh import InsightRefreshWorkflow, refresh_document_insight
 from workflows.intelligence import (
     CareerInsightWorkflow,
     VaultCompletenessWorkflow,
@@ -87,10 +91,11 @@ from workflows.platform_ops import (
     StagingCleanupWorkflow,
     WebhookDeliveryWorkflow,
     NotificationDeliveryWorkflow,
-    SystemHealthWorkflow,
     StorageExpansionWorkflow,
     OnboardingReviewSLAWorkflow,
 )
+from workflows.system_health import SystemHealthWorkflow
+from workflows.audit_integrity import AuditIntegrityVerificationWorkflow
 from workflows.vault_shares import (
     ShareExpiryWorkflow,
     ShareRevocationWorkflow,
@@ -119,17 +124,29 @@ from workflows.activities import (
     mark_tenant_verification_failed as mark_tenant_verification_failed_impl,
     get_tenant_onboarding_tier as get_tenant_onboarding_tier_impl,
     provision_tenant as provision_tenant_impl,
+    # ACTIVITY-01 fix (2026-07-17): these 9 + get_config_value were previously
+    # imported from workflows.compliance below, which registered that module's
+    # bare `...` stubs instead of these real ComplianceService-backed bodies —
+    # every workflow using them (ErasureConfirmationWorkflow, GrievanceWorkflow,
+    # DataExportWorkflow, ConsentRebumpWorkflow) silently did nothing on Temporal.
+    send_erasure_notice as send_erasure_notice_impl,
+    execute_erasure as execute_erasure_impl,
+    send_consent_rebump as send_consent_rebump_impl,
+    check_consent_status as check_consent_status_impl,
+    build_data_export as build_data_export_impl,
+    notify_export_ready as notify_export_ready_impl,
+    open_grievance as open_grievance_impl,
+    escalate_grievance as escalate_grievance_impl,
+    close_grievance as close_grievance_impl,
+    get_config_value as get_config_value_impl,
 )
 
 # Stub activities from domain modules (registered by function reference)
 from workflows.compliance import (
-    send_erasure_notice, execute_erasure, send_consent_rebump,
-    check_consent_status, build_data_export, notify_export_ready,
-    open_grievance, escalate_grievance, close_grievance,
     apply_data_correction, notify_correction_complete,
     schedule_document_deletion, archive_audit_events_batch,
     apply_legal_hold, release_legal_hold,
-    get_config_value,
+    mark_overdue_obligations, notify_overdue_obligations,
 )
 from workflows.intelligence import (
     build_career_insight, write_career_insight,
@@ -158,15 +175,20 @@ from workflows.platform_ops import (
     pull_clamav_signatures, verify_kms_key_health, alert_kms_key_issue,
     check_tenant_storage_quotas, alert_storage_quota, purge_stale_staging_objects,
     deliver_webhook, mark_webhook_failed, deliver_notification,
-    deliver_notification_fallback, run_system_healthcheck, emit_health_metrics,
+    deliver_notification_fallback,
     get_ops_config,
     notify_storage_expansion_request, apply_storage_expansion, reject_storage_expansion,
     escalate_onboarding_review,
 )
+from workflows.system_health import run_health_checks
+from workflows.audit_integrity import verify_audit_integrity
 from workflows.vault_shares import (
     expire_share_token, revoke_share_token, create_share_token,
     send_share_otp, notify_share_accessed, get_share_config,
 )
+from workflows.gamification import GamificationRefreshWorkflow, recalculate_and_persist
+from workflows.hrms_sync import HRMSSyncWorkflow, run_hrms_pull
+from workflows.hrms_sync_schedule import HRMSSyncScheduleWorkflow, run_ensure_hrms_schedules
 
 log = logging.getLogger(__name__)
 
@@ -203,7 +225,7 @@ WORKERS: dict[str, dict] = {
             EmployeeExitWorkflow, PushWindowExpiryWorkflow,
             VaultActivationWorkflow, RejoiningWorkflow, AccountDormancyWorkflow,
             WebhookDeliveryWorkflow, NotificationDeliveryWorkflow,
-            SystemHealthWorkflow, StorageExpansionWorkflow,
+            StorageExpansionWorkflow,
             OnboardingReviewSLAWorkflow,
         ],
         "activities": [
@@ -215,7 +237,7 @@ WORKERS: dict[str, dict] = {
             close_push_window, provision_vault, send_vault_welcome,
             reconcile_rejoining_employee, flag_dormant_account, get_lifecycle_config,
             deliver_webhook, mark_webhook_failed, deliver_notification,
-            deliver_notification_fallback, run_system_healthcheck, emit_health_metrics,
+            deliver_notification_fallback,
             get_ops_config, notify_storage_expansion_request,
             apply_storage_expansion, reject_storage_expansion,
             escalate_onboarding_review,
@@ -247,11 +269,13 @@ WORKERS: dict[str, dict] = {
         "workflows": [
             PolicyLockWorkflow, AnomalyDetectionWorkflow,
             KMSKeyRotationWorkflow, HMACSecretRotationWorkflow,
-            KMSHealthCheckWorkflow,
+            KMSHealthCheckWorkflow, SystemHealthWorkflow,
+            AuditIntegrityVerificationWorkflow, ErrorThresholdEvaluationWorkflow,
         ],
         "activities": [
             apply_policy_lock, release_policy_lock, notify_policy_lock,
             run_anomaly_detection_batch, rotate_tenant_kek, rotate_hmac_secret,
+            run_health_checks, verify_audit_integrity, evaluate_error_thresholds,
             get_next_tenant_for_rotation, verify_kms_key_health, alert_kms_key_issue,
             get_security_config,
         ],
@@ -268,14 +292,16 @@ WORKERS: dict[str, dict] = {
             DataExportWorkflow, GrievanceWorkflow,
             DataCorrectionWorkflow, RetentionWorkflow,
             AuditArchivalWorkflow, LegalHoldWorkflow,
+            StatutoryComplianceWorkflow,
         ],
         "activities": [
-            send_erasure_notice, execute_erasure, send_consent_rebump,
-            check_consent_status, build_data_export, notify_export_ready,
-            open_grievance, escalate_grievance, close_grievance,
+            send_erasure_notice_impl, execute_erasure_impl, send_consent_rebump_impl,
+            check_consent_status_impl, build_data_export_impl, notify_export_ready_impl,
+            open_grievance_impl, escalate_grievance_impl, close_grievance_impl,
             apply_data_correction, notify_correction_complete,
             schedule_document_deletion, archive_audit_events_batch,
-            apply_legal_hold, release_legal_hold, get_config_value,
+            apply_legal_hold, release_legal_hold, get_config_value_impl,
+            mark_overdue_obligations, notify_overdue_obligations,
         ],
     },
     "analytics-queue": {
@@ -292,18 +318,26 @@ WORKERS: dict[str, dict] = {
             InsightRefreshWorkflow,
             CareerInsightWorkflow, AnomalyAcknowledgementWorkflow,
             DigestWorkflow, PeerBenchmarkWorkflow, SkillGapWorkflow, MarketCompWorkflow,
+            GamificationRefreshWorkflow,
         ],
         "activities": [
+            refresh_document_insight,
             build_career_insight, write_career_insight,
             record_anomaly_ack, build_weekly_digest, build_monthly_digest,
             send_digest_email, build_peer_benchmark, write_peer_benchmark,
             build_skill_gap_analysis, write_skill_gap,
             build_market_comp, write_market_comp,
+            recalculate_and_persist,   # GamificationRefreshWorkflow
         ],
     },
     "resolution-queue-analytics": {
         "workflows": [VaultCompletenessWorkflow],
         "activities": [score_vault_completeness, write_vault_completeness],
+    },
+    # HRMS pull sync (schedule-driven) + the schedule-ensurer workflow.
+    "hrms-queue": {
+        "workflows": [HRMSSyncWorkflow, HRMSSyncScheduleWorkflow],
+        "activities": [run_hrms_pull, run_ensure_hrms_schedules],
     },
 }
 
@@ -314,6 +348,9 @@ async def start_worker(client: Client, queue: str, cfg: dict) -> None:
         task_queue=queue,
         workflows=cfg["workflows"],
         activities=cfg["activities"],
+        # Records every failed activity attempt to error_event (deduplicated by
+        # fingerprint) — see prana-docs/ERROR_OBSERVABILITY_DESIGN.md §4C.
+        interceptors=[ErrorObservabilityInterceptor()],
     )
     log.info("Starting worker on queue: %s (%d workflows, %d activities)",
              queue, len(cfg["workflows"]), len(cfg["activities"]))

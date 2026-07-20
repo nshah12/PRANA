@@ -163,7 +163,6 @@ async def test_vault_profile_serializes_without_500(client, mock_db):
     headers = _auth_headers(client)
     mock_db.fetchrow.return_value = {
         "employee_user_id": UUID("33333333-3333-3333-3333-333333333333"),
-        "mobile": "+919000000001",
         "status": "ACTIVE",
         "created_at": datetime(2022, 1, 1, tzinfo=timezone.utc),
         "full_name": "Rahul Sharma",
@@ -176,6 +175,57 @@ async def test_vault_profile_serializes_without_500(client, mock_db):
         resp = await client.get("/v1/vault/profile", headers=headers)
     assert resp.status_code != 500
     assert resp.status_code == 200
+
+
+@pytest.mark.asyncio
+async def test_vault_profile_decrypts_mobile_when_available(client, mock_db):
+    """mobile is no longer stored in plaintext (schema.sql employee_user,
+    2026-07-18) — profile must decrypt enc_mobile via the platform auth CMK
+    (same key as totp_secret_enc), not any tenant-specific key."""
+    headers = _auth_headers(client)
+    mock_db.fetchrow.return_value = {
+        "employee_user_id": UUID("33333333-3333-3333-3333-333333333333"),
+        "status": "ACTIVE",
+        "created_at": datetime(2022, 1, 1, tzinfo=timezone.utc),
+        "full_name": "Rahul Sharma",
+        "designation": "Engineer",
+        "department": "Engineering",
+        "master_user_id": UUID("33333333-3333-3333-3333-333333333333"),
+    }
+    with patch("routers.vault.VaultService.get_employers", new_callable=AsyncMock) as mock_emp, \
+         patch("routers.vault.EmployeeService.decrypt_mobile", new_callable=AsyncMock) as mock_decrypt:
+        mock_emp.return_value = []
+        mock_decrypt.return_value = "+919000000001"
+        resp = await client.get("/v1/vault/profile", headers=headers)
+
+    assert resp.status_code == 200
+    assert resp.json()["mobile"] == "+919000000001"
+    call_args = mock_decrypt.call_args.args
+    assert call_args[0] == "33333333-3333-3333-3333-333333333333"
+    assert isinstance(call_args[1], str)   # auth_kek_arn — a KMS key ARN, not tenant-derived
+
+
+@pytest.mark.asyncio
+async def test_vault_profile_mobile_none_when_decrypt_fails(client, mock_db):
+    """A decrypt failure (e.g. corrupted ciphertext) must not 500 the whole profile."""
+    headers = _auth_headers(client)
+    mock_db.fetchrow.return_value = {
+        "employee_user_id": UUID("33333333-3333-3333-3333-333333333333"),
+        "status": "ACTIVE",
+        "created_at": datetime(2022, 1, 1, tzinfo=timezone.utc),
+        "full_name": "Rahul Sharma",
+        "designation": "Engineer",
+        "department": "Engineering",
+        "master_user_id": UUID("33333333-3333-3333-3333-333333333333"),
+    }
+    with patch("routers.vault.VaultService.get_employers", new_callable=AsyncMock) as mock_emp, \
+         patch("routers.vault.EmployeeService.decrypt_mobile", new_callable=AsyncMock) as mock_decrypt:
+        mock_emp.return_value = []
+        mock_decrypt.side_effect = Exception("decrypt failed")
+        resp = await client.get("/v1/vault/profile", headers=headers)
+
+    assert resp.status_code == 200
+    assert resp.json()["mobile"] is None
 
 
 # ── Privacy contract ───────────────────────────────────────────────────────────
@@ -191,7 +241,6 @@ async def test_vault_profile_contains_no_pan_or_salary_fields(client, mock_db):
     headers = _auth_headers(client)
     mock_db.fetchrow.return_value = {
         "employee_user_id": UUID("33333333-3333-3333-3333-333333333333"),
-        "mobile": "+919000000001",
         "status": "ACTIVE",
         "created_at": datetime(2022, 1, 1, tzinfo=timezone.utc),
         "full_name": "Rahul Sharma",
@@ -206,6 +255,46 @@ async def test_vault_profile_contains_no_pan_or_salary_fields(client, mock_db):
         body_str = json.dumps(resp.json()).lower()
         for field in _FORBIDDEN_FIELDS:
             assert field not in body_str, f"Forbidden field '{field}' found in /vault/profile response"
+
+
+@pytest.mark.asyncio
+async def test_vault_health_serializes_computed_at_without_500(client, mock_db):
+    """Regression: vault_service.get_health() already converts computed_at to an ISO
+    string; the router previously called .isoformat() on it again, crashing with
+    AttributeError: 'str' object has no attribute 'isoformat'."""
+    headers = _auth_headers(client)
+    mock_db.fetchrow.return_value = {
+        "overall_score": 61,
+        "employment_proof_score": 80,
+        "salary_slip_score": 51,
+        "form16_score": 84,
+        "gap_count": 1,
+        "gap_detail": '[{"description": "Salary slips missing for 2+ months"}]',
+        "computed_at": datetime(2026, 6, 23, 10, 37, 5, tzinfo=timezone.utc),
+    }
+    resp = await client.get("/v1/vault/health", headers=headers)
+    assert resp.status_code == 200
+    assert resp.json()["computed_at"] == "2026-06-23T10:37:05+00:00"
+
+
+@pytest.mark.asyncio
+async def test_vault_health_preserves_gap_detail_from_jsonb_string(client, mock_db):
+    """Regression: gap_detail is a JSONB column — asyncpg returns it as a raw JSON
+    string, not a Python list. vault_service.get_health() previously discarded it
+    (treated "not already a list" as empty) instead of parsing it."""
+    headers = _auth_headers(client)
+    mock_db.fetchrow.return_value = {
+        "overall_score": 61,
+        "employment_proof_score": 80,
+        "salary_slip_score": 51,
+        "form16_score": 84,
+        "gap_count": 1,
+        "gap_detail": '[{"description": "Salary slips missing for 2+ months"}]',
+        "computed_at": datetime(2026, 6, 23, 10, 37, 5, tzinfo=timezone.utc),
+    }
+    resp = await client.get("/v1/vault/health", headers=headers)
+    assert resp.status_code == 200
+    assert resp.json()["gap_detail"] == [{"description": "Salary slips missing for 2+ months"}]
 
 
 @pytest.mark.asyncio
@@ -292,3 +381,114 @@ async def test_list_shares_returns_wrapped_shape(client, mock_db):
         resp = await client.get("/v1/vault/share", headers=headers)
     assert resp.status_code == 200
     assert "shares" in resp.json()
+
+
+# ── Career Passport / credential card tests ───────────────────────────────────
+
+@pytest.mark.asyncio
+async def test_credential_requires_auth(client):
+    """Credential endpoint must require employee JWT."""
+    resp = await client.get("/v1/vault/documents/doc-001/credential")
+    assert resp.status_code in (401, 403)
+
+
+@pytest.mark.asyncio
+async def test_credential_not_found_returns_404(client, mock_db):
+    """Unknown document_id or doc not owned by employee → 404."""
+    headers = _auth_headers(client)
+    mock_db.fetchrow = AsyncMock(return_value=None)
+    resp = await client.get("/v1/vault/documents/doc-001/credential", headers=headers)
+    assert resp.status_code == 404
+
+
+@pytest.mark.asyncio
+async def test_credential_not_routed_returns_404(client, mock_db):
+    """Document exists but pipeline_status != ROUTED → 404 (no verification code yet)."""
+    import uuid
+    from datetime import datetime, timezone
+    from unittest.mock import MagicMock
+
+    row = MagicMock()
+    row.__getitem__ = lambda self, k: {
+        "document_id":       str(uuid.uuid4()),
+        "pipeline_status":   "EXTRACTING",
+        "verification_code": None,
+        "doc_type":          "SALARY_SLIP",
+        "doc_period":        "2024-03",
+        "tenant_name":       "Acme Corp",
+        "pushed_at":         datetime(2024, 3, 1, tzinfo=timezone.utc),
+        "routed_at":         None,
+        "file_hash_sha256":  None,
+    }.get(k)
+
+    headers = _auth_headers(client)
+    mock_db.fetchrow = AsyncMock(return_value=row)
+    resp = await client.get("/v1/vault/documents/doc-001/credential", headers=headers)
+    assert resp.status_code == 404
+
+
+@pytest.mark.asyncio
+async def test_credential_happy_path_shape(client, mock_db):
+    """ROUTED doc with verification code returns credential card fields."""
+    import uuid
+    from datetime import datetime, timezone
+    from unittest.mock import MagicMock
+
+    doc_id = str(uuid.uuid4())
+    row = MagicMock()
+    row.__getitem__ = lambda self, k: {
+        "document_id":       doc_id,
+        "pipeline_status":   "ROUTED",
+        "verification_code": "PRANA-AB1234-CD5678",
+        "doc_type":          "SALARY_SLIP",
+        "doc_period":        "2024-03",
+        "tenant_name":       "Infosys Ltd",
+        "pushed_at":         datetime(2024, 3, 1, tzinfo=timezone.utc),
+        "routed_at":         datetime(2024, 3, 2, tzinfo=timezone.utc),
+        "file_hash_sha256":  "deadbeef",
+    }.get(k)
+
+    headers = _auth_headers(client)
+    mock_db.fetchrow = AsyncMock(return_value=row)
+    resp = await client.get(f"/v1/vault/documents/{doc_id}/credential", headers=headers)
+    assert resp.status_code == 200
+    data = resp.json()
+
+    assert data["verification_code"] == "PRANA-AB1234-CD5678"
+    assert "verify_url" in data
+    assert "PRANA-AB1234-CD5678" in data["verify_url"]
+    assert data["doc_type"] == "SALARY_SLIP"
+    assert data["pushed_by"] == "Infosys Ltd"
+    assert data["file_hash_sha256"] == "deadbeef"
+    # Must not expose raw salary/PAN field keys — doc_type "SALARY_SLIP" is fine as a type label
+    for forbidden_key in ("gross_salary", "net_salary", "basic_salary", "enc_pan", "pan_token", "ctc"):
+        assert forbidden_key not in data, f"Forbidden field in credential response: {forbidden_key}"
+
+
+@pytest.mark.asyncio
+async def test_credential_privacy_no_salary_in_response(client, mock_db):
+    """Privacy contract: credential card must never contain any insight with raw ₹ salary."""
+    import uuid
+    from datetime import datetime, timezone
+    from unittest.mock import MagicMock
+
+    row = MagicMock()
+    row.__getitem__ = lambda self, k: {
+        "document_id":       str(uuid.uuid4()),
+        "pipeline_status":   "ROUTED",
+        "verification_code": "PRANA-AB1234-CD5678",
+        "doc_type":          "SALARY_SLIP",
+        "doc_period":        "2024-03",
+        "tenant_name":       "TCS",
+        "pushed_at":         datetime(2024, 3, 1, tzinfo=timezone.utc),
+        "routed_at":         datetime(2024, 3, 2, tzinfo=timezone.utc),
+        "file_hash_sha256":  "abc",
+    }.get(k)
+
+    headers = _auth_headers(client)
+    mock_db.fetchrow = AsyncMock(return_value=row)
+    resp = await client.get("/v1/vault/documents/doc-001/credential", headers=headers)
+    assert resp.status_code == 200
+    response_text = resp.text
+    for forbidden in ("gross_salary", "net_salary", "basic_salary", "ctc", "pan"):
+        assert forbidden not in response_text.lower()

@@ -1,13 +1,9 @@
 """
 IncidentService — creates and manages incident rows.
 
-Auto-creates incidents for:
-  P0 anomaly → SECURITY_ANOMALY incident (SLA 30 min)
-  P1 anomaly → SECURITY_ANOMALY incident (SLA 4 hr)
-  Exception SLA breach → SLA_BREACH incident (SLA 24 hr)
-  DPDP grievance → DPDP_GRIEVANCE incident
-
-P2/P3 anomalies do NOT auto-create incidents — CISO can escalate manually.
+Severity → SLA deadline and severity → auto-create-incident are both read from
+the PA-editable `sla_policy` table (via SeverityPolicyService) — see
+prana-docs/SEVERITY_SLA_POLICY_DESIGN.md. No longer hardcoded in Python.
 """
 import logging
 from datetime import datetime, timedelta, timezone
@@ -15,19 +11,15 @@ from typing import Any, Optional
 
 import asyncpg
 
-log = logging.getLogger(__name__)
+from services.severity_policy_service import SeverityPolicyService
 
-_SLA_MAP: dict[str, timedelta] = {
-    "P0": timedelta(minutes=30),
-    "P1": timedelta(hours=4),
-    "P2": timedelta(hours=24),
-    "P3": timedelta(hours=72),
-}
+log = logging.getLogger(__name__)
 
 
 class IncidentService:
     def __init__(self, db: asyncpg.Connection) -> None:
         self._db = db
+        self._policy = SeverityPolicyService(db)
 
     async def create_incident(
         self,
@@ -43,8 +35,10 @@ class IncidentService:
         assigned_role: Optional[str] = None,
     ) -> str:
         """Insert an incident row and return the new incident_id."""
-        sla_delta = _SLA_MAP.get(severity)
-        sla_deadline = datetime.now(timezone.utc) + sla_delta if sla_delta else None
+        sla = await self._policy.get_sla(severity=severity)
+        sla_deadline = (
+            datetime.now(timezone.utc) + timedelta(minutes=sla["sla_minutes"]) if sla else None
+        )
 
         import uuid as _uuid
         incident_id = str(_uuid.uuid4())
@@ -77,8 +71,10 @@ class IncidentService:
         severity: str,
         assigned_ciso_id: Optional[str] = None,
     ) -> Optional[str]:
-        """Create incident for P0/P1 anomalies only. Returns incident_id or None."""
-        if severity not in ("P0", "P1"):
+        """Create incident only if sla_policy.auto_create_incident is set for this
+        severity (PA-editable, formerly hardcoded to P0/P1 only). Returns incident_id or None."""
+        sla = await self._policy.get_sla(severity=severity)
+        if not sla or not sla["auto_create_incident"]:
             return None
 
         return await self.create_incident(

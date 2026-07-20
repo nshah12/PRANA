@@ -17,12 +17,14 @@ from extraction.schemas import (
     BaseExtraction, SalarySlipExtraction, Form16Extraction, OfferLetterExtraction,
     AppointmentLetterExtraction, IncrementLetterExtraction, PromotionLetterExtraction,
     ExperienceLetterExtraction, RelievingLetterExtraction, JoiningLetterExtraction,
-    PFAcknowledgementExtraction,
+    PFAcknowledgementExtraction, BonusLetterExtraction, GratuityLetterExtraction,
+    Form12BExtraction, Form26ASExtraction,
 )
 from extraction.prompts import (
     salary_slip, form_16, offer_letter, increment_letter,
     promotion_letter, relieving_letter, experience_letter,
     appointment_letter, joining_letter, pf_acknowledgement,
+    bonus_letter, gratuity_letter, form_12b, form_26as,
 )
 
 log = logging.getLogger(__name__)
@@ -39,6 +41,10 @@ class DocType(str, Enum):
     RELIEVING_LETTER    = "RELIEVING_LETTER"
     JOINING_LETTER      = "JOINING_LETTER"
     PF_ACKNOWLEDGEMENT  = "PF_ACKNOWLEDGEMENT"
+    BONUS_LETTER        = "BONUS_LETTER"
+    GRATUITY_LETTER     = "GRATUITY_LETTER"
+    FORM_12B            = "FORM_12B"
+    FORM_26AS           = "FORM_26AS"
 
 
 # Maps each doc_type to its (prompt_module, schema_class)
@@ -46,7 +52,6 @@ _REGISTRY: dict[DocType, tuple] = {
     DocType.SALARY_SLIP:        (salary_slip,        SalarySlipExtraction),
     DocType.FORM_16:            (form_16,             Form16Extraction),
     DocType.OFFER_LETTER:       (offer_letter,        OfferLetterExtraction),
-    # schemas for remaining types to be added; use BaseExtraction as placeholder
     DocType.APPOINTMENT_LETTER: (appointment_letter,  AppointmentLetterExtraction),
     DocType.INCREMENT_LETTER:   (increment_letter,    IncrementLetterExtraction),
     DocType.PROMOTION_LETTER:   (promotion_letter,    PromotionLetterExtraction),
@@ -54,6 +59,10 @@ _REGISTRY: dict[DocType, tuple] = {
     DocType.RELIEVING_LETTER:   (relieving_letter,    RelievingLetterExtraction),
     DocType.JOINING_LETTER:     (joining_letter,      JoiningLetterExtraction),
     DocType.PF_ACKNOWLEDGEMENT: (pf_acknowledgement,  PFAcknowledgementExtraction),
+    DocType.BONUS_LETTER:       (bonus_letter,        BonusLetterExtraction),
+    DocType.GRATUITY_LETTER:    (gratuity_letter,     GratuityLetterExtraction),
+    DocType.FORM_12B:           (form_12b,            Form12BExtraction),
+    DocType.FORM_26AS:          (form_26as,           Form26ASExtraction),
 }
 
 # Confidence thresholds — read from config in production, hard-defaults here

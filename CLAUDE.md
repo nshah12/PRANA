@@ -37,9 +37,12 @@ All in `prana-docs/`:
 - `pan_token` = HMAC-SHA256(PAN, platform_secret) — cross-tenant deduplication key
 - `enc_pan` = FF3-1 Format-Preserving Encryption(PAN, employee_DEK)
 - `enc_dek` = KMS_Encrypt(DEK, tenant_KEK) — envelope encryption
-- `totp_secret_enc` = AES-256-GCM
+- `mobile_token` = HMAC-SHA256(mobile, platform_secret) — deterministic login-lookup key (mirrors pan_token)
+- `enc_mobile` / `totp_secret_enc` = real AWS KMS (`KMSService.encrypt_value`/`decrypt_value`,
+  ONE platform-wide auth CMK — not a tenant KEK, not a static app secret; see
+  `.claude/rules/security.md`'s Encryption stack section for why)
 - Passwords = Argon2id (time=2, memory=65536, parallelism=2)
-- AWS KMS (ap-south-1, customer-managed) for platform_secret and tenant KEKs
+- AWS KMS (ap-south-1, customer-managed) for platform_secret, tenant KEKs, and the platform auth CMK
 
 ## Database
 - YugabyteDB (PostgreSQL-compatible distributed SQL)
@@ -50,10 +53,12 @@ All in `prana-docs/`:
 ## Event Streaming — Apache Kafka (DECIDED, NOT optional)
 - **AWS MSK · KRaft mode · Both regions · MirrorMaker 2 bidirectional sync**
 - Dev: `confluentinc/cp-kafka:7.6.1` container on `localhost:9092`
-- **5 topics** (12 partitions each): `prana.ingest.events`, `prana.pipeline.events`, `prana.audit.events`, `prana.notifications`, `prana.analytics.events`
+- **21 topics** (12 partitions each) and **20 consumers** in `prana-api/kafka/consumers/`.
+  The core five remain `AuditConsumer`, `WorkflowConsumer`, `SSEFanoutConsumer`,
+  `NotifConsumer`, `AnalyticsConsumer`; the rest are per-domain (auth/tenant/employee/
+  security/statutory/integration/platform) and per-channel (email/sms/push/whatsapp/bell).
 - **HTTP handler contract:** validate → S3 put → 1 DB write → 1 Kafka publish → return 202. No audit writes, no workflow starts, no notifications in HTTP path.
-- **5 consumers** in `prana-api/kafka/consumers/`: `AuditConsumer`, `WorkflowConsumer`, `SSEFanoutConsumer`, `NotifConsumer`, `AnalyticsConsumer`
-- Full reference: `prana-docs/KAFKA_REDIS_ARCHITECTURE.md`
+- **Authoritative topic/consumer list:** `prana-api/CLAUDE.md`. Full design: `prana-docs/KAFKA_REDIS_ARCHITECTURE.md`
 
 ## Cache — Redis Enterprise (DECIDED, NOT optional)
 - **ElastiCache Global Datastore · CRDT active-active · Both regions · sub-10ms cross-region sync**
@@ -62,9 +67,15 @@ All in `prana-docs/`:
 - **SSE pattern:** pipeline stage changes → Kafka → `SSEFanoutConsumer` → Redis Pub/Sub `sse:doc:{document_id}` → browser. Never poll YugabyteDB from SSE endpoint.
 - No plaintext PAN/NIK ever cached — only `pan_token` (HMAC output) as cache key
 
+## Audit Ledger — Immudb (DECIDED, NOT optional)
+- **4th data store, alongside YugabyteDB / Kafka / Redis. Cryptographically verifiable, append-only.**
+- Dev: `codenotary/immudb:1.9.5` container on `localhost:3322` (gRPC)
+- `AuditConsumer` dual-writes every `audit_event` row to Immudb (`ImmudbService.verified_set`). The app's runtime DB pool connects as `prana_app_role` (never the `yugabyte`/`postgres` superuser — fail-closed guard enforces this in prod), which has `UPDATE`/`DELETE` on `audit_event` REVOKEd (`prana-db/migrations/039_audit_role_revoke.sql`) — real, executed DDL, not just a comment. `AuditIntegrityVerificationWorkflow` re-checks recent rows against Immudb on a schedule and alerts Portal Admins on mismatch, so tampering is actually noticed, not just theoretically provable.
+- Full design: `prana-docs/KAFKA_REDIS_ARCHITECTURE.md` §8
+
 ## Workflow Engine
 - Temporal Python SDK v1.x
-- 53 named workflows, zero cron/Celery/polling
+- 57 named workflows (see `prana-api/workflows/CLAUDE.md` for the authoritative list), zero cron/Celery/polling
 - Business logic in plain service classes (zero Temporal imports)
 - Temporal workflows are thin adapter shells (<20 lines)
 - **Temporal + Kafka are complementary:** Kafka = async fan-out event bus; Temporal = durable process with signals, timers, human-in-the-loop. WorkflowConsumer bridges them.

@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import { useForm } from 'react-hook-form'
 import { api } from '@/lib/api'
 import { useAuthStore } from '@/store/auth'
+import { tUi } from '@/i18n'
 
 interface Form { new_password: string; confirm: string }
 
@@ -59,8 +60,8 @@ export function ResetPassword() {
   const allRulesPassed = RULES.every(r => r.test(password))
 
   async function onSubmit(data: Form) {
-    if (data.new_password !== data.confirm) { setError('Passwords do not match'); return }
-    if (!allRulesPassed) { setError('Password does not meet all requirements'); return }
+    if (data.new_password !== data.confirm) { setError(tUi('RESET_PASSWORD_MISMATCH')); return }
+    if (!allRulesPassed) { setError(tUi('RESET_PASSWORD_REQUIREMENTS_NOT_MET')); return }
     setError('')
     try {
       const res = await api.post('/auth/org/password-reset', {
@@ -73,11 +74,11 @@ export function ResetPassword() {
     } catch (e: any) {
       const detail = e.response?.data?.detail
       if (detail === 'STEP_TOKEN_EXPIRED') {
-        setError('Your session expired. Please log in again.')
+        setError(tUi('RESET_PASSWORD_SESSION_EXPIRED'))
       } else if (detail === 'PASSWORD_TOO_SHORT') {
-        setError('Password must be at least 12 characters.')
+        setError(tUi('RESET_PASSWORD_TOO_SHORT'))
       } else {
-        setError(detail ?? 'Reset failed. Please try again.')
+        setError(detail ?? tUi('RESET_PASSWORD_FAILED_DEFAULT'))
       }
     }
   }
@@ -90,9 +91,9 @@ export function ResetPassword() {
             style={{ background: 'linear-gradient(135deg, #6366F1, #22D3EE)' }}>
             🔑
           </div>
-          <h1 className="text-xl font-bold text-slate-900">Set your password</h1>
+          <h1 className="text-xl font-bold text-slate-900">{tUi('EMP_LOGIN_STEP_FORCE_PASSWORD_TITLE')}</h1>
           <p className="text-slate-500 text-sm mt-1">
-            Your account requires a new password before you can continue.
+            {tUi('RESET_PASSWORD_SUB')}
           </p>
         </div>
 
@@ -102,13 +103,13 @@ export function ResetPassword() {
           {/* New password */}
           <div className="space-y-1.5">
             <label className="text-xs font-semibold text-slate-500 uppercase tracking-wider">
-              New password
+              {tUi('RESET_PASSWORD_NEW_LABEL')}
             </label>
             <div className="relative">
               <input
                 {...register('new_password', { required: true, minLength: 12 })}
                 type={showPw ? 'text' : 'password'}
-                placeholder="Minimum 12 characters"
+                placeholder={tUi('RESET_PASSWORD_MIN_CHARS_PLACEHOLDER')}
                 className="w-full border border-slate-200 rounded-xl px-4 py-2.5 text-sm pr-10
                            focus:outline-none focus:ring-2 focus:ring-violet-400 bg-slate-50 focus:bg-white
                            transition-colors"
@@ -124,13 +125,13 @@ export function ResetPassword() {
           {/* Confirm */}
           <div className="space-y-1.5">
             <label className="text-xs font-semibold text-slate-500 uppercase tracking-wider">
-              Confirm password
+              {tUi('RESET_PASSWORD_CONFIRM_LABEL')}
             </label>
             <div className="relative">
               <input
                 {...register('confirm', { required: true })}
                 type={showCf ? 'text' : 'password'}
-                placeholder="Re-enter password"
+                placeholder={tUi('RESET_PASSWORD_REENTER_PLACEHOLDER')}
                 className="w-full border border-slate-200 rounded-xl px-4 py-2.5 text-sm pr-10
                            focus:outline-none focus:ring-2 focus:ring-violet-400 bg-slate-50 focus:bg-white
                            transition-colors"

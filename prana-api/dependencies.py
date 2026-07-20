@@ -141,7 +141,7 @@ async def verify_api_key_and_rate_limit(
             await kafka.publish("prana.audit.events", {
                 "event_type": "INGEST_RATE_LIMITED",
                 "event_id": str(uuid.uuid4()),
-                "occurred_at": datetime.datetime.utcnow().isoformat(),
+                "occurred_at": datetime.datetime.now(datetime.timezone.utc).isoformat(),
                 "api_key_id": api_key_id,
                 "tenant_id": tenant_id,
                 "actor_type": "HRMS_API",

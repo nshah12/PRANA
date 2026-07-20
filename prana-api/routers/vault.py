@@ -23,9 +23,16 @@ from fastapi import APIRouter, Depends, HTTPException, Request, status
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, Field
 
+import logging
+
 from dependencies import AuthUser, Employee, DbConn
 from services.vault_service import VaultService
 from services.share_service import ShareService
+from services.employee_service import EmployeeService
+from services.encryption_service import resolve_platform_auth_kek_arn
+from errors import PranaError
+
+log = logging.getLogger(__name__)
 
 router = APIRouter()
 
@@ -37,6 +44,7 @@ def _vault(request: Request, db: DbConn, current) -> VaultService:
         kms=request.app.state.kms_service,
         s3_client=request.app.state.s3,
         documents_bucket=settings.s3_bucket_documents,
+        kafka_producer=getattr(request.app.state, "kafka_producer", None),
     )
 
 
@@ -81,10 +89,11 @@ async def view_document(
     """
     svc = _vault(request, db, current)
     try:
+        from lib.client_ip import get_client_ip
         plaintext, doc_type = await svc.get_document_bytes(
             document_id=document_id,
             employee_user_id=current.user_id,
-            actor_ip=request.client.host if request.client else "0.0.0.0",
+            actor_ip=get_client_ip(request, request.app.state.settings.trusted_proxy_count),
             session_id=current.session_id,
             access_type="DOWNLOAD" if download else "VIEW",
         )
@@ -111,6 +120,48 @@ async def view_document(
 
 # ── Timeline ──────────────────────────────────────────────────────────────────
 
+@router.get("/documents/{document_id}/credential")
+async def get_credential(document_id: str, request: Request, db: DbConn, current: Employee):
+    """
+    Career Passport credential card — returns verification metadata for a ROUTED document.
+    Employee-facing: used to display QR code + share credential with recruiters/banks.
+    Privacy: returns only non-sensitive metadata — no raw salary, no PAN, no insights.
+    """
+    row = await db.fetchrow(
+        """
+        SELECT d.document_id, d.pipeline_status, d.verification_code,
+               d.doc_type, d.doc_period, d.pushed_at, d.routed_at, d.file_hash_sha256,
+               t.tenant_name
+        FROM document d
+        JOIN employee_master em ON em.employee_uuid = d.employee_uuid
+        JOIN employee_user eu ON eu.employee_user_id = em.employee_user_id
+        JOIN tenant t ON t.tenant_id = d.tenant_id
+        WHERE d.document_id = $1::uuid
+          AND eu.employee_user_id = $2::uuid
+          AND d.is_deleted = FALSE
+          AND d.employee_visible = TRUE
+        LIMIT 1
+        """,
+        document_id, current.user_id,
+    )
+
+    if not row or row["pipeline_status"] != "ROUTED" or not row["verification_code"]:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=PranaError.DOCUMENT_NOT_FOUND)
+
+    code = row["verification_code"]
+    return {
+        "verification_code": code,
+        "verify_url":        f"https://verify.prana.in/{code}",
+        "qr_url":            f"/public/qr/{code}",
+        "doc_type":          row["doc_type"],
+        "doc_period":        row["doc_period"],
+        "pushed_by":         row["tenant_name"],
+        "pushed_at":         row["pushed_at"].isoformat() if row["pushed_at"] else None,
+        "routed_at":         row["routed_at"].isoformat() if row["routed_at"] else None,
+        "file_hash_sha256":  row["file_hash_sha256"],
+    }
+
+
 @router.get("/timeline")
 async def get_timeline(request: Request, db: DbConn, current: Employee):
     svc = _vault(request, db, current)
@@ -126,16 +177,13 @@ async def get_health(request: Request, db: DbConn, current: Employee):
     health = await svc.get_health(current.user_id)
     if not health:
         return {"overall_score": 0, "gap_count": 0, "gap_detail": [], "computed_at": None}
-    import json as _json
-    gap = health["gap_detail"] or []
-    if isinstance(gap, str):
-        try: gap = _json.loads(gap)
-        except Exception: gap = []
     return {
         "overall_score": health["overall_score"],
         "gap_count": health["gap_count"],
-        "gap_detail": gap,
-        "computed_at": health["computed_at"].isoformat() if health.get("computed_at") else None,
+        # vault_service.get_health() already parses gap_detail into a real list
+        # and serializes computed_at to an ISO string.
+        "gap_detail": health["gap_detail"],
+        "computed_at": health.get("computed_at"),
     }
 
 
@@ -158,7 +206,7 @@ async def get_profile(request: Request, db: DbConn, current: Employee):
     """
     row = await db.fetchrow(
         """
-        SELECT eu.employee_user_id, eu.mobile, eu.status,
+        SELECT eu.employee_user_id, eu.status,
                eu.created_at,
                em.full_name, em.designation, em.department,
                em.employee_user_id AS master_user_id
@@ -180,10 +228,24 @@ async def get_profile(request: Request, db: DbConn, current: Employee):
     name_slug = (row["full_name"] or "user").lower().replace(" ", "-")
     short_id = str(row["employee_user_id"])[:8]
 
+    # mobile is decrypted via the platform auth CMK (same key as totp_secret_enc)
+    # — tenant-agnostic, since it's the employee's own login credential, not
+    # scoped to any particular employer relationship.
+    emp_svc = EmployeeService(
+        db=db, kms=request.app.state.kms_service,
+        platform_hmac_secret=request.app.state.settings.platform_hmac_secret,
+    )
+    auth_kek_arn = resolve_platform_auth_kek_arn(request.app.state.settings)
+    try:
+        mobile = await emp_svc.decrypt_mobile(str(row["employee_user_id"]), auth_kek_arn)
+    except Exception:
+        log.warning("decrypt_mobile failed employee_user_id=%s", row["employee_user_id"])
+        mobile = None
+
     return {
         "employee_user_id": str(row["employee_user_id"]),
         "name": row["full_name"] or "—",
-        "mobile": row["mobile"],
+        "mobile": mobile,
         "status": row["status"],
         "vault_url": f"prana.in/vault/{name_slug}-{short_id}",
         "has_totp": True,   # if logged in, TOTP was already verified
@@ -251,12 +313,13 @@ async def get_career(request: Request, db: DbConn, current: Employee):
         SELECT d.doc_period, d.doc_type,
                t.tenant_name AS employer_name,
                em.employee_uuid AS employer_id,
-               d.insight_text,
+               ce.insight_text,
                (d.extracted_fields->>'growth_index')::int AS growth_index,
                d.routed_at
         FROM document d
         JOIN employee_master em ON em.employee_uuid = d.employee_uuid
         JOIN tenant t ON t.tenant_id = em.tenant_id
+        LEFT JOIN career_event ce ON ce.doc_uuid = d.document_id
         WHERE d.employee_uuid IN (
             SELECT employee_uuid FROM employee_master WHERE employee_user_id=$1
           )
@@ -264,6 +327,7 @@ async def get_career(request: Request, db: DbConn, current: Employee):
           AND d.doc_type IN ('SALARY_SLIP','INCREMENT_LETTER','PROMOTION_LETTER')
           AND d.doc_period IS NOT NULL
           AND d.is_deleted = FALSE
+          AND d.employee_visible = TRUE
         ORDER BY d.doc_period ASC
         """,
         current.user_id,
@@ -381,7 +445,7 @@ async def revoke_share(share_id: str, request: Request, db: DbConn, current: Emp
     try:
         await svc.revoke(share_id, current.user_id)
     except PermissionError:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="NOT_FOUND")
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=PranaError.NOT_FOUND)
 
 
 # ── Activity feed ─────────────────────────────────────────────────────────────

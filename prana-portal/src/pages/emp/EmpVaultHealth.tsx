@@ -1,7 +1,10 @@
 import { useQuery } from '@tanstack/react-query'
+import { useNavigate } from 'react-router-dom'
 import { api } from '@/lib/api'
+import { tUi } from '@/i18n'
 
 export function EmpVaultHealth() {
+  const navigate = useNavigate()
   const { data, isLoading } = useQuery({
     queryKey: ['emp-vault-health'],
     queryFn: () => api.get('/v1/vault/health').then(r => r.data),
@@ -44,10 +47,10 @@ export function EmpVaultHealth() {
   )
 
   const breakdown = [
-    { label: 'Employment Proof',         st: hasEmploymentProof ? 'ok' : 'bad' },
-    { label: 'Salary Slips (last 12mo)', st: recentSlips.length >= 6 ? 'ok' : recentSlips.length > 0 ? 'warn' : 'bad' },
-    { label: 'Form-16 history',          st: form16Docs.length >= employers.length ? 'ok' : form16Docs.length > 0 ? 'warn' : 'bad' },
-    { label: 'Historic slips (alumni)',  st: missingHistoric ? 'bad' : 'ok' },
+    { label: tUi('EMP_VAULT_HEALTH_EMPLOYMENT_PROOF'),         st: hasEmploymentProof ? 'ok' : 'bad' },
+    { label: tUi('EMP_VAULT_HEALTH_SALARY_SLIPS_12MO'), st: recentSlips.length >= 6 ? 'ok' : recentSlips.length > 0 ? 'warn' : 'bad' },
+    { label: tUi('EMP_VAULT_HEALTH_FORM16_HISTORY'),          st: form16Docs.length >= employers.length ? 'ok' : form16Docs.length > 0 ? 'warn' : 'bad' },
+    { label: tUi('EMP_VAULT_HEALTH_HISTORIC_SLIPS'),  st: missingHistoric ? 'bad' : 'ok' },
   ]
 
   const computedScore = score > 0 ? score :
@@ -55,8 +58,8 @@ export function EmpVaultHealth() {
 
   return (
     <div className="p-6">
-      <h1 className="text-xl font-bold text-slate-800 mb-1">Vault Health</h1>
-      <p className="text-sm text-slate-500 mb-5">Document completeness across all your employers</p>
+      <h1 className="text-xl font-bold text-slate-800 mb-1">{tUi('EMP_LAYOUT_NAV_VAULT_HEALTH')}</h1>
+      <p className="text-sm text-slate-500 mb-5">{tUi('EMP_VAULT_HEALTH_SUB')}</p>
 
       {isLoading ? (
         <div className="space-y-3">
@@ -70,7 +73,7 @@ export function EmpVaultHealth() {
               <p className="font-bold leading-none" style={{ fontSize: 52, color: scoreColor }}>
                 {computedScore}%
               </p>
-              <p className="text-xs font-semibold text-slate-600 mt-2">Vault Health Score</p>
+              <p className="text-xs font-semibold text-slate-600 mt-2">{tUi('EMP_VAULT_HEALTH_SCORE_LABEL')}</p>
               <div className="w-full h-1.5 bg-slate-100 rounded-full mt-3 overflow-hidden">
                 <div className="h-full rounded-full transition-all"
                   style={{ width: `${computedScore}%`, background: 'linear-gradient(90deg,#10B981,#0EA5E9)' }}/>
@@ -83,7 +86,7 @@ export function EmpVaultHealth() {
             </div>
 
             <div className="bg-white border border-slate-200 rounded-xl p-4 shadow-sm">
-              <p className="text-xs font-bold uppercase tracking-wide text-slate-400 mb-3">Score Breakdown</p>
+              <p className="text-xs font-bold uppercase tracking-wide text-slate-400 mb-3">{tUi('EMP_VAULT_HEALTH_SCORE_BREAKDOWN')}</p>
               <div className="space-y-2.5">
                 {breakdown.map(row => (
                   <div key={row.label} className="flex items-center justify-between gap-3">
@@ -95,7 +98,7 @@ export function EmpVaultHealth() {
                         ? { background:'rgba(245,158,11,0.08)', color:'#D97706', borderColor:'rgba(245,158,11,0.25)' }
                         : { background:'rgba(239,68,68,0.06)', color:'#DC2626', borderColor:'rgba(239,68,68,0.2)' }
                       }>
-                      {row.st === 'ok' ? '✓ Complete' : row.st === 'warn' ? '⚠ Partial' : '✗ Missing'}
+                      {row.st === 'ok' ? tUi('EMP_VAULT_HEALTH_COMPLETE') : row.st === 'warn' ? tUi('EMP_VAULT_HEALTH_PARTIAL') : tUi('EMP_VAULT_HEALTH_MISSING')}
                     </span>
                   </div>
                 ))}
@@ -106,15 +109,15 @@ export function EmpVaultHealth() {
           {/* Gaps */}
           {(gapCount > 0 || gaps.length > 0 || missingHistoric || breakdown.some(r => r.st !== 'ok')) ? (
             <div className="bg-white border border-slate-200 rounded-xl p-4 shadow-sm">
-              <p className="text-xs font-bold uppercase tracking-wide text-slate-400 mb-3">Gaps Found — Action Required</p>
+              <p className="text-xs font-bold uppercase tracking-wide text-slate-400 mb-3">{tUi('EMP_VAULT_HEALTH_GAPS_FOUND_TITLE')}</p>
               <div className="space-y-3">
                 {/* From API */}
                 {gaps.map((g: any, i: number) => (
                   <div key={i} className="p-3 rounded-lg"
                     style={{ background:'rgba(245,158,11,0.06)', border:'1px solid rgba(245,158,11,0.2)' }}>
                     <p className="text-sm font-semibold text-slate-800">📋 {g.description ?? g.gap_type}</p>
-                    {g.employer && <p className="text-xs text-slate-500 mt-0.5">Employer: {g.employer}</p>}
-                    <button className="mt-1.5 text-xs font-semibold text-sky-600 hover:underline">Request →</button>
+                    {g.employer && <p className="text-xs text-slate-500 mt-0.5">{tUi('EMP_VAULT_HEALTH_EMPLOYER_PREFIX')} {g.employer}</p>}
+                    <button onClick={() => navigate('/emp/doc-request')} className="mt-1.5 text-xs font-semibold text-sky-600 hover:underline">{tUi('EMP_VAULT_HEALTH_REQUEST_BTN')}</button>
                   </div>
                 ))}
 
@@ -122,17 +125,20 @@ export function EmpVaultHealth() {
                 {form16Docs.length < employers.length && (
                   <div className="p-3 rounded-lg"
                     style={{ background:'rgba(245,158,11,0.06)', border:'1px solid rgba(245,158,11,0.2)' }}>
-                    <p className="text-sm font-semibold text-slate-800">📋 Form-16 missing from some financial years</p>
-                    <p className="text-xs text-slate-500 mt-0.5">Should have been issued by July 31 each year</p>
-                    <button className="mt-1.5 text-xs font-semibold text-sky-600 hover:underline">Request →</button>
+                    <p className="text-sm font-semibold text-slate-800">{tUi('EMP_VAULT_HEALTH_FORM16_MISSING_TITLE')}</p>
+                    <p className="text-xs text-slate-500 mt-0.5">{tUi('EMP_VAULT_HEALTH_FORM16_MISSING_SUB')}</p>
+                    <button onClick={() => navigate('/emp/doc-request')} className="mt-1.5 text-xs font-semibold text-sky-600 hover:underline">{tUi('EMP_VAULT_HEALTH_REQUEST_BTN')}</button>
                   </div>
                 )}
                 {missingHistoric && (
                   <div className="p-3 rounded-lg"
                     style={{ background:'rgba(239,68,68,0.04)', border:'1px solid rgba(239,68,68,0.15)' }}>
-                    <p className="text-sm font-semibold text-slate-800">🗂 Salary slips missing from past employer(s)</p>
-                    <p className="text-xs text-slate-500 mt-0.5">Alumni employers with no salary slips in vault. Self-upload option available.</p>
-                    <button className="mt-1.5 text-xs font-semibold text-sky-600 hover:underline">Self-Upload →</button>
+                    <p className="text-sm font-semibold text-slate-800">{tUi('EMP_VAULT_HEALTH_HISTORIC_MISSING_TITLE')}</p>
+                    <p className="text-xs text-slate-500 mt-0.5">{tUi('EMP_VAULT_HEALTH_HISTORIC_MISSING_SUB')}</p>
+                    {/* TODO(product): no portal self-upload page exists yet (self-upload is
+                        mobile-only, see prana-mobile/src/app/(vault)/vault/self-upload.tsx) —
+                        disabled with an honest tooltip rather than linking somewhere wrong. */}
+                    <button disabled title={tUi('EMP_VAULT_HEALTH_SELF_UPLOAD_MOBILE_ONLY')} className="mt-1.5 text-xs font-semibold text-slate-400 cursor-not-allowed">{tUi('EMP_VAULT_HEALTH_SELF_UPLOAD_BTN')}</button>
                   </div>
                 )}
               </div>
@@ -141,8 +147,8 @@ export function EmpVaultHealth() {
             <div className="rounded-xl p-5 text-center border"
               style={{ background:'rgba(16,185,129,0.06)', borderColor:'rgba(16,185,129,0.2)' }}>
               <p className="text-3xl mb-2">✅</p>
-              <p className="font-bold text-emerald-700">Vault is complete</p>
-              <p className="text-sm text-emerald-600 mt-1">No gaps detected across all employers.</p>
+              <p className="font-bold text-emerald-700">{tUi('EMP_VAULT_HEALTH_COMPLETE_TITLE')}</p>
+              <p className="text-sm text-emerald-600 mt-1">{tUi('EMP_VAULT_HEALTH_COMPLETE_SUB')}</p>
             </div>
           ) : null}
         </>

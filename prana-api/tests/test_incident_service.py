@@ -68,7 +68,8 @@ async def test_create_incident_writes_row(svc, mock_db):
 
 @pytest.mark.asyncio
 async def test_create_incident_p0_sla_30_min(svc, mock_db):
-    """P0 incident SLA deadline must be NOW + 30 minutes."""
+    """P0 incident SLA deadline must be NOW + 30 minutes (from sla_policy, not hardcoded)."""
+    mock_db.fetchrow.return_value = {"sla_minutes": 30, "auto_create_incident": True}
     before = datetime.now(timezone.utc)
     await svc.create_incident(
         incident_type="SECURITY_ANOMALY",
@@ -88,7 +89,8 @@ async def test_create_incident_p0_sla_30_min(svc, mock_db):
 
 @pytest.mark.asyncio
 async def test_create_incident_p1_sla_4_hr(svc, mock_db):
-    """P1 incident SLA deadline must be NOW + 4 hours."""
+    """P1 incident SLA deadline must be NOW + 4 hours (from sla_policy, not hardcoded)."""
+    mock_db.fetchrow.return_value = {"sla_minutes": 240, "auto_create_incident": True}
     before = datetime.now(timezone.utc)
     await svc.create_incident(
         incident_type="SECURITY_ANOMALY",
@@ -105,7 +107,8 @@ async def test_create_incident_p1_sla_4_hr(svc, mock_db):
 
 @pytest.mark.asyncio
 async def test_create_incident_p2_sla_24_hr(svc, mock_db):
-    """P2 incident SLA deadline must be NOW + 24 hours."""
+    """P2 incident SLA deadline must be NOW + 24 hours (from sla_policy, not hardcoded)."""
+    mock_db.fetchrow.return_value = {"sla_minutes": 1440, "auto_create_incident": False}
     before = datetime.now(timezone.utc)
     await svc.create_incident(
         incident_type="SLA_BREACH",
@@ -126,7 +129,8 @@ async def test_create_incident_p2_sla_24_hr(svc, mock_db):
 
 @pytest.mark.asyncio
 async def test_auto_create_for_p0_anomaly(svc, mock_db):
-    """P0 anomaly must auto-create an incident."""
+    """P0 anomaly must auto-create an incident (sla_policy.auto_create_incident=TRUE)."""
+    mock_db.fetchrow.return_value = {"sla_minutes": 30, "auto_create_incident": True}
     result = await svc.auto_create_for_anomaly(
         anomaly_id="anom-uuid-001",
         tenant_id="tenant-001",
@@ -140,7 +144,8 @@ async def test_auto_create_for_p0_anomaly(svc, mock_db):
 
 @pytest.mark.asyncio
 async def test_auto_create_for_p1_anomaly(svc, mock_db):
-    """P1 anomaly must auto-create an incident."""
+    """P1 anomaly must auto-create an incident (sla_policy.auto_create_incident=TRUE)."""
+    mock_db.fetchrow.return_value = {"sla_minutes": 240, "auto_create_incident": True}
     result = await svc.auto_create_for_anomaly(
         anomaly_id="anom-uuid-002",
         tenant_id="tenant-001",
@@ -154,7 +159,8 @@ async def test_auto_create_for_p1_anomaly(svc, mock_db):
 
 @pytest.mark.asyncio
 async def test_no_auto_create_for_p2_anomaly(svc, mock_db):
-    """P2 anomaly must NOT auto-create an incident."""
+    """P2 anomaly must NOT auto-create an incident (sla_policy.auto_create_incident=FALSE)."""
+    mock_db.fetchrow.return_value = {"sla_minutes": 1440, "auto_create_incident": False}
     result = await svc.auto_create_for_anomaly(
         anomaly_id="anom-uuid-003",
         tenant_id="tenant-001",
@@ -168,7 +174,8 @@ async def test_no_auto_create_for_p2_anomaly(svc, mock_db):
 
 @pytest.mark.asyncio
 async def test_no_auto_create_for_p3_anomaly(svc, mock_db):
-    """P3 anomaly must NOT auto-create an incident."""
+    """P3 anomaly must NOT auto-create an incident (sla_policy.auto_create_incident=FALSE)."""
+    mock_db.fetchrow.return_value = {"sla_minutes": 4320, "auto_create_incident": False}
     result = await svc.auto_create_for_anomaly(
         anomaly_id="anom-uuid-004",
         tenant_id="tenant-001",
@@ -178,6 +185,37 @@ async def test_no_auto_create_for_p3_anomaly(svc, mock_db):
     )
     assert result is None
     mock_db.execute.assert_not_called()
+
+
+@pytest.mark.asyncio
+async def test_auto_create_returns_none_for_unrecognized_severity(svc, mock_db):
+    """If sla_policy has no row for this severity at all, must not auto-create."""
+    mock_db.fetchrow.return_value = None
+    result = await svc.auto_create_for_anomaly(
+        anomaly_id="anom-uuid-005",
+        tenant_id="tenant-001",
+        rule_name="UNKNOWN",
+        severity="P9",
+        assigned_ciso_id="ciso-uuid-001",
+    )
+    assert result is None
+    mock_db.execute.assert_not_called()
+
+
+@pytest.mark.asyncio
+async def test_create_incident_unknown_severity_has_no_sla_deadline(svc, mock_db):
+    """create_incident() with a severity absent from sla_policy must still write the row,
+    just without a computed SLA deadline (defense-in-depth, not expected in normal use)."""
+    mock_db.fetchrow.return_value = None
+    await svc.create_incident(
+        incident_type="SECURITY_ANOMALY",
+        severity="P9",
+        title="Unrecognized severity",
+        tenant_id="tenant-001",
+    )
+    sql, *args = mock_db.execute.call_args[0]
+    sla_arg = next((a for a in args if isinstance(a, datetime)), None)
+    assert sla_arg is None
 
 
 # ---------------------------------------------------------------------------

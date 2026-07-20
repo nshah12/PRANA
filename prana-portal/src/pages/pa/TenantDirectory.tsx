@@ -4,6 +4,7 @@ import { Search, Plus, Building2 } from 'lucide-react'
 import { useNavigate } from 'react-router-dom'
 import { api } from '@/lib/api'
 import { fmtDate } from '@/lib/utils'
+import { tUi } from '@/i18n'
 
 export function TenantDirectory() {
   const navigate = useNavigate()
@@ -18,19 +19,19 @@ export function TenantDirectory() {
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
-        <h1 className="text-xl font-semibold text-slate-800">Tenant Directory</h1>
+        <h1 className="text-xl font-semibold text-slate-800">{tUi('PA_TENANT_DIR_TITLE')}</h1>
         <button
           onClick={() => navigate('/admin/tenants/new')}
           className="flex items-center gap-2 px-4 py-2 bg-amber-500 text-white text-sm
                      font-semibold rounded-lg hover:bg-amber-600 transition-colors">
-          <Plus size={14}/> New Tenant
+          <Plus size={14}/> {tUi('PA_TENANT_DIR_NEW_TENANT')}
         </button>
       </div>
 
       <div className="relative">
         <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
         <input value={search} onChange={e => setSearch(e.target.value)}
-               placeholder="Search by name or domain…"
+               placeholder={tUi('PA_TENANT_DIR_SEARCH_PLACEHOLDER')}
                className="w-full pl-9 pr-4 py-2.5 border border-slate-200 rounded-lg text-sm
                           focus:outline-none focus:ring-2 focus:ring-amber-400" />
       </div>
@@ -51,16 +52,16 @@ export function TenantDirectory() {
           </thead>
           <tbody className="divide-y divide-slate-50">
             {isLoading && (
-              <tr><td colSpan={8} className="px-5 py-8 text-center text-slate-400">Loading…</td></tr>
+              <tr><td colSpan={8} className="px-5 py-8 text-center text-slate-400">{tUi('CFO_DIGEST_LOADING')}</td></tr>
             )}
             {!isLoading && tenants.length === 0 && (
               <tr>
                 <td colSpan={8} className="px-5 py-12 text-center">
                   <Building2 size={32} className="mx-auto text-slate-300 mb-2" />
-                  <p className="text-slate-500 text-sm font-medium">No tenants found</p>
+                  <p className="text-slate-500 text-sm font-medium">{tUi('TENANT_DIRECTORY_NONE_FOUND')}</p>
                   <button onClick={() => navigate('/admin/tenants/new')}
                     className="mt-3 text-xs text-amber-600 font-medium hover:underline">
-                    + Onboard your first tenant
+                    {tUi('PA_TENANT_DIR_ONBOARD_FIRST')}
                   </button>
                 </td>
               </tr>

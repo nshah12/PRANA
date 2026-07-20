@@ -9,7 +9,7 @@ Covers:
   - No raw salary or PAN in any CISO response
 """
 import datetime
-from unittest.mock import AsyncMock, MagicMock
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
@@ -415,6 +415,74 @@ async def test_ciso_resolve_incident_not_found(client, mock_db):
     assert resp.status_code == 404
 
 
+# ── Application errors (4th incident track, ERROR_OBSERVABILITY_DESIGN.md §7) ───
+
+ERR_SVC = "services.error_observability_service.ErrorObservabilityService"
+
+
+@pytest.mark.asyncio
+async def test_ciso_errors_list_requires_auth(client, mock_db):
+    resp = await client.get("/v1/ciso/errors")
+    assert resp.status_code in (401, 403)
+
+
+@pytest.mark.asyncio
+async def test_ciso_errors_list_is_tenant_scoped_including_platform_level(client, mock_db):
+    """CISO must see their own tenant's errors AND platform-level (tenant_id IS NULL) ones,
+    but never another tenant's — see ERROR_OBSERVABILITY_DESIGN.md §7."""
+    _set_auth(client, tenant_id="tenant-001")
+    with patch(f"{ERR_SVC}.list_errors", new_callable=AsyncMock) as mock_list:
+        mock_list.return_value = [{"error_id": "e-1", "exception_type": "RuntimeError"}]
+        resp = await client.get("/v1/ciso/errors", headers=AUTH_HEADER)
+
+    assert resp.status_code == 200
+    data = resp.json()
+    assert data["total"] == 1
+    mock_list.assert_awaited_once()
+    kwargs = mock_list.call_args.kwargs
+    assert kwargs["tenant_id"] == "tenant-001"
+    assert kwargs["include_platform_errors"] is True
+
+
+@pytest.mark.asyncio
+async def test_ciso_acknowledge_error(client, mock_db):
+    _set_auth(client)
+    with patch(f"{ERR_SVC}.acknowledge", new_callable=AsyncMock) as mock_ack:
+        resp = await client.patch("/v1/ciso/errors/e-1/acknowledge", headers=AUTH_HEADER)
+
+    assert resp.status_code == 200
+    assert resp.json()["status"] == "acknowledged"
+    mock_ack.assert_awaited_once_with(error_id="e-1")
+
+
+@pytest.mark.asyncio
+async def test_ciso_resolve_error_happy_path(client, mock_db):
+    _set_auth(client, user_id="ciso-uuid-009")
+    with patch(f"{ERR_SVC}.resolve", new_callable=AsyncMock) as mock_resolve:
+        resp = await client.patch(
+            "/v1/ciso/errors/e-1/resolve", headers=AUTH_HEADER,
+            json={"resolution_note": "Confirmed benign, deployed fix"},
+        )
+
+    assert resp.status_code == 200
+    assert resp.json()["status"] == "resolved"
+    mock_resolve.assert_awaited_once_with(
+        error_id="e-1", resolved_by="ciso-uuid-009", resolution_note="Confirmed benign, deployed fix",
+    )
+
+
+@pytest.mark.asyncio
+async def test_ciso_resolve_error_not_found(client, mock_db):
+    _set_auth(client)
+    with patch(f"{ERR_SVC}.resolve", new_callable=AsyncMock,
+                side_effect=ValueError("error_event not found: e-missing")):
+        resp = await client.patch(
+            "/v1/ciso/errors/e-missing/resolve", headers=AUTH_HEADER,
+            json={"resolution_note": "test"},
+        )
+    assert resp.status_code == 404
+
+
 # ── Notification log endpoint ───────────────────────────────────────────────────
 
 @pytest.mark.asyncio
@@ -452,7 +520,7 @@ async def test_list_account_locks_queries_real_columns(client, mock_db):
     """
     _set_auth(client)
     mock_db.fetch.return_value = [{
-        "event_id": "event-uuid-001", "account_type": "employee", "account_id": "emp-uuid-001",
+        "event_id": "event-uuid-001", "user_type": "employee", "user_id": "emp-uuid-001",
         "lock_reason": "POLICY_LOCK", "locked_at": datetime.datetime(2026, 6, 19, tzinfo=datetime.timezone.utc),
         "scheduled_unlock_at": None, "failed_attempt_count": 5, "last_failed_ip": None,
         "identifier": "+919000000001",
@@ -469,49 +537,155 @@ async def test_list_account_locks_queries_real_columns(client, mock_db):
     assert resp.json()["items"][0]["account_type"] == "employee"
 
 
+# ── Manual account unlock ────────────────────────────────────────────────────
+# Regression: manual_unlock previously read lock_row["account_type"]/["account_id"],
+# but the SELECT only fetches user_type/user_id — a real DB row raises KeyError
+# on every call. Zero test coverage previously existed to catch this.
+
 @pytest.mark.asyncio
-async def test_manual_unlock_inserts_using_real_columns(client, mock_db):
-    """POST /account-locks/{id}/unlock must INSERT/SELECT user_type/user_id —
-    the current account_type/account_id INSERT would raise UndefinedColumnError.
-    """
-    _set_auth(client)
-    mock_db.fetchrow.return_value = {
-        "event_id": "event-uuid-001", "account_type": "employee", "account_id": "emp-uuid-001",
-        "reversed_by_event_id": None,
-    }
-    mock_db.execute = AsyncMock()
-
-    resp = await client.post(
-        "/v1/ciso/account-locks/event-uuid-001/unlock",
-        headers=AUTH_HEADER,
-    )
-
-    assert resp.status_code == 200
-    select_sql = mock_db.fetchrow.call_args.args[0].lower()
-    # "AS account_type" aliasing is fine (preserves the response shape) —
-    # what matters is the real column being selected is user_type, not a
-    # bare "account_type" column reference (which doesn't exist).
-    assert "user_type as account_type" in select_sql
-    assert "user_id as account_id" in select_sql
-
-    insert_calls = [c for c in mock_db.execute.call_args_list
-                    if "insert into account_status_event" in c.args[0].lower()]
-    assert len(insert_calls) == 1
-    insert_sql = insert_calls[0].args[0].lower()
-    assert "account_type" not in insert_sql
-    assert "account_id" not in insert_sql
-    assert "user_type" in insert_sql
-    assert "user_id" in insert_sql
+async def test_manual_unlock_requires_auth(client, mock_db):
+    resp = await client.post("/v1/ciso/account-locks/evt-1/unlock")
+    assert resp.status_code in (401, 403)
 
 
 @pytest.mark.asyncio
 async def test_manual_unlock_not_found_returns_404(client, mock_db):
     _set_auth(client)
     mock_db.fetchrow.return_value = None
-
-    resp = await client.post(
-        "/v1/ciso/account-locks/does-not-exist/unlock",
-        headers=AUTH_HEADER,
-    )
-
+    resp = await client.post("/v1/ciso/account-locks/evt-missing/unlock", headers=AUTH_HEADER)
     assert resp.status_code == 404
+
+
+@pytest.mark.asyncio
+async def test_manual_unlock_already_unlocked_returns_409(client, mock_db):
+    _set_auth(client)
+    mock_db.fetchrow.return_value = {
+        "event_id": "evt-1", "user_type": "employee", "user_id": "emp-uuid-001",
+        "reversed_by_event_id": "evt-0",
+    }
+    resp = await client.post("/v1/ciso/account-locks/evt-1/unlock", headers=AUTH_HEADER)
+    assert resp.status_code == 409
+
+
+@pytest.mark.asyncio
+async def test_manual_unlock_restores_employee_account(client, mock_db, mock_kafka):
+    _set_auth(client, tenant_id="tenant-001", user_id="ciso-uuid-001")
+    mock_db.fetchrow.return_value = {
+        "event_id": "evt-1", "user_type": "employee", "user_id": "emp-uuid-001",
+        "reversed_by_event_id": None,
+    }
+    mock_db.execute = AsyncMock(return_value=None)
+
+    resp = await client.post("/v1/ciso/account-locks/evt-1/unlock", headers=AUTH_HEADER)
+
+    assert resp.status_code == 200
+    assert resp.json()["message"] == "LOCK_REMOVED"
+    all_sql = " ".join(str(c) for c in mock_db.execute.call_args_list).lower()
+    assert "employee_user" in all_sql and "emp-uuid-001" in all_sql
+    mock_kafka.security_event.assert_awaited_once()
+    sec = mock_kafka.security_event.call_args[0][0]
+    assert sec["event_type"] == "ACCOUNT_UNLOCKED"
+    assert sec["target_account_id"] == "emp-uuid-001"
+
+
+@pytest.mark.asyncio
+async def test_manual_unlock_restores_oa_user_account(client, mock_db, mock_kafka):
+    _set_auth(client, tenant_id="tenant-001")
+    mock_db.fetchrow.return_value = {
+        "event_id": "evt-2", "user_type": "oa_user", "user_id": "oa-uuid-002",
+        "reversed_by_event_id": None,
+    }
+    mock_db.execute = AsyncMock(return_value=None)
+
+    resp = await client.post("/v1/ciso/account-locks/evt-2/unlock", headers=AUTH_HEADER)
+
+    assert resp.status_code == 200
+    all_sql = " ".join(str(c) for c in mock_db.execute.call_args_list).lower()
+    assert "oa_user" in all_sql and "oa-uuid-002" in all_sql
+
+
+# ── OA Activity Audit — Portal Admin visibility ─────────────────────────────────
+# PA-initiated employee TOTP resets must be visible to the tenant CISO, not just
+# OA-Operator/OA-Admin actions — closes the gap where actor_type='PORTAL_ADMIN'
+# rows were silently excluded from this endpoint.
+
+def _make_totp_reset_audit_row(actor_type: str = "PORTAL_ADMIN"):
+    return {
+        "event_id":      "evt-uuid-001",
+        "action_type":   "EMPLOYEE_TOTP_RESET",
+        "actor_id":      "pa-uuid-777",
+        "actor_type":    actor_type,
+        "resource_id":   "emp-uuid-001",
+        "ip_address":    "203.0.113.10",
+        "created_at":    datetime.datetime(2026, 7, 10, 9, 0, 0, tzinfo=datetime.timezone.utc),
+        "actor_name":    "pa-admin@prana.in",
+        "actor_role":    "portal_admin",
+        "reason":        "Support escalation TCK-1234",
+    }
+
+
+@pytest.mark.asyncio
+async def test_oa_audit_includes_portal_admin_actor_type(client, mock_db):
+    """A PA-initiated event (e.g. EMPLOYEE_TOTP_RESET override) must appear in the
+    tenant's OA activity audit feed — not be filtered out for having actor_type
+    PORTAL_ADMIN instead of an OA_* value."""
+    _set_auth(client, role="ciso", tenant_id="tenant-001")
+    mock_db.fetch.return_value = [_make_totp_reset_audit_row()]
+
+    resp = await client.get("/v1/ciso/oa-audit", headers=AUTH_HEADER)
+
+    assert resp.status_code == 200
+    where_clause = mock_db.fetch.call_args[0][0]
+    assert "PORTAL_ADMIN" in where_clause
+    events = resp.json()["events"]
+    assert events[0]["actor_type"] == "PORTAL_ADMIN"
+
+
+@pytest.mark.asyncio
+async def test_oa_audit_still_scoped_to_tenant_for_portal_admin_events(client, mock_db):
+    """Even a platform-wide PA action must appear only under the specific tenant_id
+    the AuditConsumer recorded it under (the affected employee's own tenant)."""
+    _set_auth(client, role="ciso", tenant_id="tenant-001")
+    mock_db.fetch.return_value = []
+
+    resp = await client.get("/v1/ciso/oa-audit", headers=AUTH_HEADER)
+
+    assert resp.status_code == 200
+    assert "tenant-001" in mock_db.fetch.call_args[0]
+
+
+@pytest.mark.asyncio
+async def test_oa_audit_exposes_affected_employee_as_resource_id(client, mock_db):
+    """Non-document events (like a TOTP reset) have no document_id — the affected
+    employee_uuid from event_metadata must be surfaced as resource_id instead."""
+    _set_auth(client, role="ciso", tenant_id="tenant-001")
+    mock_db.fetch.return_value = [_make_totp_reset_audit_row()]
+
+    resp = await client.get("/v1/ciso/oa-audit", headers=AUTH_HEADER)
+
+    assert resp.status_code == 200
+    events = resp.json()["events"]
+    assert events[0]["resource_id"] == "emp-uuid-001"
+
+
+@pytest.mark.asyncio
+async def test_oa_audit_export_includes_portal_admin_actor_type(client, mock_db):
+    """CSV export must not silently drop PA-initiated events either."""
+    _set_auth(client, role="ciso", tenant_id="tenant-001")
+    mock_db.fetch.return_value = [{
+        "event_type":   "EMPLOYEE_TOTP_RESET",
+        "actor_id":     "pa-uuid-777",
+        "actor_type":   "PORTAL_ADMIN",
+        "actor_name":   "pa-admin@prana.in",
+        "actor_role":   "portal_admin",
+        "document_id":  None,
+        "resource_id":  "emp-uuid-001",
+        "ip_address":   "203.0.113.10",
+        "occurred_at":  datetime.datetime(2026, 7, 10, 9, 0, 0, tzinfo=datetime.timezone.utc),
+    }]
+
+    resp = await client.get("/v1/ciso/oa-audit/export", headers=AUTH_HEADER)
+
+    assert resp.status_code == 200
+    where_clause = mock_db.fetch.call_args[0][0]
+    assert "PORTAL_ADMIN" in where_clause

@@ -45,7 +45,8 @@ HRMS systems have retry logic. Make endpoints idempotent:
 
 ## SMS Integration (Employee OTP)
 
-### Provider: MSG91 (primary) / Exotel (fallback)
+### Provider: selected per environment — AWS SNS, Exotel, or MSG91
+- `settings.sms_provider` = `"aws"` | `"exotel"` | `"msg91"` | `"dev"` — an env var, not a hardcoded choice, so different environments can run different providers (e.g. AWS SNS in one region's deployment, Exotel/MSG91 where AWS SNS SMS isn't cost-effective or available)
 - Never hardcode provider — use `platform_config.sms_provider`
 - OTP is 6 digits, valid 10 minutes (from `platform_config.otp_ttl_minutes`)
 - Phone format: always E.164 (`+919000000001`) — store and send with country code

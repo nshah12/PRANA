@@ -89,3 +89,22 @@ def test_clamav_update_workflow_is_thin_shell():
     ]
     assert len(lines) <= 20, \
         f"ClamAVUpdateWorkflow.run has {len(lines)} lines — must be <20"
+
+
+# -- StorageExpansionWorkflow -----------------------------------------------
+
+def test_storage_expansion_workflow_threads_request_id_and_decided_by():
+    """Regression guard: _execute used to call notify_storage_expansion_request
+    without capturing its return value, then pass the workflow's original params
+    (with no request_id or decided_by) straight to apply/reject_storage_expansion —
+    those activities have no way to know which storage_request row to update or
+    who decided it without those fields."""
+    from workflows.platform_ops import StorageExpansionWorkflow
+
+    source = _get_source(StorageExpansionWorkflow._execute)
+    assert "request_id = await workflow.execute_activity" in source, \
+        "must capture notify_storage_expansion_request's return value"
+    assert '"request_id": request_id' in source, \
+        "request_id must be threaded into apply/reject_storage_expansion's params"
+    assert '"decided_by": decided_by' in source, \
+        "decided_by (the approving/rejecting actor) must be threaded through"

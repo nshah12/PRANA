@@ -1,0 +1,1543 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>PRANA &#8212; CXO Pitch Deck</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap');
+  * { margin:0; padding:0; box-sizing:border-box; -webkit-print-color-adjust:exact !important; print-color-adjust:exact !important; }
+  body { font-family:'Inter',sans-serif; background:#e2e8f0; }
+
+  :root {
+    --ink:#0f172a; --navy:#1e3a8a; --slate:#334155; --muted:#64748b;
+    --border:#e2e8f0; --blue:#2563eb; --cyan:#06b6d4; --green:#10b981;
+    --amber:#f59e0b; --red:#ef4444; --purple:#8b5cf6;
+  }
+
+  /* &#9472;&#9472; gradient text &#8212; light bg &#9472;&#9472; */
+  .g-blue   { background:linear-gradient(135deg,#1d4ed8,#2563eb,#3b82f6); -webkit-background-clip:text; -webkit-text-fill-color:transparent; background-clip:text; }
+  .g-cyan   { background:linear-gradient(135deg,#0891b2,#06b6d4,#22d3ee); -webkit-background-clip:text; -webkit-text-fill-color:transparent; background-clip:text; }
+  .g-green  { background:linear-gradient(135deg,#059669,#10b981,#34d399); -webkit-background-clip:text; -webkit-text-fill-color:transparent; background-clip:text; }
+  .g-amber  { background:linear-gradient(135deg,#d97706,#f59e0b,#fbbf24); -webkit-background-clip:text; -webkit-text-fill-color:transparent; background-clip:text; }
+  .g-red    { background:linear-gradient(135deg,#dc2626,#ef4444,#f87171); -webkit-background-clip:text; -webkit-text-fill-color:transparent; background-clip:text; }
+  .g-purple { background:linear-gradient(135deg,#7c3aed,#8b5cf6,#a78bfa); -webkit-background-clip:text; -webkit-text-fill-color:transparent; background-clip:text; }
+  .g-main   { background:linear-gradient(135deg,#1d4ed8,#2563eb,#06b6d4); -webkit-background-clip:text; -webkit-text-fill-color:transparent; background-clip:text; }
+
+  .slide { width:1280px; height:720px; overflow:hidden; position:relative; page-break-after:always; break-after:page; background:#fff; display:flex; flex-direction:column; }
+  .hdr { height:52px; display:flex; align-items:center; justify-content:space-between; padding:0 60px; background:#fff; border-bottom:2px solid var(--border); }
+  .hdr-tag { font-size:11px; font-weight:800; letter-spacing:0.14em; text-transform:uppercase; color:var(--muted); }
+  .hdr-num { font-size:11px; font-weight:600; color:#cbd5e1; }
+  .body { padding:22px 60px 20px; flex:1; display:flex; flex-direction:column; }
+
+  .chip { display:inline-flex; align-items:center; gap:6px; padding:4px 14px; border-radius:100px; font-size:11px; font-weight:700; letter-spacing:0.06em; text-transform:uppercase; margin-bottom:12px; border:1px solid; }
+  .ch-b { background:#eff6ff; border-color:#bfdbfe; color:#1d4ed8; }
+  .ch-c { background:#ecfeff; border-color:#a5f3fc; color:#0891b2; }
+  .ch-g { background:#ecfdf5; border-color:#a7f3d0; color:#059669; }
+  .ch-a { background:#fffbeb; border-color:#fde68a; color:#d97706; }
+  .ch-r { background:#fef2f2; border-color:#fecaca; color:#dc2626; }
+  .ch-p { background:#f5f3ff; border-color:#ddd6fe; color:#7c3aed; }
+
+  .ibadge { width:44px; height:44px; border-radius:12px; display:flex; align-items:center; justify-content:center; font-size:20px; flex-shrink:0; }
+  .ib-b { background:#eff6ff; border:1.5px solid #bfdbfe; }
+  .ib-c { background:#ecfeff; border:1.5px solid #a5f3fc; }
+  .ib-g { background:#ecfdf5; border:1.5px solid #a7f3d0; }
+  .ib-a { background:#fffbeb; border:1.5px solid #fde68a; }
+  .ib-r { background:#fef2f2; border:1.5px solid #fecaca; }
+  .ib-p { background:#f5f3ff; border:1.5px solid #ddd6fe; }
+
+  .sbox { border-radius:14px; padding:18px 16px; text-align:center; border:1.5px solid; }
+  .sb-b { background:#eff6ff; border-color:#bfdbfe; }
+  .sb-g { background:#ecfdf5; border-color:#a7f3d0; }
+  .sb-a { background:#fffbeb; border-color:#fde68a; }
+  .sb-r { background:#fef2f2; border-color:#fecaca; }
+  .sbox .sn { font-size:46px; font-weight:900; line-height:1; margin-bottom:6px; }
+  .sbox .sl { font-size:12px; color:var(--slate); line-height:1.5; }
+
+  /* &#9552;&#9552;&#9552; SLIDE 1 &#8212; COVER &#9552;&#9552;&#9552; */
+  .s1 { background:linear-gradient(160deg,#0f172a 0%,#1e3a8a 50%,#0f172a 100%) !important; }
+  .s1 .glow  { position:absolute; top:-100px; right:-100px; width:520px; height:520px; border-radius:50%; background:radial-gradient(circle,rgba(37,99,235,0.4),transparent 65%); }
+  .s1 .glow2 { position:absolute; bottom:-80px; left:-80px; width:380px; height:380px; border-radius:50%; background:radial-gradient(circle,rgba(6,182,212,0.25),transparent 65%); }
+  .s1 .grid  { position:absolute; inset:0; background-image:linear-gradient(rgba(255,255,255,0.05) 1px,transparent 1px),linear-gradient(90deg,rgba(255,255,255,0.05) 1px,transparent 1px); background-size:64px 64px; }
+  .s1 .cnt   { position:relative; z-index:2; height:100%; display:flex; padding:0 72px; gap:0; }
+  .s1 .left  { flex:1; display:flex; flex-direction:column; justify-content:center; padding-right:32px; }
+  .s1 .right { width:380px; display:flex; align-items:center; justify-content:center; }
+  .s1 .badge-row { display:flex; gap:8px; margin-bottom:28px; flex-wrap:wrap; }
+  .s1 .bdg { padding:5px 14px; border-radius:100px; font-size:11px; font-weight:600; letter-spacing:0.04em; border:1px solid; }
+  .bdg-b { background:rgba(37,99,235,0.25); border-color:rgba(96,165,250,0.5); color:#93c5fd; }
+  .bdg-c { background:rgba(6,182,212,0.2);  border-color:rgba(103,232,249,0.4); color:#67e8f9; }
+  .bdg-a { background:rgba(245,158,11,0.2); border-color:rgba(253,211,77,0.4);  color:#fcd34d; }
+  .bdg-g { background:rgba(16,185,129,0.2); border-color:rgba(110,231,183,0.4); color:#6ee7b7; }
+  /* PRANA title &#8212; solid colours for print compatibility */
+  .s1 h1 { font-size:110px; font-weight:900; line-height:0.85; letter-spacing:-0.05em; margin-bottom:12px; }
+  .s1 h1 .p-white { color:#ffffff; }
+  .s1 h1 .p-grad  { color:#60a5fa; }   /* solid blue &#8212; prints reliably */
+  .s1 .tagline { font-size:14px; color:rgba(255,255,255,0.45); font-weight:400; letter-spacing:0.07em; margin-bottom:8px; }
+  .s1 .alumni-bar { font-size:14px; font-weight:600; color:#67e8f9; margin-bottom:6px; letter-spacing:0.01em; }
+  .s1 .trust-line { font-size:13px; font-weight:700; color:rgba(255,255,255,0.55); margin-bottom:28px; letter-spacing:0.04em; }
+  .s1 .promise-list { display:flex; flex-direction:column; gap:10px; }
+  .s1 .pr { display:flex; align-items:center; gap:12px; }
+  .s1 .pr .dot { width:32px; height:32px; border-radius:50%; display:flex; align-items:center; justify-content:center; font-size:15px; flex-shrink:0; }
+  .s1 .pr .txt { font-size:14px; font-weight:600; color:rgba(255,255,255,0.85); }
+  .s1 .corner { position:absolute; bottom:30px; right:60px; text-align:right; }
+  .s1 .corner .c1 { font-size:11px; color:rgba(255,255,255,0.3); letter-spacing:0.08em; text-transform:uppercase; }
+  .s1 .corner .c2 { font-size:11px; color:rgba(255,255,255,0.25); margin-top:3px; }
+  .url-visual { background:rgba(255,255,255,0.07); border:1px solid rgba(255,255,255,0.14); border-radius:20px; padding:28px 24px; width:100%; }
+  .url-visual .uv-icon { font-size:48px; margin-bottom:12px; text-align:center; }
+  .url-visual .uv-url  { font-size:17px; font-weight:800; color:#60a5fa; letter-spacing:0.02em; margin-bottom:4px; text-align:center; }
+  .url-visual .uv-sub  { font-size:12px; color:rgba(255,255,255,0.4); text-align:center; margin-bottom:16px; }
+  .url-visual .uv-doc  { display:flex; gap:8px; align-items:center; padding:8px 12px; border-radius:8px; margin-bottom:6px; }
+  .ud-g { background:rgba(16,185,129,0.15); }
+  .ud-b { background:rgba(37,99,235,0.15); }
+  .ud-c { background:rgba(6,182,212,0.15); }
+
+  /* &#9552;&#9552;&#9552; SLIDE 2 &#9552;&#9552;&#9552; */
+  .prob-grid { display:grid; grid-template-columns:1fr 1fr; gap:12px; }
+  .prob-card { border-radius:14px; padding:18px 16px; border:1.5px solid; display:flex; gap:12px; align-items:flex-start; }
+  .pc1 { background:#eff6ff; border-color:#bfdbfe; }
+  .pc2 { background:#ecfeff; border-color:#a5f3fc; }
+  .pc3 { background:#fffbeb; border-color:#fde68a; }
+  .pc4 { background:#fef2f2; border-color:#fecaca; }
+  .prob-card .pt { font-size:14px; font-weight:700; color:var(--ink); margin-bottom:5px; }
+  .prob-card .pd { font-size:12.5px; color:var(--slate); line-height:1.65; }
+
+  /* &#9552;&#9552;&#9552; SLIDE 3 &#9552;&#9552;&#9552; */
+  .promise-cards { display:grid; grid-template-columns:1fr 1fr 1fr; gap:16px; margin-bottom:18px; }
+  .pcard { border-radius:16px; padding:22px 20px; border:1.5px solid; position:relative; overflow:hidden; }
+  .pcard::after { content:''; position:absolute; top:0; left:0; right:0; height:4px; }
+  .pb::after { background:linear-gradient(90deg,#1d4ed8,#3b82f6); }
+  .pc::after { background:linear-gradient(90deg,#0891b2,#22d3ee); }
+  .pg::after { background:linear-gradient(90deg,#059669,#34d399); }
+  .pb { background:#f0f7ff; border-color:#bfdbfe; }
+  .pc { background:#f0fdff; border-color:#a5f3fc; }
+  .pg { background:#f0fdf4; border-color:#bbf7d0; }
+  .pcard .pi { font-size:32px; margin-bottom:12px; }
+  .pcard h3  { font-size:19px; font-weight:800; color:var(--ink); margin-bottom:8px; }
+  .pcard p   { font-size:13px; color:var(--slate); line-height:1.7; }
+  .oneurl-bar { background:linear-gradient(90deg,#1d4ed8,#2563eb,#0891b2); border-radius:12px; padding:18px 28px; display:flex; align-items:center; gap:28px; }
+  .oneurl-bar .big  { font-size:24px; font-weight:900; color:#fff; white-space:nowrap; }
+  .oneurl-bar .desc { font-size:13.5px; color:rgba(255,255,255,0.8); line-height:1.6; }
+
+  /* &#9552;&#9552;&#9552; SLIDE 4 &#9552;&#9552;&#9552; */
+  .audience-layout { display:flex; gap:12px; flex:1; }
+  .aud-center { width:210px; display:flex; flex-direction:column; align-items:center; justify-content:center; background:linear-gradient(160deg,#1d4ed8,#2563eb); border-radius:16px; padding:22px 18px; text-align:center; }
+  .aud-center .ac-icon { font-size:52px; margin-bottom:14px; }
+  .aud-center .ac-title { font-size:18px; font-weight:900; color:#fff; margin-bottom:6px; }
+  .aud-center .ac-sub   { font-size:12px; color:rgba(255,255,255,0.7); line-height:1.5; }
+  .aud-center .ac-lines { margin-top:18px; display:flex; flex-direction:column; gap:9px; }
+  .aud-center .acl { display:flex; align-items:center; gap:8px; }
+  .aud-center .acl-dot { width:6px; height:6px; border-radius:50%; background:rgba(255,255,255,0.5); flex-shrink:0; }
+  .aud-center .acl-txt  { font-size:11.5px; color:rgba(255,255,255,0.75); text-align:left; font-weight:500; }
+  .aud-cols { flex:1; display:grid; grid-template-columns:1fr 1fr; gap:10px; }
+  .aud-card { border-radius:14px; padding:18px 16px; border:1.5px solid; display:flex; flex-direction:column; }
+  .ac-e { background:#f0fdf4; border-color:#bbf7d0; }
+  .ac-h { background:#eff6ff; border-color:#bfdbfe; }
+  .ac-f { background:#fffbeb; border-color:#fde68a; }
+  .ac-i { background:#f5f3ff; border-color:#ddd6fe; }
+  .aud-card .aicon  { font-size:28px; margin-bottom:8px; }
+  .aud-card .arole  { font-size:10.5px; font-weight:800; letter-spacing:0.12em; text-transform:uppercase; margin-bottom:5px; }
+  .ae { color:#059669; } .ah { color:#1d4ed8; } .af { color:#d97706; } .ai { color:#7c3aed; }
+  .aud-card .atag   { font-size:14.5px; font-weight:700; color:var(--ink); margin-bottom:8px; line-height:1.2; }
+  .aud-card .abody  { font-size:12px; color:var(--slate); line-height:1.65; flex:1; }
+  .aud-card .ametrics { margin-top:10px; padding-top:10px; border-top:1px solid #e2e8f0; display:flex; flex-direction:column; gap:5px; }
+  .aud-card .am { display:flex; align-items:center; gap:7px; font-size:11.5px; color:var(--slate); }
+  .am strong { font-weight:800; color:var(--ink); }
+
+  /* &#9552;&#9552;&#9552; SLIDE 5 &#9552;&#9552;&#9552; */
+  .feat-list { display:flex; flex-direction:column; gap:10px; }
+  .feat-row { display:flex; gap:13px; align-items:flex-start; padding:14px 16px; background:#fff; border:1.5px solid #d1fae5; border-radius:12px; }
+  .feat-row .ft { font-size:14px; font-weight:700; color:var(--ink); margin-bottom:4px; }
+  .feat-row .fd { font-size:12.5px; color:var(--slate); line-height:1.65; }
+
+  /* &#9552;&#9552;&#9552; CHRO rows &#9552;&#9552;&#9552; */
+  .chro-rows { display:flex; flex-direction:column; gap:8px; }
+  .chro-row { display:grid; grid-template-columns:44px 1fr 170px; gap:0; border-radius:12px; overflow:hidden; border:1.5px solid #e0e7ff; }
+  .cr-ic { background:#eff6ff; display:flex; align-items:center; justify-content:center; font-size:18px; }
+  .cr-bd { background:#f8faff; padding:11px 14px; border-left:1px solid #e0e7ff; }
+  .cr-bd .ct { font-size:13px; font-weight:700; color:var(--ink); margin-bottom:3px; }
+  .cr-bd .cd { font-size:12px; color:var(--slate); line-height:1.5; }
+  .cr-vl { background:#eff6ff; padding:11px 14px; border-left:1px solid #e0e7ff; display:flex; align-items:center; justify-content:flex-end; }
+  .cr-vl span { font-size:12px; font-weight:800; color:#1d4ed8; text-align:right; }
+
+  /* &#9552;&#9552;&#9552; mini-dashboard (CHRO / CFO / CISO right panel) &#9552;&#9552;&#9552; */
+  .mini-dash { border-radius:14px; border:2px solid #e2e8f0; overflow:hidden; display:flex; flex-direction:column; height:100%; }
+  .md-hdr { background:linear-gradient(90deg,#1d4ed8,#2563eb); padding:10px 14px; display:flex; align-items:center; justify-content:space-between; }
+  .md-hdr .mh-title { font-size:11px; font-weight:800; color:#fff; letter-spacing:0.05em; }
+  .md-hdr .mh-badge { font-size:10px; font-weight:700; background:rgba(255,255,255,0.2); color:#fff; padding:2px 9px; border-radius:100px; }
+  .md-body { padding:12px 14px; flex:1; display:flex; flex-direction:column; gap:8px; background:#f8fafc; }
+  .md-stats { display:grid; grid-template-columns:1fr 1fr; gap:6px; }
+  .md-stat { background:#fff; border:1.5px solid #e2e8f0; border-radius:8px; padding:8px 10px; text-align:center; }
+  .md-stat .msn { font-size:20px; font-weight:900; }
+  .md-stat .msl { font-size:10px; color:var(--muted); }
+  .md-bar-row { display:flex; flex-direction:column; gap:5px; }
+  .md-bar { display:flex; align-items:center; gap:8px; }
+  .md-bar .mbl { font-size:10.5px; color:var(--slate); width:80px; flex-shrink:0; }
+  .md-bar .mb-track { flex:1; height:7px; background:#e2e8f0; border-radius:100px; overflow:hidden; }
+  .md-bar .mb-fill  { height:100%; border-radius:100px; }
+  .md-bar .mbv { font-size:10.5px; font-weight:700; width:34px; text-align:right; }
+  .md-row { display:flex; align-items:center; gap:8px; padding:7px 9px; background:#fff; border:1.5px solid #e2e8f0; border-radius:8px; }
+  .md-row .mr-label { font-size:11px; font-weight:700; color:var(--ink); flex:1; }
+  .md-row .mr-tag   { font-size:9.5px; font-weight:700; padding:2px 8px; border-radius:100px; }
+  .tag-auto { background:#dcfce7; color:#059669; }
+  .tag-live { background:#eff6ff; color:#1d4ed8; }
+  .tag-inst { background:#f5f3ff; color:#7c3aed; }
+  .tag-warn { background:#fef9c3; color:#a16207; }
+  .md-exc { background:#fef2f2; border:1.5px solid #fecaca; border-radius:8px; padding:7px 10px; display:flex; align-items:center; gap:8px; }
+  .md-exc .ex-icon { font-size:14px; }
+  .md-exc .ex-text { font-size:11px; color:#dc2626; font-weight:600; }
+
+  /* &#9552;&#9552;&#9552; CFO mini-dash variant &#9552;&#9552;&#9552; */
+  .md-hdr-a { background:linear-gradient(90deg,#d97706,#f59e0b) !important; }
+  .md-hdr-r { background:linear-gradient(90deg,#dc2626,#ef4444) !important; }
+
+  /* &#9552;&#9552;&#9552; Trust Architecture &#9552;&#9552;&#9552; */
+  .trust-diagram { display:flex; flex-direction:column; gap:0; border-radius:16px; overflow:hidden; border:2px solid #e2e8f0; flex:1; }
+  .trust-row { display:grid; grid-template-columns:56px 210px 150px 1fr; border-bottom:1px solid #e2e8f0; }
+  .trust-row:last-child { border-bottom:none; }
+  .tr-num  { display:flex; align-items:center; justify-content:center; font-size:22px; font-weight:900; color:#e2e8f0; background:#f8fafc; border-right:1px solid #e2e8f0; }
+  .tr-concept { background:#fff; padding:11px 14px; border-right:1px solid #e2e8f0; display:flex; align-items:center; gap:9px; }
+  .tr-concept .tc-icon { font-size:19px; flex-shrink:0; }
+  .tr-concept .tc-txt  { font-size:13px; font-weight:700; color:var(--ink); }
+  .tr-type { padding:11px 12px; display:flex; align-items:center; border-right:1px solid #e2e8f0; }
+  .tr-type span { font-size:9.5px; font-weight:800; letter-spacing:0.09em; text-transform:uppercase; padding:3px 10px; border-radius:100px; }
+  .tag-st { background:#eff6ff; color:#1d4ed8; }
+  .tag-cr { background:#ecfeff; color:#0891b2; }
+  .tag-zk { background:#ecfdf5; color:#059669; }
+  .tag-co { background:#fffbeb; color:#d97706; }
+  .tag-rl { background:#fef2f2; color:#dc2626; }
+  .tag-tr { background:#f5f3ff; color:#7c3aed; }
+  .tag-po { background:#f0fdfa; color:#0d9488; }
+  .tr-desc { padding:11px 18px; font-size:12.5px; color:var(--slate); display:flex; align-items:center; line-height:1.55; }
+  .trust-row:nth-child(even) .tr-concept,
+  .trust-row:nth-child(even) .tr-desc { background:#fafafa; }
+
+  /* &#9552;&#9552;&#9552; Encryption &#9552;&#9552;&#9552; */
+  .enc-stack { display:flex; flex-direction:column; gap:0; border-radius:14px; overflow:hidden; border:1.5px solid #e2e8f0; }
+  .enc-row { display:grid; grid-template-columns:52px 1fr; border-bottom:1px solid #e2e8f0; }
+  .enc-row:last-child { border-bottom:none; }
+  .enc-row .el { background:#eff6ff; display:flex; align-items:center; justify-content:center; font-size:20px; border-right:1px solid #e2e8f0; }
+  .enc-row .er { padding:12px 18px; background:#fafeff; }
+  .enc-row .en { font-size:13.5px; font-weight:700; color:var(--ink); margin-bottom:3px; }
+  .enc-row .ed { font-size:11.5px; color:var(--muted); font-family:'Courier New',monospace; }
+  .ki { background:#f8fafc; border:1.5px solid #e2e8f0; border-radius:12px; padding:14px 15px; }
+  .ki .kt { font-size:10.5px; font-weight:800; letter-spacing:0.09em; text-transform:uppercase; color:var(--blue); margin-bottom:6px; }
+  .ki .kb { font-size:12.5px; color:var(--slate); line-height:1.6; }
+
+  /* &#9552;&#9552;&#9552; DPDP &#9552;&#9552;&#9552; */
+  .dpdp-grid { display:grid; grid-template-columns:repeat(5,1fr); gap:10px; margin-bottom:16px; }
+  .dpdp-card { background:#fff; border:1.5px solid #fde68a; border-radius:14px; padding:16px 14px; display:flex; flex-direction:column; gap:8px; }
+  .dpdp-card .di { font-size:28px; }
+  .dpdp-card .ds { font-size:10px; font-weight:800; letter-spacing:0.1em; color:#d97706; }
+  .dpdp-card .dn { font-size:13.5px; font-weight:700; color:var(--ink); line-height:1.2; }
+  .dpdp-card .dd { font-size:12px; color:var(--slate); line-height:1.6; }
+  .dpdp-banner { background:linear-gradient(90deg,#1d4ed8,#2563eb,#0891b2); border-radius:12px; padding:18px 28px; display:flex; align-items:center; gap:28px; }
+  .dpdp-banner .pen  { font-size:42px; font-weight:900; color:#fff; flex-shrink:0; }
+  .dpdp-banner .ptxt { font-size:13.5px; color:rgba(255,255,255,0.85); line-height:1.65; }
+  .dpdp-banner .ptxt strong { color:#fff; }
+
+  /* &#9552;&#9552;&#9552; Pipeline (2&#215;3) &#9552;&#9552;&#9552; */
+  .pipeline-grid { display:grid; grid-template-columns:repeat(3,1fr); grid-template-rows:1fr 1fr; gap:14px; flex:1; }
+  .ps { position:relative; }
+  .pb { background:#fff; border:1.5px solid #e2e8f0; border-radius:16px; padding:18px 18px; height:100%; display:flex; flex-direction:column; box-shadow:0 2px 8px rgba(0,0,0,0.04); }
+  .pb .pn  { font-size:10px; font-weight:800; letter-spacing:0.12em; color:var(--blue); margin-bottom:8px; }
+  .pb .pi  { font-size:32px; margin-bottom:8px; }
+  .pb .pt  { font-size:15px; font-weight:700; color:var(--ink); margin-bottom:7px; }
+  .pb .pd  { font-size:12.5px; color:var(--slate); line-height:1.65; flex:1; }
+  .ps-ai .pb { background:linear-gradient(160deg,#eff6ff,#f0fdfa); border-color:#bfdbfe; border-width:2px; }
+  .ps-ai .pb .pn { color:#1d4ed8; }
+  .pb .p-badge { display:inline-flex; align-items:center; gap:5px; margin-top:8px; padding:3px 10px; border-radius:100px; font-size:10.5px; font-weight:700; }
+  .pbadge-g { background:#dcfce7; color:#059669; }
+  .pbadge-b { background:#eff6ff; color:#1d4ed8; }
+  .privacy-bar { margin-top:14px; background:linear-gradient(90deg,#fef2f2,#fffbeb); border:1.5px solid #fecaca; border-radius:10px; padding:13px 22px; display:flex; gap:16px; align-items:center; }
+  .privacy-bar .pbl  { font-size:11px; font-weight:800; letter-spacing:0.1em; text-transform:uppercase; color:#dc2626; flex-shrink:0; }
+  .privacy-bar .pbt  { font-size:12.5px; color:var(--slate); line-height:1.5; }
+
+  /* &#9552;&#9552;&#9552; Platform Architecture &#9552;&#9552;&#9552; */
+  .arch-tiers { display:flex; flex-direction:column; gap:8px; flex:1; }
+  .arch-tier { border-radius:14px; border:1.5px solid; padding:13px 18px; }
+  .at-top { background:#eff6ff; border-color:#bfdbfe; }
+  .at-mid { background:#f0fdfa; border-color:#a7f3d0; }
+  .at-bot { background:#f5f3ff; border-color:#ddd6fe; }
+  .arch-tier .tier-label { font-size:10.5px; font-weight:800; letter-spacing:0.1em; text-transform:uppercase; margin-bottom:10px; }
+  .tl-b { color:#1d4ed8; } .tl-g { color:#059669; } .tl-p { color:#7c3aed; }
+  .arch-tier .tier-nodes { display:flex; gap:10px; align-items:center; }
+  .t-node { display:flex; flex-direction:column; align-items:center; gap:5px; }
+  .t-node .ni { font-size:24px; }
+  .t-node .nt { font-size:11px; font-weight:600; color:var(--ink); text-align:center; max-width:95px; line-height:1.3; }
+  .t-arr { font-size:14px; color:#94a3b8; }
+  .infra-row { display:flex; gap:10px; align-items:center; padding:11px 14px; background:#fff; border:1.5px solid #e2e8f0; border-radius:10px; }
+  .infra-row .ir-dot { width:9px; height:9px; border-radius:50%; flex-shrink:0; }
+  .infra-row .ir-t { font-size:12.5px; font-weight:700; color:var(--ink); }
+  .infra-row .ir-s { font-size:11px; color:var(--muted); }
+
+  /* &#9552;&#9552;&#9552; Integrations &#9552;&#9552;&#9552; */
+  .int-layout { display:grid; grid-template-columns:1fr 240px 1fr; gap:18px; flex:1; align-items:stretch; }
+  .int-left  { background:#f8fafc; border:1.5px solid #e2e8f0; border-radius:14px; padding:18px 16px; display:flex; flex-direction:column; }
+  .int-right { background:#f8fafc; border:1.5px solid #e2e8f0; border-radius:14px; padding:18px 16px; display:flex; flex-direction:column; }
+  .int-col-hdr { font-size:10.5px; font-weight:800; letter-spacing:0.1em; text-transform:uppercase; margin-bottom:14px; text-align:center; }
+  .ch-blue { color:var(--blue); } .ch-green { color:#059669; }
+  .hrms-node  { display:flex; gap:10px; align-items:center; padding:9px 11px; background:#fff; border:1.5px solid #e2e8f0; border-radius:10px; margin-bottom:7px; }
+  .hrms-node .hn-icon { font-size:19px; }
+  .hrms-node .hn-t { font-size:12.5px; font-weight:700; color:var(--ink); }
+  .hrms-node .hn-s { font-size:11px; color:var(--muted); }
+  .int-center { display:flex; flex-direction:column; align-items:center; justify-content:center; }
+  .int-center .ic-box { background:linear-gradient(160deg,#1d4ed8,#2563eb); border-radius:20px; padding:26px 22px; text-align:center; width:100%; }
+  .int-center .ic-icon { font-size:48px; margin-bottom:12px; }
+  .int-center .ic-name { font-size:19px; font-weight:900; color:#fff; margin-bottom:6px; }
+  .int-center .ic-sub  { font-size:11.5px; color:rgba(255,255,255,0.7); line-height:1.5; }
+  .ic-pillars { display:flex; justify-content:center; gap:6px; margin-top:14px; flex-wrap:wrap; }
+  .ic-pill { font-size:10px; font-weight:700; padding:3px 10px; border-radius:100px; background:rgba(255,255,255,0.15); color:rgba(255,255,255,0.9); border:1px solid rgba(255,255,255,0.25); }
+  .int-arrows { display:flex; justify-content:center; gap:12px; margin:12px 0; color:#64748b; font-size:22px; }
+  .mode-node  { display:flex; gap:10px; align-items:flex-start; padding:10px 11px; background:#fff; border:1.5px solid #e2e8f0; border-radius:10px; margin-bottom:7px; }
+  .mode-node .mn-icon { font-size:19px; flex-shrink:0; }
+  .mode-node .mn-t { font-size:12.5px; font-weight:700; color:var(--ink); margin-bottom:2px; }
+  .mode-node .mn-s { font-size:11px; color:var(--muted); line-height:1.4; }
+
+  /* &#9552;&#9552;&#9552; CTA &#9552;&#9552;&#9552; */
+  .s15 { background:linear-gradient(160deg,#0f172a 0%,#1e3a8a 50%,#0f172a 100%) !important; }
+  .s15 .glow  { position:absolute; bottom:-100px; left:50%; transform:translateX(-50%); width:600px; height:400px; border-radius:50%; background:radial-gradient(circle,rgba(37,99,235,0.25),transparent 70%); }
+  .s15 .grid  { position:absolute; inset:0; background-image:linear-gradient(rgba(255,255,255,0.04) 1px,transparent 1px),linear-gradient(90deg,rgba(255,255,255,0.04) 1px,transparent 1px); background-size:64px 64px; }
+  .s15 .cnt   { position:relative; z-index:2; height:100%; display:flex; flex-direction:column; padding:40px 80px; }
+  .s15 h2    { font-size:42px; font-weight:900; color:#fff; letter-spacing:-0.03em; margin-bottom:8px; }
+  .s15 h2 span { color:#60a5fa; }
+  .s15 .sub  { font-size:14.5px; color:rgba(255,255,255,0.55); max-width:720px; line-height:1.7; margin-bottom:28px; }
+  .next-steps { display:grid; grid-template-columns:1fr 1fr 1fr; gap:16px; margin-bottom:28px; }
+  .ns { background:rgba(255,255,255,0.06); border:1px solid rgba(255,255,255,0.12); border-radius:14px; padding:22px 22px; }
+  .ns .ni   { font-size:30px; margin-bottom:10px; }
+  .ns .nt   { font-size:10.5px; font-weight:800; letter-spacing:0.1em; text-transform:uppercase; color:#60a5fa; margin-bottom:6px; }
+  .ns .nti  { font-size:17px; font-weight:700; color:#fff; margin-bottom:7px; }
+  .ns .nd   { font-size:12.5px; color:rgba(255,255,255,0.55); line-height:1.65; }
+  .s15 .bottom { display:flex; gap:20px; align-items:center; padding-top:20px; border-top:1px solid rgba(255,255,255,0.1); }
+  .s15 .bottom .pr { font-size:13px; color:rgba(255,255,255,0.5); }
+  .s15 .bottom .pr strong { color:rgba(255,255,255,0.85); }
+
+  @media print {
+    body { background:#e2e8f0; }
+    * { -webkit-print-color-adjust:exact !important; print-color-adjust:exact !important; }
+    .slide { page-break-after:always; break-after:page; }
+    @page { size:1280px 720px; margin:0; }
+    /* Fix gradient text on dark slides &#8212; print as solid colour */
+    .s1 h1 .p-grad  { -webkit-text-fill-color:#60a5fa !important; }
+    .s15 h2 span    { color:#60a5fa !important; }
+    .s1, .s15 { background:linear-gradient(160deg,#0f172a,#1e3a8a,#0f172a) !important; }
+  }
+</style>
+</head>
+<body>
+
+<!-- &#9552;&#9552;&#9552; 01 &#8212; COVER &#9552;&#9552;&#9552; -->
+<div class="slide s1">
+  <div class="glow"></div><div class="glow2"></div><div class="grid"></div>
+  <div class="cnt">
+    <div class="left">
+      <div class="badge-row">
+        <span class="bdg bdg-b">&#128272; Zero-knowledge vault</span>
+        <span class="bdg bdg-c">&#128273; Per-employee encryption</span>
+        <span class="bdg bdg-a">&#128203; Immutable audit trail</span>
+        <span class="bdg bdg-g">&#9878; DPDP Act 2023 compliant</span>
+      </div>
+      <h1><span class="p-white">P</span><span class="p-grad">RANA</span></h1>
+      <div class="tagline">Personal Repository And Networked Authentications</div>
+      <div class="alumni-bar">&#127760; Global Alumni Portal &#8212; your vault survives your resignation. Always on. Always yours.</div>
+      <div class="trust-line">Built for &nbsp;&#128274; Trust &nbsp;&#183;&nbsp; &#9878; Compliance &nbsp;&#183;&nbsp; &#9854; Permanence</div>
+      <div class="promise-list">
+        <div class="pr"><div class="dot" style="background:rgba(37,99,235,0.35)">&#128274;</div><div class="txt">Cryptographically Yours &#8212; architecture, not policy</div></div>
+        <div class="pr"><div class="dot" style="background:rgba(6,182,212,0.3)">&#9989;</div><div class="txt">Verified, Not Just Stored &#8212; AI-extracted, employer-pushed</div></div>
+        <div class="pr"><div class="dot" style="background:rgba(16,185,129,0.3)">&#9854;</div><div class="txt">Follows You, Forever &#8212; one URL, every employer, for life</div></div>
+      </div>
+    </div>
+    <div class="right">
+      <div class="url-visual">
+        <div class="uv-icon">&#127974;</div>
+        <div class="uv-url">prana.in/vault/you</div>
+        <div class="uv-sub">One URL. Permanent. Yours.</div>
+        <div class="uv-doc ud-g"><span style="font-size:15px">&#128196;</span><span style="font-size:12px;color:#6ee7b7;font-weight:600">Salary Slip &#183; Apr 2026 &#183; Employer A</span></div>
+        <div class="uv-doc ud-b"><span style="font-size:15px">&#128203;</span><span style="font-size:12px;color:#93c5fd;font-weight:600">Form 16 &#183; FY 2025-26 &#183; Employer B</span></div>
+        <div class="uv-doc ud-c"><span style="font-size:15px">&#128195;</span><span style="font-size:12px;color:#67e8f9;font-weight:600">Offer Letter &#183; 2022 &#183; Employer C</span></div>
+        <div style="margin-top:14px;padding:10px 12px;background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.12);border-radius:10px;text-align:center;">
+          <div style="font-size:11px;color:rgba(255,255,255,0.5);line-height:1.6">Documents flow in from <strong style="color:rgba(255,255,255,0.8)">every participating employer</strong>. The vault URL never changes.</div>
+        </div>
+      </div>
+    </div>
+  </div>
+  <div class="corner">
+    <div class="c1">Confidential &#8212; Strategic Briefing &nbsp;&#183;&nbsp; COO &#183; CHRO &#183; InfoSec</div>
+    <div class="c2">Conceptualized by : Nilesh Shah</div>
+  </div>
+</div>
+
+<!-- &#9552;&#9552;&#9552; 02 &#8212; TABLE OF CONTENTS (orbital layout) &#9552;&#9552;&#9552; -->
+<div class="slide" style="background:#f5f4ef;position:relative;overflow:hidden">
+  <!-- Hex bg &#8212; top-left -->
+  <svg style="position:absolute;top:-30px;left:-30px;opacity:0.07" width="320" height="320" viewBox="0 0 320 320" xmlns="http://www.w3.org/2000/svg">
+    <polygon points="80,12 150,12 185,72 150,132 80,132 45,72" fill="#2563eb"/>
+    <polygon points="155,60 225,60 260,120 225,180 155,180 120,120" fill="#06b6d4"/>
+    <polygon points="12,108 82,108 117,168 82,228 12,228 -23,168" fill="#1d4ed8"/>
+    <polygon points="90,180 160,180 195,240 160,300 90,300 55,240" fill="#3b82f6"/>
+  </svg>
+  <!-- Hex bg &#8212; bottom-right -->
+  <svg style="position:absolute;bottom:-30px;right:-20px;opacity:0.06" width="260" height="260" viewBox="0 0 260 260" xmlns="http://www.w3.org/2000/svg">
+    <polygon points="60,10 110,10 135,52 110,94 60,94 35,52" fill="#10b981"/>
+    <polygon points="108,58 158,58 183,100 158,142 108,142 83,100" fill="#059669"/>
+    <polygon points="18,100 68,100 93,142 68,184 18,184 -7,142" fill="#34d399"/>
+  </svg>
+  <!-- Header -->
+  <div class="hdr" style="background:transparent;border-bottom-color:rgba(0,0,0,0.06)">
+    <div class="hdr-tag">Table of Contents</div>
+    <div class="hdr-num">02 / 16</div>
+  </div>
+  <!-- Top-left title -->
+  <div style="position:absolute;top:68px;left:58px;z-index:3">
+    <div style="font-size:28px;font-weight:900;color:#0f172a;letter-spacing:-0.02em;line-height:1.15">What's inside<br>this presentation</div>
+    <div style="font-size:12.5px;color:#94a3b8;margin-top:7px;font-weight:500">16 slides &nbsp;&#183;&nbsp; 8 themes</div>
+  </div>
+  <!-- SVG: orbit ellipse + dashed spokes + midpoint hollow circles -->
+  <svg style="position:absolute;top:0;left:0;pointer-events:none" width="1280" height="720" viewBox="0 0 1280 720" xmlns="http://www.w3.org/2000/svg">
+    <ellipse cx="300" cy="360" rx="360" ry="242" fill="none" stroke="#d1d5db" stroke-width="1" stroke-dasharray="5,9" opacity="0.55"/>
+    <circle cx="300" cy="360" r="95" fill="none" stroke="#bfdbfe" stroke-width="1" stroke-dasharray="4,8" opacity="0.45"/>
+    <!-- spokes -->
+    <line x1="338" y1="290" x2="411" y2="158" stroke="#cbd5e1" stroke-width="1.5" stroke-dasharray="5,4"/><circle cx="374" cy="224" r="4" fill="none" stroke="#cbd5e1" stroke-width="1.5"/>
+    <line x1="363" y1="310" x2="511" y2="192" stroke="#cbd5e1" stroke-width="1.5" stroke-dasharray="5,4"/><circle cx="437" cy="251" r="4" fill="none" stroke="#cbd5e1" stroke-width="1.5"/>
+    <line x1="375" y1="331" x2="588" y2="249" stroke="#cbd5e1" stroke-width="1.5" stroke-dasharray="5,4"/><circle cx="482" cy="290" r="4" fill="none" stroke="#cbd5e1" stroke-width="1.5"/>
+    <line x1="379" y1="351" x2="628" y2="321" stroke="#cbd5e1" stroke-width="1.5" stroke-dasharray="5,4"/><circle cx="504" cy="336" r="4" fill="none" stroke="#cbd5e1" stroke-width="1.5"/>
+    <line x1="379" y1="369" x2="628" y2="399" stroke="#cbd5e1" stroke-width="1.5" stroke-dasharray="5,4"/><circle cx="504" cy="384" r="4" fill="none" stroke="#cbd5e1" stroke-width="1.5"/>
+    <line x1="375" y1="389" x2="588" y2="471" stroke="#cbd5e1" stroke-width="1.5" stroke-dasharray="5,4"/><circle cx="482" cy="430" r="4" fill="none" stroke="#cbd5e1" stroke-width="1.5"/>
+    <line x1="363" y1="410" x2="511" y2="528" stroke="#cbd5e1" stroke-width="1.5" stroke-dasharray="5,4"/><circle cx="437" cy="469" r="4" fill="none" stroke="#cbd5e1" stroke-width="1.5"/>
+    <line x1="338" y1="430" x2="411" y2="562" stroke="#cbd5e1" stroke-width="1.5" stroke-dasharray="5,4"/><circle cx="374" cy="496" r="4" fill="none" stroke="#cbd5e1" stroke-width="1.5"/>
+  </svg>
+  <!-- Centre circle -->
+  <div style="position:absolute;left:220px;top:280px;width:160px;height:160px;border-radius:50%;background:linear-gradient(135deg,#1d4ed8,#2563eb,#0891b2);display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;box-shadow:0 16px 50px rgba(37,99,235,0.38);z-index:3">
+    <div style="font-size:11px;color:rgba(255,255,255,0.6);font-weight:700;letter-spacing:0.12em;text-transform:uppercase">Platform</div>
+    <div style="font-size:33px;font-weight:900;color:#fff;line-height:1.05">PRANA</div>
+    <div style="font-size:10.5px;color:rgba(255,255,255,0.5);margin-top:3px">16 slides</div>
+  </div>
+  <!-- Node 1 &#183; The Challenge &#183; (423,135) -->
+  <div style="position:absolute;left:397px;top:109px;width:52px;height:52px;border-radius:50%;background:#fff;border:2.5px solid #ef4444;display:flex;align-items:center;justify-content:center;font-size:21px;z-index:3;box-shadow:0 4px 14px rgba(239,68,68,0.22)">&#128680;</div>
+  <div style="position:absolute;left:460px;top:108px;z-index:3"><div style="font-size:13.5px;font-weight:800;color:#0f172a;line-height:1.2">The Challenge</div><div style="font-size:11px;color:#64748b;margin-top:1px">Why India needs PRANA</div><div style="font-size:10px;font-weight:700;color:#ef4444;margin-top:2px">Slide 03</div></div>
+  <!-- Node 2 &#183; Platform Overview &#183; (531,176) -->
+  <div style="position:absolute;left:505px;top:150px;width:52px;height:52px;border-radius:50%;background:#fff;border:2.5px solid #2563eb;display:flex;align-items:center;justify-content:center;font-size:21px;z-index:3;box-shadow:0 4px 14px rgba(37,99,235,0.2)">&#127974;</div>
+  <div style="position:absolute;left:568px;top:149px;z-index:3"><div style="font-size:13.5px;font-weight:800;color:#0f172a;line-height:1.2">Platform Overview</div><div style="font-size:11px;color:#64748b;margin-top:1px">What PRANA is &#183; Who it's for</div><div style="font-size:10px;font-weight:700;color:#2563eb;margin-top:2px">Slides 04 &#8211; 05</div></div>
+  <!-- Node 3 &#183; Employee Experience &#183; (612,240) -->
+  <div style="position:absolute;left:586px;top:214px;width:52px;height:52px;border-radius:50%;background:#fff;border:2.5px solid #10b981;display:flex;align-items:center;justify-content:center;font-size:21px;z-index:3;box-shadow:0 4px 14px rgba(16,185,129,0.2)">&#128100;</div>
+  <div style="position:absolute;left:649px;top:213px;z-index:3"><div style="font-size:13.5px;font-weight:800;color:#0f172a;line-height:1.2">Employee Experience</div><div style="font-size:11px;color:#64748b;margin-top:1px">Vault &#183; sharing &#183; activity &#183; rights</div><div style="font-size:10px;font-weight:700;color:#10b981;margin-top:2px">Slide 06</div></div>
+  <!-- Node 4 &#183; CXO Value &#183; (654,318) -->
+  <div style="position:absolute;left:628px;top:292px;width:52px;height:52px;border-radius:50%;background:#fff;border:2.5px solid #f59e0b;display:flex;align-items:center;justify-content:center;font-size:21px;z-index:3;box-shadow:0 4px 14px rgba(245,158,11,0.2)">&#128202;</div>
+  <div style="position:absolute;left:691px;top:291px;z-index:3"><div style="font-size:13.5px;font-weight:800;color:#0f172a;line-height:1.2">CXO Value</div><div style="font-size:11px;color:#64748b;margin-top:1px">CHRO &#183; CFO &#183; InfoSec / CISO</div><div style="font-size:10px;font-weight:700;color:#f59e0b;margin-top:2px">Slides 07 &#8211; 09</div></div>
+  <!-- Node 5 &#183; Trust & Encryption &#183; (654,402) -->
+  <div style="position:absolute;left:628px;top:376px;width:52px;height:52px;border-radius:50%;background:#fff;border:2.5px solid #8b5cf6;display:flex;align-items:center;justify-content:center;font-size:21px;z-index:3;box-shadow:0 4px 14px rgba(139,92,246,0.2)">&#128272;</div>
+  <div style="position:absolute;left:691px;top:375px;z-index:3"><div style="font-size:13.5px;font-weight:800;color:#0f172a;line-height:1.2">Trust &amp; Encryption</div><div style="font-size:11px;color:#64748b;margin-top:1px">7 layers &#183; per-employee DEK &#183; KMS</div><div style="font-size:10px;font-weight:700;color:#8b5cf6;margin-top:2px">Slides 10 &#8211; 11</div></div>
+  <!-- Node 6 &#183; Compliance &#183; (612,480) -->
+  <div style="position:absolute;left:586px;top:454px;width:52px;height:52px;border-radius:50%;background:#fff;border:2.5px solid #06b6d4;display:flex;align-items:center;justify-content:center;font-size:21px;z-index:3;box-shadow:0 4px 14px rgba(6,182,212,0.2)">&#9878;</div>
+  <div style="position:absolute;left:649px;top:453px;z-index:3"><div style="font-size:13.5px;font-weight:800;color:#0f172a;line-height:1.2">Compliance</div><div style="font-size:11px;color:#64748b;margin-top:1px">DPDP Act &#183; Labour Law &#183; Statutory</div><div style="font-size:10px;font-weight:700;color:#06b6d4;margin-top:2px">Slide 12</div></div>
+  <!-- Node 7 &#183; AI & Technology &#183; (531,544) -->
+  <div style="position:absolute;left:505px;top:518px;width:52px;height:52px;border-radius:50%;background:#fff;border:2.5px solid #059669;display:flex;align-items:center;justify-content:center;font-size:21px;z-index:3;box-shadow:0 4px 14px rgba(5,150,105,0.2)">&#129302;</div>
+  <div style="position:absolute;left:568px;top:517px;z-index:3"><div style="font-size:13.5px;font-weight:800;color:#0f172a;line-height:1.2">AI &amp; Technology</div><div style="font-size:11px;color:#64748b;margin-top:1px">6-stage pipeline &#183; platform architecture</div><div style="font-size:10px;font-weight:700;color:#059669;margin-top:2px">Slides 13 &#8211; 14</div></div>
+  <!-- Node 8 &#183; Integrations & Go Live &#183; (423,620) moved lower -->
+  <div style="position:absolute;left:397px;top:610px;width:52px;height:52px;border-radius:50%;background:#fff;border:2.5px solid #1d4ed8;display:flex;align-items:center;justify-content:center;font-size:21px;z-index:3;box-shadow:0 4px 14px rgba(29,78,216,0.2)">&#128640;</div>
+  <div style="position:absolute;left:460px;top:609px;z-index:3"><div style="font-size:13.5px;font-weight:800;color:#0f172a;line-height:1.2">Integrations &amp; Go Live</div><div style="font-size:11px;color:#64748b;margin-top:1px">HRMS connectors &#183; onboarding</div><div style="font-size:10px;font-weight:700;color:#1d4ed8;margin-top:2px">Slides 15 &#8211; 16</div></div>
+  <!-- Right: Platform at a glance panel -->
+  <div style="position:absolute;right:44px;top:80px;width:240px;background:#fff;border-radius:16px;padding:20px 18px;border:1.5px solid #e2e8f0;box-shadow:0 4px 20px rgba(0,0,0,0.07);z-index:3">
+    <div style="font-size:10px;font-weight:800;letter-spacing:0.1em;text-transform:uppercase;color:#94a3b8;margin-bottom:14px">Platform at a Glance</div>
+    <div style="display:flex;flex-direction:column;gap:7px">
+      <div style="display:flex;justify-content:space-between;align-items:center;padding-bottom:7px;border-bottom:1px solid #f1f5f9"><span style="font-size:11.5px;color:#334155">REST API Endpoints</span><span style="font-size:19px;font-weight:900;color:#1d4ed8">215+</span></div>
+      <div style="display:flex;justify-content:space-between;align-items:center;padding-bottom:7px;border-bottom:1px solid #f1f5f9"><span style="font-size:11.5px;color:#334155">Kafka Topics</span><span style="font-size:19px;font-weight:900;color:#f59e0b">30+</span></div>
+      <div style="display:flex;justify-content:space-between;align-items:center;padding-bottom:7px;border-bottom:1px solid #f1f5f9"><span style="font-size:11.5px;color:#334155">Webhooks</span><span style="font-size:19px;font-weight:900;color:#06b6d4">20+</span></div>
+      <div style="display:flex;justify-content:space-between;align-items:center;padding-bottom:7px;border-bottom:1px solid #f1f5f9"><span style="font-size:11.5px;color:#334155">HRMS Integrations</span><span style="font-size:19px;font-weight:900;color:#10b981">10+</span></div>
+      <div style="display:flex;justify-content:space-between;align-items:center;padding-bottom:7px;border-bottom:1px solid #f1f5f9"><span style="font-size:11.5px;color:#334155">Temporal Workflows</span><span style="font-size:19px;font-weight:900;color:#7c3aed">53</span></div>
+      <div style="display:flex;justify-content:space-between;align-items:center;padding-bottom:7px;border-bottom:1px solid #f1f5f9"><span style="font-size:11.5px;color:#334155">AI Pipeline Stages</span><span style="font-size:19px;font-weight:900;color:#059669">6</span></div>
+      <div style="display:flex;justify-content:space-between;align-items:center"><span style="font-size:11.5px;color:#334155">DPDP Rights Covered</span><span style="font-size:19px;font-weight:900;color:#ef4444">5</span></div>
+    </div>
+    <div style="margin-top:12px;padding-top:10px;border-top:1px solid #e2e8f0;font-size:10.5px;color:#64748b;line-height:1.55;font-weight:600">Designed for 1,00,000+ Orgs<br>1,00,00,000+ Employees</div>
+  </div>
+</div>
+
+<!-- &#9552;&#9552;&#9552; 03 &#8212; PROBLEM &#9552;&#9552;&#9552; -->
+<div class="slide">
+  <div class="hdr"><div class="hdr-tag">The Problem</div><div class="hdr-num">03 / 16</div></div>
+  <div class="body" style="flex-direction:row;gap:32px">
+    <div style="flex:1">
+      <div class="chip ch-r">&#128680; Problem Statement</div>
+      <h2 style="font-size:36px;font-weight:900;color:var(--ink);letter-spacing:-0.025em;line-height:1.1;margin-bottom:12px">India's workforce has<br><span class="g-red">no document infrastructure</span></h2>
+      <p style="font-size:14px;color:var(--muted);line-height:1.7;margin-bottom:20px;max-width:560px">Crores of workers change jobs and accumulate salary slips, Form 16s, offer letters &#8212; scattered across email, WhatsApp, and company intranets they can never access again after exit.</p>
+      <div class="prob-grid">
+        <div class="prob-card pc1"><div class="ibadge ib-b">&#128194;</div><div><div class="pt">No permanent home</div><div class="pd">Documents live with employers. Access cut off within 24 hours of resignation &#8212; sometimes immediately on exit.</div></div></div>
+        <div class="prob-card pc2"><div class="ibadge ib-c">&#128269;</div><div><div class="pt">No verification layer</div><div class="pd">Banks and background firms cannot verify salary claims without slow, expensive, manual HR calls.</div></div></div>
+        <div class="prob-card pc3"><div class="ibadge ib-a">&#9878;</div><div><div class="pt">No compliance posture</div><div class="pd">DPDP Act 2023 creates &#8377;50Cr exposure for mishandled employee data. Most HR systems have zero document-level audit trail.</div></div></div>
+        <div class="prob-card pc4"><div class="ibadge ib-r">&#128275;</div><div><div class="pt">No trust architecture</div><div class="pd">HR admins can open, copy, or share any employee document. Only policies &#8212; no structural controls that survive credential compromise.</div></div></div>
+      </div>
+    </div>
+    <div style="width:280px;display:flex;flex-direction:column;gap:12px">
+      <div class="sbox sb-r"><div class="sn g-red">&#8377;50Cr</div><div class="sl">Maximum DPDP Act 2023 penalty per violation. Most organisations have zero structural controls at the document layer.</div></div>
+      <div class="sbox sb-b"><div class="sn g-blue">0</div><div class="sl">Existing platforms give employees cryptographic ownership of their own career documents.</div></div>
+      <div class="sbox sb-g"><div class="sn g-green">PRANA</div><div class="sl">Built so that misuse is structurally impossible &#8212; not just policy-restricted. Architecture is the control.</div></div>
+    </div>
+  </div>
+</div>
+
+<!-- &#9552;&#9552;&#9552; 03 &#8212; WHAT PRANA IS &#9552;&#9552;&#9552; -->
+<div class="slide" style="background:linear-gradient(160deg,#f0f9ff,#fff)">
+  <div class="hdr"><div class="hdr-tag">What PRANA Is</div><div class="hdr-num">04 / 16</div></div>
+  <div class="body">
+    <div class="chip ch-b">&#127959; Platform Definition</div>
+    <h2 style="font-size:34px;font-weight:900;color:var(--ink);letter-spacing:-0.02em;margin-bottom:10px">A permanent, portable document identity<br><span class="g-main">for every Indian employee</span></h2>
+    <p style="font-size:14px;color:var(--slate);line-height:1.7;margin-bottom:22px;max-width:960px">PRANA is a multitenant SaaS platform that gives every employee a single, permanent, portable document identity &#8212; one URL that persists across employers, survives job changes, and accumulates documents from every organisation that participates.</p>
+    <div class="promise-cards">
+      <div class="pcard pb">
+        <div class="pi">&#128272;</div>
+        <div class="chip ch-b" style="font-size:10px;padding:3px 10px;margin-bottom:10px">Promise 1</div>
+        <h3 class="g-blue">Cryptographically Yours</h3>
+        <p>Once a document reaches your vault, your employer cannot touch it. Not open it, not delete it, not share it. This is not a policy. It is how the mathematics works.</p>
+      </div>
+      <div class="pcard pc">
+        <div class="pi">&#9989;</div>
+        <div class="chip ch-c" style="font-size:10px;padding:3px 10px;margin-bottom:10px">Promise 2</div>
+        <h3 class="g-cyan">Verified, Not Just Stored</h3>
+        <p>Every document was pushed by your employer, extracted by AI, and timestamped immutably. When you share a salary slip, the system proves it is real.</p>
+      </div>
+      <div class="pcard pg">
+        <div class="pi">&#9854;</div>
+        <div class="chip ch-g" style="font-size:10px;padding:3px 10px;margin-bottom:10px">Promise 3</div>
+        <h3 class="g-green">Follows You, Forever</h3>
+        <p>One vault. Every employer. Your entire career automatically assembled &#8212; whether employed, between jobs, or 10 employers in. The URL never changes.</p>
+      </div>
+    </div>
+    <div class="oneurl-bar">
+      <div class="big">One Employee &nbsp;&#183;&nbsp; One URL &nbsp;&#183;&nbsp; Forever</div>
+      <div class="desc">Documents flow in from every participating employer. Verification via cryptographic proof &#8212; not a phone call to HR. The vault is permanently yours from the first document.</div>
+    </div>
+  </div>
+</div>
+
+<!-- &#9552;&#9552;&#9552; 04 &#8212; WHO IT'S FOR &#9552;&#9552;&#9552; -->
+<div class="slide" style="background:#fafafa">
+  <div class="hdr"><div class="hdr-tag">Who It Is For</div><div class="hdr-num">05 / 16</div></div>
+  <div class="body">
+    <div class="chip ch-p">&#128101; Four Stakeholders &#183; One Platform &#183; Aligned Incentives</div>
+    <h2 style="font-size:32px;font-weight:900;color:var(--ink);letter-spacing:-0.02em;margin-bottom:16px">Every role gets a <span class="g-main">structural benefit</span> &#8212; not just access</h2>
+    <div class="audience-layout">
+      <div class="aud-center">
+        <div class="ac-icon">&#127974;</div>
+        <div class="ac-title">PRANA</div>
+        <div class="ac-sub">Permanent &#183; Portable &#183; Cryptographic &#183; DPDP-native</div>
+        <div class="ac-lines">
+          <div class="acl"><div class="acl-dot"></div><div class="acl-txt">One URL per employee</div></div>
+          <div class="acl"><div class="acl-dot"></div><div class="acl-txt">Per-employee DEK encryption</div></div>
+          <div class="acl"><div class="acl-dot"></div><div class="acl-txt">Employer push &#8594; vault ownership</div></div>
+          <div class="acl"><div class="acl-dot"></div><div class="acl-txt">AI pipeline &#183; 6 stages</div></div>
+          <div class="acl"><div class="acl-dot"></div><div class="acl-txt">53 Temporal workflows</div></div>
+          <div class="acl"><div class="acl-dot"></div><div class="acl-txt">All 5 DPDP rights built in</div></div>
+        </div>
+      </div>
+      <div class="aud-cols">
+        <div class="aud-card ac-e">
+          <div class="aicon">&#128100;</div><div class="arole ae">Employee</div>
+          <div class="atag">Stop chasing HR for documents you've already earned</div>
+          <div class="abody">Your vault is yours &#8212; across every employer, for life. You control who sees what, for how long.</div>
+          <div class="ametrics">
+            <div class="am">&#128994; <strong>2ms</strong> &#8212; PAN destroyed forever</div>
+            <div class="am">&#128994; <strong>&#8377;0</strong> &#8212; prove salary to any bank</div>
+            <div class="am">&#128994; <strong>0</strong> &#8212; employer accesses post-exit</div>
+          </div>
+        </div>
+        <div class="aud-card ac-h">
+          <div class="aicon">&#128084;</div><div class="arole ah">CHRO / HR</div>
+          <div class="atag">Stop scrambling when auditors arrive</div>
+          <div class="abody">Every obligation automatic, auditable, provable. Digests generated without manual steps.</div>
+          <div class="ametrics">
+            <div class="am">&#128309; <strong>100%</strong> &#8212; compliance timestamped at push</div>
+            <div class="am">&#128309; <strong>1-click</strong> &#8212; audit export any period</div>
+            <div class="am">&#128309; <strong>0</strong> &#8212; manual steps for monthly digest</div>
+          </div>
+        </div>
+        <div class="aud-card ac-f">
+          <div class="aicon">&#128202;</div><div class="arole af">CFO / Finance</div>
+          <div class="atag">Stop taking your CHRO's word for it</div>
+          <div class="abody">Payroll analytics from verified documents. Anomalies surfaced automatically, not at year-end.</div>
+          <div class="ametrics">
+            <div class="am">&#128993; <strong>30 min</strong> &#8212; cohort before aggregate shown</div>
+            <div class="am">&#128993; <strong>&#8377;50Cr</strong> &#8212; penalty structurally impossible</div>
+            <div class="am">&#128993; <strong>0</strong> &#8212; self-reported inputs in analytics</div>
+          </div>
+        </div>
+        <div class="aud-card ac-i">
+          <div class="aicon">&#128737;</div><div class="arole ai">InfoSec / DPO</div>
+          <div class="atag">Not policy. Architecture.</div>
+          <div class="abody">Controls fail when credentials are compromised. PRANA prevents misuse regardless of who has the keys.</div>
+          <div class="ametrics">
+            <div class="am">&#128995; <strong>1 person</strong> &#8212; exposed per DEK compromise</div>
+            <div class="am">&#128995; <strong>0</strong> &#8212; plaintext PAN in any DB row</div>
+            <div class="am">&#128995; <strong>2ms</strong> &#8212; PAN lifetime in memory</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- &#9552;&#9552;&#9552; 05 &#8212; EMPLOYEE EXPERIENCE &#9552;&#9552;&#9552; -->
+<div class="slide" style="background:linear-gradient(160deg,#f0fdf4,#fff)">
+  <div class="hdr"><div class="hdr-tag">Employee Experience</div><div class="hdr-num">06 / 16</div></div>
+  <div class="body" style="flex-direction:row;gap:32px">
+    <div style="flex:1">
+      <div class="chip ch-g">&#128100; Employee Value Proposition</div>
+      <h2 style="font-size:34px;font-weight:900;color:var(--ink);letter-spacing:-0.02em;margin-bottom:12px">Your entire career<br><span class="g-green">in one vault, permanently</span></h2>
+      <p style="font-size:14px;color:var(--muted);margin-bottom:20px;line-height:1.7">The mobile app is the employee's window into PRANA. Documents accumulate automatically. Sharing is controlled, watermarked, time-limited. No employer can reach the vault after routing.</p>
+      <div class="feat-list">
+        <div class="feat-row"><div class="ibadge ib-g">&#127974;</div><div><div class="ft">Permanent vault URL &#8212; one identity, every employer</div><div class="fd">The vault URL never changes across job moves. New employer documents flow in automatically when they join PRANA.</div></div></div>
+        <div class="feat-row"><div class="ibadge ib-g">&#128279;</div><div><div class="ft">Named, time-limited, watermarked sharing</div><div class="fd">Generate share link for a bank: set recipient name, expiry, OTP auth. Watermark applied server-side &#8212; cannot be removed. Revocable at any time.</div></div></div>
+        <div class="feat-row"><div class="ibadge ib-g">&#128065;</div><div><div class="ft">Full activity visibility &#8212; every access, every actor</div><div class="fd">Actor, timestamp, channel logged &#8212; visible in your activity feed. No black boxes. PRANA cannot hide access from you.</div></div></div>
+        <div class="feat-row"><div class="ibadge ib-g">&#9878;</div><div><div class="ft">All 5 DPDP rights &#8212; Access, Erasure, Correction, Nomination, Consent</div><div class="fd">One tap to exercise any right. Tracked to completion via Temporal workflow. No chasing the DPO by email.</div></div></div>
+      </div>
+    </div>
+    <div style="width:276px;display:flex;flex-direction:column;gap:12px">
+      <div class="sbox sb-g"><div class="sn g-green">0</div><div class="sl">Employer accesses to your documents after exit &#8212; structurally enforced, not policy-restricted</div></div>
+      <div class="sbox sb-g"><div class="sn g-green">2ms</div><div class="sl">PAN lifetime in memory before cryptographic destruction &#8212; never stored plaintext in any database row</div></div>
+      <div class="sbox sb-g"><div class="sn g-green">&#8377;0</div><div class="sl">Cost to prove salary to any bank or lender &#8212; cryptographic proof replaces the HR phone call entirely</div></div>
+    </div>
+  </div>
+</div>
+
+<!-- &#9552;&#9552;&#9552; 06 &#8212; CHRO VALUE &#9552;&#9552;&#9552; -->
+<div class="slide">
+  <div class="hdr"><div class="hdr-tag">CHRO / HR Value</div><div class="hdr-num">07 / 16</div></div>
+  <div class="body" style="flex-direction:row;gap:28px">
+    <div style="flex:1">
+      <div class="chip ch-b">&#128084; CHRO Value Proposition</div>
+      <h2 style="font-size:32px;font-weight:900;color:var(--ink);letter-spacing:-0.02em;margin-bottom:10px">Stop scrambling when<br><span class="g-blue">auditors arrive</span></h2>
+      <p style="font-size:13.5px;color:var(--muted);margin-bottom:16px;line-height:1.65;max-width:540px">Every document obligation timestamped at push. Compliance is automatic &#8212; not a quarterly scramble. PRANA gives CHRO evidence, not just a summary.</p>
+      <div class="chro-rows">
+        <div class="chro-row"><div class="cr-ic">&#128203;</div><div class="cr-bd"><div class="ct">Auditor requests 3 years of salary slip proof</div><div class="cd">Every document cryptographically timestamped at push. Full provenance chain included.</div></div><div class="cr-vl"><span>1-click export &#9889;</span></div></div>
+        <div class="chro-row"><div class="cr-ic">&#128197;</div><div class="cr-bd"><div class="ct">Monthly ESIC / PF digest preparation</div><div class="cd">DigestWorkflow runs on schedule. CHRO receives the finished report automatically &#8212; no spreadsheets.</div></div><div class="cr-vl"><span>0 manual steps &#9989;</span></div></div>
+        <div class="chro-row"><div class="cr-ic">&#128202;</div><div class="cr-bd"><div class="ct">Vault completeness tracking by department</div><div class="cd">Gaps surface automatically against document obligations. Real-time dashboard.</div></div><div class="cr-vl"><span>Real-time &#128200;</span></div></div>
+        <div class="chro-row"><div class="cr-ic">&#9888;</div><div class="cr-bd"><div class="ct">Exception queue &#8212; AI cannot resolve identity</div><div class="cd">OA-Admin resolves via portal. Temporal workflow tracks SLA. Escalates if breached.</div></div><div class="cr-vl"><span>SLA-bound &#9201;</span></div></div>
+        <div class="chro-row"><div class="cr-ic">&#128465;</div><div class="cr-bd"><div class="ct">Employee DPDP erasure request</div><div class="cd">ErasureWorkflow handles PII deletion, S3 purge, DPDP certificate in 30 days.</div></div><div class="cr-vl"><span>Auto 30-day &#9878;</span></div></div>
+      </div>
+    </div>
+    <!-- CHRO mini dashboard -->
+    <div style="width:310px;display:flex;flex-direction:column">
+      <div class="mini-dash">
+        <div class="md-hdr">
+          <span class="mh-title">&#128202; CHRO Dashboard Preview</span>
+          <span class="mh-badge">Live</span>
+        </div>
+        <div class="md-body">
+          <div class="md-stats">
+            <div class="md-stat"><div class="msn g-blue">&#9989;</div><div class="msl">100% Compliance<br>timestamped at push</div></div>
+            <div class="md-stat"><div class="msn g-amber">0</div><div class="msl">Manual steps<br>for digest</div></div>
+          </div>
+          <div style="font-size:10px;font-weight:800;letter-spacing:0.08em;text-transform:uppercase;color:var(--muted);margin-top:2px">Document Coverage by Type</div>
+          <div class="md-bar-row">
+            <div class="md-bar"><span class="mbl">Salary Slips</span><div class="mb-track"><div class="mb-fill" style="width:94%;background:linear-gradient(90deg,#059669,#34d399)"></div></div><span class="mbv" style="color:#059669">94%</span></div>
+            <div class="md-bar"><span class="mbl">Form 16</span><div class="mb-track"><div class="mb-fill" style="width:88%;background:linear-gradient(90deg,#2563eb,#60a5fa)"></div></div><span class="mbv" style="color:#2563eb">88%</span></div>
+            <div class="md-bar"><span class="mbl">Offer Letters</span><div class="mb-track"><div class="mb-fill" style="width:81%;background:linear-gradient(90deg,#7c3aed,#a78bfa)"></div></div><span class="mbv" style="color:#7c3aed">81%</span></div>
+            <div class="md-bar"><span class="mbl">PF Statements</span><div class="mb-track"><div class="mb-fill" style="width:76%;background:linear-gradient(90deg,#f59e0b,#fbbf24)"></div></div><span class="mbv" style="color:#d97706">76%</span></div>
+          </div>
+          <div class="md-row"><span class="mr-label">&#128197; Weekly Digest &#8212; ESIC / PF</span><span class="mr-tag tag-auto">Auto-pushed</span></div>
+          <div class="md-row"><span class="mr-label">&#128228; 1-Click Audit Export</span><span class="mr-tag tag-live">Any period</span></div>
+          <div class="md-row"><span class="mr-label">&#128198; Compliance Calendar</span><span class="mr-tag tag-inst">Statutory</span></div>
+          <div class="md-row"><span class="mr-label">&#9878; Statutory SLA Monitoring</span><span class="mr-tag tag-auto">Auto-tracked</span></div>
+          <div class="md-row"><span class="mr-label">&#128450; Natural Language Analytics</span><span class="mr-tag tag-live">Ground truth</span></div>
+          <div class="md-exc"><span class="ex-icon">&#9888;</span><span class="ex-text">2 exceptions past SLA &#8212; action required</span></div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- &#9552;&#9552;&#9552; 07 &#8212; CFO VALUE &#9552;&#9552;&#9552; -->
+<div class="slide" style="background:linear-gradient(160deg,#fffbeb,#fff)">
+  <div class="hdr"><div class="hdr-tag">CFO / Finance Value</div><div class="hdr-num">08 / 16</div></div>
+  <div class="body" style="flex-direction:row;gap:28px">
+    <div style="flex:1">
+      <div class="chip ch-a">&#128202; CFO Value Proposition</div>
+      <h2 style="font-size:32px;font-weight:900;color:var(--ink);letter-spacing:-0.02em;margin-bottom:10px">Stop taking your CHRO's<br><span class="g-amber">word for it</span></h2>
+      <p style="font-size:13.5px;color:var(--muted);margin-bottom:16px;line-height:1.65">Payroll compliance and attrition cost derived from verified documents &#8212; not self-reported data. Anomalies surface automatically, not at year-end.</p>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
+        <div style="background:#fff;border:1.5px solid #fde68a;border-radius:12px;padding:14px;display:flex;gap:10px;align-items:flex-start"><div class="ibadge ib-a" style="width:36px;height:36px;font-size:15px">&#9989;</div><div><div style="font-size:13px;font-weight:700;color:var(--ink);margin-bottom:3px">Verified Payroll Compliance</div><div style="font-size:12px;color:var(--slate);line-height:1.6">Every salary slip and Form 16 is employer-verified before entering analytics. No self-reported numbers.</div></div></div>
+        <div style="background:#fff;border:1.5px solid #fde68a;border-radius:12px;padding:14px;display:flex;gap:10px;align-items:flex-start"><div class="ibadge ib-a" style="width:36px;height:36px;font-size:15px">&#128680;</div><div><div style="font-size:13px;font-weight:700;color:var(--ink);margin-bottom:3px">Anomaly Detection</div><div style="font-size:12px;color:var(--slate);line-height:1.6">Payroll anomalies surfaced with document-level evidence. CFO acknowledges via portal &#8212; logged to audit trail.</div></div></div>
+        <div style="background:#fff;border:1.5px solid #fde68a;border-radius:12px;padding:14px;display:flex;gap:10px;align-items:flex-start"><div class="ibadge ib-a" style="width:36px;height:36px;font-size:15px">&#128101;</div><div><div style="font-size:13px;font-weight:700;color:var(--ink);margin-bottom:3px">Cohort Privacy by Default</div><div style="font-size:12px;color:var(--slate);line-height:1.6">No aggregate insight until cohort &#8805; 30 people. Prevents reverse-engineering individual salaries.</div></div></div>
+        <div style="background:#fff;border:1.5px solid #fde68a;border-radius:12px;padding:14px;display:flex;gap:10px;align-items:flex-start"><div class="ibadge ib-a" style="width:36px;height:36px;font-size:15px">&#128220;</div><div><div style="font-size:13px;font-weight:700;color:var(--ink);margin-bottom:3px">7-Year Immutable Audit Trail</div><div style="font-size:12px;color:var(--slate);line-height:1.6">Every acknowledgement and export in immutable log. Court-admissible. YugabyteDB hot + Iceberg cold.</div></div></div>
+        <div style="background:#fff;border:1.5px solid #fde68a;border-radius:12px;padding:14px;display:flex;gap:10px;align-items:flex-start"><div class="ibadge ib-a" style="width:36px;height:36px;font-size:15px">&#128201;</div><div><div style="font-size:13px;font-weight:700;color:var(--ink);margin-bottom:3px">Attrition Cost Analytics</div><div style="font-size:12px;color:var(--slate);line-height:1.6">Career insights from AI-extracted document data &#8212; not HR surveys. Separation cost tracked against actual tenures.</div></div></div>
+        <div style="background:#fff;border:1.5px solid #fde68a;border-radius:12px;padding:14px;display:flex;gap:10px;align-items:flex-start"><div class="ibadge ib-a" style="width:36px;height:36px;font-size:15px">&#129302;</div><div><div style="font-size:13px;font-weight:700;color:var(--ink);margin-bottom:3px">Natural Language Analytics</div><div style="font-size:12px;color:var(--slate);line-height:1.6">Ask: "What is our Form 16 compliance vs last quarter?" &#8212; answers from verified document data, not HR system self-reports.</div></div></div>
+      </div>
+    </div>
+    <!-- CFO mini dashboard -->
+    <div style="width:310px;display:flex;flex-direction:column">
+      <div class="mini-dash">
+        <div class="md-hdr md-hdr-a">
+          <span class="mh-title">&#128200; CFO Analytics Preview</span>
+          <span class="mh-badge">Verified data</span>
+        </div>
+        <div class="md-body" style="gap:9px">
+          <div class="md-stats">
+            <div class="md-stat"><div class="msn g-amber" style="font-size:28px">30</div><div class="msl" style="font-size:11px">Min. cohort<br>for aggregates</div></div>
+            <div class="md-stat"><div class="msn g-green" style="font-size:28px">0</div><div class="msl" style="font-size:11px">Self-reported<br>inputs</div></div>
+          </div>
+          <div style="font-size:10.5px;font-weight:800;letter-spacing:0.08em;text-transform:uppercase;color:var(--muted);margin-top:2px">Vault Health by Department</div>
+          <div class="md-bar-row" style="gap:7px">
+            <div class="md-bar"><span class="mbl" style="font-size:11px">Finance</span><div class="mb-track" style="height:8px"><div class="mb-fill" style="width:92%;background:linear-gradient(90deg,#2563eb,#60a5fa)"></div></div><span class="mbv" style="color:#2563eb;font-size:11px;font-weight:700">92%</span></div>
+            <div class="md-bar"><span class="mbl" style="font-size:11px">HR</span><div class="mb-track" style="height:8px"><div class="mb-fill" style="width:89%;background:linear-gradient(90deg,#059669,#34d399)"></div></div><span class="mbv" style="color:#059669;font-size:11px;font-weight:700">89%</span></div>
+            <div class="md-bar"><span class="mbl" style="font-size:11px">Engineering</span><div class="mb-track" style="height:8px"><div class="mb-fill" style="width:84%;background:linear-gradient(90deg,#7c3aed,#a78bfa)"></div></div><span class="mbv" style="color:#7c3aed;font-size:11px;font-weight:700">84%</span></div>
+            <div class="md-bar"><span class="mbl" style="font-size:11px">Sales</span><div class="mb-track" style="height:8px"><div class="mb-fill" style="width:71%;background:linear-gradient(90deg,#f59e0b,#fbbf24)"></div></div><span class="mbv" style="color:#d97706;font-size:11px;font-weight:700">71%</span></div>
+          </div>
+          <div class="md-row" style="padding:9px 10px"><span class="mr-label" style="font-size:12px">&#128269; Payroll Anomaly Detection</span><span class="mr-tag tag-live" style="font-size:10px">Active</span></div>
+          <div class="md-row" style="padding:9px 10px"><span class="mr-label" style="font-size:12px">&#128201; Attrition Cost (doc-sourced)</span><span class="mr-tag tag-inst" style="font-size:10px">Insight</span></div>
+          <div class="md-row" style="padding:9px 10px"><span class="mr-label" style="font-size:12px">&#128200; Grade Band Benchmarking</span><span class="mr-tag" style="background:#eff6ff;color:#1d4ed8;font-size:10px">4 grades</span></div>
+          <div class="md-row" style="padding:9px 10px"><span class="mr-label" style="font-size:12px">&#128221; Monthly CFO Digest</span><span class="mr-tag" style="background:#f0fdf4;color:#059669;font-size:10px">&#10003; Auto-sent</span></div>
+          <div class="md-row" style="padding:9px 10px"><span class="mr-label" style="font-size:12px">&#9878; DPDP Penalty Exposure</span><span class="mr-tag" style="background:#dcfce7;color:#059669;font-size:10px">&#8377;0 risk</span></div>
+          <div style="background:linear-gradient(90deg,rgba(245,158,11,0.08),rgba(251,191,36,0.08));border:1.5px solid #fde68a;border-radius:8px;padding:9px 10px;font-size:11px;color:#92400e;line-height:1.5"><strong>AI:</strong> &#8220;14% of Grade-2 band above market median &#8212; no raw &#8377; stored, insight only&#8221;</div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- &#9552;&#9552;&#9552; 08 &#8212; INFOSEC / CISO &#9552;&#9552;&#9552; -->
+<div class="slide" style="background:linear-gradient(160deg,#fef2f2,#fff)">
+  <div class="hdr"><div class="hdr-tag">InfoSec / CISO Value</div><div class="hdr-num">09 / 16</div></div>
+  <div class="body" style="flex-direction:row;gap:28px">
+    <div style="flex:1">
+      <div class="chip ch-r">&#128737; InfoSec Value Proposition</div>
+      <h2 style="font-size:32px;font-weight:900;color:var(--ink);letter-spacing:-0.02em;margin-bottom:10px">Not policy. Architecture.<br><span class="g-red">Misuse is structurally impossible.</span></h2>
+      <div style="font-size:17px;font-weight:700;line-height:1.45;padding:14px 18px;background:#fff;border-left:4px solid #ef4444;border-radius:0 10px 10px 0;margin-bottom:14px;color:var(--ink)">Controls fail when credentials are compromised. PRANA's architecture prevents misuse regardless of who has the keys.</div>
+      <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-bottom:12px">
+        <div style="border-radius:12px;padding:14px 12px;text-align:center;background:#fff;border:1.5px solid #fecaca"><div style="font-size:32px;font-weight:900;line-height:1;margin-bottom:4px" class="g-red">1</div><div style="font-size:11.5px;color:var(--slate);line-height:1.4">Person's data exposed per DEK compromise</div></div>
+        <div style="border-radius:12px;padding:14px 12px;text-align:center;background:#fff;border:1.5px solid #fecaca"><div style="font-size:32px;font-weight:900;line-height:1;margin-bottom:4px" class="g-red">0</div><div style="font-size:11.5px;color:var(--slate);line-height:1.4">Plaintext PAN in any database row &#8212; ever</div></div>
+        <div style="border-radius:12px;padding:14px 12px;text-align:center;background:#fff;border:1.5px solid #fecaca"><div style="font-size:32px;font-weight:900;line-height:1;margin-bottom:4px" class="g-red">2ms</div><div style="font-size:11.5px;color:var(--slate);line-height:1.4">PAN lifetime before cryptographic destruction</div></div>
+      </div>
+      <div style="display:flex;flex-direction:column;gap:7px">
+        <div style="display:flex;gap:10px;align-items:center;font-size:12.5px;color:var(--slate);padding:8px 12px;background:#fff;border:1.5px solid #fecaca;border-radius:8px;font-weight:500"><span>&#128205;</span> Full IP in document access log &#8212; employee sees city only, CISO sees full IP</div>
+        <div style="display:flex;gap:10px;align-items:center;font-size:12.5px;color:var(--slate);padding:8px 12px;background:#fff;border:1.5px solid #fecaca;border-radius:8px;font-weight:500"><span>&#128272;</span> Force-logout &#8212; revoke any session instantly via Redis revocation ring</div>
+        <div style="display:flex;gap:10px;align-items:center;font-size:12.5px;color:var(--slate);padding:8px 12px;background:#fff;border:1.5px solid #fecaca;border-radius:8px;font-weight:500"><span>&#128270;</span> Bulk-access anomaly alerts &#8212; unusual document volume triggers automatic CISO notification</div>
+        <div style="display:flex;gap:10px;align-items:center;font-size:12.5px;color:var(--slate);padding:8px 12px;background:#fff;border:1.5px solid #fecaca;border-radius:8px;font-weight:500"><span>&#9195;</span> Elevated OA sessions &#8212; every elevation requires approval, is time-limited, and fully logged</div>
+        <div style="display:flex;gap:10px;align-items:center;font-size:12.5px;color:var(--slate);padding:8px 12px;background:#fff;border:1.5px solid #fecaca;border-radius:8px;font-weight:500"><span>&#127757;</span> Foreign IP &amp; off-hours login detection &#8212; automatic flag, session suspension pending CISO review</div>
+      </div>
+    </div>
+    <!-- CISO mini dashboard -->
+    <div style="width:310px;display:flex;flex-direction:column">
+      <div class="mini-dash">
+        <div class="md-hdr md-hdr-r">
+          <span class="mh-title">&#128737; CISO Dashboard Preview</span>
+          <span class="mh-badge">Real-time</span>
+        </div>
+        <div class="md-body">
+          <div class="md-stats">
+            <div class="md-stat"><div class="msn g-green">&#9989;</div><div class="msl">Zero plaintext PAN<br>in any DB row</div></div>
+            <div class="md-stat"><div class="msn g-red">0</div><div class="msl">Active session<br>leaks detected</div></div>
+          </div>
+          <div class="md-row"><span class="mr-label">&#128273; Account Lock Dashboard</span><span class="mr-tag tag-live">POLICY_LOCK &#183; AUTO</span></div>
+          <div class="md-row"><span class="mr-label">&#128681; Flagged Access Review</span><span class="mr-tag tag-inst">Bulk anomaly filter</span></div>
+          <div class="md-row"><span class="mr-label">&#128200; Elevation Audit Log</span><span class="mr-tag tag-auto">Every session</span></div>
+          <div class="md-row"><span class="mr-label">&#127757; Foreign IP Detection</span><span class="mr-tag tag-live">Login feed</span></div>
+          <div class="md-row"><span class="mr-label">&#128220; 7-Year Audit Log</span><span class="mr-tag" style="background:#dcfce7;color:#059669">Court-admissible</span></div>
+          <div class="md-exc"><span class="ex-icon">&#9878;</span><span class="ex-text">1-click DPB escalation if grievance &gt; 30 days</span></div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- &#9552;&#9552;&#9552; 09 &#8212; TRUST ARCHITECTURE &#9552;&#9552;&#9552; -->
+<div class="slide" style="background:#f8fafc">
+  <div class="hdr"><div class="hdr-tag">Trust Architecture</div><div class="hdr-num">10 / 16</div></div>
+  <div class="body">
+    <div class="chip ch-b">&#127963; 7 Layers of Structural Trust &#8212; Every Claim Backed by Architecture</div>
+    <h2 style="font-size:32px;font-weight:900;color:var(--ink);letter-spacing:-0.02em;margin-bottom:8px">Architecture is the policy. <span class="g-blue">Not the employee handbook.</span></h2>
+    <div class="trust-diagram">
+      <div class="trust-row"><div class="tr-num">01</div><div class="tr-concept"><span class="tc-icon">&#127974;</span><span class="tc-txt">Vault Ownership Transfer</span></div><div class="tr-type"><span class="tag-st">STRUCTURAL</span></div><div class="tr-desc">Employer cannot open, download, share, or delete. Ownership transferred structurally at routing &#8212; not configurable by any admin.</div></div>
+      <div class="trust-row"><div class="tr-num">02</div><div class="tr-concept"><span class="tc-icon">&#128273;</span><span class="tc-txt">One Person &#183; One Key</span></div><div class="tr-type"><span class="tag-cr">CRYPTOGRAPHIC</span></div><div class="tr-desc">Each employee has their own Document Encryption Key. A colleague's key cannot decrypt yours. AWS KMS envelope encryption enforces this.</div></div>
+      <div class="trust-row"><div class="tr-num">03</div><div class="tr-concept"><span class="tc-icon">&#128302;</span><span class="tc-txt">Zero-Knowledge PAN</span></div><div class="tr-type"><span class="tag-zk">ZERO-KNOWLEDGE</span></div><div class="tr-desc">PAN &#8594; HMAC-SHA256 in 2ms. Plaintext destroyed. No database row links PAN to name. Cross-tenant dedup via HMAC token only.</div></div>
+      <div class="trust-row"><div class="tr-num">04</div><div class="tr-concept"><span class="tc-icon">&#129309;</span><span class="tc-txt">Consent-Gated Sharing</span></div><div class="tr-type"><span class="tag-co">CONSENT-GATED</span></div><div class="tr-desc">Only the employee creates share tokens. Named, time-limited, revocable, watermarked. No employer or admin can share on the employee's behalf.</div></div>
+      <div class="trust-row"><div class="tr-num">05</div><div class="tr-concept"><span class="tc-icon">&#128452;</span><span class="tc-txt">PostgreSQL RLS</span></div><div class="tr-type"><span class="tag-rl">RLS ENFORCED</span></div><div class="tr-desc">Portal Admin has zero SELECT on document rows. Row-Level Security enforces this at the database query layer &#8212; query refused, not hidden by UI.</div></div>
+      <div class="trust-row"><div class="tr-num">06</div><div class="tr-concept"><span class="tc-icon">&#128065;</span><span class="tc-txt">Full Transparency</span></div><div class="tr-type"><span class="tag-tr">TRANSPARENT</span></div><div class="tr-desc">Every access &#8212; actor, timestamp, channel &#8212; is in the employee's activity log. No black boxes. PRANA cannot hide access from you.</div></div>
+      <div class="trust-row"><div class="tr-num">07</div><div class="tr-concept"><span class="tc-icon">&#9854;</span><span class="tc-txt">Portable Vault</span></div><div class="tr-type"><span class="tag-po">PORTABLE</span></div><div class="tr-desc">Your vault follows you &#8212; not your employer. When you leave, your vault stays yours. New employer pushes to the same permanent URL forever.</div></div>
+    </div>
+  </div>
+</div>
+
+<!-- &#9552;&#9552;&#9552; 10 &#8212; ENCRYPTION &#9552;&#9552;&#9552; -->
+<div class="slide">
+  <div class="hdr"><div class="hdr-tag">Encryption Architecture</div><div class="hdr-num">11 / 16</div></div>
+  <div class="body" style="flex-direction:row;gap:32px">
+    <div style="flex:1">
+      <div class="chip ch-b">&#128272; Data Protection Model</div>
+      <h2 style="font-size:32px;font-weight:900;color:var(--ink);letter-spacing:-0.02em;margin-bottom:12px">Envelope encryption.<br><span class="g-blue">Per-employee. Per-tenant key hierarchy.</span></h2>
+      <p style="font-size:14px;color:var(--muted);margin-bottom:18px;line-height:1.65">Three independent encryption layers protect every piece of employee data. A breach at any one layer does not expose data protected by the others.</p>
+      <div class="enc-stack">
+        <div class="enc-row"><div class="el">&#128290;</div><div class="er"><div class="en">PAN Token &#8212; Cross-Tenant Deduplication Key</div><div class="ed">HMAC-SHA256(PAN, platform_secret) &#183; 2ms lifetime &#183; plaintext destroyed after hash</div></div></div>
+        <div class="enc-row"><div class="el">&#128274;</div><div class="er"><div class="en">enc_pan &#8212; Format-Preserving Encryption per Employee</div><div class="ed">FF3-1 FPE(PAN, employee_DEK) &#183; reversible &#183; stored encrypted &#183; never plaintext in DB</div></div></div>
+        <div class="enc-row"><div class="el">&#128477;</div><div class="er"><div class="en">enc_dek &#8212; AWS KMS Envelope Encryption</div><div class="ed">KMS_Encrypt(DEK, tenant_KEK) &#183; customer-managed CMK &#183; ap-south-1 &#183; per-employee DEK</div></div></div>
+        <div class="enc-row"><div class="el">&#128196;</div><div class="er"><div class="en">Document Bytes &#8212; AES-256 + Application Layer</div><div class="ed">S3 SSE at rest &#183; per-employee DEK app-layer encryption &#183; in-memory decryption only</div></div></div>
+        <div class="enc-row"><div class="el">&#128273;</div><div class="er"><div class="en">Passwords Argon2id &#183; TOTP AES-256-GCM</div><div class="ed">Argon2id: time=2, memory=65536, parallelism=2 &#183; TOTP secret encrypted separately</div></div></div>
+      </div>
+    </div>
+    <div style="width:300px;display:flex;flex-direction:column;gap:12px">
+      <div class="ki"><div class="kt">&#128165; Blast Radius Isolation</div><div class="kb">Each employee has their own DEK. A DEK compromise exposes exactly one person's documents &#8212; not the entire tenant. Mathematics limits the damage.</div></div>
+      <div class="ki"><div class="kt" style="color:#059669">&#128683; Zero Plaintext Policy</div><div class="kb">No plaintext PAN anywhere in the system after the initial 2ms HMAC window. No logs, caches, or API responses contain raw PAN or salary &#8212; ever.</div></div>
+      <div class="ki"><div class="kt" style="color:#d97706">&#128273; AWS KMS Key Hierarchy</div><div class="kb">Platform secret and tenant KEKs managed by AWS KMS (ap-south-1, customer-managed). Key rotation and audit policies enforced by KMS &#8212; not application code.</div></div>
+      <div class="ki"><div class="kt" style="color:#7c3aed">&#128338; Password-Protected Documents</div><div class="kb">Employee provides password &#8594; in-memory decryption only &#8594; session wiped on expiry (10 min). Nothing persisted. Zero residual data after session end.</div></div>
+    </div>
+  </div>
+</div>
+
+<!-- &#9552;&#9552;&#9552; 11 &#8212; COMPLIANCE (DPDP + LABOUR LAW) &#9552;&#9552;&#9552; -->
+<div class="slide" style="background:linear-gradient(160deg,#fffbeb,#fff)">
+  <div class="hdr"><div class="hdr-tag">Compliance &#8212; DPDP Act 2023 &amp; Labour Law</div><div class="hdr-num">12 / 16</div></div>
+  <div class="body" style="flex-direction:row;gap:28px">
+    <!-- LEFT: DPDP Act -->
+    <div style="flex:1;display:flex;flex-direction:column">
+      <div class="chip ch-a">&#9878; DPDP Act 2023 &#8212; All 5 Rights Built In</div>
+      <h2 style="font-size:26px;font-weight:900;color:var(--ink);letter-spacing:-0.02em;margin-bottom:8px">Digital Personal Data<br><span class="g-amber">Protection Act 2023</span></h2>
+      <p style="font-size:12.5px;color:var(--muted);margin-bottom:12px;line-height:1.6">Each right triggers a Temporal workflow &#8212; retry, audit trail, SLA-tracked. No manual DPO email chains.</p>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;flex:1">
+        <div class="dpdp-card" style="padding:12px 12px"><div class="di" style="font-size:22px">&#128229;</div><div class="ds">S.11 &#8212; ACCESS</div><div class="dn" style="font-size:12px">Data Access &amp; Download</div><div class="dd" style="font-size:11px">Full data package with provenance. One click. Under 72 hours.</div></div>
+        <div class="dpdp-card" style="padding:12px 12px"><div class="di" style="font-size:22px">&#9999;</div><div class="ds">S.12 &#8212; CORRECTION</div><div class="dn" style="font-size:12px">Correction + DPDP Certificate</div><div class="dd" style="font-size:11px">Flag errors. Audit log retained (7-year legal override).</div></div>
+        <div class="dpdp-card" style="padding:12px 12px"><div class="di" style="font-size:22px">&#127963;</div><div class="ds">S.13 &#8212; GRIEVANCE</div><div class="dn" style="font-size:12px">Grievance + DPB Escalation</div><div class="dd" style="font-size:11px">48-hr auto-ack. 1-click DPB escalation at 30 days.</div></div>
+        <div class="dpdp-card" style="padding:12px 12px"><div class="di" style="font-size:22px">&#128104;&#8205;&#128105;&#8205;&#128103;</div><div class="ds">S.14 &#8212; NOMINATION</div><div class="dn" style="font-size:12px">Family Vault Access</div><div class="dd" style="font-size:11px">First platform in India to implement S.14 nomination natively.</div></div>
+        <div class="dpdp-card" style="padding:12px 12px;grid-column:span 2"><div class="di" style="font-size:22px">&#128260;</div><div class="ds">S.7 &#8212; WITHDRAW CONSENT</div><div class="dn" style="font-size:12px">Granular Consent Toggles &#8212; Immediate Effect</div><div class="dd" style="font-size:11px">Per-purpose analytics toggles. Withdrawal stops all processing within that purpose boundary immediately. No grace period.</div></div>
+      </div>
+      <div style="margin-top:10px;background:linear-gradient(90deg,#1d4ed8,#0891b2);border-radius:10px;padding:12px 18px;display:flex;align-items:center;gap:14px">
+        <span style="font-size:26px;font-weight:900;color:#fff;flex-shrink:0">&#8377;50Cr</span>
+        <span style="font-size:12px;color:rgba(255,255,255,0.85);line-height:1.5"><strong style="color:#fff">Max DPDP penalty.</strong> With PRANA's architecture, misuse is structurally impossible &#8212; controls are in the mathematics, not policy.</span>
+      </div>
+    </div>
+    <!-- DIVIDER -->
+    <div style="width:2px;background:linear-gradient(180deg,transparent,#fde68a,transparent);border-radius:2px;align-self:stretch"></div>
+    <!-- RIGHT: LABOUR LAW -->
+    <div style="flex:1;display:flex;flex-direction:column">
+      <div class="chip ch-g">&#127959; Labour Law &amp; Statutory Compliance</div>
+      <h2 style="font-size:26px;font-weight:900;color:var(--ink);letter-spacing:-0.02em;margin-bottom:8px">Statutory obligations<br><span class="g-green">automatic, auditable, on time</span></h2>
+      <p style="font-size:12.5px;color:var(--muted);margin-bottom:12px;line-height:1.6">PRANA's AI-extracted, employer-verified documents create the audit trail for every statutory filing obligation &#8212; without a separate compliance system.</p>
+      <div style="display:flex;flex-direction:column;gap:7px;flex:1">
+        <div style="display:flex;gap:10px;align-items:flex-start;padding:10px 12px;background:#ecfdf5;border:1.5px solid #a7f3d0;border-radius:10px">
+          <span style="font-size:18px;flex-shrink:0">&#128176;</span>
+          <div><div style="font-size:13px;font-weight:700;color:var(--ink);margin-bottom:2px">PF (Provident Fund) &#8212; Monthly Filing</div><div style="font-size:11.5px;color:var(--slate);line-height:1.55">Salary slips verified at push &#8594; PF contribution tracked &#8594; digest auto-generated for EPFO filing. UAN cross-verified via EPFO.</div></div>
+        </div>
+        <div style="display:flex;gap:10px;align-items:flex-start;padding:10px 12px;background:#ecfdf5;border:1.5px solid #a7f3d0;border-radius:10px">
+          <span style="font-size:18px;flex-shrink:0">&#127973;</span>
+          <div><div style="font-size:13px;font-weight:700;color:var(--ink);margin-bottom:2px">ESIC &#8212; Employee State Insurance</div><div style="font-size:11.5px;color:var(--slate);line-height:1.55">Monthly ESIC contribution tracked from verified salary slips. Breach alerts before the due date &#8212; not after the penalty.</div></div>
+        </div>
+        <div style="display:flex;gap:10px;align-items:flex-start;padding:10px 12px;background:#ecfdf5;border:1.5px solid #a7f3d0;border-radius:10px">
+          <span style="font-size:18px;flex-shrink:0">&#128203;</span>
+          <div><div style="font-size:13px;font-weight:700;color:var(--ink);margin-bottom:2px">TDS &amp; Form 16 &#8212; Annual Tax Filing</div><div style="font-size:11.5px;color:var(--slate);line-height:1.55">Form 16 issuance completeness tracked against employee roster. Missing Form 16 surfaced automatically before the June deadline.</div></div>
+        </div>
+        <div style="display:flex;gap:10px;align-items:flex-start;padding:10px 12px;background:#ecfdf5;border:1.5px solid #a7f3d0;border-radius:10px">
+          <span style="font-size:18px;flex-shrink:0">&#128591;</span>
+          <div><div style="font-size:13px;font-weight:700;color:var(--ink);margin-bottom:2px">Gratuity &amp; Leave Encashment Tracking</div><div style="font-size:11.5px;color:var(--slate);line-height:1.55">Service tenure and salary history from verified documents. Gratuity eligibility computed without HR self-reporting.</div></div>
+        </div>
+        <div style="display:flex;gap:10px;align-items:flex-start;padding:10px 12px;background:#ecfdf5;border:1.5px solid #a7f3d0;border-radius:10px">
+          <span style="font-size:18px;flex-shrink:0">&#127963;</span>
+          <div><div style="font-size:13px;font-weight:700;color:var(--ink);margin-bottom:2px">Shops &amp; Establishment Act / Maternity</div><div style="font-size:11.5px;color:var(--slate);line-height:1.55">Offer letters, joining letters, and maternity benefit documents pushed to vault. Statutory compliance calendar SLA-tracked automatically.</div></div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- &#9552;&#9552;&#9552; 12 &#8212; AI PIPELINE (2&#215;3 grid) &#9552;&#9552;&#9552; -->
+<div class="slide" style="background:#f8fafc">
+  <div class="hdr"><div class="hdr-tag">AI Extraction Pipeline</div><div class="hdr-num">13 / 16</div></div>
+  <div class="body">
+    <div class="chip ch-g">&#129302; Verified at Every Step &#183; Private by Design</div>
+    <h2 style="font-size:30px;font-weight:900;color:var(--ink);letter-spacing:-0.02em;margin-bottom:5px">6-stage AI pipeline &#8212; <span class="g-green">raw document to verified vault entry</span></h2>
+    <p style="font-size:13.5px;color:var(--muted);margin-bottom:14px;line-height:1.65">Every employer-pushed document passes through 6 stages. Produces insights and verification &#8212; raw salary figures and identity numbers never reach any database.</p>
+    <div class="pipeline-grid">
+      <!-- Row 1 -->
+      <div class="ps"><div class="pb">
+        <div class="pn">STAGE 01 &#183; INGEST</div>
+        <div class="pi">&#128229;</div>
+        <div class="pt">Ingest &amp; Validate</div>
+        <div class="pd">HMAC signature verify &#183; HRMS API key auth &#183; Payload schema validation &#183; S3 put &#183; 1 DB write &#183; Kafka publish DOC_INGESTED &#183; 202 return. No business logic in HTTP path.</div>
+        <span class="p-badge pbadge-g">&#9989; 202 in &lt;50ms</span>
+      </div></div>
+      <div class="ps ps-ai"><div class="pb">
+        <div class="pn">STAGE 03 &#183; AI EXTRACTION</div>
+        <div class="pi">&#129504;</div>
+        <div class="pt">LLM Extraction</div>
+        <div class="pd">Qwen2.5-14B-Instruct processes full document text. Structured JSON output &#8212; document type, dates, designation, grade, employer. Designed for Indian HR document formats.</div>
+        <span class="p-badge pbadge-b">&#128309; Full doc in &#8594; JSON out</span>
+      </div></div>
+      <div class="ps ps-ai"><div class="pb">
+        <div class="pn">STAGE 05 &#183; AI INSIGHTS</div>
+        <div class="pi">&#128161;</div>
+        <div class="pt">Insights Generation</div>
+        <div class="pd">Llama-3.1-8B generates career insight text. <strong>Raw &#8377; and PAN never written to DB.</strong> Privacy filter is mandatory on all LLM output &#8212; blocks any financial figure before storage.</div>
+        <span class="p-badge pbadge-g">&#128274; Insights only &#8212; no raw &#8377;</span>
+      </div></div>
+      <!-- Row 2 -->
+      <div class="ps"><div class="pb">
+        <div class="pn">STAGE 02 &#183; OCR</div>
+        <div class="pi">&#128269;</div>
+        <div class="pt">OCR</div>
+        <div class="pd">Tesseract (primary) &#8594; AWS Textract (fallback). Hindi + English. Scanned PDFs and digital PDFs both handled. Structured text extracted for Stage 03.</div>
+        <span class="p-badge pbadge-g">&#9989; Bilingual OCR</span>
+      </div></div>
+      <div class="ps"><div class="pb">
+        <div class="pn">STAGE 04 &#183; RESOLUTION</div>
+        <div class="pi">&#128279;</div>
+        <div class="pt">Identity Resolution</div>
+        <div class="pd">Match extracted identity to employee_master via PAN HMAC token. UAN cross-verify via EPFO. Exception queue raised if match fails &#8212; SLA-tracked, OA-Admin resolves.</div>
+        <span class="p-badge pbadge-b">&#128309; EPFO cross-verify</span>
+      </div></div>
+      <div class="ps"><div class="pb">
+        <div class="pn">STAGE 06 &#183; VAULT</div>
+        <div class="pi">&#127974;</div>
+        <div class="pt">Route to Vault</div>
+        <div class="pd">Document routed. Ownership transferred structurally &#8212; employer access removed permanently. Employee notified via app push, WhatsApp, and email. Vault URL updated.</div>
+        <span class="p-badge pbadge-g">&#9989; Employer locked out</span>
+      </div></div>
+    </div>
+    <div class="privacy-bar" style="margin-top:12px">
+      <div class="pbl">&#128274; Privacy Contract</div>
+      <div class="pbt"><strong>Stages 03 &amp; 05:</strong> LLM Input = full document data (needed for extraction) &nbsp;&#183;&nbsp; LLM Output = insights only, no raw &#8377;, no PAN &nbsp;&#183;&nbsp; DB Write = insights + verified flags only. Enforced in code, not policy.</div>
+    </div>
+  </div>
+</div>
+
+<!-- &#9552;&#9552;&#9552; 13 &#8212; PLATFORM ARCHITECTURE &#9552;&#9552;&#9552; -->
+<div class="slide" style="background:#f8fafc">
+  <div class="hdr"><div class="hdr-tag">Platform Architecture</div><div class="hdr-num">14 / 16</div></div>
+  <div class="body" style="flex-direction:row;gap:28px">
+    <div style="flex:1;display:flex;flex-direction:column">
+      <div class="chip ch-b">&#9881; Enterprise-Grade &#183; Dual-Region &#183; Event-Driven</div>
+      <h2 style="font-size:30px;font-weight:900;color:var(--ink);letter-spacing:-0.02em;margin-bottom:8px">Three services. <span class="g-blue">One platform.</span></h2>
+      <p style="font-size:13.5px;color:var(--muted);margin-bottom:14px;line-height:1.65">Apache Kafka event bus. Temporal for every durable process. YugabyteDB dual-region SQL. Redis CRDT sub-10ms sync.</p>
+      <div class="arch-tiers" style="flex:1">
+        <div class="arch-tier at-top">
+          <div class="tier-label tl-b">&#127760; Access Layer &#8212; How organisations and employees connect</div>
+          <div class="tier-nodes">
+            <div class="t-node"><div class="ni">&#127970;</div><div class="nt">HRMS Direct API</div></div>
+            <div class="t-arr">&#8594;</div>
+            <div class="t-node"><div class="ni">&#128194;</div><div class="nt">S3 / SFTP Pickup</div></div>
+            <div class="t-arr">&#8594;</div>
+            <div class="t-node"><div class="ni">&#128221;</div><div class="nt">Template Wizard</div></div>
+            <div class="t-arr">&#183;</div>
+            <div class="t-node"><div class="ni">&#128241;</div><div class="nt">Employee Mobile App</div></div>
+            <div class="t-arr">&#183;</div>
+            <div class="t-node"><div class="ni">&#128187;</div><div class="nt">Employer Portal</div></div>
+          </div>
+        </div>
+        <div style="display:flex;justify-content:center;color:#94a3b8;font-size:17px;padding:4px 0">&#8597; FastAPI + Kong API Gateway &#8212; 9 Service Domains &#8597;</div>
+        <div class="arch-tier at-mid">
+          <div class="tier-label tl-g">&#9889; Processing Layer &#8212; Event-driven, workflow-orchestrated</div>
+          <div class="tier-nodes">
+            <div class="t-node"><div class="ni">&#128232;</div><div class="nt">Apache Kafka 5 Topics</div></div>
+            <div class="t-arr">&#8594;</div>
+            <div class="t-node"><div class="ni">&#9201;</div><div class="nt">Temporal 53 Workflows</div></div>
+            <div class="t-arr">&#8594;</div>
+            <div class="t-node"><div class="ni">&#129302;</div><div class="nt">AI Pipeline 6 Stages</div></div>
+            <div class="t-arr">&#8594;</div>
+            <div class="t-node"><div class="ni">&#128172;</div><div class="nt">Ask PRANA RAG</div></div>
+            <div class="t-arr">&#8594;</div>
+            <div class="t-node"><div class="ni">&#128276;</div><div class="nt">Notif Consumer</div></div>
+          </div>
+        </div>
+        <div style="display:flex;justify-content:center;color:#94a3b8;font-size:17px;padding:4px 0">&#8597; Persistence + Cache Layer &#8597;</div>
+        <div class="arch-tier at-bot">
+          <div class="tier-label tl-p">&#128452; Data Layer &#8212; Encrypted, distributed, immutable</div>
+          <div class="tier-nodes">
+            <div class="t-node"><div class="ni">&#128451;</div><div class="nt">YugabyteDB 26 tables</div></div>
+            <div class="t-arr">&#183;</div>
+            <div class="t-node"><div class="ni">&#9889;</div><div class="nt">Redis CRDT Cache</div></div>
+            <div class="t-arr">&#183;</div>
+            <div class="t-node"><div class="ni">&#128230;</div><div class="nt">AWS S3 + KMS</div></div>
+            <div class="t-arr">&#183;</div>
+            <div class="t-node"><div class="ni">&#129482;</div><div class="nt">Iceberg Cold Archive</div></div>
+          </div>
+        </div>
+      </div>
+      <div style="margin-top:10px;background:#eff6ff;border:1.5px solid #bfdbfe;border-radius:10px;padding:11px 18px;font-size:13px;color:#1e3a8a;font-weight:600;text-align:center">
+        Document push to employee vault in &lt;60 seconds &#183; Dual-region active-active &#183; Mumbai + Hyderabad
+      </div>
+    </div>
+    <div style="width:272px;display:flex;flex-direction:column;gap:9px">
+      <div style="font-size:10.5px;font-weight:800;letter-spacing:0.1em;text-transform:uppercase;color:var(--muted);margin-bottom:2px">Infrastructure</div>
+      <div class="infra-row"><div class="ir-dot" style="background:#f59e0b"></div><div><div class="ir-t">AWS MSK &#183; KRaft &#183; MirrorMaker 2</div><div class="ir-s">Kafka &#183; Both regions &#183; Bidirectional sync</div></div></div>
+      <div class="infra-row"><div class="ir-dot" style="background:#2563eb"></div><div><div class="ir-t">ElastiCache Global Datastore CRDT</div><div class="ir-s">Redis &#183; Active-active &#183; Sub-10ms</div></div></div>
+      <div class="infra-row"><div class="ir-dot" style="background:#10b981"></div><div><div class="ir-t">YugabyteDB &#183; 26 tables &#183; 256 tablets</div><div class="ir-s">ap-south-1 + ap-south-2 dual-region</div></div></div>
+      <div class="infra-row"><div class="ir-dot" style="background:#8b5cf6"></div><div><div class="ir-t">AWS KMS &#183; Customer-Managed CMK</div><div class="ir-s">ap-south-1 &#183; Tenant KEK + Platform secret</div></div></div>
+      <div class="infra-row"><div class="ir-dot" style="background:#06b6d4"></div><div><div class="ir-t">Temporal Cloud &#8212; 53 workflows</div><div class="ir-s">5 task queues &#183; mTLS &#183; Zero polling</div></div></div>
+      <div class="infra-row"><div class="ir-dot" style="background:#ef4444"></div><div><div class="ir-t">Apache Iceberg on S3</div><div class="ir-s">7-year audit retention &#183; Court-admissible</div></div></div>
+      <div style="padding:12px 14px;background:#eff6ff;border:1.5px solid #bfdbfe;border-radius:10px;">
+        <div style="font-size:10.5px;font-weight:800;letter-spacing:0.1em;text-transform:uppercase;color:#1d4ed8;margin-bottom:6px">Scale Targets &#127919;</div>
+        <div style="font-size:12.5px;color:#334155;line-height:1.65">1 lakh organisations &#183; 1 crore employees &#183; 125 PB S3 &#183; Active-active dual-region</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- &#9552;&#9552;&#9552; 14 &#8212; INTEGRATIONS &#9552;&#9552;&#9552; -->
+<div class="slide">
+  <div class="hdr"><div class="hdr-tag">Integrations &amp; Onboarding</div><div class="hdr-num">15 / 16</div></div>
+  <div class="body">
+    <div class="chip ch-c">&#128268; Three Paths to Integration &#183; Go Live in Days</div>
+    <h2 style="font-size:30px;font-weight:900;color:var(--ink);letter-spacing:-0.02em;margin-bottom:8px">PRANA meets your HRMS <span class="g-cyan">where it is</span></h2>
+    <p style="font-size:13.5px;color:var(--muted);margin-bottom:14px;line-height:1.65">Direct API push for modern HRMS. Shared location pickup for legacy systems. Template Wizard for orgs starting from zero. All paths produce the same verified, AI-extracted vault entry.</p>
+    <div class="int-layout" style="flex:1">
+      <div class="int-left">
+        <div class="int-col-hdr ch-blue">&#128228; HRMS / Source Systems</div>
+        <div class="hrms-node"><span style="font-size:19px">&#127970;</span><div><div class="hn-t">SAP SuccessFactors</div><div class="hn-s">Direct API push &#183; HMAC signed</div></div></div>
+        <div class="hrms-node"><span style="font-size:19px">&#128295;</span><div><div class="hn-t">Keka / Darwinbox / Zoho</div><div class="hn-s">Push &#183; pull &#183; webhook trigger</div></div></div>
+        <div class="hrms-node"><span style="font-size:19px">&#128194;</span><div><div class="hn-t">S3 / SFTP / SharePoint</div><div class="hn-s">Pickup with AI field mapping</div></div></div>
+        <div class="hrms-node"><span style="font-size:19px">&#128221;</span><div><div class="hn-t">Template Wizard</div><div class="hn-s">Portal PDF generation &#183; zero HRMS</div></div></div>
+        <div style="margin-top:10px;padding:11px 12px;background:#eff6ff;border:1.5px solid #bfdbfe;border-radius:10px;">
+          <div style="font-size:10.5px;font-weight:800;color:#1d4ed8;letter-spacing:0.08em;text-transform:uppercase;margin-bottom:5px">Onboarding</div>
+          <div style="font-size:12px;color:#334155;line-height:1.6">DNS TXT domain verify &#183; KMS KEK provisioned &#183; First OA-Admin force-reset &#183; TOTP mandatory &#183; Go live under 48 hours</div>
+        </div>
+      </div>
+      <div class="int-center">
+        <div class="int-arrows">&#10229; &#10230;</div>
+        <div class="ic-box">
+          <div class="ic-icon">&#127974;</div>
+          <div class="ic-name">PRANA Platform</div>
+          <div class="ic-sub">AI Pipeline &#183; Temporal Workflows &#183; Kafka &#183; Redis &#183; YugabyteDB</div>
+          <div class="ic-pillars">
+            <span class="ic-pill">&#128272; Encrypted</span>
+            <span class="ic-pill">&#9989; Verified</span>
+            <span class="ic-pill">&#9878; DPDP-native</span>
+            <span class="ic-pill">&#9854; Portable</span>
+          </div>
+        </div>
+        <div class="int-arrows">&#10229; &#10230;</div>
+      </div>
+      <div class="int-right">
+        <div class="int-col-hdr ch-green">&#128229; Employee &amp; Org Outcomes</div>
+        <div class="mode-node"><span class="mn-icon">&#128241;</span><div><div class="mn-t">Employee Mobile Vault</div><div class="mn-s">Documents in vault within minutes of push. Permanent URL. Share with named OTP link.</div></div></div>
+        <div class="mode-node"><span class="mn-icon">&#128187;</span><div><div class="mn-t">Employer Portal (CHRO / CFO / CISO)</div><div class="mn-s">Vault completeness &#183; Anomaly dashboard &#183; Audit export &#183; Elevation workflow &#183; Force-logout</div></div></div>
+        <div class="mode-node"><span class="mn-icon">&#128172;</span><div><div class="mn-t">Notifications (WhatsApp &#183; SMS &#183; Email)</div><div class="mn-s">Doc routed &#183; Exception alert &#183; Elevation approved &#183; DPDP completion</div></div></div>
+        <div class="mode-node"><span class="mn-icon">&#129302;</span><div><div class="mn-t">Ask PRANA &#8212; Employee RAG Chatbot</div><div class="mn-s">"What was my designation at TechCorp?" &#183; Career timeline &#183; Privacy-filtered answers only</div></div></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- &#9552;&#9552;&#9552; 15 &#8212; CTA &#9552;&#9552;&#9552; -->
+<div class="slide s15">
+  <div class="glow"></div><div class="grid"></div>
+  <div class="cnt">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:22px">
+      <div style="font-size:10.5px;font-weight:800;letter-spacing:0.12em;text-transform:uppercase;color:rgba(255,255,255,0.3)">&#127919; Next Steps</div>
+      <div style="font-size:10.5px;color:rgba(255,255,255,0.2)">16 / 16</div>
+    </div>
+    <h2>The vault is ready.<br><span>Your employees are waiting.</span></h2>
+    <div class="sub">PRANA is production-ready &#8212; dual-region, encrypted, DPDP-compliant. The fastest path to employee document infrastructure and structural privacy compliance in India.</div>
+    <div class="next-steps">
+      <div class="ns"><div class="ni">&#128300;</div><div class="nt">Step 01</div><div class="nti">Technical Walkthrough</div><div class="nd">60-minute deep-dive with your InfoSec and HRMS leads. Encryption architecture, integration options, and tenant onboarding &#8212; in detail.</div></div>
+      <div class="ns"><div class="ni">&#129514;</div><div class="nt">Step 02</div><div class="nti">Pilot Tenant Setup</div><div class="nd">One department. One HRMS connector. Domain verification and KMS provisioning under 48 hours. First documents in vault before any enterprise agreement.</div></div>
+      <div class="ns"><div class="ni">&#128640;</div><div class="nt">Step 03</div><div class="nti">Enterprise Rollout</div><div class="nd">Full employee base onboarded. AI pipeline calibrated for your document types. CHRO, CFO, and CISO dashboards configured to your org structure.</div></div>
+    </div>
+    <div class="bottom">
+      <div class="pr">&#127959; <strong>Built for India.</strong> DPDP Act 2023 from day one. Dual-region AWS Mumbai + Hyderabad. All data residency in India.</div>
+      <div class="pr">&#128274; <strong>Three guarantees:</strong> Cryptographically Yours &#183; Verified Not Just Stored &#183; Follows You Forever</div>
+      <div style="font-size:34px;font-weight:900;color:#60a5fa;margin-left:auto">PRANA</div>
+    </div>
+  </div>
+</div>
+
+
+<!-- ANNEX A &#8212; Employee Vault -->
+<div class="slide" style="background:#f8fafc;">
+  <div class="hdr" style="background:linear-gradient(90deg,#0f172a,#1e3a8a);border-bottom:none;">
+    <div class="hdr-tag" style="color:#94a3b8;font-size:10px;letter-spacing:0.12em">ANNEXURE A</div>
+    <div style="font-size:13px;font-weight:800;color:#fff;margin-left:10px">Employee Vault &mdash; Web &amp; Mobile</div>
+    <div class="hdr-num" style="color:#475569">A / 3</div>
+  </div>
+  <div class="body" style="flex-direction:column;gap:0;padding:18px 32px 14px;">
+    <div style="font-size:10px;font-weight:800;letter-spacing:0.12em;text-transform:uppercase;color:#94a3b8;margin-bottom:12px">What the employee sees &mdash; one permanent URL, every employer, every document</div>
+    <div style="display:flex;gap:16px;flex:1;min-height:0">
+
+      <!-- SCREEN 1: Vault URL card + doc list -->
+      <div style="flex:1.15;background:#fff;border-radius:14px;border:1.5px solid #e2e8f0;overflow:hidden;display:flex;flex-direction:column;box-shadow:0 2px 12px rgba(0,0,0,0.06)">
+        <div style="background:#f1f5f9;padding:7px 12px;display:flex;align-items:center;gap:6px;border-bottom:1px solid #e2e8f0">
+          <div style="width:8px;height:8px;border-radius:50%;background:#ef4444"></div>
+          <div style="width:8px;height:8px;border-radius:50%;background:#f59e0b"></div>
+          <div style="width:8px;height:8px;border-radius:50%;background:#10b981"></div>
+          <div style="flex:1;background:#fff;border-radius:4px;padding:3px 8px;font-size:10px;color:#64748b;margin-left:8px;border:1px solid #e2e8f0">prana.in/vault/meera.iyer</div>
+        </div>
+        <div style="margin:10px;border-radius:10px;padding:10px 12px;background:linear-gradient(135deg,#0f172a 0%,#1e3a5f 60%,#0c4a6e 100%)">
+          <div style="font-size:8px;font-weight:800;letter-spacing:0.15em;color:#38bdf8;margin-bottom:4px">YOUR PERMANENT VAULT URL</div>
+          <div style="font-size:12px;font-weight:700;color:#fff;font-family:monospace">prana.in/vault/meera.iyer</div>
+          <div style="font-size:9px;color:#94a3b8;margin-top:3px;font-family:monospace">Active since Apr 2019 &middot; 3 linked employers &middot; 14 documents</div>
+        </div>
+        <div style="display:flex;gap:6px;margin:0 10px 8px;">
+          <div style="flex:1;background:#fff;border:1.5px solid #e2e8f0;border-radius:8px;padding:6px 8px;text-align:center">
+            <div style="font-size:16px;font-weight:900;color:#0ea5e9">14</div>
+            <div style="font-size:8.5px;color:#64748b;margin-top:1px">Total Docs</div>
+          </div>
+          <div style="flex:1;background:#fff;border:1.5px solid #e2e8f0;border-radius:8px;padding:6px 8px;text-align:center">
+            <div style="font-size:16px;font-weight:900;color:#10b981">2</div>
+            <div style="font-size:8.5px;color:#64748b;margin-top:1px">Active Shares</div>
+          </div>
+          <div style="flex:1;background:#fff;border:1.5px solid #e2e8f0;border-radius:8px;padding:6px 8px;text-align:center">
+            <div style="font-size:16px;font-weight:900;color:#f59e0b">3</div>
+            <div style="font-size:8.5px;color:#64748b;margin-top:1px">Employers</div>
+          </div>
+          <div style="flex:1;background:#fff;border:1.5px solid #e2e8f0;border-radius:8px;padding:6px 8px;text-align:center">
+            <div style="font-size:16px;font-weight:900;color:#8b5cf6">1</div>
+            <div style="font-size:8.5px;color:#64748b;margin-top:1px">Self Upload</div>
+          </div>
+        </div>
+        <div style="display:flex;gap:5px;margin:0 10px 8px;flex-wrap:wrap">
+          <span style="background:#0ea5e9;color:#fff;border:1px solid #0ea5e9;border-radius:20px;padding:2px 8px;font-size:8.5px;font-weight:700">All</span>
+          <span style="background:#fff;color:#475569;border:1px solid #e2e8f0;border-radius:20px;padding:2px 8px;font-size:8.5px;font-weight:600">TechSol</span>
+          <span style="background:#fff;color:#475569;border:1px solid #e2e8f0;border-radius:20px;padding:2px 8px;font-size:8.5px;font-weight:600">FinServ</span>
+          <span style="background:#fff;color:#475569;border:1px solid #e2e8f0;border-radius:20px;padding:2px 8px;font-size:8.5px;font-weight:600">CurrentCo</span>
+          <span style="background:#fff;color:#475569;border:1px solid #e2e8f0;border-radius:20px;padding:2px 8px;font-size:8.5px;font-weight:600">Salary Slips</span>
+          <span style="background:#fff;color:#475569;border:1px solid #e2e8f0;border-radius:20px;padding:2px 8px;font-size:8.5px;font-weight:600">Tax Docs</span>
+        </div>
+        <div style="margin:0 10px;border:1.5px solid #e2e8f0;border-radius:8px;overflow:hidden">
+          <div style="background:rgba(14,165,233,0.07);border-bottom:1px solid rgba(14,165,233,0.18);padding:5px 10px;display:flex;align-items:center;gap:6px">
+            <div style="width:7px;height:7px;border-radius:50%;background:#0ea5e9"></div>
+            <span style="font-size:10px;font-weight:700;color:#0f172a">CurrentCo Pvt Ltd</span>
+            <span style="font-size:8px;color:#94a3b8">Jan 2023 &ndash; Present</span>
+            <span style="font-size:8px;font-weight:700;background:rgba(16,185,129,0.1);color:#059669;border:1px solid rgba(16,185,129,0.3);border-radius:4px;padding:1px 5px;margin-left:2px">Active</span>
+            <span style="margin-left:auto;font-size:8.5px;color:#94a3b8">5 documents</span>
+          </div>
+          <div style="padding:5px 10px;display:flex;align-items:center;gap:7px;border-bottom:1px solid #f1f5f9">
+            <div style="width:26px;height:26px;border-radius:6px;background:rgba(14,165,233,0.08);display:flex;align-items:center;justify-content:center;font-size:12px">&#128209;</div>
+            <div style="flex:1"><div style="font-size:10px;font-weight:600;color:#0f172a">SALARY SLIP <span style="color:#94a3b8;font-weight:400">&middot; Apr 2025</span></div><div style="font-size:8px;color:#94a3b8;font-family:monospace">salary_slip_apr2025.pdf &middot; pushed 01 May 2025</div></div>
+            <span style="font-size:8px;font-weight:700;background:rgba(16,185,129,0.08);color:#059669;border:1px solid rgba(16,185,129,0.25);border-radius:4px;padding:1px 5px">&#10003; Verified</span>
+          </div>
+          <div style="padding:5px 10px;display:flex;align-items:center;gap:7px;border-bottom:1px solid #f1f5f9">
+            <div style="width:26px;height:26px;border-radius:6px;background:rgba(14,165,233,0.08);display:flex;align-items:center;justify-content:center;font-size:12px">&#129534;</div>
+            <div style="flex:1"><div style="font-size:10px;font-weight:600;color:#0f172a">FORM 16 <span style="color:#94a3b8;font-weight:400">&middot; FY 2024&ndash;25</span></div><div style="font-size:8px;color:#94a3b8;font-family:monospace">form16_fy2425.pdf &middot; pushed 12 Jun 2025</div></div>
+            <span style="font-size:8px;font-weight:700;background:rgba(16,185,129,0.08);color:#059669;border:1px solid rgba(16,185,129,0.25);border-radius:4px;padding:1px 5px">&#10003; Verified</span>
+          </div>
+          <div style="padding:5px 10px;display:flex;align-items:center;gap:7px">
+            <div style="width:26px;height:26px;border-radius:6px;background:rgba(14,165,233,0.08);display:flex;align-items:center;justify-content:center;font-size:12px">&#128195;</div>
+            <div style="flex:1"><div style="font-size:10px;font-weight:600;color:#0f172a">OFFER LETTER <span style="color:#94a3b4;font-weight:400">&middot; 2023</span></div><div style="font-size:8px;color:#94a3b8;font-family:monospace">offer_letter_jan2023.pdf &middot; pushed 15 Jan 2023</div></div>
+            <span style="font-size:8px;font-weight:700;background:rgba(16,185,129,0.08);color:#059669;border:1px solid rgba(16,185,129,0.25);border-radius:4px;padding:1px 5px">&#10003; Verified</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- SCREEN 2: Career Timeline -->
+      <div style="width:220px;background:#fff;border-radius:14px;border:1.5px solid #e2e8f0;overflow:hidden;display:flex;flex-direction:column;box-shadow:0 2px 12px rgba(0,0,0,0.06)">
+        <div style="padding:10px 12px 6px;border-bottom:1px solid #f1f5f9">
+          <div style="font-size:12px;font-weight:800;color:#0f172a">Career Timeline</div>
+          <div style="font-size:9px;color:#64748b;margin-top:1px">6 years 2 months total experience</div>
+        </div>
+        <div style="padding:10px 12px;flex:1;overflow:hidden">
+          <div style="position:relative;padding-left:16px;border-left:2px solid #e2e8f0">
+            <div style="margin-bottom:14px">
+              <div style="position:absolute;left:-5px;width:8px;height:8px;border-radius:50%;background:#10b981;border:2px solid #fff;box-shadow:0 0 0 2px #10b981"></div>
+              <div style="font-size:10px;font-weight:700;color:#0f172a">CurrentCo Pvt Ltd</div>
+              <div style="font-size:8.5px;color:#64748b">Senior Analyst &middot; Grade 3B</div>
+              <div style="font-size:8px;color:#94a3b8;font-family:monospace">Jan 2023 &ndash; Present &middot; 2y 6m</div>
+              <div style="margin-top:4px;display:flex;gap:3px">
+                <span style="font-size:7.5px;background:#f0fdf4;color:#15803d;border:1px solid #bbf7d0;border-radius:4px;padding:1px 5px">5 docs</span>
+                <span style="font-size:7.5px;background:#f0fdf4;color:#15803d;border:1px solid #bbf7d0;border-radius:4px;padding:1px 5px">Active</span>
+              </div>
+            </div>
+            <div style="margin-bottom:14px">
+              <div style="font-size:10px;font-weight:700;color:#0f172a">FinServ Solutions</div>
+              <div style="font-size:8.5px;color:#64748b">Analyst &middot; Grade 2A</div>
+              <div style="font-size:8px;color:#94a3b8;font-family:monospace">Mar 2021 &ndash; Dec 2022 &middot; 1y 9m</div>
+              <div style="margin-top:4px;display:flex;gap:3px">
+                <span style="font-size:7.5px;background:#fffbeb;color:#92400e;border:1px solid #fde68a;border-radius:4px;padding:1px 5px">6 docs</span>
+                <span style="font-size:7.5px;background:#f8fafc;color:#475569;border:1px solid #e2e8f0;border-radius:4px;padding:1px 5px">Alumni</span>
+              </div>
+            </div>
+            <div>
+              <div style="font-size:10px;font-weight:700;color:#0f172a">TechSol India</div>
+              <div style="font-size:8.5px;color:#64748b">Junior Analyst &middot; Grade 1C</div>
+              <div style="font-size:8px;color:#94a3b8;font-family:monospace">Apr 2019 &ndash; Feb 2021 &middot; 1y 10m</div>
+              <div style="margin-top:4px;display:flex;gap:3px">
+                <span style="font-size:7.5px;background:#faf5ff;color:#6d28d9;border:1px solid #ddd6fe;border-radius:4px;padding:1px 5px">3 docs</span>
+                <span style="font-size:7.5px;background:#f8fafc;color:#475569;border:1px solid #e2e8f0;border-radius:4px;padding:1px 5px">Alumni</span>
+              </div>
+            </div>
+          </div>
+          <div style="margin-top:14px;background:linear-gradient(135deg,#eff6ff,#f0fdf4);border:1px solid #bfdbfe;border-radius:8px;padding:8px 10px">
+            <div style="font-size:8px;font-weight:800;letter-spacing:0.08em;color:#1d4ed8;margin-bottom:3px">AI INSIGHT</div>
+            <div style="font-size:9.5px;color:#0f172a;line-height:1.4">Career shows consistent progression: Junior &#8594; Analyst &#8594; Senior in 6 years. Grade trajectory aligns with top quartile in your domain.</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- SCREEN 3: Mobile app -->
+      <div style="width:158px;background:#fff;border-radius:14px;border:1.5px solid #e2e8f0;overflow:hidden;display:flex;flex-direction:column;box-shadow:0 2px 12px rgba(0,0,0,0.06)">
+        <div style="background:#0f172a;padding:10px 12px 8px;">
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
+            <div style="font-size:9px;color:#94a3b8">9:41 AM</div>
+          </div>
+          <div style="font-size:8px;font-weight:800;letter-spacing:0.1em;color:#38bdf8;margin-bottom:2px">MY VAULT</div>
+          <div style="font-size:10px;font-weight:700;color:#fff;font-family:monospace">prana.in/vault/you</div>
+          <div style="font-size:7.5px;color:#64748b;margin-top:1px">One URL. Permanent. Yours.</div>
+        </div>
+        <div style="flex:1;background:#0f1f35;padding:6px">
+          <div style="background:rgba(14,165,233,0.12);border:1px solid rgba(14,165,233,0.25);border-radius:6px;padding:6px 8px;margin-bottom:4px;display:flex;align-items:center;gap:5px">
+            <span style="font-size:12px">&#128209;</span>
+            <div><div style="font-size:8px;font-weight:700;color:#38bdf8">Salary Slip &middot; Apr 2025</div><div style="font-size:7px;color:#64748b">CurrentCo</div></div>
+          </div>
+          <div style="background:rgba(16,185,129,0.1);border:1px solid rgba(16,185,129,0.22);border-radius:6px;padding:6px 8px;margin-bottom:4px;display:flex;align-items:center;gap:5px">
+            <span style="font-size:12px">&#129534;</span>
+            <div><div style="font-size:8px;font-weight:700;color:#34d399">Form 16 &middot; FY 2024&ndash;25</div><div style="font-size:7px;color:#64748b">CurrentCo</div></div>
+          </div>
+          <div style="background:rgba(245,158,11,0.1);border:1px solid rgba(245,158,11,0.22);border-radius:6px;padding:6px 8px;margin-bottom:4px;display:flex;align-items:center;gap:5px">
+            <span style="font-size:12px">&#128195;</span>
+            <div><div style="font-size:8px;font-weight:700;color:#fbbf24">Offer Letter &middot; 2022</div><div style="font-size:7px;color:#64748b">FinServ Solutions</div></div>
+          </div>
+          <div style="background:rgba(139,92,246,0.1);border:1px solid rgba(139,92,246,0.22);border-radius:6px;padding:6px 8px;display:flex;align-items:center;gap:5px">
+            <span style="font-size:12px">&#128188;</span>
+            <div><div style="font-size:8px;font-weight:700;color:#a78bfa">Relieving Letter &middot; 2022</div><div style="font-size:7px;color:#64748b">FinServ Solutions</div></div>
+          </div>
+          <div style="margin-top:8px;padding-top:6px;border-top:1px solid rgba(255,255,255,0.08);display:flex;justify-content:space-around">
+            <div style="text-align:center"><div style="font-size:13px">&#127968;</div><div style="font-size:6.5px;color:#38bdf8;font-weight:700">Vault</div></div>
+            <div style="text-align:center"><div style="font-size:13px">&#128200;</div><div style="font-size:6.5px;color:#64748b">Career</div></div>
+            <div style="text-align:center"><div style="font-size:13px">&#128279;</div><div style="font-size:6.5px;color:#64748b">Share</div></div>
+            <div style="text-align:center"><div style="font-size:13px">&#128065;</div><div style="font-size:6.5px;color:#64748b">Activity</div></div>
+          </div>
+        </div>
+      </div>
+
+    </div>
+    <div style="margin-top:10px;display:flex;gap:16px">
+      <div style="flex:1;text-align:center;font-size:9px;color:#64748b;font-weight:600">&#128274; Vault URL &middot; Stat Cards &middot; Org-grouped Docs &middot; Filter Pills</div>
+      <div style="width:220px;text-align:center;font-size:9px;color:#64748b;font-weight:600">&#128200; AI Career Timeline &middot; Insight Card</div>
+      <div style="width:158px;text-align:center;font-size:9px;color:#64748b;font-weight:600">&#128241; Mobile App (Expo SDK 56)</div>
+    </div>
+  </div>
+</div>
+
+<!-- ANNEX B &#8212; Employer Portal -->
+<div class="slide" style="background:#f8fafc;">
+  <div class="hdr" style="background:linear-gradient(90deg,#0f172a,#1e3a8a);border-bottom:none;">
+    <div class="hdr-tag" style="color:#94a3b8;font-size:10px;letter-spacing:0.12em">ANNEXURE B</div>
+    <div style="font-size:13px;font-weight:800;color:#fff;margin-left:10px">Employer Portal &mdash; OA Dashboard &middot; CHRO &middot; CISO</div>
+    <div class="hdr-num" style="color:#475569">B / 3</div>
+  </div>
+  <div class="body" style="flex-direction:column;gap:0;padding:18px 32px 14px;">
+    <div style="font-size:10px;font-weight:800;letter-spacing:0.12em;text-transform:uppercase;color:#94a3b8;margin-bottom:12px">What the employer sees &mdash; document operations, workforce analytics, security posture</div>
+    <div style="display:flex;gap:14px;flex:1;min-height:0">
+
+      <!-- OA Dashboard -->
+      <div style="flex:1;background:#fff;border-radius:14px;border:1.5px solid #e2e8f0;overflow:hidden;display:flex;flex-direction:column;box-shadow:0 2px 12px rgba(0,0,0,0.06)">
+        <div style="background:#f8fafc;border-bottom:1px solid #e2e8f0;padding:7px 12px;display:flex;align-items:center;gap:6px">
+          <div style="font-size:11px;font-weight:800;color:#0f172a">Dashboard</div>
+          <div style="font-size:9px;color:#64748b;margin-left:2px">Acme Corp &middot; OA-Admin</div>
+          <div style="margin-left:auto;background:#10b981;color:#fff;font-size:8px;font-weight:700;border-radius:4px;padding:2px 6px">LIVE</div>
+        </div>
+        <div style="padding:10px">
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:5px;margin-bottom:8px">
+            <div style="background:#fff;border:1.5px solid #e2e8f0;border-radius:8px;padding:7px 9px">
+              <div style="font-size:18px;font-weight:900;color:#6366f1">1,247</div>
+              <div style="font-size:8.5px;font-weight:600;color:#334155;margin-top:1px">Total Documents</div>
+              <div style="font-size:7.5px;color:#94a3b8">this month: +143</div>
+            </div>
+            <div style="background:#fff;border:1.5px solid #e2e8f0;border-radius:8px;padding:7px 9px">
+              <div style="font-size:18px;font-weight:900;color:#f59e0b">3</div>
+              <div style="font-size:8.5px;font-weight:600;color:#334155;margin-top:1px">Exception Queue</div>
+              <div style="font-size:7.5px;color:#ef4444">2 past SLA (4h)</div>
+            </div>
+            <div style="background:#fff;border:1.5px solid #e2e8f0;border-radius:8px;padding:7px 9px">
+              <div style="font-size:18px;font-weight:900;color:#10b981">98.4%</div>
+              <div style="font-size:8.5px;font-weight:600;color:#334155;margin-top:1px">Pipeline Success</div>
+              <div style="font-size:7.5px;color:#94a3b8">last 7 days</div>
+            </div>
+            <div style="background:#fff;border:1.5px solid #e2e8f0;border-radius:8px;padding:7px 9px">
+              <div style="font-size:18px;font-weight:900;color:#0ea5e9">486</div>
+              <div style="font-size:8.5px;font-weight:600;color:#334155;margin-top:1px">Active Employees</div>
+              <div style="font-size:7.5px;color:#94a3b8">12 alumni</div>
+            </div>
+          </div>
+          <div style="font-size:9px;font-weight:700;color:#0f172a;margin-bottom:5px">&#9888; Exception Queue</div>
+          <div style="border:1.5px solid #fef3c7;border-radius:7px;overflow:hidden;margin-bottom:8px">
+            <div style="padding:5px 8px;display:flex;align-items:center;gap:6px;background:#fffbeb;border-bottom:1px solid #fef3c7">
+              <div style="width:6px;height:6px;border-radius:50%;background:#f59e0b;flex-shrink:0"></div>
+              <div style="flex:1;font-size:9px;color:#0f172a">SALARY_SLIP &middot; Rajesh Kumar <span style="color:#94a3b8">&middot; Unresolved 6h</span></div>
+              <span style="font-size:7.5px;background:#fef3c7;color:#92400e;border:1px solid #fde68a;border-radius:4px;padding:1px 5px">PAST SLA</span>
+            </div>
+            <div style="padding:5px 8px;display:flex;align-items:center;gap:6px;background:#fff">
+              <div style="width:6px;height:6px;border-radius:50%;background:#ef4444;flex-shrink:0"></div>
+              <div style="flex:1;font-size:9px;color:#0f172a">FORM_16 &middot; Priya Singh <span style="color:#94a3b8">&middot; Unresolved 9h</span></div>
+              <span style="font-size:7.5px;background:#fef2f2;color:#991b1b;border:1px solid #fecaca;border-radius:4px;padding:1px 5px">PAST SLA</span>
+            </div>
+          </div>
+          <div style="background:linear-gradient(90deg,#4f46e5,#6366f1);border-radius:7px;padding:8px 10px;display:flex;align-items:center;gap:8px">
+            <span style="font-size:16px">&#128228;</span>
+            <div>
+              <div style="font-size:9.5px;font-weight:700;color:#fff">Upload Documents</div>
+              <div style="font-size:8px;color:rgba(255,255,255,0.7)">Single PDF or batch CSV+ZIP</div>
+            </div>
+            <div style="margin-left:auto;background:rgba(255,255,255,0.2);border-radius:5px;padding:3px 8px;font-size:8px;color:#fff;font-weight:600">Upload &#8594;</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- CHRO Dashboard -->
+      <div style="flex:1;background:#fff;border-radius:14px;border:1.5px solid #e2e8f0;overflow:hidden;display:flex;flex-direction:column;box-shadow:0 2px 12px rgba(0,0,0,0.06)">
+        <div style="background:#f8fafc;border-bottom:1px solid #e2e8f0;padding:7px 12px;display:flex;align-items:center;">
+          <div style="font-size:11px;font-weight:800;color:#0f172a">CHRO Dashboard</div>
+          <div style="font-size:9px;color:#64748b;margin-left:6px">Workforce &amp; Compliance</div>
+        </div>
+        <div style="padding:10px;flex:1">
+          <div style="font-size:9px;font-weight:700;color:#0f172a;margin-bottom:6px">Vault Completeness by Department</div>
+          <div style="display:flex;flex-direction:column;gap:4px;margin-bottom:9px">
+            <div style="display:flex;align-items:center;gap:6px">
+              <div style="font-size:8.5px;color:#334155;width:72px;flex-shrink:0">Engineering</div>
+              <div style="flex:1;height:7px;background:#e2e8f0;border-radius:100px;overflow:hidden"><div style="width:94%;height:100%;background:linear-gradient(90deg,#10b981,#34d399);border-radius:100px"></div></div>
+              <div style="font-size:8.5px;font-weight:700;color:#059669;width:28px;text-align:right">94%</div>
+            </div>
+            <div style="display:flex;align-items:center;gap:6px">
+              <div style="font-size:8.5px;color:#334155;width:72px;flex-shrink:0">Finance</div>
+              <div style="flex:1;height:7px;background:#e2e8f0;border-radius:100px;overflow:hidden"><div style="width:88%;height:100%;background:linear-gradient(90deg,#10b981,#34d399);border-radius:100px"></div></div>
+              <div style="font-size:8.5px;font-weight:700;color:#059669;width:28px;text-align:right">88%</div>
+            </div>
+            <div style="display:flex;align-items:center;gap:6px">
+              <div style="font-size:8.5px;color:#334155;width:72px;flex-shrink:0">Operations</div>
+              <div style="flex:1;height:7px;background:#e2e8f0;border-radius:100px;overflow:hidden"><div style="width:76%;height:100%;background:linear-gradient(90deg,#f59e0b,#fbbf24);border-radius:100px"></div></div>
+              <div style="font-size:8.5px;font-weight:700;color:#d97706;width:28px;text-align:right">76%</div>
+            </div>
+            <div style="display:flex;align-items:center;gap:6px">
+              <div style="font-size:8.5px;color:#334155;width:72px;flex-shrink:0">Sales</div>
+              <div style="flex:1;height:7px;background:#e2e8f0;border-radius:100px;overflow:hidden"><div style="width:61%;height:100%;background:linear-gradient(90deg,#ef4444,#f87171);border-radius:100px"></div></div>
+              <div style="font-size:8.5px;font-weight:700;color:#dc2626;width:28px;text-align:right">61%</div>
+            </div>
+          </div>
+          <div style="font-size:9px;font-weight:700;color:#0f172a;margin-bottom:5px">Statutory Compliance</div>
+          <div style="display:flex;flex-direction:column;gap:3px;margin-bottom:8px">
+            <div style="display:flex;align-items:center;justify-content:space-between;padding:4px 7px;background:#f0fdf4;border:1px solid #bbf7d0;border-radius:6px">
+              <span style="font-size:8.5px;color:#0f172a">PF Monthly Filing</span>
+              <span style="font-size:8px;font-weight:700;color:#059669">&#10003; Filed on time</span>
+            </div>
+            <div style="display:flex;align-items:center;justify-content:space-between;padding:4px 7px;background:#f0fdf4;border:1px solid #bbf7d0;border-radius:6px">
+              <span style="font-size:8.5px;color:#0f172a">Form 16 (TDS)</span>
+              <span style="font-size:8px;font-weight:700;color:#059669">&#10003; 486 / 486 issued</span>
+            </div>
+            <div style="display:flex;align-items:center;justify-content:space-between;padding:4px 7px;background:#fffbeb;border:1px solid #fde68a;border-radius:6px">
+              <span style="font-size:8.5px;color:#0f172a">ESIC Filing</span>
+              <span style="font-size:8px;font-weight:700;color:#d97706">&#9888; Due in 3 days</span>
+            </div>
+          </div>
+          <div style="background:linear-gradient(135deg,#eff6ff,#f5f3ff);border:1px solid #c7d2fe;border-radius:7px;padding:7px 9px">
+            <div style="font-size:8px;font-weight:800;letter-spacing:0.08em;color:#4f46e5;margin-bottom:3px">WEEKLY DIGEST &middot; W24 2026</div>
+            <div style="font-size:9px;color:#0f172a;line-height:1.5">143 documents pushed &middot; 0 exceptions pending &middot; Compliance score <strong>96/100</strong></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- CISO Security Dashboard -->
+      <div style="flex:1;background:#fff;border-radius:14px;border:1.5px solid #e2e8f0;overflow:hidden;display:flex;flex-direction:column;box-shadow:0 2px 12px rgba(0,0,0,0.06)">
+        <div style="background:#0f172a;border-bottom:1px solid #1e293b;padding:7px 12px;display:flex;align-items:center;gap:6px">
+          <div style="font-size:11px;font-weight:800;color:#fff">CISO Security</div>
+          <div style="font-size:9px;color:#64748b;margin-left:2px">Tenant CISO View</div>
+          <div style="margin-left:auto;background:rgba(16,185,129,0.2);color:#34d399;font-size:8px;font-weight:700;border-radius:4px;padding:2px 6px">ALL SYSTEMS GREEN</div>
+        </div>
+        <div style="padding:10px;flex:1;background:#0f172a">
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:5px;margin-bottom:8px">
+            <div style="background:#1e293b;border:1px solid #334155;border-radius:7px;padding:6px 8px">
+              <div style="font-size:15px;font-weight:900;color:#10b981">0</div>
+              <div style="font-size:8px;color:#94a3b8;margin-top:1px">Active Threats</div>
+            </div>
+            <div style="background:#1e293b;border:1px solid #334155;border-radius:7px;padding:6px 8px">
+              <div style="font-size:15px;font-weight:900;color:#f59e0b">2</div>
+              <div style="font-size:8px;color:#94a3b8;margin-top:1px">Flagged Access</div>
+            </div>
+            <div style="background:#1e293b;border:1px solid #334155;border-radius:7px;padding:6px 8px">
+              <div style="font-size:15px;font-weight:900;color:#38bdf8">1,892</div>
+              <div style="font-size:8px;color:#94a3b8;margin-top:1px">Logins (7d)</div>
+            </div>
+            <div style="background:#1e293b;border:1px solid #334155;border-radius:7px;padding:6px 8px">
+              <div style="font-size:15px;font-weight:900;color:#a78bfa">0</div>
+              <div style="font-size:8px;color:#94a3b8;margin-top:1px">Open Locks</div>
+            </div>
+          </div>
+          <div style="font-size:8.5px;font-weight:700;color:#94a3b8;letter-spacing:0.08em;margin-bottom:4px">RECENT LOGIN ACTIVITY</div>
+          <div style="display:flex;flex-direction:column;gap:3px;margin-bottom:7px">
+            <div style="background:#1e293b;border-radius:5px;padding:4px 7px;display:flex;align-items:center;gap:5px">
+              <div style="width:5px;height:5px;border-radius:50%;background:#10b981;flex-shrink:0"></div>
+              <div style="font-size:8px;color:#e2e8f0;flex:1">priya.singh@acme.com</div>
+              <div style="font-size:7.5px;color:#64748b">Mumbai &middot; 2m ago</div>
+            </div>
+            <div style="background:#1e293b;border-radius:5px;padding:4px 7px;display:flex;align-items:center;gap:5px">
+              <div style="width:5px;height:5px;border-radius:50%;background:#10b981;flex-shrink:0"></div>
+              <div style="font-size:8px;color:#e2e8f0;flex:1">rajesh.k@acme.com</div>
+              <div style="font-size:7.5px;color:#64748b">Pune &middot; 18m ago</div>
+            </div>
+            <div style="background:#2d1b1b;border:1px solid rgba(239,68,68,0.3);border-radius:5px;padding:4px 7px;display:flex;align-items:center;gap:5px">
+              <div style="width:5px;height:5px;border-radius:50%;background:#ef4444;flex-shrink:0"></div>
+              <div style="font-size:8px;color:#fca5a5;flex:1">anon@unknown.ip</div>
+              <div style="font-size:7.5px;color:#ef4444;font-weight:600">&#9888; Flagged</div>
+            </div>
+          </div>
+          <div style="background:#1e293b;border:1px solid #334155;border-radius:6px;padding:7px 9px">
+            <div style="font-size:8px;font-weight:700;color:#38bdf8;margin-bottom:4px">&#128272; ENCRYPTION KEY HEALTH</div>
+            <div style="display:flex;flex-direction:column;gap:2.5px">
+              <div style="display:flex;justify-content:space-between;font-size:8px"><span style="color:#94a3b8">Tenant KEK (KMS)</span><span style="color:#10b981;font-weight:600">&#10003; Active</span></div>
+              <div style="display:flex;justify-content:space-between;font-size:8px"><span style="color:#94a3b8">Platform Secret</span><span style="color:#10b981;font-weight:600">&#10003; Active</span></div>
+              <div style="display:flex;justify-content:space-between;font-size:8px"><span style="color:#94a3b8">DEK rotation</span><span style="color:#10b981;font-weight:600">0 expired</span></div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+    </div>
+    <div style="margin-top:10px;display:flex;gap:14px">
+      <div style="flex:1;text-align:center;font-size:9px;color:#64748b;font-weight:600">&#128228; OA Dashboard &middot; Upload &middot; Exception Queue</div>
+      <div style="flex:1;text-align:center;font-size:9px;color:#64748b;font-weight:600">&#128202; CHRO &middot; Vault Completeness &middot; Statutory &middot; Digest</div>
+      <div style="flex:1;text-align:center;font-size:9px;color:#64748b;font-weight:600">&#128737; CISO &middot; Login Feed &middot; Flagged Access &middot; Key Health</div>
+    </div>
+  </div>
+</div>
+
+<!-- ANNEX C &#8212; CFO + Digest -->
+<div class="slide" style="background:#f8fafc;">
+  <div class="hdr" style="background:linear-gradient(90deg,#0f172a,#1e3a8a);border-bottom:none;">
+    <div class="hdr-tag" style="color:#94a3b8;font-size:10px;letter-spacing:0.12em">ANNEXURE C</div>
+    <div style="font-size:13px;font-weight:800;color:#fff;margin-left:10px">CFO Analytics &middot; Automated Digest Previews</div>
+    <div class="hdr-num" style="color:#475569">C / 3</div>
+  </div>
+  <div class="body" style="flex-direction:column;gap:0;padding:18px 32px 14px;">
+    <div style="font-size:10px;font-weight:800;letter-spacing:0.12em;text-transform:uppercase;color:#94a3b8;margin-bottom:12px">Scheduled intelligence delivered to every CXO &mdash; zero manual effort</div>
+    <div style="display:flex;gap:14px;flex:1;min-height:0">
+
+      <!-- CFO Dashboard -->
+      <div style="flex:1.1;background:#fff;border-radius:14px;border:1.5px solid #e2e8f0;overflow:hidden;display:flex;flex-direction:column;box-shadow:0 2px 12px rgba(0,0,0,0.06)">
+        <div style="background:#f8fafc;border-bottom:1px solid #e2e8f0;padding:7px 12px;display:flex;align-items:center;gap:6px">
+          <div style="font-size:11px;font-weight:800;color:#0f172a">CFO Analytics</div>
+          <div style="font-size:9px;color:#64748b">Compensation Intelligence</div>
+        </div>
+        <div style="padding:10px;flex:1">
+          <div style="font-size:9px;font-weight:700;color:#0f172a;margin-bottom:6px">Payroll Intelligence &mdash; Grade Band Distribution</div>
+          <div style="display:flex;flex-direction:column;gap:4px;margin-bottom:9px">
+            <div style="display:flex;align-items:center;gap:6px">
+              <div style="font-size:8.5px;color:#334155;width:50px;flex-shrink:0">Grade 4+</div>
+              <div style="flex:1;height:8px;background:#e2e8f0;border-radius:100px;overflow:hidden"><div style="width:22%;height:100%;background:linear-gradient(90deg,#8b5cf6,#a78bfa);border-radius:100px"></div></div>
+              <div style="font-size:8px;color:#64748b;width:60px;text-align:right">22 employees</div>
+            </div>
+            <div style="display:flex;align-items:center;gap:6px">
+              <div style="font-size:8.5px;color:#334155;width:50px;flex-shrink:0">Grade 3</div>
+              <div style="flex:1;height:8px;background:#e2e8f0;border-radius:100px;overflow:hidden"><div style="width:38%;height:100%;background:linear-gradient(90deg,#6366f1,#818cf8);border-radius:100px"></div></div>
+              <div style="font-size:8px;color:#64748b;width:60px;text-align:right">184 employees</div>
+            </div>
+            <div style="display:flex;align-items:center;gap:6px">
+              <div style="font-size:8.5px;color:#334155;width:50px;flex-shrink:0">Grade 2</div>
+              <div style="flex:1;height:8px;background:#e2e8f0;border-radius:100px;overflow:hidden"><div style="width:52%;height:100%;background:linear-gradient(90deg,#0ea5e9,#38bdf8);border-radius:100px"></div></div>
+              <div style="font-size:8px;color:#64748b;width:60px;text-align:right">252 employees</div>
+            </div>
+            <div style="display:flex;align-items:center;gap:6px">
+              <div style="font-size:8.5px;color:#334155;width:50px;flex-shrink:0">Grade 1</div>
+              <div style="flex:1;height:8px;background:#e2e8f0;border-radius:100px;overflow:hidden"><div style="width:16%;height:100%;background:linear-gradient(90deg,#10b981,#34d399);border-radius:100px"></div></div>
+              <div style="font-size:8px;color:#64748b;width:60px;text-align:right">28 employees</div>
+            </div>
+          </div>
+          <div style="font-size:9px;font-weight:700;color:#0f172a;margin-bottom:5px">&#9888; Anomaly Acknowledgement Queue</div>
+          <div style="display:flex;flex-direction:column;gap:3px;margin-bottom:8px">
+            <div style="background:#fef2f2;border:1px solid #fecaca;border-radius:6px;padding:5px 8px;display:flex;align-items:center;gap:6px">
+              <div style="width:6px;height:6px;border-radius:50%;background:#ef4444;flex-shrink:0"></div>
+              <div style="flex:1;font-size:8.5px;color:#0f172a">Grade mismatch &middot; 3 employees &middot; Role vs. band</div>
+              <span style="font-size:7.5px;background:#fef2f2;color:#991b1b;border:1px solid #fecaca;border-radius:4px;padding:1px 5px;flex-shrink:0">Acknowledge</span>
+            </div>
+            <div style="background:#fffbeb;border:1px solid #fde68a;border-radius:6px;padding:5px 8px;display:flex;align-items:center;gap:6px">
+              <div style="width:6px;height:6px;border-radius:50%;background:#f59e0b;flex-shrink:0"></div>
+              <div style="flex:1;font-size:8.5px;color:#0f172a">Attrition spike &middot; Sales dept &middot; 4 exits this month</div>
+              <span style="font-size:7.5px;background:#fffbeb;color:#92400e;border:1px solid #fde68a;border-radius:4px;padding:1px 5px;flex-shrink:0">Review</span>
+            </div>
+          </div>
+          <div style="background:linear-gradient(135deg,#f5f3ff,#eff6ff);border:1px solid #ddd6fe;border-radius:7px;padding:7px 9px">
+            <div style="font-size:8px;font-weight:800;letter-spacing:0.08em;color:#7c3aed;margin-bottom:3px">AI PAYROLL INSIGHT</div>
+            <div style="font-size:9px;color:#0f172a;line-height:1.5">Salary benchmarking shows 14% of Grade-2 band is above market median. No raw figures stored &mdash; insight only.</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Digest cards -->
+      <div style="flex:1;display:flex;flex-direction:column;gap:10px">
+        <div style="background:#fff;border-radius:14px;border:1.5px solid #e2e8f0;overflow:hidden;box-shadow:0 2px 12px rgba(0,0,0,0.06);flex:1">
+          <div style="background:linear-gradient(90deg,#1d4ed8,#2563eb);padding:8px 12px;display:flex;align-items:center;gap:6px">
+            <span style="font-size:13px">&#128202;</span>
+            <div style="font-size:10px;font-weight:800;color:#fff">CHRO Weekly Digest &mdash; W24 2026</div>
+          </div>
+          <div style="padding:9px 12px">
+            <div style="display:flex;gap:6px;margin-bottom:7px">
+              <div style="flex:1;text-align:center;background:#f0fdf4;border:1px solid #bbf7d0;border-radius:7px;padding:5px 4px">
+                <div style="font-size:16px;font-weight:900;color:#059669">143</div>
+                <div style="font-size:7.5px;color:#64748b">Docs Pushed</div>
+              </div>
+              <div style="flex:1;text-align:center;background:#f0fdf4;border:1px solid #bbf7d0;border-radius:7px;padding:5px 4px">
+                <div style="font-size:16px;font-weight:900;color:#059669">0</div>
+                <div style="font-size:7.5px;color:#64748b">Exceptions</div>
+              </div>
+              <div style="flex:1;text-align:center;background:#eff6ff;border:1px solid #bfdbfe;border-radius:7px;padding:5px 4px">
+                <div style="font-size:16px;font-weight:900;color:#1d4ed8">96</div>
+                <div style="font-size:7.5px;color:#64748b">Score /100</div>
+              </div>
+            </div>
+            <div style="font-size:8px;font-weight:700;color:#334155;margin-bottom:3px">Vault completeness alerts</div>
+            <div style="display:flex;flex-direction:column;gap:2px">
+              <div style="display:flex;align-items:center;gap:5px;font-size:8px;color:#0f172a"><span style="color:#f59e0b">&#9888;</span> Sales dept below 65% &mdash; 18 employees missing salary slips</div>
+              <div style="display:flex;align-items:center;gap:5px;font-size:8px;color:#0f172a"><span style="color:#10b981">&#10003;</span> Engineering at 94% &mdash; on track</div>
+            </div>
+          </div>
+        </div>
+        <div style="background:#0f172a;border-radius:14px;border:1.5px solid #1e293b;overflow:hidden;box-shadow:0 2px 12px rgba(0,0,0,0.06);flex:1">
+          <div style="background:linear-gradient(90deg,#dc2626,#ef4444);padding:8px 12px;display:flex;align-items:center;gap:6px">
+            <span style="font-size:13px">&#128737;</span>
+            <div style="font-size:10px;font-weight:800;color:#fff">CISO Security Digest &mdash; W24 2026</div>
+          </div>
+          <div style="padding:9px 12px">
+            <div style="display:flex;gap:6px;margin-bottom:7px">
+              <div style="flex:1;text-align:center;background:rgba(16,185,129,0.1);border:1px solid rgba(16,185,129,0.25);border-radius:7px;padding:5px 4px">
+                <div style="font-size:16px;font-weight:900;color:#10b981">1,892</div>
+                <div style="font-size:7.5px;color:#64748b">Total Logins</div>
+              </div>
+              <div style="flex:1;text-align:center;background:rgba(239,68,68,0.1);border:1px solid rgba(239,68,68,0.25);border-radius:7px;padding:5px 4px">
+                <div style="font-size:16px;font-weight:900;color:#ef4444">2</div>
+                <div style="font-size:7.5px;color:#64748b">Flagged</div>
+              </div>
+              <div style="flex:1;text-align:center;background:rgba(16,185,129,0.1);border:1px solid rgba(16,185,129,0.25);border-radius:7px;padding:5px 4px">
+                <div style="font-size:16px;font-weight:900;color:#10b981">0</div>
+                <div style="font-size:7.5px;color:#64748b">Key Alerts</div>
+              </div>
+            </div>
+            <div style="display:flex;flex-direction:column;gap:2px">
+              <div style="display:flex;align-items:center;gap:5px;font-size:8px;color:#e2e8f0"><span style="color:#ef4444">&#9888;</span> 2 flagged access events need CISO review</div>
+              <div style="display:flex;align-items:center;gap:5px;font-size:8px;color:#e2e8f0"><span style="color:#10b981">&#10003;</span> All DEKs healthy &middot; 0 rotations due</div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Delivery schedule -->
+      <div style="width:208px;display:flex;flex-direction:column;gap:10px">
+        <div style="background:#fff;border-radius:14px;border:1.5px solid #e2e8f0;padding:14px 14px;box-shadow:0 2px 12px rgba(0,0,0,0.06)">
+          <div style="font-size:10px;font-weight:800;color:#0f172a;margin-bottom:10px">Digest Delivery Schedule</div>
+          <div style="display:flex;flex-direction:column;gap:7px">
+            <div style="display:flex;gap:8px;align-items:flex-start">
+              <div style="width:28px;height:28px;border-radius:50%;background:linear-gradient(135deg,#1d4ed8,#2563eb);display:flex;align-items:center;justify-content:center;font-size:12px;flex-shrink:0">&#128202;</div>
+              <div><div style="font-size:9.5px;font-weight:700;color:#0f172a">CHRO Digest</div><div style="font-size:8px;color:#64748b">Weekly Mon 8AM &middot; Monthly 1st</div><div style="font-size:8px;color:#10b981;font-weight:600">&#10003; Email + Portal</div></div>
+            </div>
+            <div style="display:flex;gap:8px;align-items:flex-start">
+              <div style="width:28px;height:28px;border-radius:50%;background:linear-gradient(135deg,#d97706,#f59e0b);display:flex;align-items:center;justify-content:center;font-size:12px;flex-shrink:0">&#128201;</div>
+              <div><div style="font-size:9.5px;font-weight:700;color:#0f172a">CFO Digest</div><div style="font-size:8px;color:#64748b">Monthly 1st &middot; On anomaly</div><div style="font-size:8px;color:#10b981;font-weight:600">&#10003; Email + Portal</div></div>
+            </div>
+            <div style="display:flex;gap:8px;align-items:flex-start">
+              <div style="width:28px;height:28px;border-radius:50%;background:linear-gradient(135deg,#dc2626,#ef4444);display:flex;align-items:center;justify-content:center;font-size:12px;flex-shrink:0">&#128737;</div>
+              <div><div style="font-size:9.5px;font-weight:700;color:#0f172a">CISO Digest</div><div style="font-size:8px;color:#64748b">Weekly Mon 7AM &middot; On alert</div><div style="font-size:8px;color:#10b981;font-weight:600">&#10003; Email + Portal</div></div>
+            </div>
+          </div>
+        </div>
+        <div style="background:linear-gradient(135deg,#0f172a,#1e3a8a);border-radius:14px;padding:14px;flex:1">
+          <div style="font-size:10px;font-weight:800;color:#fff;margin-bottom:8px">Zero Manual Steps</div>
+          <div style="display:flex;flex-direction:column;gap:5px">
+            <div style="display:flex;align-items:center;gap:6px;font-size:8.5px;color:#94a3b8"><span style="color:#10b981;font-weight:700">&#10003;</span> Temporal DigestWorkflow scheduled</div>
+            <div style="display:flex;align-items:center;gap:6px;font-size:8.5px;color:#94a3b8"><span style="color:#10b981;font-weight:700">&#10003;</span> Kafka NotifConsumer dispatches</div>
+            <div style="display:flex;align-items:center;gap:6px;font-size:8.5px;color:#94a3b8"><span style="color:#10b981;font-weight:700">&#10003;</span> AWS SES delivery + portal bell</div>
+            <div style="display:flex;align-items:center;gap:6px;font-size:8.5px;color:#94a3b8"><span style="color:#10b981;font-weight:700">&#10003;</span> No raw &#8377; or PAN in any digest</div>
+          </div>
+        </div>
+      </div>
+
+    </div>
+    <div style="margin-top:10px;display:flex;gap:14px">
+      <div style="flex:1.1;text-align:center;font-size:9px;color:#64748b;font-weight:600">&#128201; CFO &middot; Grade Band Analytics &middot; Anomaly Queue &middot; AI Insights</div>
+      <div style="flex:1;text-align:center;font-size:9px;color:#64748b;font-weight:600">&#128202; CHRO Digest &middot; &#128737; CISO Digest &mdash; live previews</div>
+      <div style="width:208px;text-align:center;font-size:9px;color:#64748b;font-weight:600">Automated &middot; Temporal + Kafka + SES</div>
+    </div>
+  </div>
+</div>
+
+</body>
+</html>
+
+

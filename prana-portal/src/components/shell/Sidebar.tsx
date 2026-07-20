@@ -1,11 +1,12 @@
 import { NavLink } from 'react-router-dom'
 import { cn } from '@/lib/utils'
 import { useAuthStore, ROLE_COLOR, type UserRole } from '@/store/auth'
+import { tUi } from '@/i18n'
 import {
   LayoutDashboard, Users, Upload, FileText, AlertTriangle,
   Settings, ShieldCheck, ShieldAlert, TrendingUp, BarChart3, Calendar,
-  Lock, Key, Activity, Globe, ChevronDown, ChevronRight,
-  Building2, Zap, FileSearch, Bell, ClipboardList, MessageSquare,
+  Lock, Unlock, Key, Activity, Globe, ChevronDown, ChevronRight,
+  Building2, Zap, FileSearch, Bell, ClipboardList, MessageSquare, Handshake, Plug, KeyRound, GitMerge,
 } from 'lucide-react'
 import { useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
@@ -41,114 +42,125 @@ function navForRole(role: UserRole, base: string, counts: BadgeCounts = {}): Nav
     case 'oa_operator':
       return [{
         items: [
-          { label: 'Dashboard',        to: `${base}/dashboard`,         icon: <LayoutDashboard size={16}/> },
-          { label: 'Employee Master',  to: `${base}/employees`,         icon: <Users size={16}/> },
-          { label: 'Upload Documents', to: `${base}/upload`,            icon: <Upload size={16}/> },
-          { label: 'Storage',          to: `${base}/storage`,           icon: <Globe size={16}/> },
-          { label: 'Request Elevation',to: `${base}/elevation`,         icon: <ShieldCheck size={16}/> },
+          { label: tUi('NAV_DASHBOARD'),         to: `${base}/dashboard`,         icon: <LayoutDashboard size={16}/> },
+          { label: tUi('NAV_EMPLOYEE_MASTER'),   to: `${base}/employees`,         icon: <Users size={16}/> },
+          { label: tUi('NAV_UPLOAD_DOCUMENTS'),  to: `${base}/upload`,            icon: <Upload size={16}/> },
+          { label: tUi('NAV_STORAGE'),           to: `${base}/storage`,           icon: <Globe size={16}/> },
+          { label: tUi('NAV_REQUEST_ELEVATION'), to: `${base}/elevation`,         icon: <ShieldCheck size={16}/> },
         ],
       }]
 
     case 'oa_admin':
       return [{
         items: [
-          { label: 'Dashboard',          to: `${base}/dashboard`,       icon: <LayoutDashboard size={16}/> },
-          { label: 'Employee Master',    to: `${base}/employees`,       icon: <Users size={16}/> },
-          { label: 'Upload Documents',   to: `${base}/upload`,          icon: <Upload size={16}/> },
-          { label: 'Document Viewer',    to: `${base}/documents`,       icon: <FileText size={16}/> },
-          { label: 'Exception Queue',    to: `${base}/exceptions`,      icon: <AlertTriangle size={16}/>, ...(counts.exceptions ? { badge: { count: counts.exceptions, color: 'red' as const } } : {}) },
-          { label: 'User Management',    to: `${base}/users`,           icon: <Users size={16}/> },
-          { label: 'Elevation Approvals',to: `${base}/elevations`,      icon: <ShieldCheck size={16}/>, ...(counts.elevations ? { badge: { count: counts.elevations, color: 'amber' as const } } : {}) },
-          { label: 'Org Settings',       to: `${base}/settings`,        icon: <Settings size={16}/> },
+          { label: tUi('NAV_DASHBOARD'),          to: `${base}/dashboard`,       icon: <LayoutDashboard size={16}/> },
+          { label: tUi('NAV_EMPLOYEE_MASTER'),    to: `${base}/employees`,       icon: <Users size={16}/> },
+          { label: tUi('NAV_UPLOAD_DOCUMENTS'),   to: `${base}/upload`,          icon: <Upload size={16}/> },
+          { label: tUi('NAV_DOCUMENT_VIEWER'),    to: `${base}/documents`,       icon: <FileText size={16}/> },
+          { label: tUi('NAV_EXCEPTION_QUEUE'),    to: `${base}/exceptions`,      icon: <AlertTriangle size={16}/>, ...(counts.exceptions ? { badge: { count: counts.exceptions, color: 'red' as const } } : {}) },
+          { label: tUi('NAV_USER_MANAGEMENT'),    to: `${base}/users`,           icon: <Users size={16}/> },
+          { label: tUi('NAV_ELEVATION_APPROVALS'),to: `${base}/elevations`,      icon: <ShieldCheck size={16}/>, ...(counts.elevations ? { badge: { count: counts.elevations, color: 'amber' as const } } : {}) },
+          { label: tUi('NAV_ORG_SETTINGS'),       to: `${base}/settings`,        icon: <Settings size={16}/> },
+          { label: tUi('NAV_HRMS_INTEGRATION'),   to: `${base}/hrms`,            icon: <Plug size={16}/> },
+          { label: tUi('NAV_RESET_TOTP'),         to: `${base}/reset-totp`,      icon: <Lock size={16}/> },
+          { label: tUi('NAV_RESET_PASSWORD'),     to: `${base}/reset-password`,  icon: <KeyRound size={16}/> },
         ],
       }]
 
     case 'chro':
       return [{
         items: [
-          { label: 'Vault Health',       to: `${base}/vault-health`,    icon: <BarChart3 size={16}/> },
-          { label: 'Compliance Calendar',to: `${base}/compliance`,      icon: <Calendar size={16}/>, ...(counts.compliance ? { badge: { count: counts.compliance, color: 'amber' as const } } : {}) },
-          { label: 'Compliance Export',  to: `${base}/export`,          icon: <FileSearch size={16}/> },
-          { label: 'Weekly Digest',      to: `${base}/weekly`,          icon: <Bell size={16}/> },
-          { label: 'Monthly Summary',    to: `${base}/monthly`,         icon: <ClipboardList size={16}/> },
-          { label: 'Quarterly Report',   to: `${base}/quarterly`,       icon: <TrendingUp size={16}/> },
-          { label: 'Alert Config',       to: `${base}/alerts`,          icon: <Settings size={16}/> },
-          { label: 'Digest Settings',    to: `${base}/digest-settings`, icon: <Bell size={16}/> },
+          { label: tUi('NAV_VAULT_HEALTH'),        to: `${base}/vault-health`,    icon: <BarChart3 size={16}/> },
+          { label: tUi('NAV_COMPLIANCE_CALENDAR'), to: `${base}/compliance`,      icon: <Calendar size={16}/>, ...(counts.compliance ? { badge: { count: counts.compliance, color: 'amber' as const } } : {}) },
+          { label: tUi('NAV_COMPLIANCE_EXPORT'),   to: `${base}/export`,          icon: <FileSearch size={16}/> },
+          { label: tUi('NAV_WEEKLY_DIGEST'),       to: `${base}/weekly`,          icon: <Bell size={16}/> },
+          { label: tUi('NAV_MONTHLY_SUMMARY'),     to: `${base}/monthly`,         icon: <ClipboardList size={16}/> },
+          { label: tUi('NAV_QUARTERLY_REPORT'),    to: `${base}/quarterly`,       icon: <TrendingUp size={16}/> },
+          { label: tUi('NAV_ALUMNI_NETWORK'),      to: '/org/alumni',             icon: <Handshake size={16}/> },
+          { label: tUi('NAV_COMP_BENCHMARKING'),   to: '/org/comp-benchmarking',  icon: <TrendingUp size={16}/> },
+          { label: tUi('NAV_ALERT_CONFIG'),        to: `${base}/alerts`,          icon: <Settings size={16}/> },
+          { label: tUi('NAV_DIGEST_SETTINGS'),     to: `${base}/digest-settings`, icon: <Bell size={16}/> },
         ],
       }]
 
     case 'cfo':
       return [{
         items: [
-          { label: 'Dashboard',          to: `${base}/dashboard`,       icon: <LayoutDashboard size={16}/> },
-          { label: 'Payroll Intelligence',to:`${base}/payroll`,         icon: <BarChart3 size={16}/> },
-          { label: 'Attrition Cost',     to: `${base}/attrition`,       icon: <TrendingUp size={16}/> },
-          { label: 'Compliance Posture', to: `${base}/compliance`,      icon: <ShieldCheck size={16}/> },
-          { label: 'Benchmarking',       to: `${base}/benchmarking`,    icon: <BarChart3 size={16}/> },
-          { label: 'Anomaly Alerts',     to: `${base}/anomalies`,       icon: <AlertTriangle size={16}/>, ...(counts.anomalies ? { badge: { count: counts.anomalies, color: 'red' as const } } : {}) },
-          { label: 'Consent Dashboard',  to: `${base}/consent`,         icon: <Lock size={16}/> },
-          { label: 'CFO Digest',         to: `${base}/cfo-digest`,      icon: <ClipboardList size={16}/> },
-          { label: 'Digest Settings',    to: `${base}/digest-settings`, icon: <Settings size={16}/> },
+          { label: tUi('NAV_DASHBOARD'),           to: `${base}/dashboard`,       icon: <LayoutDashboard size={16}/> },
+          { label: tUi('NAV_PAYROLL_INTELLIGENCE'), to: `${base}/payroll`,        icon: <BarChart3 size={16}/> },
+          { label: tUi('NAV_ATTRITION_COST'),      to: `${base}/attrition`,       icon: <TrendingUp size={16}/> },
+          { label: tUi('NAV_COMPLIANCE_POSTURE'),  to: `${base}/compliance`,      icon: <ShieldCheck size={16}/> },
+          { label: tUi('NAV_BENCHMARKING'),        to: `${base}/benchmarking`,    icon: <BarChart3 size={16}/> },
+          { label: tUi('NAV_ANOMALY_ALERTS'),      to: `${base}/anomalies`,       icon: <AlertTriangle size={16}/>, ...(counts.anomalies ? { badge: { count: counts.anomalies, color: 'red' as const } } : {}) },
+          { label: tUi('NAV_CONSENT_DASHBOARD'),   to: `${base}/consent`,         icon: <Lock size={16}/> },
+          { label: tUi('NAV_CFO_DIGEST'),          to: `${base}/cfo-digest`,      icon: <ClipboardList size={16}/> },
+          { label: tUi('NAV_DIGEST_SETTINGS'),     to: `${base}/digest-settings`, icon: <Settings size={16}/> },
         ],
       }]
 
     case 'ciso':
       return [{
         items: [
-          { label: 'Security Overview',  to: `${base}/overview`,        icon: <ShieldCheck size={16}/>, ...(counts.securityAlerts ? { badge: { count: counts.securityAlerts, color: 'red' as const } } : {}) },
-          { label: 'OA Activity Audit',  to: `${base}/oa-audit`,        icon: <Activity size={16}/> },
-          { label: 'Share Analytics',    to: `${base}/shares`,          icon: <FileText size={16}/> },
-          { label: 'Key Health',         to: `${base}/keys`,            icon: <Key size={16}/> },
-          { label: 'Auth Anomaly Feed',  to: `${base}/auth-anomalies`,  icon: <AlertTriangle size={16}/> },
-          { label: 'Data Residency',     to: `${base}/residency`,       icon: <Globe size={16}/> },
-          { label: 'InfoSec Digest',     to: `${base}/ciso-digest`,     icon: <ClipboardList size={16}/> },
-          { label: 'Security Incidents', to: `${base}/ciso-incidents`,  icon: <ShieldAlert size={16}/>, ...(counts.securityAlerts ? { badge: { count: counts.securityAlerts, color: 'red' as const } } : {}) },
-          { label: 'Notification Log',   to: `${base}/ciso-notif-log`,  icon: <Bell size={16}/> },
-          { label: 'Digest Settings',    to: `${base}/digest-settings`, icon: <Settings size={16}/> },
+          { label: tUi('NAV_SECURITY_OVERVIEW'),  to: `${base}/overview`,        icon: <ShieldCheck size={16}/>, ...(counts.securityAlerts ? { badge: { count: counts.securityAlerts, color: 'red' as const } } : {}) },
+          { label: tUi('NAV_OA_ACTIVITY_AUDIT'),  to: `${base}/oa-audit`,        icon: <Activity size={16}/> },
+          { label: tUi('NAV_SHARE_ANALYTICS'),    to: `${base}/shares`,          icon: <FileText size={16}/> },
+          { label: tUi('NAV_KEY_HEALTH'),         to: `${base}/keys`,            icon: <Key size={16}/> },
+          { label: tUi('NAV_AUTH_ANOMALY_FEED'),  to: `${base}/auth-anomalies`,  icon: <AlertTriangle size={16}/> },
+          { label: tUi('NAV_DATA_RESIDENCY'),     to: `${base}/residency`,       icon: <Globe size={16}/> },
+          { label: tUi('NAV_INFOSEC_DIGEST'),     to: `${base}/ciso-digest`,     icon: <ClipboardList size={16}/> },
+          { label: tUi('NAV_SECURITY_INCIDENTS'), to: `${base}/ciso-incidents`,  icon: <ShieldAlert size={16}/>, ...(counts.securityAlerts ? { badge: { count: counts.securityAlerts, color: 'red' as const } } : {}) },
+          { label: tUi('NAV_NOTIFICATION_LOG'),   to: `${base}/ciso-notif-log`,  icon: <Bell size={16}/> },
+          { label: tUi('NAV_DIGEST_SETTINGS'),    to: `${base}/digest-settings`, icon: <Settings size={16}/> },
         ],
       }]
 
     case 'portal_admin':
       return [
         {
-          label: 'OVERVIEW',
+          label: tUi('NAV_GROUP_OVERVIEW'),
           items: [
-            { label: 'Meta Dashboard',   to: `${base}/dashboard`,       icon: <LayoutDashboard size={16}/> },
+            { label: tUi('NAV_META_DASHBOARD'),  to: `${base}/dashboard`,       icon: <LayoutDashboard size={16}/> },
           ],
         },
         {
-          label: 'TENANT MANAGEMENT',
+          label: tUi('NAV_GROUP_TENANT_MANAGEMENT'),
           collapsible: true,
           items: [
-            { label: 'Onboarding Queue', to: `${base}/onboarding`,      icon: <Building2 size={16}/>, ...(counts.onboarding ? { badge: { count: counts.onboarding, color: 'amber' as const } } : {}) },
-            { label: 'Tenant Directory', to: `${base}/tenants`,         icon: <Users size={16}/> },
-            { label: 'OA Emergency',     to: `${base}/oa-override`,     icon: <Zap size={16}/> },
-            { label: 'Storage Requests', to: `${base}/storage`,         icon: <Globe size={16}/>, ...(counts.storage ? { badge: { count: counts.storage, color: 'amber' as const } } : {}) },
-            { label: 'Announcements',    to: `${base}/announcements`,   icon: <Bell size={16}/> },
-            { label: 'Inquiries',        to: `${base}/inquiries`,       icon: <MessageSquare size={16}/> },
+            { label: tUi('NAV_ONBOARDING_QUEUE'), to: `${base}/onboarding`,     icon: <Building2 size={16}/>, ...(counts.onboarding ? { badge: { count: counts.onboarding, color: 'amber' as const } } : {}) },
+            { label: tUi('NAV_TENANT_DIRECTORY'), to: `${base}/tenants`,        icon: <Users size={16}/> },
+            { label: tUi('NAV_OA_EMERGENCY'),     to: `${base}/oa-override`,    icon: <Zap size={16}/> },
+            { label: tUi('NAV_PA_RESET_TOTP'),    to: `${base}/reset-totp`,     icon: <Lock size={16}/> },
+            { label: tUi('NAV_PA_UNLOCK'),         to: `${base}/pa-unlock`,      icon: <Unlock size={16}/> },
+            { label: tUi('NAV_PA_RESET_PASSWORD'), to: `${base}/reset-password`, icon: <KeyRound size={16}/> },
+            { label: tUi('NAV_PA_EMPLOYEE_MERGE'), to: `${base}/employee-merge`, icon: <GitMerge size={16}/> },
+            { label: tUi('NAV_STORAGE_REQUESTS'), to: `${base}/storage`,        icon: <Globe size={16}/>, ...(counts.storage ? { badge: { count: counts.storage, color: 'amber' as const } } : {}) },
+            { label: tUi('NAV_ANNOUNCEMENTS'),    to: `${base}/announcements`,  icon: <Bell size={16}/> },
+            { label: tUi('NAV_INQUIRIES'),        to: `${base}/inquiries`,      icon: <MessageSquare size={16}/> },
           ],
         },
         {
-          label: 'PLATFORM OPS',
+          label: tUi('NAV_GROUP_PLATFORM_OPS'),
           collapsible: true,
           items: [
-            { label: 'Pipeline Health',  to: `${base}/pipeline`,        icon: <Activity size={16}/>, ...(counts.pipeline ? { badge: { count: counts.pipeline, color: 'red' as const } } : {}) },
-            { label: 'Exception Overview',to:`${base}/exceptions`,      icon: <AlertTriangle size={16}/>, ...(counts.exceptions ? { badge: { count: counts.exceptions, color: 'red' as const } } : {}) },
-            { label: 'API Keys',         to: `${base}/api-keys`,        icon: <Key size={16}/> },
-            { label: 'Rate Limits',      to: `${base}/rate-limits`,     icon: <BarChart3 size={16}/> },
+            { label: tUi('NAV_PIPELINE_HEALTH'),    to: `${base}/pipeline`,     icon: <Activity size={16}/>, ...(counts.pipeline ? { badge: { count: counts.pipeline, color: 'red' as const } } : {}) },
+            { label: tUi('NAV_EXCEPTION_OVERVIEW'), to: `${base}/exceptions`,   icon: <AlertTriangle size={16}/>, ...(counts.exceptions ? { badge: { count: counts.exceptions, color: 'red' as const } } : {}) },
+            { label: tUi('NAV_API_KEYS'),           to: `${base}/api-keys`,     icon: <Key size={16}/> },
+            { label: tUi('NAV_HRMS_CONNECTORS'),    to: `${base}/hrms`,         icon: <Plug size={16}/> },
+            { label: tUi('NAV_RATE_LIMITS'),        to: `${base}/rate-limits`,  icon: <BarChart3 size={16}/> },
           ],
         },
         {
-          label: 'SECURITY & COMPLIANCE',
+          label: tUi('NAV_GROUP_SECURITY_COMPLIANCE'),
           collapsible: true,
           items: [
-            { label: 'SecOps Dashboard',   to: `${base}/secops`,              icon: <ShieldCheck size={16}/> },
-            { label: 'Anomaly Detection', to: `${base}/anomalies`,          icon: <AlertTriangle size={16}/>, ...(counts.anomalies ? { badge: { count: counts.anomalies, color: 'amber' as const } } : {}) },
-            { label: 'Incident Register', to: `${base}/incidents`,          icon: <ClipboardList size={16}/>, ...(counts.incidents ? { badge: { count: counts.incidents, color: 'red' as const } } : {}) },
-            { label: 'Security Incidents',to: `${base}/security-incidents`, icon: <ShieldAlert size={16}/> },
-            { label: 'Notification Log',  to: `${base}/notifications`,      icon: <Bell size={16}/> },
-            { label: 'Cryptographic Health',to:`${base}/crypto`,            icon: <Key size={16}/> },
-            { label: 'Audit Trail',       to: `${base}/audit`,              icon: <FileSearch size={16}/> },
+            { label: tUi('NAV_SECOPS_DASHBOARD'),    to: `${base}/secops`,              icon: <ShieldCheck size={16}/> },
+            { label: tUi('NAV_ANOMALY_DETECTION'),   to: `${base}/anomalies`,           icon: <AlertTriangle size={16}/>, ...(counts.anomalies ? { badge: { count: counts.anomalies, color: 'amber' as const } } : {}) },
+            { label: tUi('NAV_INCIDENT_REGISTER'),   to: `${base}/incidents`,           icon: <ClipboardList size={16}/>, ...(counts.incidents ? { badge: { count: counts.incidents, color: 'red' as const } } : {}) },
+            { label: tUi('NAV_SECURITY_INCIDENTS'),  to: `${base}/security-incidents`,  icon: <ShieldAlert size={16}/> },
+            { label: tUi('NAV_INCIDENT_POLICY'),     to: `${base}/incident-policy`,     icon: <Settings size={16}/> },
+            { label: tUi('NAV_NOTIFICATION_LOG'),    to: `${base}/notifications`,       icon: <Bell size={16}/> },
+            { label: tUi('NAV_CRYPTOGRAPHIC_HEALTH'),to: `${base}/crypto`,              icon: <Key size={16}/> },
+            { label: tUi('NAV_AUDIT_TRAIL'),         to: `${base}/audit`,               icon: <FileSearch size={16}/> },
           ],
         },
       ]
@@ -219,7 +231,7 @@ export function Sidebar() {
       if (user.role === 'portal_admin') {
         const [meta, inc] = await Promise.all([
           api.get('/admin/meta-dashboard').then(r => r.data).catch(() => ({})),
-          api.get('/pa/incidents').then(r => r.data).catch(() => ({ p1_open: 0 })),
+          api.get('/admin/incidents').then(r => r.data).catch(() => ({ p1_open: 0 })),
         ])
         return {
           exceptions: meta.open_exceptions || 0,

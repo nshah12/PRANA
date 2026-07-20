@@ -2,6 +2,7 @@ import { useQuery } from '@tanstack/react-query'
 import { ShieldCheck, AlertCircle, CheckCircle } from 'lucide-react'
 import { api } from '@/lib/api'
 import { fmtDateTime } from '@/lib/utils'
+import { tUi } from '@/i18n'
 
 const RISK_COLORS: Record<string, string> = {
   LOW:    'bg-emerald-50 text-emerald-700',
@@ -10,7 +11,7 @@ const RISK_COLORS: Record<string, string> = {
 }
 
 export function CompliancePosture() {
-  const { data } = useQuery({
+  const { data, isLoading, isError, refetch } = useQuery({
     queryKey: ['chro-compliance-posture'],
     queryFn: () => api.get('/v1/chro/compliance-posture').then(r => r.data),
   })
@@ -19,8 +20,8 @@ export function CompliancePosture() {
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-xl font-semibold text-slate-800">Compliance Posture</h1>
-          <p className="text-xs text-slate-400 mt-0.5">DPDP Act 2023 · 7-year audit retention</p>
+          <h1 className="text-xl font-semibold text-slate-800">{tUi('CHRO_COMPLIANCE_POSTURE_TITLE')}</h1>
+          <p className="text-xs text-slate-400 mt-0.5">{tUi('CHRO_COMPLIANCE_POSTURE_SUB')}</p>
         </div>
         <div className="flex items-center gap-2">
           <ShieldCheck size={20} className={
@@ -33,6 +34,23 @@ export function CompliancePosture() {
         </div>
       </div>
 
+      {isLoading && (
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 animate-pulse">
+          {Array.from({ length: 4 }).map((_, i) => (
+            <div key={i} className="h-24 bg-slate-100 rounded-xl" />
+          ))}
+        </div>
+      )}
+
+      {isError && (
+        <div className="text-center py-16 text-slate-400">
+          <p className="text-sm">{tUi('CHRO_COMPLIANCE_POSTURE_LOAD_FAILED')}</p>
+          <button onClick={() => refetch()} className="mt-2 text-xs text-red-600 hover:underline">{tUi('CFO_ATTRITION_RETRY')}</button>
+        </div>
+      )}
+
+      {!isLoading && !isError && (
+      <>
       {/* Score cards */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
         {[
@@ -51,7 +69,7 @@ export function CompliancePosture() {
 
       {/* DPDP checklist */}
       <div className="bg-white rounded-xl border border-slate-100 shadow-sm p-6">
-        <h2 className="font-medium text-slate-800 mb-4">DPDP Act 2023 checklist</h2>
+        <h2 className="font-medium text-slate-800 mb-4">{tUi('CHRO_COMPLIANCE_CHECKLIST_TITLE')}</h2>
         <div className="space-y-2">
           {(data?.checklist ?? []).map((item: any, i: number) => (
             <div key={i} className="flex items-start gap-3 py-2 border-b border-slate-50 last:border-0">
@@ -71,7 +89,7 @@ export function CompliancePosture() {
             </div>
           ))}
           {!data?.checklist?.length && (
-            <p className="text-sm text-slate-400 text-center py-4">Checklist loading…</p>
+            <p className="text-sm text-slate-400 text-center py-4">{tUi('CHRO_COMPLIANCE_CHECKLIST_LOADING')}</p>
           )}
         </div>
       </div>
@@ -79,7 +97,7 @@ export function CompliancePosture() {
       {/* Open action items */}
       <div className="bg-white rounded-xl border border-slate-100 shadow-sm">
         <div className="px-5 py-4 border-b border-slate-100">
-          <h2 className="font-medium text-slate-800">Open action items</h2>
+          <h2 className="font-medium text-slate-800">{tUi('CHRO_COMPLIANCE_ACTION_ITEMS_TITLE')}</h2>
         </div>
         <div className="divide-y divide-slate-50">
           {(data?.action_items ?? []).map((a: any, i: number) => (
@@ -91,10 +109,12 @@ export function CompliancePosture() {
             </div>
           ))}
           {!data?.action_items?.length && (
-            <p className="px-5 py-8 text-sm text-slate-400 text-center">No open action items.</p>
+            <p className="px-5 py-8 text-sm text-slate-400 text-center">{tUi('CHRO_COMPLIANCE_NO_ACTION_ITEMS')}</p>
           )}
         </div>
       </div>
+      </>
+      )}
     </div>
   )
 }

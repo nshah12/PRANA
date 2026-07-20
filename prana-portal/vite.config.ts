@@ -6,6 +6,14 @@ export default defineConfig({
   test: {
     globals: true,
     environment: 'jsdom',
+    // jsdom defaults to the opaque origin "about:blank", where the Storage API
+    // (localStorage/sessionStorage) is unavailable per browser origin rules —
+    // window.localStorage silently resolves to undefined with no url set here.
+    // A concrete origin is required for any test exercising persisted state
+    // (e.g. the zustand `persist` stores in src/store/).
+    environmentOptions: {
+      jsdom: { url: 'http://localhost:3000' },
+    },
     setupFiles: ['./src/test/setup.ts'],
     css: false,
   },

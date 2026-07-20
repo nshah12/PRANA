@@ -104,10 +104,11 @@ async def test_domain_verification_publishes_to_kafka_not_direct_workflow(
 
     assert resp.status_code == 201
 
-    # Kafka must have been called with DOMAIN_VERIFICATION_REQUESTED
-    mock_kafka.publish.assert_called_once()
-    topic, payload = mock_kafka.publish.call_args[0][:2]
-    assert topic == "prana.ingest.events"
+    # Kafka must have been called with DOMAIN_VERIFICATION_REQUESTED — via the
+    # domain_verification_requested() helper (publishes to TOPIC_INGEST so
+    # WorkflowConsumer actually picks it up; tenant_event() alone would not).
+    mock_kafka.domain_verification_requested.assert_called_once()
+    payload = mock_kafka.domain_verification_requested.call_args[0][0]
     assert payload["event_type"] == "DOMAIN_VERIFICATION_REQUESTED"
     assert "tenant_id" in payload
 
@@ -134,9 +135,8 @@ async def test_suspend_tenant_publishes_audit_event_to_kafka(client, mock_db, mo
 
     assert resp.status_code == 200
 
-    mock_kafka.publish.assert_called_once()
-    topic, payload = mock_kafka.publish.call_args[0][:2]
-    assert topic == "prana.audit.events"
+    mock_kafka.tenant_event.assert_called_once()
+    payload = mock_kafka.tenant_event.call_args[0][0]
     assert payload["event_type"] == "TENANT_SUSPENDED"
     assert payload["tenant_id"] == "tenant-xyz"
 
@@ -160,9 +160,8 @@ async def test_reinstate_tenant_publishes_audit_event_to_kafka(client, mock_db, 
 
     assert resp.status_code == 200
 
-    mock_kafka.publish.assert_called_once()
-    topic, payload = mock_kafka.publish.call_args[0][:2]
-    assert topic == "prana.audit.events"
+    mock_kafka.tenant_event.assert_called_once()
+    payload = mock_kafka.tenant_event.call_args[0][0]
     assert payload["event_type"] == "TENANT_REINSTATED"
     assert payload["tenant_id"] == "tenant-xyz"
 

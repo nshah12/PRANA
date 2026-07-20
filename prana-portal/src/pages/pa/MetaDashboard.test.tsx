@@ -8,6 +8,7 @@
  *  5. Renders the Security Alerts panel with real counts
  *  6. Renders the Top Tenants by Activity table
  *  7. Shows an empty state when no tenant activity yet today
+ *  8. Renders pipeline health stage bars and recent tenant activity feed
  */
 import { render, screen, waitFor } from '@testing-library/react'
 import { describe, it, expect, vi, beforeEach } from 'vitest'
@@ -25,10 +26,10 @@ function wrapper({ children }: { children: React.ReactNode }) {
 }
 
 const MOCK = {
-  active_tenants: 47,
-  total_employees: 1200000,
-  storage_used_label: '18.4 GB',
-  open_exceptions: 14,
+  active_tenants: 42,
+  total_employees: 15000,
+  storage_used_label: '3.2 TB',
+  open_exceptions: 7,
   pending_approval_count: 3,
   sla_breach_count: 2,
   security_alerts: {
@@ -46,8 +47,11 @@ const MOCK = {
     avg_confidence: 0.91,
     estimated_cost_inr: 10540.0,
   },
-  pipeline_counts: {},
-  recent_tenant_activity: [],
+  pipeline_counts: { QUEUED: 10, ENCRYPTING: 2, SCANNING: 1, EXTRACTING: 3, RESOLVING: 5 },
+  recent_tenant_activity: [
+    { tenant_name: 'Acme Ltd', type: 'PROVISIONED' },
+    { tenant_name: 'Beta Inc', type: 'SUSPENDED' },
+  ],
 }
 
 beforeEach(() => vi.clearAllMocks())
@@ -56,15 +60,25 @@ describe('MetaDashboard', () => {
   it('shows loading skeleton while fetching', () => {
     mockGet.mockReturnValue(new Promise(() => {}))
     render(<MetaDashboard />, { wrapper })
-    expect(document.querySelector('.animate-pulse')).toBeTruthy()
+    expect(document.querySelector('.animate-pulse')).toBeInTheDocument()
   })
 
   it('shows error state with retry button on failure', async () => {
     mockGet.mockRejectedValue(new Error('network'))
     render(<MetaDashboard />, { wrapper })
     await waitFor(() =>
-      expect(screen.getByRole('button', { name: /retry/i })).toBeInTheDocument()
+      expect(screen.getByText('Failed to load platform dashboard.')).toBeInTheDocument()
     )
+    expect(screen.getByRole('button', { name: /retry/i })).toBeInTheDocument()
+  })
+
+  it('renders stat cards from data', async () => {
+    mockGet.mockResolvedValue({ data: MOCK })
+    render(<MetaDashboard />, { wrapper })
+    await waitFor(() => expect(screen.getByText('42')).toBeInTheDocument())
+    expect(screen.getByText('15000')).toBeInTheDocument()
+    expect(screen.getByText('3.2 TB')).toBeInTheDocument()
+    expect(screen.getByText('7')).toBeInTheDocument()
   })
 
   it('renders pending-approval sub-label on the active-tenants tile', async () => {
@@ -119,5 +133,25 @@ describe('MetaDashboard', () => {
     await waitFor(() =>
       expect(screen.getByText(/no activity yet today/i)).toBeInTheDocument()
     )
+  })
+
+  it('renders pipeline health stage bars', async () => {
+    mockGet.mockResolvedValue({ data: MOCK })
+    render(<MetaDashboard />, { wrapper })
+    await waitFor(() => expect(screen.getByText('QUEUED')).toBeInTheDocument())
+    expect(screen.getByText('RESOLVING')).toBeInTheDocument()
+  })
+
+  it('renders recent tenant activity feed', async () => {
+    mockGet.mockResolvedValue({ data: MOCK })
+    render(<MetaDashboard />, { wrapper })
+    await waitFor(() => expect(screen.getByText('Acme Ltd')).toBeInTheDocument())
+    expect(screen.getByText('PROVISIONED')).toBeInTheDocument()
+  })
+
+  it('shows empty state fallback when no recent activity', async () => {
+    mockGet.mockResolvedValue({ data: { ...MOCK, recent_tenant_activity: undefined } })
+    render(<MetaDashboard />, { wrapper })
+    await waitFor(() => expect(screen.getByText('No recent activity.')).toBeInTheDocument())
   })
 })

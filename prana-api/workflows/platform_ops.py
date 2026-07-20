@@ -28,52 +28,176 @@ _RETRY = RetryPolicy(
 )
 
 
-# ── Activities (stubs — implementations in services/platform_ops_service.py) ──
+# ── Activities (implementations in services/platform_ops_service.py) ────────
+
+async def _connect():
+    import asyncpg
+
+    from config import get_settings
+
+    settings = get_settings()
+    return await asyncpg.connect(settings.db_dsn)
+
 
 @activity.defn(name="collect_platform_metrics")
-async def collect_platform_metrics(params: dict) -> dict: ...
+async def collect_platform_metrics(params: dict) -> dict:
+    from services.platform_ops_service import PlatformOpsService
+
+    db = await _connect()
+    try:
+        return await PlatformOpsService(db).collect_platform_metrics()
+    finally:
+        await db.close()
 
 @activity.defn(name="write_platform_summary")
-async def write_platform_summary(params: dict) -> None: ...
+async def write_platform_summary(params: dict) -> None:
+    from services.platform_ops_service import PlatformOpsService
+
+    db = await _connect()
+    try:
+        await PlatformOpsService(db).write_platform_summary(params.get("rows", []))
+    finally:
+        await db.close()
 
 @activity.defn(name="pull_clamav_signatures")
-async def pull_clamav_signatures(params: dict) -> None: ...
+async def pull_clamav_signatures(params: dict) -> dict:
+    from services.platform_ops_service import PlatformOpsService
+
+    db = await _connect()
+    try:
+        return await PlatformOpsService(db).pull_clamav_signatures()
+    finally:
+        await db.close()
 
 @activity.defn(name="verify_kms_key_health")
-async def verify_kms_key_health(params: dict) -> dict: ...
+async def verify_kms_key_health(params: dict) -> dict:
+    from config import get_settings
+    from services.encryption_service import KMSService
+    from services.platform_ops_service import PlatformOpsService
+
+    settings = get_settings()
+    db = await _connect()
+    try:
+        kms = KMSService(
+            region=settings.aws_region,
+            access_key_id=settings.aws_access_key_id,
+            secret_access_key=settings.aws_secret_access_key,
+        )
+        return await PlatformOpsService(db, kms_client=kms.raw_client).verify_kms_key_health()
+    finally:
+        await db.close()
 
 @activity.defn(name="alert_kms_key_issue")
-async def alert_kms_key_issue(params: dict) -> None: ...
+async def alert_kms_key_issue(params: dict) -> None:
+    from kafka.producer import get_kafka_producer
+    from services.platform_ops_service import PlatformOpsService
+
+    db = await _connect()
+    try:
+        kafka = await get_kafka_producer()
+        await PlatformOpsService(db, kafka=kafka).alert_kms_key_issue(params.get("failures", []))
+    finally:
+        await db.close()
 
 @activity.defn(name="check_tenant_storage_quotas")
-async def check_tenant_storage_quotas(params: dict) -> list: ...
+async def check_tenant_storage_quotas(params: dict) -> list:
+    from services.platform_ops_service import PlatformOpsService
+
+    db = await _connect()
+    try:
+        return await PlatformOpsService(db).check_tenant_storage_quotas()
+    finally:
+        await db.close()
 
 @activity.defn(name="alert_storage_quota")
-async def alert_storage_quota(params: dict) -> None: ...
+async def alert_storage_quota(params: dict) -> None:
+    from kafka.producer import get_kafka_producer
+    from services.platform_ops_service import PlatformOpsService
+
+    db = await _connect()
+    try:
+        kafka = await get_kafka_producer()
+        await PlatformOpsService(db, kafka=kafka).alert_storage_quota(params)
+    finally:
+        await db.close()
 
 @activity.defn(name="purge_stale_staging_objects")
-async def purge_stale_staging_objects(params: dict) -> dict: ...
+async def purge_stale_staging_objects(params: dict) -> dict:
+    from config import get_settings
+    from services.platform_ops_service import PlatformOpsService
+    from services.s3_service import S3Service
+
+    settings = get_settings()
+    db = await _connect()
+    try:
+        s3 = S3Service(settings)
+        return await PlatformOpsService(db, s3_client=s3.raw_client).purge_stale_staging_objects(
+            staging_bucket=settings.s3_bucket_staging,
+            older_than_days=int(params.get("older_than_days", 7)),
+        )
+    finally:
+        await db.close()
 
 @activity.defn(name="deliver_webhook")
-async def deliver_webhook(params: dict) -> dict: ...
+async def deliver_webhook(params: dict) -> dict:
+    from services.platform_ops_service import PlatformOpsService
+
+    db = await _connect()
+    try:
+        return await PlatformOpsService(db).deliver_webhook(
+            delivery_id=params["delivery_id"], tenant_id=params.get("tenant_id"),
+            webhook_url=params["webhook_url"], event_type=params["event_type"],
+            payload=params.get("payload", {}),
+        )
+    finally:
+        await db.close()
 
 @activity.defn(name="mark_webhook_failed")
-async def mark_webhook_failed(params: dict) -> None: ...
+async def mark_webhook_failed(params: dict) -> None:
+    from services.platform_ops_service import PlatformOpsService
+
+    db = await _connect()
+    try:
+        await PlatformOpsService(db).mark_webhook_failed(params["delivery_id"])
+    finally:
+        await db.close()
 
 @activity.defn(name="deliver_notification")
-async def deliver_notification(params: dict) -> dict: ...
+async def deliver_notification(params: dict) -> dict:
+    from services.platform_ops_service import PlatformOpsService
+
+    db = await _connect()
+    try:
+        return await PlatformOpsService(db).deliver_notification(params)
+    finally:
+        await db.close()
 
 @activity.defn(name="deliver_notification_fallback")
-async def deliver_notification_fallback(params: dict) -> None: ...
+async def deliver_notification_fallback(params: dict) -> None:
+    from services.platform_ops_service import PlatformOpsService
 
-@activity.defn(name="run_system_healthcheck")
-async def run_system_healthcheck(params: dict) -> dict: ...
-
-@activity.defn(name="emit_health_metrics")
-async def emit_health_metrics(params: dict) -> None: ...
+    db = await _connect()
+    try:
+        await PlatformOpsService(db).deliver_notification_fallback(params)
+    finally:
+        await db.close()
 
 @activity.defn(name="get_ops_config")
-async def get_ops_config(params: dict) -> str: ...
+async def get_ops_config(params: dict) -> str:
+    import redis.asyncio as redis_async
+
+    from config import get_settings
+    from services.config_service import ConfigService
+
+    settings = get_settings()
+    db = await _connect()
+    rdb = redis_async.from_url(settings.redis_url)
+    try:
+        value = await ConfigService(db, rdb).get(params["key"], params.get("tenant_id"))
+        return value if value is not None else params.get("default", "")
+    finally:
+        await db.close()
+        await rdb.aclose()
 
 
 # ── PlatformSummaryWorkflow (Pattern 3 — Temporal Schedule) ──────────────────
@@ -249,40 +373,53 @@ class NotificationDeliveryWorkflow:
             )
 
 
-# ── SystemHealthWorkflow (Pattern 3 — Temporal Schedule) ─────────────────────
-
-@workflow.defn(name="SystemHealthWorkflow")
-class SystemHealthWorkflow:
-    """
-    End-to-end healthcheck: verifies DB connectivity, Kafka broker availability,
-    Redis cluster reachability, and S3 bucket access. Emits metrics to OpenTelemetry.
-    Runs every system_health_check_minutes (default: 1).
-    """
-
-    @workflow.run
-    async def run(self, params: dict) -> None:
-        result = await workflow.execute_activity(
-            run_system_healthcheck, params,
-            start_to_close_timeout=timedelta(minutes=3),
-            retry_policy=RetryPolicy(maximum_attempts=1),  # no retry — alerting on first fail
-        )
-        await workflow.execute_activity(
-            emit_health_metrics, {**params, **result},
-            start_to_close_timeout=timedelta(minutes=2),
-            retry_policy=_RETRY,
-        )
+# SystemHealthWorkflow lives in workflows/system_health.py — this was a duplicate
+# stub (unimplemented activities) that was accidentally the one wired into
+# worker.py's admin-queue while the real implementation sat unregistered.
+# See workflows/system_health.py for the real workflow + activity.
 
 
 # ── StorageExpansionWorkflow (Pattern 5 — Human Signal) ──────────────────────
 
 @activity.defn(name="notify_storage_expansion_request")
-async def notify_storage_expansion_request(params: dict) -> None: ...
+async def notify_storage_expansion_request(params: dict) -> str:
+    from kafka.producer import get_kafka_producer
+    from services.platform_ops_service import PlatformOpsService
+
+    db = await _connect()
+    try:
+        kafka = await get_kafka_producer()
+        return await PlatformOpsService(db, kafka=kafka).notify_storage_expansion_request(
+            tenant_id=params["tenant_id"], current_gb=params["current_gb"],
+            requested_gb=params["requested_gb"], reason=params.get("reason", ""),
+        )
+    finally:
+        await db.close()
 
 @activity.defn(name="apply_storage_expansion")
-async def apply_storage_expansion(params: dict) -> None: ...
+async def apply_storage_expansion(params: dict) -> None:
+    from services.platform_ops_service import PlatformOpsService
+
+    db = await _connect()
+    try:
+        await PlatformOpsService(db).apply_storage_expansion(
+            tenant_id=params["tenant_id"], request_id=params["request_id"],
+            requested_gb=params["requested_gb"], decided_by=params.get("decided_by"),
+        )
+    finally:
+        await db.close()
 
 @activity.defn(name="reject_storage_expansion")
-async def reject_storage_expansion(params: dict) -> None: ...
+async def reject_storage_expansion(params: dict) -> None:
+    from services.platform_ops_service import PlatformOpsService
+
+    db = await _connect()
+    try:
+        await PlatformOpsService(db).reject_storage_expansion(
+            request_id=params["request_id"], decided_by=params.get("decided_by"),
+        )
+    finally:
+        await db.close()
 
 
 @workflow.defn(name="StorageExpansionWorkflow")
@@ -306,33 +443,39 @@ class StorageExpansionWorkflow:
 
     @workflow.run
     async def run(self, params: dict) -> None:
-        await workflow.execute_activity(
+        await self._execute(params)
+
+    async def _execute(self, params: dict) -> None:
+        request_id = await workflow.execute_activity(
             notify_storage_expansion_request, params,
-            start_to_close_timeout=timedelta(minutes=5),
-            retry_policy=_RETRY,
+            start_to_close_timeout=timedelta(minutes=5), retry_policy=_RETRY,
         )
-        decision_received = await workflow.wait_condition(
-            lambda: self._decision is not None,
-            timeout=timedelta(days=3),
+        received = await workflow.wait_condition(
+            lambda: self._decision is not None, timeout=timedelta(days=3),
         )
-        if decision_received and self._decision and self._decision[0] == "APPROVED":
-            await workflow.execute_activity(
-                apply_storage_expansion, params,
-                start_to_close_timeout=timedelta(minutes=10),
-                retry_policy=_RETRY,
-            )
-        else:
-            await workflow.execute_activity(
-                reject_storage_expansion, params,
-                start_to_close_timeout=timedelta(minutes=5),
-                retry_policy=_RETRY,
-            )
+        approved   = received and self._decision and self._decision[0] == "APPROVED"
+        decided_by = self._decision[1] if received and self._decision else None
+        act        = apply_storage_expansion if approved else reject_storage_expansion
+        timeout    = timedelta(minutes=10)    if approved else timedelta(minutes=5)
+        await workflow.execute_activity(
+            act, {**params, "request_id": request_id, "decided_by": decided_by},
+            start_to_close_timeout=timeout, retry_policy=_RETRY,
+        )
 
 
 # ── OnboardingReviewSLAWorkflow (Pattern 5 — Human Signal) ───────────────────
 
 @activity.defn(name="escalate_onboarding_review")
-async def escalate_onboarding_review(params: dict) -> None: ...
+async def escalate_onboarding_review(params: dict) -> None:
+    from kafka.producer import get_kafka_producer
+    from services.platform_ops_service import PlatformOpsService
+
+    db = await _connect()
+    try:
+        kafka = await get_kafka_producer()
+        await PlatformOpsService(db, kafka=kafka).escalate_onboarding_review(tenant_id=params["tenant_id"])
+    finally:
+        await db.close()
 
 
 @workflow.defn(name="OnboardingReviewSLAWorkflow")

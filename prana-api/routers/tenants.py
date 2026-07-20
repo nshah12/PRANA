@@ -9,6 +9,7 @@ PUT  /admin/tenants/{id}/config/{key}
 PATCH /admin/tenants/{id}     — update tenant profile fields
 """
 import json
+from messages import SuccessCode, success_response
 from datetime import datetime, timezone
 from typing import Optional, List
 from fastapi import APIRouter, HTTPException, Query, Request, status
@@ -17,6 +18,7 @@ from pydantic import BaseModel, EmailStr
 from dependencies import PortalAdmin, DbConn
 from services.tenant_service import TenantService
 from lib.cache import cache_get, cache_set, invalidate_tenants
+from errors import PranaError
 
 router = APIRouter()
 
@@ -205,20 +207,16 @@ async def create_tenant(body: CreateTenantIn, current: PortalAdmin, request: Req
         contract_type=body.contract_type,
         account_manager=body.account_manager,
     )
-    # WorkflowConsumer starts DomainVerificationWorkflow on seeing DOMAIN_VERIFICATION_REQUESTED
     tenant_id = result.get("tenant_id") if isinstance(result, dict) else None
     if tenant_id:
-        import uuid, datetime
         kafka = getattr(request.app.state, "kafka_producer", None)
         if kafka:
-            await kafka.publish("prana.ingest.events", {
+            await kafka.domain_verification_requested({
                 "event_type": "DOMAIN_VERIFICATION_REQUESTED",
-                "event_id": str(uuid.uuid4()),
-                "occurred_at": datetime.datetime.utcnow().isoformat(),
                 "tenant_id": tenant_id,
                 "domain": body.domain,
                 "workflow_id": f"domain-verify-{tenant_id}",
-            }, key=tenant_id)
+            })
     return result
 
 
@@ -227,7 +225,7 @@ async def get_tenant(tenant_id: str, current: PortalAdmin, db: DbConn):
     svc = TenantService(db, None)
     tenant = await svc.get(tenant_id)
     if not tenant:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="TENANT_NOT_FOUND")
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=PranaError.TENANT_NOT_FOUND)
     return tenant
 
 
@@ -236,7 +234,7 @@ async def update_tenant(tenant_id: str, body: UpdateTenantIn, current: PortalAdm
     svc = TenantService(db, None)
     existing = await svc.get(tenant_id)
     if not existing:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="TENANT_NOT_FOUND")
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=PranaError.TENANT_NOT_FOUND)
 
     fields = body.model_dump(exclude_none=True)
     # Unwrap nested Pydantic objects to dicts
@@ -258,7 +256,7 @@ async def update_tenant(tenant_id: str, body: UpdateTenantIn, current: PortalAdm
         )
 
     await svc.update_profile(tenant_id, current.user_id, **fields)
-    return {"message": "Tenant updated"}
+    return {"message": SuccessCode.TENANT_UPDATED}
 
 
 @router.post("/{tenant_id}/activate", status_code=status.HTTP_200_OK)
@@ -273,11 +271,14 @@ async def activate_tenant(tenant_id: str, current: PortalAdmin, request: Request
             contact = json.loads(row["primary_contact"]) if isinstance(row["primary_contact"], str) else row["primary_contact"]
             email = contact.get("email", "")
     if not email:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="MISSING_OA_ADMIN_EMAIL")
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=PranaError.MISSING_OA_ADMIN_EMAIL)
 
     svc = TenantService(db, request.app.state.kms_service)
     result = await svc.activate(tenant_id, email, current.user_id)
     await invalidate_tenants()
+    kafka = getattr(request.app.state, "kafka_producer", None)
+    if kafka:
+        await kafka.tenant_event({"event_type": "TENANT_ACTIVATED", "tenant_id": tenant_id})
     return result
 
 
@@ -289,16 +290,16 @@ async def suspend_tenant(tenant_id: str, body: SuspendIn, current: PortalAdmin, 
     kafka = getattr(request.app.state, "kafka_producer", None)
     if kafka:
         import uuid, datetime
-        await kafka.publish("prana.audit.events", {
+        await kafka.tenant_event({
             "event_type": "TENANT_SUSPENDED",
             "event_id": str(uuid.uuid4()),
-            "occurred_at": datetime.datetime.utcnow().isoformat(),
+            "occurred_at": datetime.datetime.now(datetime.timezone.utc).isoformat(),
             "tenant_id": tenant_id,
             "reason": body.reason,
             "actor_type": "PORTAL_ADMIN",
             "actor_id": current.user_id,
-        }, key=tenant_id)
-    return {"message": "Tenant suspended"}
+        })
+    return {"message": SuccessCode.TENANT_SUSPENDED}
 
 
 @router.post("/{tenant_id}/reinstate", status_code=status.HTTP_200_OK)
@@ -312,22 +313,29 @@ async def reinstate_tenant(tenant_id: str, current: PortalAdmin, request: Reques
     kafka = getattr(request.app.state, "kafka_producer", None)
     if kafka:
         import uuid, datetime
-        await kafka.publish("prana.audit.events", {
+        await kafka.tenant_event({
             "event_type": "TENANT_REINSTATED",
             "event_id": str(uuid.uuid4()),
-            "occurred_at": datetime.datetime.utcnow().isoformat(),
+            "occurred_at": datetime.datetime.now(datetime.timezone.utc).isoformat(),
             "tenant_id": tenant_id,
             "actor_type": "PORTAL_ADMIN",
             "actor_id": current.user_id,
-        }, key=tenant_id)
-    return {"message": "Tenant reinstated"}
+        })
+    return {"message": SuccessCode.TENANT_REINSTATED}
 
 
 @router.put("/{tenant_id}/config/{key}", status_code=status.HTTP_200_OK)
 async def update_tenant_config(
     tenant_id: str, key: str, body: UpdateConfigIn,
-    current: PortalAdmin, db: DbConn,
+    current: PortalAdmin, request: Request, db: DbConn,
 ):
     svc = TenantService(db, None)
     await svc.update_config(tenant_id, key, body.value, current.user_id)
-    return {"message": "Config updated"}
+    kafka = getattr(request.app.state, "kafka_producer", None)
+    if kafka:
+        await kafka.tenant_event({
+            "event_type": "TENANT_CONFIG_UPDATED",
+            "tenant_id": tenant_id,
+            "config_key": key,
+        })
+    return {"message": SuccessCode.TENANT_CONFIG_UPDATED}

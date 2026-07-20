@@ -92,9 +92,10 @@ def _build_return_template(required_fields: list[str], all_fields: list[str]) ->
 
 # ── AUTO_DETECT probe prompt ────────────────────────────────────────────────────
 
-AUTO_DETECT_SYSTEM = """You are a document classifier for Indian employment and financial documents.
-Extract a minimal set of fields to identify what type of document this is.
-Return valid JSON only — no prose, no markdown."""
+# Reuses SYSTEM_PROMPT rather than a bespoke string — keeps the system-prompt
+# prefix identical across probe and full-extraction calls so the LLM inference
+# server's prompt cache is shared instead of fragmented across two variants.
+AUTO_DETECT_SYSTEM = SYSTEM_PROMPT
 
 AUTO_DETECT_FIELDS = [
     "employee_name",

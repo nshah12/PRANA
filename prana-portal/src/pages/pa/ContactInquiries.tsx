@@ -3,6 +3,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { api } from '@/lib/api'
 import { fmtDate } from '@/lib/utils'
 import { MessageSquare, Building2, Mail, CheckCircle, Clock, XCircle } from 'lucide-react'
+import { tUi } from '@/i18n'
 
 type Tab = 'contact' | 'applications'
 
@@ -45,7 +46,7 @@ function ContactMessages() {
 
   const { data, isLoading } = useQuery({
     queryKey: ['pa-contact-inquiries'],
-    queryFn:  () => api.get('/public/contact-inquiries').then(r => r.data),
+    queryFn:  () => api.get('/admin/contact-inquiries').then(r => r.data),
     refetchInterval: 60_000,
   })
   const items = data?.items ?? []
@@ -60,7 +61,7 @@ function ContactMessages() {
       {!isLoading && items.length === 0 && (
         <div className="text-center py-12 bg-white rounded-2xl border border-slate-100">
           <MessageSquare size={32} className="mx-auto text-slate-300 mb-2" />
-          <p className="text-slate-400 text-sm">No contact messages yet</p>
+          <p className="text-slate-400 text-sm">{tUi('CONTACT_INQUIRIES_NONE')}</p>
         </div>
       )}
       {items.map((item: any) => {
@@ -95,7 +96,7 @@ function ContactMessages() {
               <div className="border-t border-slate-100 px-5 py-4 bg-slate-50 space-y-3">
                 {item.message && (
                   <div>
-                    <p className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider mb-1">Message</p>
+                    <p className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider mb-1">{tUi('PA_CONTACT_MESSAGE_LABEL')}</p>
                     <p className="text-sm text-slate-700 leading-relaxed">{item.message}</p>
                   </div>
                 )}
@@ -103,7 +104,7 @@ function ContactMessages() {
                   <a href={`mailto:${item.email}?subject=Re: ${item.enquiry_type} — PRANA`}
                     className="text-xs font-medium text-indigo-600 border border-indigo-100 bg-white
                                rounded-lg px-3 py-1.5 hover:bg-indigo-50 transition-colors">
-                    Reply by email →
+                    {tUi('PA_CONTACT_REPLY_EMAIL')}
                   </a>
                 </div>
               </div>
@@ -123,14 +124,14 @@ function Applications() {
 
   const { data, isLoading } = useQuery({
     queryKey: ['pa-org-applications'],
-    queryFn:  () => api.get('/public/org-applications').then(r => r.data),
+    queryFn:  () => api.get('/admin/org-applications').then(r => r.data),
     refetchInterval: 60_000,
   })
   const items = data?.items ?? []
 
   const reviewMut = useMutation({
     mutationFn: ({ id, status, notes }: { id: string; status: string; notes: string }) =>
-      api.patch(`/public/org-applications/${id}`, { status, review_notes: notes }),
+      api.patch(`/admin/org-applications/${id}`, { status, review_notes: notes }),
     onSuccess: () => qc.invalidateQueries({ queryKey: ['pa-org-applications'] }),
   })
 
@@ -148,7 +149,7 @@ function Applications() {
       {!isLoading && items.length === 0 && (
         <div className="text-center py-12 bg-white rounded-2xl border border-slate-100">
           <Building2 size={32} className="mx-auto text-slate-300 mb-2" />
-          <p className="text-slate-400 text-sm">No self-service applications yet</p>
+          <p className="text-slate-400 text-sm">{tUi('PA_CONTACT_NO_APPLICATIONS')}</p>
         </div>
       )}
       {items.map((item: any) => {
@@ -167,7 +168,7 @@ function Applications() {
                   <span className="text-sm font-semibold text-slate-800">{item.org_name}</span>
                   {item.email_verified && (
                     <span className="text-[10px] font-bold text-emerald-600 bg-emerald-50 border border-emerald-100 rounded-full px-2 py-0.5">
-                      ✓ Email verified
+                      {tUi('PA_CONTACT_EMAIL_VERIFIED')}
                     </span>
                   )}
                   <StatusBadge status={item.status} />
@@ -190,14 +191,14 @@ function Applications() {
                 {/* All fields */}
                 <div className="grid grid-cols-2 gap-x-8 gap-y-2">
                   {[
-                    ['Contact name',   item.contact_name],
-                    ['Contact email',  item.contact_email],
-                    ['Mobile',         item.contact_mobile],
-                    ['Entity type',    item.entity_type],
-                    ['Industry',       item.industry],
-                    ['Headcount band', item.headcount_band],
-                    ['How heard',      item.how_heard],
-                    ['Agreed to DPA',  item.agreed_to_dpa ? 'Yes' : 'No'],
+                    [tUi('PA_CONTACT_FIELD_CONTACT_NAME'),   item.contact_name],
+                    [tUi('PA_CONTACT_FIELD_CONTACT_EMAIL'),  item.contact_email],
+                    [tUi('OA_ORG_PROFILE_MOBILE'),         item.contact_mobile],
+                    [tUi('PA_CONTACT_FIELD_ENTITY_TYPE'),    item.entity_type],
+                    [tUi('PA_CONTACT_FIELD_INDUSTRY'),       item.industry],
+                    [tUi('PA_CONTACT_FIELD_HEADCOUNT_BAND'), item.headcount_band],
+                    [tUi('PA_CONTACT_FIELD_HOW_HEARD'),      item.how_heard],
+                    [tUi('PA_CONTACT_FIELD_AGREED_DPA'),  item.agreed_to_dpa ? tUi('PA_CONTACT_YES') : tUi('PA_CONTACT_NO')],
                   ].map(([k, v]) => v ? (
                     <div key={k as string}>
                       <p className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider">{k}</p>
@@ -208,7 +209,7 @@ function Applications() {
 
                 {item.message && (
                   <div>
-                    <p className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider mb-1">Message</p>
+                    <p className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider mb-1">{tUi('PA_CONTACT_MESSAGE_LABEL')}</p>
                     <p className="text-sm text-slate-700 leading-relaxed">{item.message}</p>
                   </div>
                 )}
@@ -216,11 +217,11 @@ function Applications() {
                 {/* Review actions — only for PENDING */}
                 {item.status === 'PENDING' && (
                   <div className="border-t border-slate-200 pt-4">
-                    <p className="text-xs font-semibold text-slate-500 mb-2">Review notes (optional)</p>
+                    <p className="text-xs font-semibold text-slate-500 mb-2">{tUi('PA_CONTACT_REVIEW_NOTES_OPTIONAL_LABEL')}</p>
                     <textarea
                       className="w-full border border-slate-200 rounded-xl px-3 py-2 text-sm resize-none h-20
                                  focus:outline-none focus:ring-2 focus:ring-amber-300 bg-white mb-3"
-                      placeholder="Add internal notes…"
+                      placeholder={tUi('PA_CONTACT_NOTES_PLACEHOLDER')}
                       value={reviewNotes[item.id] ?? ''}
                       onChange={e => setReviewNotes(n => ({ ...n, [item.id]: e.target.value }))}
                     />
@@ -228,17 +229,17 @@ function Applications() {
                       <button onClick={() => window.open(`/admin/tenants/new`, '_blank')}
                         className="flex-1 text-xs font-semibold text-white bg-amber-500 hover:bg-amber-600
                                    rounded-xl py-2.5 transition-colors">
-                        Create tenant from this →
+                        {tUi('PA_CONTACT_CREATE_TENANT_BTN')}
                       </button>
                       <button onClick={() => handleReview(item.id, 'REVIEWED')}
                         className="text-xs font-semibold text-sky-700 border border-sky-200 bg-sky-50
                                    hover:bg-sky-100 rounded-xl px-4 py-2.5 transition-colors">
-                        Mark reviewed
+                        {tUi('PA_CONTACT_MARK_REVIEWED_BTN')}
                       </button>
                       <button onClick={() => handleReview(item.id, 'REJECTED')}
                         className="text-xs font-semibold text-red-600 border border-red-200 bg-red-50
                                    hover:bg-red-100 rounded-xl px-4 py-2.5 transition-colors">
-                        Reject
+                        {tUi('PA_CONTACT_REJECT_BTN')}
                       </button>
                     </div>
                   </div>
@@ -246,7 +247,7 @@ function Applications() {
 
                 {item.status !== 'PENDING' && item.review_notes && (
                   <div>
-                    <p className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider mb-1">Review notes</p>
+                    <p className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider mb-1">{tUi('PA_CONTACT_REVIEW_NOTES_TITLE')}</p>
                     <p className="text-sm text-slate-600">{item.review_notes}</p>
                   </div>
                 )}
@@ -265,11 +266,11 @@ export function ContactInquiries() {
 
   const contactQuery = useQuery({
     queryKey: ['pa-contact-inquiries'],
-    queryFn:  () => api.get('/public/contact-inquiries').then(r => r.data),
+    queryFn:  () => api.get('/admin/contact-inquiries').then(r => r.data),
   })
   const appQuery = useQuery({
     queryKey: ['pa-org-applications'],
-    queryFn:  () => api.get('/public/org-applications').then(r => r.data),
+    queryFn:  () => api.get('/admin/org-applications').then(r => r.data),
   })
 
   const contactNew = (contactQuery.data?.items ?? []).filter((i: any) => i.status === 'NEW').length
@@ -278,8 +279,8 @@ export function ContactInquiries() {
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
-        <h1 className="text-xl font-semibold text-slate-800">Inquiries &amp; Registrations</h1>
-        <span className="text-xs text-slate-400 bg-slate-100 rounded-lg px-3 py-1">Auto-refreshes every 60s</span>
+        <h1 className="text-xl font-semibold text-slate-800">{tUi('PA_CONTACT_PAGE_TITLE')}</h1>
+        <span className="text-xs text-slate-400 bg-slate-100 rounded-lg px-3 py-1">{tUi('PA_CONTACT_AUTO_REFRESH')}</span>
       </div>
 
       {/* Tabs */}
@@ -289,7 +290,7 @@ export function ContactInquiries() {
             tab === 'contact' ? 'bg-white shadow text-slate-800' : 'text-slate-500 hover:text-slate-700'
           }`}>
           <MessageSquare size={13}/>
-          Contact messages
+          {tUi('PA_CONTACT_TAB_MESSAGES')}
           {contactNew > 0 && (
             <span className="bg-amber-500 text-white text-[10px] font-bold rounded-full px-1.5 py-0.5">{contactNew}</span>
           )}
@@ -299,7 +300,7 @@ export function ContactInquiries() {
             tab === 'applications' ? 'bg-white shadow text-slate-800' : 'text-slate-500 hover:text-slate-700'
           }`}>
           <Building2 size={13}/>
-          Self-service registrations
+          {tUi('PA_CONTACT_TAB_REGISTRATIONS')}
           {appPending > 0 && (
             <span className="bg-amber-500 text-white text-[10px] font-bold rounded-full px-1.5 py-0.5">{appPending}</span>
           )}

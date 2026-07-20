@@ -206,7 +206,7 @@ def main():
     lines.append("-- ============================================================")
     lines.append("INSERT INTO employee_user (")
     lines.append("  employee_user_id, pan_token, enc_pan, enc_dek,")
-    lines.append("  mobile, status, activated_at")
+    lines.append("  mobile_token, enc_mobile, status, activated_at")
     lines.append(") VALUES")
     eu_rows = []
     for org in range(1, 11):
@@ -219,7 +219,14 @@ def main():
                 f"   encode(hmac('{pan_key}', 'dev_secret', 'sha256'), 'hex'),\n"
                 f"   'DEVPAN{org:02d}{emp:03d}',\n"
                 f"   'DEV_ENC_DEK_ORG{org:02d}_EMP{emp:03d}',\n"
-                f"   '{mob}', 'ACTIVE', NOW() - interval '180 days')"
+                # mobile is never stored in plaintext (schema.sql employee_user,
+                # 2026-07-18) — mobile_token via the same real HMAC algorithm as
+                # pan_token above (so login-by-mobile lookups against this seed
+                # data actually work); enc_mobile is a placeholder like enc_pan/
+                # enc_dek above, since nothing in this seed path decrypts it.
+                f"   encode(hmac('{mob}', 'dev_secret', 'sha256'), 'hex'),\n"
+                f"   'DEV_ENC_MOBILE_ORG{org:02d}_EMP{emp:03d}',\n"
+                f"   'ACTIVE', NOW() - interval '180 days')"
             )
     lines.append(",\n".join(eu_rows) + ";")
     lines.append("")
@@ -265,7 +272,9 @@ def main():
     lines.append("-- Verify:")
     lines.append(f"-- SELECT COUNT(*) FROM tenant WHERE cin LIKE 'U%111%';  -- expect 10")
     lines.append(f"-- SELECT COUNT(*) FROM oa_user WHERE email LIKE '%@technova.in' OR email LIKE '%@greenfield%';")
-    lines.append(f"-- SELECT COUNT(*) FROM employee_user WHERE mobile LIKE '+919000001%' OR mobile LIKE '+919000002%';")
+    lines.append(f"-- SELECT COUNT(*) FROM employee_user WHERE mobile_token IN ("
+                 f"encode(hmac('+919000001001', 'dev_secret', 'sha256'), 'hex'), "
+                 f"encode(hmac('+919000002001', 'dev_secret', 'sha256'), 'hex'));")
 
     sql = "\n".join(lines) + "\n"
     out_path.write_text(sql, encoding="utf-8")

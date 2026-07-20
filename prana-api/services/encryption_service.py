@@ -2,12 +2,14 @@ import hashlib
 import hmac
 import os
 import struct
+import threading
 from base64 import b64encode, b64decode
-from typing import Optional
+from typing import Callable, Optional
 
 import boto3
 from argon2 import PasswordHasher
 from argon2.exceptions import VerifyMismatchError
+from cachetools import TTLCache
 from cryptography.hazmat.primitives.ciphers import Cipher, algorithms, modes
 from cryptography.hazmat.primitives.ciphers.aead import AESGCM
 
@@ -34,17 +36,66 @@ def password_needs_rehash(hashed: str) -> bool:
 
 # ── NIK / PAN token ───────────────────────────────────────────────────────────
 
-def compute_pan_token(nik: str, platform_secret: str) -> str:
+# ── PAN token versioning ──────────────────────────────────────────────────────
+# Version registry allows key rotation without invalidating all existing tokens.
+# Existing rows keep their version number; new rows use the current default.
+# On secret rotation: bump _CURRENT_PAN_TOKEN_VERSION, add a new algorithm entry,
+# update pan_token_version lazily on next employee login.
+
+_PAN_TOKEN_ALGOS: dict[int, Callable[[str, str], str]] = {
+    1: lambda nik, secret: hmac.new(secret.encode(), nik.encode(), hashlib.sha256).hexdigest(),
+}
+_CURRENT_PAN_TOKEN_VERSION = 1
+
+
+def register_pan_token_version(version: int, algo: Callable[[str, str], str]) -> None:
+    """Register a new PAN token algorithm. Call during service startup for version > 1."""
+    _PAN_TOKEN_ALGOS[version] = algo
+
+
+def compute_pan_token(nik: str, platform_secret: str, version: int = 1) -> str:
     """
-    HMAC-SHA256(NIK, platform_secret) → hex string.
-    Deterministic cross-tenant identity key. One-way — NIK is never recoverable.
+    HMAC-based cross-tenant deduplication key. One-way — NIK is never recoverable.
+    Version 1 = HMAC-SHA256(NIK, platform_secret).
     Call this and immediately discard the raw NIK.
     """
-    return hmac.new(
-        platform_secret.encode(),
-        nik.encode(),
-        hashlib.sha256,
-    ).hexdigest()
+    algo = _PAN_TOKEN_ALGOS.get(version)
+    if not algo:
+        raise ValueError(f"Unknown pan_token version: {version}")
+    return algo(nik, platform_secret)
+
+
+# ── Mobile token ──────────────────────────────────────────────────────────────
+
+def compute_mobile_token(mobile: str, platform_secret: str) -> str:
+    """
+    HMAC-based deterministic lookup key for employee_user.mobile_token — same role
+    as compute_pan_token but for mobile numbers, which are no longer stored in
+    plaintext (schema.sql employee_user, 2026-07-18). One-way; the plaintext
+    mobile is recovered separately via enc_mobile (AES-256-GCM, employee DEK).
+    """
+    return hmac.new(platform_secret.encode(), mobile.encode(), hashlib.sha256).hexdigest()
+
+
+# ── KMS DEK cache ─────────────────────────────────────────────────────────────
+# Caches decrypted DEK bytes in process memory to avoid a KMS round-trip on every
+# document access. TTL=300s matches the Temporal activity heartbeat window.
+# Cache key is a truncated SHA-256 of the ciphertext (enc_dek) — never the DEK itself.
+# Max 1000 DEKs ≈ 32KB footprint. Cleared on process exit automatically.
+
+_DEK_CACHE: TTLCache = TTLCache(maxsize=1000, ttl=300)
+_DEK_LOCK = threading.Lock()
+
+
+def _dek_cache_key(enc_dek: str) -> bytes:
+    """Derive a short opaque cache key from the ciphertext. Never the plaintext DEK."""
+    return hashlib.sha256(enc_dek.encode()).digest()[:16]
+
+
+def clear_dek_cache() -> None:
+    """Clear the DEK cache. Used in tests and for emergency key rotation."""
+    with _DEK_LOCK:
+        _DEK_CACHE.clear()
 
 
 # ── Format-Preserving Encryption (FF3-1) ──────────────────────────────────────
@@ -59,14 +110,15 @@ def encrypt_nik_fpe(nik: str, dek: bytes, tweak: bytes = b"\x00" * 7) -> str:
     """
     try:
         import ff3
-        cipher = ff3.FF3Cipher.withCustomAlphabet(
-            dek.hex(), tweak.hex(),
-            alphabet="ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"
-        )
-        return cipher.encrypt(nik.upper())
-    except ImportError:
-        # ff3 package not installed — return placeholder for dev
-        return f"ENC_{nik[:4]}XXXXX{nik[-1]}"
+    except ImportError as e:
+        # NEVER degrade to a plaintext-derived placeholder (finding H2) — that would
+        # leak the PAN. A missing crypto primitive is a hard failure.
+        raise RuntimeError("ff3 package is required for FPE encryption of NIK/PAN") from e
+    cipher = ff3.FF3Cipher.withCustomAlphabet(
+        dek.hex(), tweak.hex(),
+        alphabet="ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"
+    )
+    return cipher.encrypt(nik.upper())
 
 
 def decrypt_nik_fpe(enc_nik: str, dek: bytes, tweak: bytes = b"\x00" * 7) -> str:
@@ -77,13 +129,13 @@ def decrypt_nik_fpe(enc_nik: str, dek: bytes, tweak: bytes = b"\x00" * 7) -> str
     """
     try:
         import ff3
-        cipher = ff3.FF3Cipher.withCustomAlphabet(
-            dek.hex(), tweak.hex(),
-            alphabet="ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"
-        )
-        return cipher.decrypt(enc_nik.upper())
-    except ImportError:
-        return enc_nik  # dev fallback
+    except ImportError as e:
+        raise RuntimeError("ff3 package is required for FPE decryption of NIK/PAN") from e
+    cipher = ff3.FF3Cipher.withCustomAlphabet(
+        dek.hex(), tweak.hex(),
+        alphabet="ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"
+    )
+    return cipher.decrypt(enc_nik.upper())
 
 
 # ── AES-256-GCM ───────────────────────────────────────────────────────────────
@@ -114,6 +166,62 @@ def generate_dek() -> bytes:
     return os.urandom(32)
 
 
+# ── Auth encryption key (HRMS signing secrets) ──────────────────────────────
+# TOTP secrets and mobile numbers moved off this static key onto the platform
+# KMS CMK (see resolve_platform_auth_kek_arn below, 2026-07-19) — this function
+# is now scoped to HRMS API-key signing secrets only (routers/pa_admin.py).
+
+_ZERO_KEY = b"\x00" * 32
+
+
+def resolve_auth_dek(settings) -> bytes:
+    """
+    Return the 32-byte AES-256 key used to encrypt/decrypt HRMS signing secrets.
+    Replaces the former hardcoded all-zero `dev_dek` (finding C1).
+
+    - If settings.auth_encryption_key is set: use it (64 hex chars or base64 → 32 bytes).
+      Rejects wrong length and the all-zero key.
+    - Else in production: raise (a real key is mandatory; assert_production_ready also guards this).
+    - Else (dev/test): derive a stable, NON-ZERO key from platform_hmac_secret so local
+      dev works without AWS while never falling back to an all-zero key.
+    """
+    raw = getattr(settings, "auth_encryption_key", "") or ""
+    if raw:
+        try:
+            key = bytes.fromhex(raw)
+        except ValueError:
+            key = b64decode(raw)
+        if len(key) != 32:
+            raise ValueError("auth_encryption_key must decode to exactly 32 bytes")
+        if key == _ZERO_KEY:
+            raise ValueError("auth_encryption_key must not be all-zero")
+        return key
+
+    if getattr(settings, "is_production", False):
+        raise RuntimeError("auth_encryption_key is required in production")
+
+    # Dev/test only: deterministic, non-zero derivation. NOT for production.
+    return hashlib.sha256(b"prana-auth-dek-v1:" + settings.platform_hmac_secret.encode()).digest()
+
+
+# ── Platform auth CMK (mobile numbers + TOTP secrets) ────────────────────────
+
+def resolve_platform_auth_kek_arn(settings) -> str:
+    """
+    Returns settings.platform_auth_kek_arn — the ARN of the ONE platform-wide
+    KMS CMK used to encrypt mobile numbers and TOTP secrets (employee/OA/
+    Portal-Admin). Provisioned once via scripts/bootstrap_platform_auth_kek.py,
+    not per-tenant/per-employee (see KMSService.create_platform_auth_kek).
+    Raises in production if unset — there is no static-secret fallback for
+    this value, unlike resolve_auth_dek's dev derivation, because the whole
+    point of this migration was to stop relying on a static secret.
+    """
+    arn = getattr(settings, "platform_auth_kek_arn", "") or ""
+    if not arn and getattr(settings, "is_production", False):
+        raise RuntimeError("platform_auth_kek_arn is required in production")
+    return arn
+
+
 # ── AWS KMS envelope encryption ───────────────────────────────────────────────
 
 class KMSService:
@@ -123,12 +231,32 @@ class KMSService:
     KMS key ARN is stored in tenant.kek_arn — never hardcoded here.
     """
 
-    def __init__(self, region: str, access_key_id: str = "", secret_access_key: str = ""):
+    def __init__(self, region: str, access_key_id: str = "", secret_access_key: str = "", endpoint_url: str = ""):
         kwargs: dict = {"region_name": region}
         if access_key_id:
             kwargs["aws_access_key_id"] = access_key_id
             kwargs["aws_secret_access_key"] = secret_access_key
+        if endpoint_url:
+            # LocalStack (dev only) — real AWS always uses the regional default endpoint.
+            kwargs["endpoint_url"] = endpoint_url
         self._client = boto3.client("kms", **kwargs)
+
+    def create_kek(self, tenant_id: str) -> str:
+        """
+        Provision a real per-tenant KEK. Called once at tenant creation
+        (TenantService.create_pending) — previously that fabricated a
+        plausible-looking ARN string without ever calling KMS, so every
+        tenant's kek_arn pointed at a key that never existed, in every
+        environment including production. Every later wrap_dek/unwrap_dek
+        call for that tenant would have failed the first time anything
+        actually tried to encrypt/decrypt an employee DEK.
+        """
+        resp = self._client.create_key(
+            Description=f"PRANA tenant KEK — tenant_id={tenant_id}",
+            KeyUsage="ENCRYPT_DECRYPT",
+            Origin="AWS_KMS",
+        )
+        return resp["KeyMetadata"]["Arn"]
 
     def wrap_dek(self, dek: bytes, kek_arn: str) -> str:
         """KMS_Encrypt(DEK, KEK) → base64 ciphertext stored as enc_dek."""
@@ -136,12 +264,67 @@ class KMSService:
         return b64encode(resp["CiphertextBlob"]).decode()
 
     def unwrap_dek(self, enc_dek: str, kek_arn: str) -> bytes:
-        """KMS_Decrypt(enc_dek, KEK) → raw DEK bytes. Never log or cache the result."""
+        """
+        KMS_Decrypt(enc_dek, KEK) → raw DEK bytes.
+        Result is cached in-process for 5 minutes (TTL=300s) to avoid per-request KMS
+        round-trips. Cache is keyed by SHA-256(enc_dek) — never by the plaintext DEK.
+        """
+        cache_key = _dek_cache_key(enc_dek)
+        with _DEK_LOCK:
+            cached = _DEK_CACHE.get(cache_key)
+        if cached is not None:
+            return cached
+
         resp = self._client.decrypt(
             CiphertextBlob=b64decode(enc_dek),
             KeyId=kek_arn,
         )
-        return resp["Plaintext"]
+        dek: bytes = resp["Plaintext"]
+        with _DEK_LOCK:
+            _DEK_CACHE[cache_key] = dek
+        return dek
+
+    def create_platform_auth_kek(self) -> str:
+        """
+        Provisions the ONE platform-wide CMK used to encrypt values that must
+        stay decryptable regardless of tenant context — mobile numbers and TOTP
+        secrets (employee/OA/Portal-Admin). These can't use a per-tenant KEK
+        (that made mobile only decryptable by whichever tenant onboarded the
+        employee first — a real bug, fixed by moving off tenant KEKs) and can't
+        practically get per-record CMKs either (AWS KMS bills and rate-limits
+        per CMK; one per employee isn't viable at platform scale). A single
+        platform CMK doesn't bound blast radius the way per-tenant KEKs do —
+        if THIS CMK's decrypt capability is ever compromised, every mobile
+        number and TOTP secret is exposed — but it replaces a static app-level
+        secret (resolve_auth_dek) with real AWS KMS: decrypting now requires
+        live IAM-gated access, every call is CloudTrail-audited, and access can
+        be cut instantly by disabling the CMK. None of that is true for a
+        leaked static secret. Called once at platform bootstrap
+        (scripts/bootstrap_platform_auth_kek.py), not per-tenant/per-employee.
+        """
+        resp = self._client.create_key(
+            Description="PRANA platform auth CMK — encrypts mobile numbers and TOTP secrets",
+            KeyUsage="ENCRYPT_DECRYPT",
+            Origin="AWS_KMS",
+        )
+        return resp["KeyMetadata"]["Arn"]
+
+    def encrypt_value(self, plaintext: str, kek_arn: str) -> str:
+        """
+        Direct KMS Encrypt for small values (mobile numbers, TOTP secrets) —
+        no per-record DEK. KMS's 4KB plaintext ceiling is irrelevant at this
+        size, and skipping envelope encryption here doesn't weaken anything:
+        the actual protection comes from the CMK being real, IAM-gated AWS
+        KMS rather than a static local secret, not from an extra local-AES
+        wrapping layer around a key the CMK could unwrap anyway.
+        """
+        resp = self._client.encrypt(KeyId=kek_arn, Plaintext=plaintext.encode())
+        return b64encode(resp["CiphertextBlob"]).decode()
+
+    def decrypt_value(self, ciphertext: str, kek_arn: str) -> str:
+        """Inverse of encrypt_value."""
+        resp = self._client.decrypt(CiphertextBlob=b64decode(ciphertext), KeyId=kek_arn)
+        return resp["Plaintext"].decode()
 
     def sign_jwt(self, message: bytes, key_id: str) -> bytes:
         """RS256 sign via KMS — private key never leaves KMS."""
@@ -152,3 +335,26 @@ class KMSService:
             SigningAlgorithm="RSASSA_PKCS1_V1_5_SHA_256",
         )
         return resp["Signature"]
+
+    def create_tenant_kek(self, tenant_id: str) -> str:
+        """Provisions a new customer-managed CMK for a tenant's KEK rotation.
+        A full key swap (not AWS's native same-key annual rotation) so a
+        suspected-compromised key can actually be retired, not just have its
+        backing material rotated in place. Returns the new key's ARN."""
+        resp = self._client.create_key(
+            Description=f"PRANA tenant KEK — {tenant_id}",
+            KeyUsage="ENCRYPT_DECRYPT",
+            Origin="AWS_KMS",
+        )
+        key_arn = resp["KeyMetadata"]["Arn"]
+        self._client.create_alias(
+            AliasName=f"alias/prana-tenant-{tenant_id}-{resp['KeyMetadata']['KeyId'][:8]}",
+            TargetKeyId=resp["KeyMetadata"]["KeyId"],
+        )
+        return key_arn
+
+    @property
+    def raw_client(self):
+        """Escape hatch for code that needs a boto3 KMS operation this wrapper
+        doesn't expose yet (e.g. describe_key for health checks)."""
+        return self._client

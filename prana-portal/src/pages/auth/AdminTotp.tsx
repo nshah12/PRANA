@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import QRCode from 'qrcode'
 import { api } from '@/lib/api'
 import { useAuthStore, AuthUser } from '@/store/auth'
+import { tUi } from '@/i18n'
 
 function decodeJwtUser(token: string): AuthUser | null {
   try {
@@ -26,14 +27,14 @@ function LockoutScreen({ onBack }: { onBack: () => void }) {
         <div className="w-16 h-16 rounded-2xl mx-auto mb-4 flex items-center justify-center text-3xl bg-red-50 border border-red-100">
           🔒
         </div>
-        <h1 className="text-xl font-bold text-slate-900 mb-2">Account locked</h1>
+        <h1 className="text-xl font-bold text-slate-900 mb-2">{tUi('ADMIN_TOTP_ACCOUNT_LOCKED')}</h1>
         <p className="text-slate-500 text-sm leading-relaxed mb-6">
-          Your Portal Admin account has been locked after <strong>3 failed TOTP attempts</strong>.
-          PA accounts do not auto-unlock.
+          {tUi('ADMIN_TOTP_LOCKED_SUB_PREFIX')} <strong>{tUi('ADMIN_TOTP_LOCKED_BOLD')}</strong>.
+          {tUi('ADMIN_TOTP_LOCKED_SUB_SUFFIX')}
         </p>
 
         <div className="bg-amber-50 border border-amber-200 rounded-xl px-5 py-4 mb-6 text-left space-y-2">
-          <p className="text-xs font-bold text-amber-700 uppercase tracking-wider">How to regain access</p>
+          <p className="text-xs font-bold text-amber-700 uppercase tracking-wider">{tUi('ADMIN_TOTP_REGAIN_ACCESS_LABEL')}</p>
           <p className="text-xs text-amber-700 leading-relaxed">
             Another Portal Admin must unlock your account via the{' '}
             <span className="font-mono bg-amber-100 px-1.5 py-0.5 rounded">Admin Console → OA Emergency</span>{' '}
@@ -91,7 +92,7 @@ export function AdminTotp() {
           setSetupPhase('qr')
         })
         .catch(() => {
-          setError('Failed to initialise TOTP setup. Please try again.')
+          setError(tUi('ADMIN_TOTP_SETUP_INIT_FAILED'))
           setSetupPhase('qr')
         })
     } else {
@@ -147,12 +148,12 @@ export function AdminTotp() {
         } else if (remaining > 1) {
           setError(`Incorrect code. ${remaining} attempts remaining before permanent lockout.`)
         } else {
-          setError('Incorrect code.')
+          setError(tUi('ADMIN_TOTP_INCORRECT_CODE'))
         }
       } else if (detail === 'STEP_TOKEN_EXPIRED' || detail === 'SETUP_TOKEN_EXPIRED') {
-        setError('Session expired. Please go back and sign in again.')
+        setError(tUi('ADMIN_TOTP_SESSION_EXPIRED'))
       } else {
-        setError(detail ?? 'Invalid code. Please try again.')
+        setError(detail ?? tUi('ADMIN_TOTP_INVALID_CODE_DEFAULT'))
       }
       setCode('')
     } finally { setLoading(false) }
@@ -167,12 +168,12 @@ export function AdminTotp() {
             <span className="font-mono text-2xl font-bold text-white">
               prana.<span className="text-amber-400">in</span>
             </span>
-            <p className="text-slate-500 text-xs mt-1">Platform Admin Console</p>
+            <p className="text-slate-500 text-xs mt-1">{tUi('ADMIN_LOGIN_CONSOLE_LABEL')}</p>
           </div>
 
           <div className="bg-white rounded-2xl border border-slate-200 shadow-xl p-7 space-y-5">
             <div>
-              <h1 className="text-lg font-semibold text-slate-800">Set up authenticator</h1>
+              <h1 className="text-lg font-semibold text-slate-800">{tUi('TOTP_SETUP_TITLE')}</h1>
               <div className="mt-2 bg-amber-50 border border-amber-100 rounded-lg px-3 py-2">
                 <p className="text-xs text-amber-700 font-medium">
                   PA accounts lock after <strong>3</strong> failed attempts. No auto-unlock.
@@ -200,7 +201,7 @@ export function AdminTotp() {
                     className="w-full flex items-center justify-between px-4 py-3 hover:bg-slate-50 text-left">
                     <div className="flex items-center gap-2">
                       <span className="text-sm">🔑</span>
-                      <span className="text-sm font-medium text-slate-700">Backup codes</span>
+                      <span className="text-sm font-medium text-slate-700">{tUi('ADMIN_TOTP_BACKUP_CODES_LABEL')}</span>
                       <span className="text-xs text-red-600 bg-red-50 border border-red-100 rounded-full px-2 py-0.5">
                         Required — no auto-unlock
                       </span>
@@ -252,7 +253,7 @@ export function AdminTotp() {
           <span className="font-mono text-2xl font-bold text-white">
             prana.<span className="text-amber-400">in</span>
           </span>
-          <p className="text-slate-500 text-xs mt-1">Platform Admin Console</p>
+          <p className="text-slate-500 text-xs mt-1">{tUi('ADMIN_TOTP_CONSOLE_LABEL')}</p>
         </div>
 
         <form onSubmit={onVerify}

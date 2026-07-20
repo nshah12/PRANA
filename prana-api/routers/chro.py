@@ -13,6 +13,7 @@ All queries scoped to tenant_id from JWT.
 No individual salary figures — vault_health_score only (aggregated).
 """
 from __future__ import annotations
+from messages import SuccessCode, success_response
 
 import json
 from datetime import date, datetime, timedelta, timezone
@@ -26,6 +27,7 @@ from fastapi import Query
 
 from dependencies import DbConn, require_oa
 from services.digest_service import DigestService, period_window, validate_window
+from errors import PranaError
 
 _digest_svc = DigestService()
 
@@ -108,9 +110,31 @@ async def vault_health(db: DbConn, current=CHRO):
     )
 
     return {
-        **(dict(row) if row else {}),
-        "by_department": [dict(r) for r in dept_rows],
-        "gaps": [dict(r) for r in gaps],
+        **(
+            {
+                "overall_score": int(row["overall_score"]) if row["overall_score"] is not None else None,
+                "employment_proof_score": int(row["employment_proof_score"]) if row["employment_proof_score"] is not None else None,
+                "salary_slip_score": int(row["salary_slip_score"]) if row["salary_slip_score"] is not None else None,
+                "form16_score": int(row["form16_score"]) if row["form16_score"] is not None else None,
+                "total_gaps": int(row["total_gaps"]) if row["total_gaps"] is not None else 0,
+            }
+            if row else {}
+        ),
+        "by_department": [
+            {
+                "department": r["department"],
+                "score": int(r["score"]) if r["score"] is not None else 0,
+                "employee_count": int(r["employee_count"]),
+            }
+            for r in dept_rows
+        ],
+        "gaps": [
+            {
+                "description": r["description"],
+                "affected_count": int(r["affected_count"]),
+            }
+            for r in gaps
+        ],
     }
 
 
@@ -121,18 +145,11 @@ async def compliance_calendar(db: DbConn, current=CHRO):
     rows = await db.fetch(
         """
         SELECT
-          obligation_id::text,
-          obligation_type,
+          obligation_id,
           obligation_name,
-          statutory_ref,
-          period,
+          category,
           deadline,
-          status,
-          completion_pct,
-          total_employees,
-          compliant_employees,
-          gap_count,
-          notes
+          status
         FROM compliance_obligation
         WHERE tenant_id = $1
         ORDER BY deadline ASC
@@ -143,9 +160,12 @@ async def compliance_calendar(db: DbConn, current=CHRO):
     today = _now().date()
     items = [
         {
-            **dict(r),
-            "obligation_id":   str(r["obligation_id"]),
+            "obligation_id":  str(r["obligation_id"]),
+            "obligation_name": r["obligation_name"],
+            "obligation_type": r["category"] or "STATUTORY",
+            "category":        r["category"] or "STATUTORY",
             "deadline":        r["deadline"].isoformat() if r["deadline"] else None,
+            "status":          r["status"],
             "is_overdue":      r["deadline"] < today and r["status"] not in ("COMPLETE", "WAIVED")
                                if r["deadline"] else False,
         }
@@ -182,7 +202,7 @@ async def statutory_coverage(db: DbConn, current=CHRO):
         """
         SELECT COUNT(DISTINCT employee_uuid) FROM document
         WHERE tenant_id = $1 AND doc_type = 'FORM_16'
-          AND doc_period = $2 AND is_deleted = FALSE
+          AND doc_period = $2 AND is_deleted = FALSE AND employer_visible = TRUE
         """,
         current.tenant_id, current_fy,
     ) or 0)
@@ -193,7 +213,7 @@ async def statutory_coverage(db: DbConn, current=CHRO):
         """
         SELECT COUNT(DISTINCT employee_uuid) FROM document
         WHERE tenant_id = $1 AND doc_type = 'SALARY_SLIP'
-          AND pushed_at >= $2 AND is_deleted = FALSE
+          AND pushed_at >= $2 AND is_deleted = FALSE AND employer_visible = TRUE
         """,
         current.tenant_id, ninety_days_ago,
     ) or 0)
@@ -203,7 +223,7 @@ async def statutory_coverage(db: DbConn, current=CHRO):
         """
         SELECT COUNT(DISTINCT employee_uuid) FROM document
         WHERE tenant_id = $1 AND doc_type = 'PF_ACKNOWLEDGEMENT'
-          AND pushed_at >= $2 AND is_deleted = FALSE
+          AND pushed_at >= $2 AND is_deleted = FALSE AND employer_visible = TRUE
         """,
         current.tenant_id, fy_start,
     ) or 0)
@@ -214,7 +234,7 @@ async def statutory_coverage(db: DbConn, current=CHRO):
         SELECT COUNT(DISTINCT employee_uuid) FROM document
         WHERE tenant_id = $1
           AND doc_type IN ('OFFER_LETTER', 'APPOINTMENT_LETTER')
-          AND is_deleted = FALSE
+          AND is_deleted = FALSE AND employer_visible = TRUE
         """,
         current.tenant_id,
     ) or 0)
@@ -229,7 +249,7 @@ async def statutory_coverage(db: DbConn, current=CHRO):
         SELECT COUNT(DISTINCT employee_uuid) FROM document
         WHERE tenant_id = $1
           AND doc_type IN ('RELIEVING_LETTER', 'EXPERIENCE_LETTER')
-          AND pushed_at >= $2 AND is_deleted = FALSE
+          AND pushed_at >= $2 AND is_deleted = FALSE AND employer_visible = TRUE
         """,
         current.tenant_id, fy_start,
     ) or 0) if exited_count else 0
@@ -547,7 +567,7 @@ async def save_alert_config(body: AlertConfigBody, db: DbConn, current=CHRO):
                               updated_by   = EXCLUDED.updated_by,
                               updated_at   = NOW()
                 """,
-                current.tenant_id, full_key, str(enabled).lower(), current.oa_user_id,
+                current.tenant_id, full_key, str(enabled).lower(), current.user_id,
             )
     return {"saved": True}
 
@@ -574,7 +594,7 @@ async def save_digest_settings(body: DigestConfigBody, db: DbConn, current=CHRO)
     await _digest_svc.save_config(
         db, current.tenant_id, "chro", body.model_dump(), str(current.user_id)
     )
-    return {"message": "CHRO digest settings saved"}
+    return {"message": SuccessCode.DIGEST_SETTINGS_SAVED}
 
 
 # ── Digest: data endpoints ────────────────────────────────────────────────────
@@ -596,6 +616,13 @@ def _resolve_window(
             })
         from_dt = datetime.combine(from_date, datetime.min.time()).replace(tzinfo=timezone.utc)
         to_dt   = datetime.combine(to_date,   datetime.min.time()).replace(tzinfo=timezone.utc) + timedelta(days=1)
+        # Reject future to_date — analytics are on historical data only
+        # Compare to_date (the requested day) not to_dt (exclusive +1-day bound)
+        if to_date > date.today():
+            raise HTTPException(400, detail={
+                "error": "DATE_RANGE_FUTURE",
+                "message": "to_date cannot be in the future.",
+            })
     else:
         from_dt, to_dt = period_window(period)  # type: ignore[arg-type]
 
@@ -619,7 +646,7 @@ async def weekly_digest(
 
 @router.post("/digest/weekly/send-test")
 async def send_weekly_test(current=CHRO):
-    return {"message": "Test digest queued — DigestWorkflow will deliver via NotifConsumer"}
+    return {"message": SuccessCode.TEST_DIGEST_QUEUED}
 
 
 @router.get("/digest/monthly")
@@ -724,7 +751,18 @@ async def vault_health_report(db: DbConn, current=CHRO):
         """,
         current.tenant_id,
     )
-    rows = [dict(r) for r in dept_rows]
+    rows = [
+        {
+            "Department": r["Department"],
+            "Employees": int(r["Employees"]),
+            "Vault Score": int(r["Vault Score"]) if r["Vault Score"] is not None else 0,
+            "Salary Slip": int(r["Salary Slip"]) if r["Salary Slip"] is not None else 0,
+            "Form 16": int(r["Form 16"]) if r["Form 16"] is not None else 0,
+            "Employment Proof": int(r["Employment Proof"]) if r["Employment Proof"] is not None else 0,
+            "Total Gaps": int(r["Total Gaps"]) if r["Total Gaps"] is not None else 0,
+        }
+        for r in dept_rows
+    ]
     pdf = _build_pdf(
         "Vault Health by Department",
         rows,
@@ -752,6 +790,7 @@ async def quarterly_report(db: DbConn, current=CHRO):
         WHERE tenant_id = $1
           AND pushed_at >= NOW() - INTERVAL '3 months'
           AND is_deleted = FALSE
+          AND employer_visible = TRUE
         GROUP BY doc_type
         ORDER BY "Total Documents" DESC
         """,
@@ -759,9 +798,11 @@ async def quarterly_report(db: DbConn, current=CHRO):
     )
     rows = [
         {
-            **dict(r),
-            "First Pushed":  r["First Pushed"].isoformat() if r["First Pushed"] else None,
-            "Latest Pushed": r["Latest Pushed"].isoformat() if r["Latest Pushed"] else None,
+            "Document Type":     r["Document Type"],
+            "Total Documents":   int(r["Total Documents"]),
+            "Unique Employees":  int(r["Unique Employees"]),
+            "First Pushed":      r["First Pushed"].isoformat() if r["First Pushed"] else None,
+            "Latest Pushed":     r["Latest Pushed"].isoformat() if r["Latest Pushed"] else None,
         }
         for r in doc_rows
     ]
@@ -785,7 +826,7 @@ async def download_report(report_id: str, db: DbConn, current=CHRO):
         report_id, current.tenant_id,
     )
     if not row:
-        raise HTTPException(status_code=404, detail="REPORT_NOT_FOUND")
+        raise HTTPException(status_code=404, detail=PranaError.REPORT_NOT_FOUND)
 
     data = json.loads(row["report_data"]) if isinstance(row["report_data"], str) else row["report_data"]
     pdf = _build_pdf(row["title"], data.get("rows", []), generated_by=current.email)

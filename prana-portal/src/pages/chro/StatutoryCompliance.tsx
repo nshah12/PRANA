@@ -1,6 +1,7 @@
 import { useQuery } from '@tanstack/react-query'
 import { BookOpen, AlertTriangle, CheckCircle, ChevronRight } from 'lucide-react'
 import { api } from '@/lib/api'
+import { tUi } from '@/i18n'
 
 const SEVERITY_STYLE: Record<string, string> = {
   LOW:    'bg-emerald-50 text-emerald-700 border-emerald-200',
@@ -24,9 +25,9 @@ export function StatutoryCompliance() {
     <div className="space-y-6">
       <div className="flex items-center justify-between flex-wrap gap-3">
         <div>
-          <h1 className="text-xl font-semibold text-slate-800">Statutory Compliance Coverage</h1>
+          <h1 className="text-xl font-semibold text-slate-800">{tUi('CHRO_STATUTORY_TITLE')}</h1>
           <p className="text-sm text-slate-500 mt-0.5">
-            Per-Act document coverage — auditable by Labour Inspector, TDS Auditor, EPFO Officer, Internal CA
+            {tUi('CHRO_STATUTORY_SUB')}
           </p>
         </div>
         {data?.overall_risk && (
@@ -42,17 +43,17 @@ export function StatutoryCompliance() {
         <div className="grid grid-cols-2 lg:grid-cols-3 gap-4">
           <div className="bg-white rounded-xl border border-slate-100 shadow-sm p-5">
             <p className="text-2xl font-bold font-mono text-slate-800">{data.active_employees}</p>
-            <p className="text-xs text-slate-500 mt-1">Active employees</p>
+            <p className="text-xs text-slate-500 mt-1">{tUi('CHRO_STATUTORY_ACTIVE_EMPLOYEES')}</p>
           </div>
           <div className="bg-white rounded-xl border border-slate-100 shadow-sm p-5">
             <p className="text-2xl font-bold font-mono text-slate-800">{data.current_fy}</p>
-            <p className="text-xs text-slate-500 mt-1">Current financial year</p>
+            <p className="text-xs text-slate-500 mt-1">{tUi('CHRO_STATUTORY_CURRENT_FY')}</p>
           </div>
           <div className="bg-white rounded-xl border border-slate-100 shadow-sm p-5">
             <p className="text-2xl font-bold font-mono text-slate-800">
               {data.acts?.filter((a: any) => a.severity === 'HIGH').length ?? 0}
             </p>
-            <p className="text-xs text-red-500 mt-1">Acts with HIGH coverage gap</p>
+            <p className="text-xs text-red-500 mt-1">{tUi('CHRO_STATUTORY_HIGH_GAP')}</p>
           </div>
         </div>
       )}
@@ -64,8 +65,8 @@ export function StatutoryCompliance() {
       )}
       {isError && (
         <div className="text-center py-16 text-slate-400">
-          <p className="text-sm">Failed to load statutory coverage.</p>
-          <button onClick={() => refetch()} className="mt-2 text-xs text-red-600 hover:underline">Retry</button>
+          <p className="text-sm">{tUi('CHRO_STATUTORY_LOAD_FAILED')}</p>
+          <button onClick={() => refetch()} className="mt-2 text-xs text-red-600 hover:underline">{tUi('CFO_ATTRITION_RETRY')}</button>
         </div>
       )}
 

@@ -1,0 +1,1165 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>PRANA Revenue Model</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; font-size: 14px; color: #1a1a1a; background: #f5f5f3; }
+  .page { max-width: 1100px; margin: 0 auto; padding: 2rem 1.5rem 4rem; }
+  .page-title { font-size: 22px; font-weight: 600; color: #111; margin-bottom: 4px; }
+  .page-sub { font-size: 13px; color: #666; margin-bottom: 2rem; }
+  .grid2 { display: grid; grid-template-columns: repeat(2, minmax(0,1fr)); gap: 12px; }
+  .grid3 { display: grid; grid-template-columns: repeat(3, minmax(0,1fr)); gap: 12px; }
+  .grid4 { display: grid; grid-template-columns: repeat(4, minmax(0,1fr)); gap: 12px; }
+
+  .card { background: #fff; border: 1px solid #e2e0d8; border-radius: 12px; padding: 1rem 1.25rem; }
+  .metric { background: #f5f5f3; border-radius: 8px; padding: .75rem 1rem; }
+  .metric-label { font-size: 11px; color: #777; margin-bottom: 4px; }
+  .metric-val   { font-size: 22px; font-weight: 600; color: #111; }
+  .metric-note  { font-size: 10px; color: #999; margin-top: 2px; }
+  .metric.red   { background: #fef2f2; } .metric.red .metric-val { color: #b91c1c; }
+  .metric.amber { background: #fffbeb; } .metric.amber .metric-val { color: #92400e; }
+  .metric.green { background: #f0fdf4; } .metric.green .metric-val { color: #15803d; }
+
+  .section { margin-bottom: 2rem; }
+  .section-label { font-size: 11px; font-weight: 600; color: #999; letter-spacing: .08em; text-transform: uppercase; margin-bottom: .75rem; }
+
+  .row { display: flex; justify-content: space-between; align-items: center; padding: 7px 0; border-bottom: 1px solid #f0eeea; }
+  .row:last-child { border-bottom: none; }
+  .rl { font-size: 12px; color: #555; }
+  .rv { font-size: 12px; font-weight: 600; color: #111; text-align: right; }
+  .rv.green { color: #0F6E56; } .rv.red { color: #b91c1c; } .rv.amber { color: #92400e; }
+
+  .inp-row { display: flex; align-items: center; gap: 10px; padding: 7px 0; border-bottom: 1px solid #f0eeea; }
+  .inp-row:last-child { border-bottom: none; }
+  .inp-label { font-size: 12px; color: #555; flex: 1; min-width: 0; }
+  .inp-unit  { font-size: 11px; color: #999; white-space: nowrap; min-width: 70px; text-align: right; }
+  input[type=number] {
+    width: 100px; padding: 5px 10px; font-size: 12px; font-family: inherit;
+    border: 1px solid #d4d2c8; border-radius: 7px; background: #faf9f7; color: #111; text-align: right;
+  }
+  input[type=number]:focus { outline: none; border-color: #0F6E56; box-shadow: 0 0 0 3px rgba(15,110,86,.1); }
+  select {
+    padding: 5px 10px; font-size: 12px; font-family: inherit;
+    border: 1px solid #d4d2c8; border-radius: 7px; background: #faf9f7; color: #111;
+  }
+  select:focus { outline: none; border-color: #0F6E56; }
+
+  .tab-bar { display: flex; gap: 0; border-bottom: 1px solid #e2e0d8; margin-bottom: 1.5rem; flex-wrap: wrap; }
+  .tab { padding: 9px 14px; font-size: 13px; font-weight: 500; color: #777; cursor: pointer; border-bottom: 2px solid transparent; margin-bottom: -1px; transition: color .15s; white-space: nowrap; }
+  .tab:hover { color: #333; }
+  .tab.active { color: #0F6E56; border-bottom-color: #0F6E56; }
+  .tab-panel { display: none; }
+  .tab-panel.active { display: block; }
+
+  .recalc-btn { display: inline-flex; align-items: center; gap: 6px; padding: 9px 20px; font-size: 13px; font-weight: 500; font-family: inherit; color: #fff; background: #0F6E56; border: none; border-radius: 8px; cursor: pointer; transition: background .15s; }
+  .recalc-btn:hover { background: #0a5a44; }
+  .recalc-btn:active { transform: scale(.98); }
+
+  .tbl-wrap { overflow-x: auto; }
+  table { width: 100%; border-collapse: collapse; font-size: 12px; }
+  th { font-size: 11px; font-weight: 600; color: #777; text-align: right; padding: 7px 10px; border-bottom: 1px solid #e2e0d8; white-space: nowrap; background: #faf9f7; }
+  th:first-child { text-align: left; }
+  td { padding: 7px 10px; text-align: right; border-bottom: 1px solid #f0eeea; color: #111; white-space: nowrap; }
+  td:first-child { text-align: left; color: #555; }
+  tr:last-child td { border-bottom: none; }
+  .td-green { color: #0F6E56; font-weight: 600; }
+  .td-red   { color: #b91c1c; font-weight: 600; }
+  tr:nth-child(even) td { background: #faf9f7; }
+
+  .legend { display: flex; flex-wrap: wrap; gap: 14px; font-size: 11px; color: #666; }
+  .legend-dot { width: 10px; height: 10px; border-radius: 2px; flex-shrink: 0; }
+  .calc-note { font-size: 11px; color: #aaa; margin-left: 12px; }
+  .divider { border: none; border-top: 1px solid #e2e0d8; margin: 1.5rem 0; }
+  .prana-green { color: #0F6E56; }
+  .alert-box { background: #fffbeb; border: 1px solid #fcd34d; border-radius: 10px; padding: .75rem 1rem; font-size: 12px; color: #78350f; margin-bottom: 1.5rem; }
+  .info-box  { background: #eff6ff; border: 1px solid #93c5fd; border-radius: 10px; padding: .75rem 1rem; font-size: 12px; color: #1e3a8a; margin-bottom: 1.5rem; }
+
+  /* Tiering visual */
+  .tier-bar-wrap { margin: 1rem 0; }
+  .tier-bar { display: flex; height: 28px; border-radius: 8px; overflow: hidden; width: 100%; }
+  .tier-seg { display: flex; align-items: center; justify-content: center; font-size: 10px; font-weight: 600; color: #fff; transition: flex .3s; overflow: hidden; white-space: nowrap; min-width: 0; }
+  .tier-hot   { background: #0F6E56; }
+  .tier-warm  { background: #185FA5; }
+  .tier-cold  { background: #534AB7; }
+  .tier-archive { background: #854F0B; }
+
+  .blended-box { background: #f0fdf4; border: 1px solid #86efac; border-radius: 10px; padding: 1rem 1.25rem; }
+  .blended-val { font-size: 28px; font-weight: 700; color: #0F6E56; }
+  .blended-label { font-size: 11px; color: #555; margin-bottom: 4px; }
+  .blended-note { font-size: 11px; color: #666; margin-top: 4px; }
+  .saving-badge { display: inline-block; background: #d1fae5; color: #065f46; font-size: 11px; font-weight: 600; padding: 3px 10px; border-radius: 20px; margin-left: 8px; }
+
+  /* Replication strategy cards */
+  .strat-grid { display: grid; grid-template-columns: repeat(4, minmax(0,1fr)); gap: 10px; margin-bottom: 1.5rem; }
+  .strat-card { border: 2px solid #e2e0d8; border-radius: 10px; padding: .75rem 1rem; cursor: pointer; transition: border-color .15s, background .15s; }
+  .strat-card:hover { border-color: #9ca3af; background: #fafaf8; }
+  .strat-card.selected { border-color: #0F6E56; background: #f0fdf4; }
+  .strat-name { font-size: 12px; font-weight: 600; color: #111; margin-bottom: 4px; }
+  .strat-overhead { font-size: 18px; font-weight: 700; color: #0F6E56; margin-bottom: 4px; }
+  .strat-note { font-size: 10px; color: #666; line-height: 1.5; }
+  .strat-rto  { font-size: 10px; font-weight: 600; color: #854F0B; margin-top: 4px; }
+
+  .cloud-btn { padding:7px 18px; font-size:12px; font-weight:500; font-family:inherit; background:#fff; border:1px solid #d4d2c8; border-radius:8px; cursor:pointer; color:#555; transition:all .15s; }
+  .cloud-btn:hover { border-color:#9ca3af; color:#111; background:#fafaf8; }
+  .cloud-btn.active { background:#0F6E56; border-color:#0F6E56; color:#fff; }
+
+  .idea-card { background: #fff; border: 1px solid #e2e0d8; border-radius: 12px; padding: 1rem 1.25rem; }
+  .idea-tag { display: inline-block; font-size: 10px; font-weight: 600; padding: 2px 8px; border-radius: 4px; margin-bottom: .5rem; }
+  .tag-yr1 { background: #d1fae5; color: #065f46; }
+  .tag-yr2 { background: #dbeafe; color: #1e3a8a; }
+  .tag-yr3 { background: #ede9fe; color: #3730a3; }
+  .idea-title { font-size: 13px; font-weight: 600; color: #111; margin-bottom: 4px; }
+  .idea-sub   { font-size: 11px; color: #666; line-height: 1.6; }
+  .idea-price { font-size: 12px; font-weight: 600; color: #0F6E56; margin-top: 6px; }
+  .idea-risk  { font-size: 10px; color: #999; margin-top: 2px; }
+</style>
+</head>
+<body>
+<div class="page">
+
+  <div style="display:flex;align-items:baseline;justify-content:space-between;margin-bottom:2rem">
+    <div>
+      <div class="page-title">PRANA — Revenue, Cost &amp; Storage Model</div>
+      <div class="page-sub">Adjust inputs and recalculate. All figures in Indian Rupees (₹).</div>
+    </div>
+    <div style="font-size:12px;color:#999">v3.0 · June 2026</div>
+  </div>
+
+  <div class="tab-bar">
+    <div class="tab active" onclick="showTab('inputs')">Revenue inputs</div>
+    <div class="tab" onclick="showTab('expenses')">Cost inputs</div>
+    <div class="tab" onclick="showTab('storage')">Storage &amp; replication</div>
+    <div class="tab" onclick="showTab('projections')">P&amp;L projections</div>
+    <div class="tab" onclick="showTab('segment')">By segment</div>
+    <div class="tab" onclick="showTab('morerv')">More revenue ideas</div>
+  </div>
+
+  <!-- ══════════ REVENUE INPUTS ══════════ -->
+  <div id="tab-inputs" class="tab-panel active">
+    <div class="grid2" style="gap:1.5rem">
+      <div>
+        <div class="section">
+          <div class="section-label">Employer segment</div>
+          <div class="card">
+            <div class="inp-row"><span class="inp-label">Orgs onboarded (month 1)</span><input type="number" id="i_orgs" value="50" min="1"><span class="inp-unit">orgs</span></div>
+            <div class="inp-row"><span class="inp-label">Avg employees per org</span><input type="number" id="i_emp_per_org" value="500" min="1"><span class="inp-unit">employees</span></div>
+            <div class="inp-row"><span class="inp-label">New orgs added per month</span><input type="number" id="i_new_orgs_mo" value="5" min="0"><span class="inp-unit">orgs/mo</span></div>
+            <div class="inp-row"><span class="inp-label">Docs pushed per employee per month</span><input type="number" id="i_docs_per_emp" value="3" min="0"><span class="inp-unit">docs/emp/mo</span></div>
+            <div class="inp-row"><span class="inp-label">Seat fee per employee per month</span><input type="number" id="i_seat_fee" value="30" min="0"><span class="inp-unit">₹/emp/mo</span></div>
+            <div class="inp-row"><span class="inp-label">Doc storage fee per doc per month</span><input type="number" id="i_doc_fee" value="1" min="0" step="0.25"><span class="inp-unit">₹/doc/mo</span></div>
+            <div class="inp-row"><span class="inp-label">One-time setup fee per org</span><input type="number" id="i_setup_fee" value="75000" min="0"><span class="inp-unit">₹ one-time</span></div>
+            <div class="inp-row"><span class="inp-label">Legal hold docs after exit (%)</span><input type="number" id="i_legal_hold_pct" value="30" min="0" max="100"><span class="inp-unit">% of active</span></div>
+            <div class="inp-row"><span class="inp-label">Legal hold storage rate</span><input type="number" id="i_legal_fee" value="0.25" min="0" step="0.05"><span class="inp-unit">₹/doc/mo</span></div>
+          </div>
+        </div>
+        <div class="section">
+          <div class="section-label">Employee self-upload — free tier</div>
+          <div class="card" style="border-left:3px solid #0F6E56">
+            <div style="font-size:11px;color:#666;margin-bottom:10px;line-height:1.5">Employees upload their own docs (offer letters from old jobs, bank statements, PF passbook, educational certs, insurance policies). Free up to quota; charged monthly for excess.</div>
+            <div class="inp-row"><span class="inp-label">% of employees who self-upload</span><input type="number" id="i_selfup_pct" value="15" min="0" max="100"><span class="inp-unit">%</span></div>
+            <div class="inp-row"><span class="inp-label">Avg docs self-uploaded per emp</span><input type="number" id="i_selfup_docs" value="8" min="0"><span class="inp-unit">docs total</span></div>
+            <div class="inp-row"><span class="inp-label">Free quota (no charge)</span><input type="number" id="i_selfup_free" value="5" min="0"><span class="inp-unit">docs</span></div>
+            <div class="inp-row"><span class="inp-label">Storage fee beyond free quota</span><input type="number" id="i_selfup_fee" value="2" min="0" step="0.5"><span class="inp-unit">₹/doc/mo</span></div>
+            <div class="inp-row"><span class="inp-label">One-time upload processing fee</span><input type="number" id="i_selfup_proc" value="1" min="0" step="0.5"><span class="inp-unit">₹/doc uploaded</span></div>
+            <div class="inp-row"><span class="inp-label">Self-upload adoption growth</span><input type="number" id="i_selfup_growth" value="5" min="0" max="100"><span class="inp-unit">% MoM</span></div>
+          </div>
+        </div>
+        <div class="section">
+          <div class="section-label">Employee premium subscription</div>
+          <div class="card">
+            <div style="font-size:11px;color:#666;margin-bottom:10px;line-height:1.5">Premium unlocks unlimited self-upload, share links, career insights, Ask PRANA chatbot, BGV sharing controls.</div>
+            <div class="inp-row"><span class="inp-label">% of employees on Premium</span><input type="number" id="i_emp_premium_pct" value="5" min="0" max="100"><span class="inp-unit">%</span></div>
+            <div class="inp-row"><span class="inp-label">Premium plan price</span><input type="number" id="i_premium_price" value="49" min="0"><span class="inp-unit">₹/mo</span></div>
+            <div class="inp-row"><span class="inp-label">Self-upload docs per premium emp/mo</span><input type="number" id="i_self_docs" value="3" min="0"><span class="inp-unit">docs/mo</span></div>
+            <div class="inp-row"><span class="inp-label">Premium adoption growth rate</span><input type="number" id="i_prem_growth" value="3" min="0" max="100"><span class="inp-unit">% MoM</span></div>
+          </div>
+        </div>
+      </div>
+      <div>
+        <div class="section">
+          <div class="section-label">BGV / verification companies</div>
+          <div class="card">
+            <div class="inp-row"><span class="inp-label">BGV companies on API</span><input type="number" id="i_bgv_cos" value="5" min="0"><span class="inp-unit">companies</span></div>
+            <div class="inp-row"><span class="inp-label">Verifications per BGV co / month</span><input type="number" id="i_bgv_calls" value="1000" min="0"><span class="inp-unit">calls/co/mo</span></div>
+            <div class="inp-row"><span class="inp-label">Revenue per verification call</span><input type="number" id="i_bgv_price" value="75" min="0"><span class="inp-unit">₹/call</span></div>
+            <div class="inp-row"><span class="inp-label">Platform subscription per BGV co</span><input type="number" id="i_bgv_sub" value="10000" min="0"><span class="inp-unit">₹/co/mo</span></div>
+            <div class="inp-row"><span class="inp-label">BGV call growth rate</span><input type="number" id="i_bgv_growth" value="10" min="0" max="100"><span class="inp-unit">% MoM</span></div>
+          </div>
+        </div>
+        <div class="section">
+          <div class="section-label">Banks / NBFCs</div>
+          <div class="card">
+            <div class="inp-row"><span class="inp-label">Bank / NBFC clients</span><input type="number" id="i_bank_cos" value="2" min="0"><span class="inp-unit">clients</span></div>
+            <div class="inp-row"><span class="inp-label">Verification calls per client / month</span><input type="number" id="i_bank_calls" value="500" min="0"><span class="inp-unit">calls/mo</span></div>
+            <div class="inp-row"><span class="inp-label">Revenue per call</span><input type="number" id="i_bank_price" value="150" min="0"><span class="inp-unit">₹/call</span></div>
+            <div class="inp-row"><span class="inp-label">Platform subscription per client</span><input type="number" id="i_bank_sub" value="50000" min="0"><span class="inp-unit">₹/client/mo</span></div>
+          </div>
+        </div>
+        <div class="section">
+          <div class="section-label">Projection settings</div>
+          <div class="card">
+            <div class="inp-row"><span class="inp-label">Projection horizon</span><input type="number" id="i_months" value="60" min="6" max="120"><span class="inp-unit">months</span></div>
+          </div>
+        </div>
+        <div style="display:flex;align-items:center;gap:12px;margin-top:.5rem">
+          <button class="recalc-btn" onclick="recalc()">&#8635; Recalculate</button>
+          <span class="calc-note" id="calc-note"></span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ══════════ COST INPUTS ══════════ -->
+  <div id="tab-expenses" class="tab-panel">
+    <div class="grid2" style="gap:1.5rem">
+      <div>
+        <div class="section">
+          <div class="section-label">AWS infrastructure — fixed monthly</div>
+          <div class="card">
+            <div class="inp-row"><span class="inp-label">YugabyteDB (managed, dual-region)</span><input type="number" id="e_yugabyte" value="80000" min="0"><span class="inp-unit">₹/mo</span></div>
+            <div class="inp-row"><span class="inp-label">AWS MSK Kafka (both regions)</span><input type="number" id="e_kafka" value="40000" min="0"><span class="inp-unit">₹/mo</span></div>
+            <div class="inp-row"><span class="inp-label">ElastiCache Redis (global)</span><input type="number" id="e_redis" value="25000" min="0"><span class="inp-unit">₹/mo</span></div>
+            <div class="inp-row"><span class="inp-label">ECS / EC2 for prana-api (CPU)</span><input type="number" id="e_api_ec2" value="30000" min="0"><span class="inp-unit">₹/mo</span></div>
+            <div class="inp-row"><span class="inp-label">GPU instances — prana-ai + prana-ask</span><input type="number" id="e_gpu" value="120000" min="0"><span class="inp-unit">₹/mo</span></div>
+            <div class="inp-row"><span class="inp-label">AWS KMS (key operations)</span><input type="number" id="e_kms" value="5000" min="0"><span class="inp-unit">₹/mo</span></div>
+            <div class="inp-row"><span class="inp-label">CloudFront CDN + data transfer</span><input type="number" id="e_cdn" value="10000" min="0"><span class="inp-unit">₹/mo</span></div>
+            <div class="inp-row"><span class="inp-label">Temporal Cloud</span><input type="number" id="e_temporal" value="20000" min="0"><span class="inp-unit">₹/mo</span></div>
+            <div class="inp-row"><span class="inp-label">Monitoring (CloudWatch, Sentry)</span><input type="number" id="e_monitoring" value="15000" min="0"><span class="inp-unit">₹/mo</span></div>
+            <div class="inp-row"><span class="inp-label">WAF, Shield, security tooling</span><input type="number" id="e_security" value="12000" min="0"><span class="inp-unit">₹/mo</span></div>
+            <div class="inp-row"><span class="inp-label">Infra fixed cost growth rate</span><input type="number" id="e_infra_growth" value="5" min="0" max="30"><span class="inp-unit">% MoM</span></div>
+          </div>
+        </div>
+        <div class="section">
+          <div class="section-label">Per-event variable costs</div>
+          <div class="card">
+            <div class="inp-row"><span class="inp-label">AWS Textract OCR cost per page</span><input type="number" id="e_textract" value="1.5" min="0" step="0.1"><span class="inp-unit">₹/page</span></div>
+            <div class="inp-row"><span class="inp-label">Avg pages per doc (for OCR)</span><input type="number" id="e_pages_per_doc" value="2" min="1"><span class="inp-unit">pages</span></div>
+            <div class="inp-row"><span class="inp-label">AWS SES email cost per 1000 emails</span><input type="number" id="e_ses" value="7" min="0" step="0.5"><span class="inp-unit">₹/1k emails</span></div>
+            <div class="inp-row"><span class="inp-label">Emails sent per employee per month</span><input type="number" id="e_emails_per_emp" value="2" min="0"><span class="inp-unit">emails/emp/mo</span></div>
+            <div class="inp-row"><span class="inp-label">SMS cost per message <span style="font-size:10px;color:#aaa">(0 = not using SMS)</span></span><input type="number" id="e_sms" value="0" min="0" step="0.05"><span class="inp-unit">₹/SMS</span></div>
+            <div class="inp-row"><span class="inp-label">SMS per employee per month</span><input type="number" id="e_sms_per_emp" value="0" min="0"><span class="inp-unit">SMS/emp/mo</span></div>
+          </div>
+        </div>
+      </div>
+      <div>
+        <div class="section">
+          <div class="section-label">People costs</div>
+          <div class="card">
+            <div class="inp-row"><span class="inp-label">Engineering team</span><input type="number" id="e_eng" value="600000" min="0"><span class="inp-unit">₹/mo</span></div>
+            <div class="inp-row"><span class="inp-label">Product &amp; design</span><input type="number" id="e_product" value="150000" min="0"><span class="inp-unit">₹/mo</span></div>
+            <div class="inp-row"><span class="inp-label">Sales &amp; BD</span><input type="number" id="e_sales" value="200000" min="0"><span class="inp-unit">₹/mo</span></div>
+            <div class="inp-row"><span class="inp-label">Customer success / support</span><input type="number" id="e_cs" value="100000" min="0"><span class="inp-unit">₹/mo</span></div>
+            <div class="inp-row"><span class="inp-label">Finance, legal, HR (G&amp;A)</span><input type="number" id="e_ga" value="80000" min="0"><span class="inp-unit">₹/mo</span></div>
+            <div class="inp-row"><span class="inp-label">People cost growth rate</span><input type="number" id="e_people_growth" value="3" min="0" max="20"><span class="inp-unit">% MoM</span></div>
+          </div>
+        </div>
+        <div class="section">
+          <div class="section-label">Other opex</div>
+          <div class="card">
+            <div class="inp-row"><span class="inp-label">Office / coworking space</span><input type="number" id="e_office" value="50000" min="0"><span class="inp-unit">₹/mo</span></div>
+            <div class="inp-row"><span class="inp-label">SaaS tools</span><input type="number" id="e_saas" value="20000" min="0"><span class="inp-unit">₹/mo</span></div>
+            <div class="inp-row"><span class="inp-label">Marketing &amp; events</span><input type="number" id="e_mktg" value="75000" min="0"><span class="inp-unit">₹/mo</span></div>
+            <div class="inp-row"><span class="inp-label">Legal / compliance / audit (÷12)</span><input type="number" id="e_legal" value="40000" min="0"><span class="inp-unit">₹/mo</span></div>
+            <div class="inp-row"><span class="inp-label">Contingency / misc</span><input type="number" id="e_misc" value="30000" min="0"><span class="inp-unit">₹/mo</span></div>
+          </div>
+        </div>
+        <div style="display:flex;align-items:center;gap:12px;margin-top:1rem">
+          <button class="recalc-btn" onclick="recalc()">&#8635; Recalculate</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ══════════ STORAGE & REPLICATION TAB ══════════ -->
+  <div id="tab-storage" class="tab-panel">
+
+    <div class="info-box">
+      S3 within a single region already replicates across 3 AZs — giving 99.999999999% (11 nines) durability. A second region adds <strong>disaster recovery</strong>, not just availability. True 2× active-active for blobs doubles your storage bill without doubling revenue. The strategies below let you stay resilient at 1.33×–1.5× cost.
+    </div>
+
+    <!-- Replication strategy selector -->
+    <div class="section">
+      <div class="section-label">Choose your replication strategy</div>
+      <div class="strat-grid">
+        <div class="strat-card selected" onclick="selectStrat('erasure')" id="strat-erasure">
+          <div class="strat-name">Erasure coding</div>
+          <div class="strat-overhead">1.33×</div>
+          <div class="strat-note">Split doc into N chunks across 2 regions. Any M chunks reconstruct. Like Dropbox Magic Pocket.</div>
+          <div class="strat-rto">RTO: 0 min (instant)</div>
+        </div>
+        <div class="strat-card" onclick="selectStrat('crr_tiered')" id="strat-crr_tiered">
+          <div class="strat-name">CRR with tiered secondary</div>
+          <div class="strat-overhead">1.4×</div>
+          <div class="strat-note">Primary = S3 Standard. Secondary via CRR = S3-IA or Glacier. Failover in 5–15 min.</div>
+          <div class="strat-rto">RTO: 5–15 min</div>
+        </div>
+        <div class="strat-card" onclick="selectStrat('active_warm')" id="strat-active_warm">
+          <div class="strat-name">Active-warm</div>
+          <div class="strat-overhead">1.6×</div>
+          <div class="strat-note">Full S3 replication, but secondary compute is minimal (1 pod). Scale up compute on failover.</div>
+          <div class="strat-rto">RTO: 10–20 min</div>
+        </div>
+        <div class="strat-card" onclick="selectStrat('full_aa')" id="strat-full_aa">
+          <div class="strat-name">Full active-active</div>
+          <div class="strat-overhead">2.0×</div>
+          <div class="strat-note">Both regions fully hot. Full S3 Standard in both. Maximum cost, minimum RTO. Overkill for Year 1–2.</div>
+          <div class="strat-rto">RTO: 0 min (instant)</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Doc age tiering -->
+    <div class="section">
+      <div class="section-label">Doc age distribution — what % of your vault falls in each tier?</div>
+      <div class="card">
+        <div style="display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:16px;margin-bottom:1rem">
+          <div>
+            <div style="font-size:11px;color:#0F6E56;font-weight:600;margin-bottom:6px">Hot (0–6 months)</div>
+            <div class="inp-row" style="border:none;padding:0"><input type="number" id="t_hot_pct" value="25" min="0" max="100" oninput="syncTierPcts('hot')"><span class="inp-unit">%</span></div>
+            <div style="font-size:10px;color:#999;margin-top:4px">S3 Standard</div>
+          </div>
+          <div>
+            <div style="font-size:11px;color:#185FA5;font-weight:600;margin-bottom:6px">Warm (6–24 months)</div>
+            <div class="inp-row" style="border:none;padding:0"><input type="number" id="t_warm_pct" value="30" min="0" max="100" oninput="syncTierPcts('warm')"><span class="inp-unit">%</span></div>
+            <div style="font-size:10px;color:#999;margin-top:4px">S3-IA</div>
+          </div>
+          <div>
+            <div style="font-size:11px;color:#534AB7;font-weight:600;margin-bottom:6px">Cold (2–7 years)</div>
+            <div class="inp-row" style="border:none;padding:0"><input type="number" id="t_cold_pct" value="35" min="0" max="100" oninput="syncTierPcts('cold')"><span class="inp-unit">%</span></div>
+            <div style="font-size:10px;color:#999;margin-top:4px">Glacier Instant</div>
+          </div>
+          <div>
+            <div style="font-size:11px;color:#854F0B;font-weight:600;margin-bottom:6px">Archive (7+ years)</div>
+            <div class="inp-row" style="border:none;padding:0"><input type="number" id="t_archive_pct" value="10" min="0" max="100" oninput="syncTierPcts('archive')"><span class="inp-unit">%</span></div>
+            <div style="font-size:10px;color:#999;margin-top:4px">Glacier Deep Archive</div>
+          </div>
+        </div>
+        <div class="tier-bar-wrap">
+          <div class="tier-bar" id="tier-bar">
+            <div class="tier-seg tier-hot"    id="bar-hot"     style="flex:25">25% hot</div>
+            <div class="tier-seg tier-warm"   id="bar-warm"    style="flex:30">30% warm</div>
+            <div class="tier-seg tier-cold"   id="bar-cold"    style="flex:35">35% cold</div>
+            <div class="tier-seg tier-archive" id="bar-archive" style="flex:10">10% archive</div>
+          </div>
+        </div>
+        <div id="pct-warning" style="font-size:11px;color:#b91c1c;margin-top:6px;display:none">Percentages must add to 100%</div>
+      </div>
+    </div>
+
+    <!-- Cloud provider preset -->
+    <div class="section">
+      <div class="section-label">Cloud provider — select to auto-fill rates</div>
+      <div style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:1rem" id="cloud-presets">
+        <button class="cloud-btn active" id="cp-aws"     onclick="applyCloud('aws')">AWS (Mumbai)</button>
+        <button class="cloud-btn"        id="cp-azure"   onclick="applyCloud('azure')">Azure (Pune / GRS)</button>
+        <button class="cloud-btn"        id="cp-gcs"     onclick="applyCloud('gcs')">GCS (Mumbai)</button>
+        <button class="cloud-btn"        id="cp-optimal" onclick="applyCloud('optimal')">Optimal split ★</button>
+      </div>
+      <div id="cloud-note" style="font-size:11px;color:#666;background:#f5f5f3;border-radius:8px;padding:8px 12px;margin-bottom:1rem"></div>
+    </div>
+
+    <!-- Rates per tier -->
+    <div class="section">
+      <div class="section-label" id="rates-label">Storage rates per tier — <span id="rates-cloud-name">AWS ap-south-1 Mumbai</span></div>
+      <div class="grid2">
+        <div class="card">
+          <div style="font-size:12px;font-weight:600;color:#555;margin-bottom:.75rem">Primary region rates</div>
+          <div class="inp-row"><span class="inp-label" style="color:#0F6E56">Hot</span><input type="number" id="r_hot" value="2.08" step="0.01" min="0"><span class="inp-unit">₹/GB/mo</span></div>
+          <div class="inp-row"><span class="inp-label" style="color:#185FA5">Warm</span><input type="number" id="r_warm" value="1.15" step="0.01" min="0"><span class="inp-unit">₹/GB/mo</span></div>
+          <div class="inp-row"><span class="inp-label" style="color:#534AB7">Cold</span><input type="number" id="r_cold" value="0.33" step="0.01" min="0"><span class="inp-unit">₹/GB/mo</span></div>
+          <div class="inp-row"><span class="inp-label" style="color:#854F0B">Archive</span><input type="number" id="r_archive" value="0.08" step="0.01" min="0"><span class="inp-unit">₹/GB/mo</span></div>
+          <div class="inp-row"><span class="inp-label">Average doc size</span><input type="number" id="e_doc_size_kb" value="300" min="1"><span class="inp-unit">KB/doc</span></div>
+        </div>
+        <div class="card">
+          <div style="font-size:12px;font-weight:600;color:#555;margin-bottom:.75rem">Secondary region rates <span id="sec-note" style="font-size:10px;color:#999;font-weight:400">(replication)</span></div>
+          <div class="inp-row"><span class="inp-label" style="color:#0F6E56">Hot secondary</span><input type="number" id="rs_hot" value="1.15" step="0.01" min="0"><span class="inp-unit">₹/GB/mo</span></div>
+          <div class="inp-row"><span class="inp-label" style="color:#185FA5">Warm secondary</span><input type="number" id="rs_warm" value="0.33" step="0.01" min="0"><span class="inp-unit">₹/GB/mo</span></div>
+          <div class="inp-row"><span class="inp-label" style="color:#534AB7">Cold secondary</span><input type="number" id="rs_cold" value="0.08" step="0.01" min="0"><span class="inp-unit">₹/GB/mo</span></div>
+          <div class="inp-row"><span class="inp-label" style="color:#854F0B">Archive secondary</span><input type="number" id="rs_archive" value="0.04" step="0.01" min="0"><span class="inp-unit">₹/GB/mo</span></div>
+          <div style="font-size:10px;color:#999;padding-top:8px">Rates auto-fill from provider + strategy. Override manually any time.</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Blended cost result + cloud comparison -->
+    <div class="section">
+      <div class="section-label">Blended effective cost — your vault</div>
+      <div style="display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px">
+        <div class="blended-box">
+          <div class="blended-label">Blended primary ₹/GB/mo</div>
+          <div><span class="blended-val" id="bl_primary">—</span></div>
+          <div class="blended-note" id="bl_primary_note">weighted avg across age buckets</div>
+        </div>
+        <div class="blended-box" style="background:#eff6ff;border-color:#93c5fd">
+          <div class="blended-label">Total incl. replication ₹/GB/mo</div>
+          <div><span class="blended-val" style="color:#185FA5" id="bl_total">—</span></div>
+          <div class="blended-note" id="bl_total_note">vs ₹4.00 naive full 2× Standard</div>
+        </div>
+        <div class="blended-box" style="background:#f0fdf4;border-color:#86efac" id="bl_saving_box">
+          <div class="blended-label" id="bl_saving_label">vs AWS baseline</div>
+          <div><span class="blended-val" style="color:#0F6E56" id="bl_saving">—</span></div>
+          <div class="blended-note" id="bl_saving_note"></div>
+        </div>
+      </div>
+
+      <!-- Side-by-side comparison table -->
+      <div style="margin-top:1rem;overflow-x:auto">
+        <table style="width:100%;border-collapse:collapse;font-size:12px">
+          <thead>
+            <tr style="background:#faf9f7">
+              <th style="text-align:left;padding:7px 10px;border-bottom:1px solid #e2e0d8;font-size:11px;font-weight:600;color:#777">Tier</th>
+              <th style="text-align:right;padding:7px 10px;border-bottom:1px solid #e2e0d8;font-size:11px;font-weight:600;color:#e57300">AWS</th>
+              <th style="text-align:right;padding:7px 10px;border-bottom:1px solid #e2e0d8;font-size:11px;font-weight:600;color:#0078d4">Azure</th>
+              <th style="text-align:right;padding:7px 10px;border-bottom:1px solid #e2e0d8;font-size:11px;font-weight:600;color:#1a73e8">GCS</th>
+              <th style="text-align:right;padding:7px 10px;border-bottom:1px solid #e2e0d8;font-size:11px;font-weight:600;color:#0F6E56">Optimal split</th>
+              <th style="text-align:right;padding:7px 10px;border-bottom:1px solid #e2e0d8;font-size:11px;font-weight:600;color:#777">Winner</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td style="padding:7px 10px;border-bottom:1px solid #f0eeea;font-weight:600;color:#0F6E56">Hot (primary only)</td>
+              <td style="text-align:right;padding:7px 10px;border-bottom:1px solid #f0eeea">₹2.08</td>
+              <td style="text-align:right;padding:7px 10px;border-bottom:1px solid #f0eeea;font-weight:600;color:#0078d4">₹1.50</td>
+              <td style="text-align:right;padding:7px 10px;border-bottom:1px solid #f0eeea">₹1.92</td>
+              <td style="text-align:right;padding:7px 10px;border-bottom:1px solid #f0eeea;font-weight:600;color:#0F6E56">₹1.50</td>
+              <td style="text-align:right;padding:7px 10px;border-bottom:1px solid #f0eeea;font-size:10px;color:#0078d4">Azure −28%</td>
+            </tr>
+            <tr style="background:#faf9f7">
+              <td style="padding:7px 10px;border-bottom:1px solid #f0eeea;font-weight:600;color:#185FA5">Warm (primary only)</td>
+              <td style="text-align:right;padding:7px 10px;border-bottom:1px solid #f0eeea">₹1.15</td>
+              <td style="text-align:right;padding:7px 10px;border-bottom:1px solid #f0eeea;font-weight:600;color:#0078d4">₹0.83</td>
+              <td style="text-align:right;padding:7px 10px;border-bottom:1px solid #f0eeea">₹1.33</td>
+              <td style="text-align:right;padding:7px 10px;border-bottom:1px solid #f0eeea;font-weight:600;color:#0F6E56">₹0.83</td>
+              <td style="text-align:right;padding:7px 10px;border-bottom:1px solid #f0eeea;font-size:10px;color:#0078d4">Azure −28%</td>
+            </tr>
+            <tr>
+              <td style="padding:7px 10px;border-bottom:1px solid #f0eeea;font-weight:600;color:#534AB7">Cold (primary only)</td>
+              <td style="text-align:right;padding:7px 10px;border-bottom:1px solid #f0eeea;font-weight:600;color:#0F6E56">₹0.33</td>
+              <td style="text-align:right;padding:7px 10px;border-bottom:1px solid #f0eeea">₹0.30</td>
+              <td style="text-align:right;padding:7px 10px;border-bottom:1px solid #f0eeea">₹0.50</td>
+              <td style="text-align:right;padding:7px 10px;border-bottom:1px solid #f0eeea;font-weight:600;color:#0F6E56">₹0.33</td>
+              <td style="text-align:right;padding:7px 10px;border-bottom:1px solid #f0eeea;font-size:10px;color:#0F6E56">AWS ≈ Azure</td>
+            </tr>
+            <tr style="background:#faf9f7">
+              <td style="padding:7px 10px;font-weight:600;color:#854F0B">Archive (primary only)</td>
+              <td style="text-align:right;padding:7px 10px;font-weight:600;color:#0F6E56">₹0.08</td>
+              <td style="text-align:right;padding:7px 10px">₹0.08</td>
+              <td style="text-align:right;padding:7px 10px;color:#b91c1c">₹0.21</td>
+              <td style="text-align:right;padding:7px 10px;font-weight:600;color:#0F6E56">₹0.08</td>
+              <td style="text-align:right;padding:7px 10px;font-size:10px;color:#0F6E56">AWS = Azure; GCS ×2.6</td>
+            </tr>
+          </tbody>
+        </table>
+        <div style="font-size:10px;color:#999;margin-top:6px">All prices ₹/GB/mo, primary region only, Indian DCs only (DPDP compliant). Backblaze/Cloudflare/Wasabi excluded — no Indian region.</div>
+      </div>
+    </div>
+
+    <!-- Per-doc cost breakdown -->
+    <div class="section">
+      <div class="section-label">Cost per doc stored (cumulative over its lifetime)</div>
+      <div class="card" id="tier-detail-table"></div>
+    </div>
+
+    <!-- Strategy comparison -->
+    <div class="section">
+      <div class="section-label">Strategy comparison — what the industry actually does</div>
+      <div class="grid2">
+        <div class="card">
+          <div class="row"><span class="rl">DigiLocker (India)</span><span class="rv">Single region, no replication — govt run</span></div>
+          <div class="row"><span class="rl">Dropbox Magic Pocket</span><span class="rv">Erasure coding ~1.33× — self-built on EC2</span></div>
+          <div class="row"><span class="rl">Google Drive</span><span class="rv">Erasure coding + tiering — ~1.3× effective</span></div>
+          <div class="row"><span class="rl">iCloud</span><span class="rv">Erasure coding + Glacier for old files</span></div>
+          <div class="row"><span class="rl">AWS S3 (single region)</span><span class="rv">3 AZ replication built in — 11 nines durability</span></div>
+          <div class="row"><span class="rl">Recommended for PRANA</span><span class="rv green">CRR-tiered or erasure — 1.33×–1.4×</span></div>
+        </div>
+        <div class="card">
+          <div style="font-size:12px;font-weight:600;color:#111;margin-bottom:.75rem">What truly needs active-active vs what doesn't</div>
+          <div class="row"><span class="rl">YugabyteDB metadata</span><span class="rv green">Yes — sync replication, RPO = 0</span></div>
+          <div class="row"><span class="rl">Redis (identity/sessions)</span><span class="rv green">Yes — CRDT, already cheap</span></div>
+          <div class="row"><span class="rl">Kafka</span><span class="rv green">Yes — MirrorMaker 2, already in place</span></div>
+          <div class="row"><span class="rl">S3 doc bytes</span><span class="rv amber">No — async CRR is sufficient</span></div>
+          <div class="row"><span class="rl">GPU compute (prana-ai)</span><span class="rv amber">No — queue tolerates 30 min degraded</span></div>
+          <div class="row"><span class="rl">API compute</span><span class="rv amber">Warm standby — stateless, spin up in mins</span></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- MinIO vs S3 section -->
+    <div class="section">
+      <div class="section-label">MinIO vs S3 — should PRANA self-host storage?</div>
+
+      <div class="alert-box" style="background:#f0f9ff;border-color:#7dd3fc;color:#0c4a6e;margin-bottom:1rem">
+        <strong>Short answer:</strong> S3 + Glacier wins at PRANA's scale. MinIO only beats S3 above ~150–200 TB of <em>hot</em> data — PRANA won't reach that until Year 4–5 at the earliest. Use the calculator below to find your own break-even.
+      </div>
+
+      <div class="grid2" style="gap:1.5rem;margin-bottom:1.5rem">
+        <!-- MinIO inputs -->
+        <div class="card">
+          <div style="font-size:12px;font-weight:600;color:#111;margin-bottom:.75rem">MinIO cluster inputs (self-hosted on EC2)</div>
+          <div class="inp-row"><span class="inp-label">EC2 nodes for hot tier (NVMe)</span><input type="number" id="m_hot_nodes" value="4" min="4" oninput="calcMinio()"><span class="inp-unit">nodes</span></div>
+          <div class="inp-row"><span class="inp-label">Usable NVMe storage per node</span><input type="number" id="m_hot_tb" value="7.5" step="0.5" min="1" oninput="calcMinio()"><span class="inp-unit">TB/node</span></div>
+          <div class="inp-row"><span class="inp-label">EC2 cost per hot node (i3en.xlarge ≈ ₹37k)</span><input type="number" id="m_hot_node_cost" value="37000" min="0" oninput="calcMinio()"><span class="inp-unit">₹/node/mo</span></div>
+          <div class="inp-row"><span class="inp-label">Erasure coding overhead (default 2+2 = 50%)</span><input type="number" id="m_ec_overhead" value="50" min="10" max="75" oninput="calcMinio()"><span class="inp-unit">% overhead</span></div>
+          <div class="inp-row"><span class="inp-label">MinIO ops engineer salary</span><input type="number" id="m_ops_salary" value="150000" min="0" oninput="calcMinio()"><span class="inp-unit">₹/mo</span></div>
+          <div class="inp-row"><span class="inp-label">Monitoring + tooling overhead</span><input type="number" id="m_tooling" value="20000" min="0" oninput="calcMinio()"><span class="inp-unit">₹/mo</span></div>
+          <div style="font-size:10px;color:#999;padding-top:8px;line-height:1.6">
+            Warm/cold/archive: MinIO ILM auto-tiers to S3-IA → Glacier. Only hot tier is self-hosted. Cold + archive still go to S3/Glacier at the same AWS rates.
+          </div>
+        </div>
+
+        <!-- MinIO result -->
+        <div>
+          <div class="card" style="margin-bottom:12px" id="minio-result-card">
+            <!-- filled by calcMinio() -->
+          </div>
+          <div class="card" id="minio-verdict-card">
+            <!-- filled by calcMinio() -->
+          </div>
+        </div>
+      </div>
+
+      <!-- Break-even chart -->
+      <div class="card">
+        <div style="font-size:12px;font-weight:600;color:#111;margin-bottom:.75rem">Cost per GB/mo — MinIO vs S3 Standard, at different vault sizes</div>
+        <div style="position:relative;width:100%;height:240px">
+          <canvas id="minioChart" role="img" aria-label="Line chart comparing MinIO and S3 cost per GB at different storage volumes"></canvas>
+        </div>
+        <div style="display:flex;gap:16px;font-size:11px;color:#666;margin-top:.5rem">
+          <span style="display:flex;align-items:center;gap:5px"><span style="width:10px;height:10px;border-radius:2px;background:#0F6E56;flex-shrink:0"></span>MinIO effective cost/GB</span>
+          <span style="display:flex;align-items:center;gap:5px"><span style="width:10px;height:10px;border-radius:2px;background:#b91c1c;flex-shrink:0"></span>S3 Standard ₹2/GB</span>
+          <span style="display:flex;align-items:center;gap:5px"><span style="width:10px;height:10px;border-radius:2px;background:#185FA5;flex-shrink:0"></span>S3-IA ₹1.25/GB (warm)</span>
+        </div>
+        <div style="font-size:11px;color:#666;margin-top:.5rem" id="minio-breakeven-note"></div>
+      </div>
+
+      <!-- Pros/cons -->
+      <div class="grid2" style="margin-top:1rem">
+        <div class="card">
+          <div style="font-size:12px;font-weight:600;color:#0F6E56;margin-bottom:.75rem">MinIO — when it wins</div>
+          <div class="row"><span class="rl">Data volume</span><span class="rv">Above ~150–200 TB hot data</span></div>
+          <div class="row"><span class="rl">Access pattern</span><span class="rv">Very high read frequency, sub-ms latency needed</span></div>
+          <div class="row"><span class="rl">Team</span><span class="rv">You have a dedicated infra/SRE engineer</span></div>
+          <div class="row"><span class="rl">Hybrid mode</span><span class="rv">MinIO hot tier + S3 Glacier cold via ILM</span></div>
+          <div class="row"><span class="rl">Who uses it</span><span class="rv">Dropbox, Verizon, Goldman Sachs at PB scale</span></div>
+        </div>
+        <div class="card">
+          <div style="font-size:12px;font-weight:600;color:#b91c1c;margin-bottom:.75rem">S3 + Glacier — when it wins (now)</div>
+          <div class="row"><span class="rl">Data volume</span><span class="rv green">Below 150 TB — S3 is cheaper all-in</span></div>
+          <div class="row"><span class="rl">Ops burden</span><span class="rv green">Zero — no disk failures, no capacity planning</span></div>
+          <div class="row"><span class="rl">Durability</span><span class="rv green">11 nines built in — no erasure coding to configure</span></div>
+          <div class="row"><span class="rl">Tiering</span><span class="rv green">S3 Intelligent Tiering auto-manages hot/warm/cold</span></div>
+          <div class="row"><span class="rl">Replication</span><span class="rv green">CRR to secondary region — 2 clicks in console</span></div>
+          <div class="row"><span class="rl">Recommendation</span><span class="rv green">Use S3 now. Revisit MinIO at 150+ TB hot data.</span></div>
+        </div>
+      </div>
+    </div>
+
+    <div style="display:flex;align-items:center;gap:12px;margin-top:1rem">
+      <button class="recalc-btn" onclick="calcStorage(); calcMinio(); recalc()">&#8635; Recalculate</button>
+    </div>
+
+  </div>
+
+  <!-- ══════════ P&L PROJECTIONS ══════════ -->
+  <div id="tab-projections" class="tab-panel">
+    <div class="section">
+      <div class="section-label">Summary — end of projection period</div>
+      <div class="grid4" id="summary-cards"></div>
+    </div>
+    <hr class="divider">
+    <div class="section">
+      <div class="section-label">Revenue vs cost vs profit — monthly</div>
+      <div id="pl-legend" class="legend" style="margin-bottom:.75rem"></div>
+      <div style="position:relative;width:100%;height:340px">
+        <canvas id="plChart" role="img" aria-label="Line chart of monthly revenue, total cost, and profit"></canvas>
+      </div>
+    </div>
+    <hr class="divider">
+    <div class="section">
+      <div class="section-label">Month-by-month P&amp;L</div>
+      <div class="tbl-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th style="text-align:left">Month</th>
+              <th>Revenue</th>
+              <th>Infra (fixed)</th>
+              <th>S3 storage</th>
+              <th>Per-event</th>
+              <th>People</th>
+              <th>Other opex</th>
+              <th>Total cost</th>
+              <th>Profit / (Loss)</th>
+              <th>Margin %</th>
+              <th>Cumulative P&amp;L</th>
+            </tr>
+          </thead>
+          <tbody id="pl-tbody"></tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <!-- ══════════ BY SEGMENT ══════════ -->
+  <div id="tab-segment" class="tab-panel">
+    <div class="section">
+      <div class="section-label">Per-org unit economics (steady state)</div>
+      <div class="card" style="max-width:480px" id="per-org-card"></div>
+    </div>
+    <hr class="divider">
+    <div class="section">
+      <div class="section-label">Year 1 vs Year 2</div>
+      <div class="grid2" id="yr-compare"></div>
+    </div>
+    <hr class="divider">
+    <div class="section">
+      <div class="section-label">Revenue mix — end of projection period</div>
+      <div style="display:flex;align-items:center;gap:3rem;flex-wrap:wrap">
+        <div style="position:relative;width:260px;height:260px;flex-shrink:0">
+          <canvas id="mixChart" role="img" aria-label="Donut chart of revenue mix by segment"></canvas>
+        </div>
+        <div id="mix-legend" style="flex:1;min-width:200px"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ══════════ MORE REVENUE IDEAS ══════════ -->
+  <div id="tab-morerv" class="tab-panel">
+    <div class="alert-box">
+      <strong>Why this matters:</strong> At scale, S3 + GPU + dual-region infra costs grow faster than headcount. Without 3–4 additional revenue streams, gross margin compresses toward 40–50%. The streams below are ordered by ease of launch and strategic fit.
+    </div>
+    <div class="section">
+      <div class="section-label">Year 1 — launch alongside core product</div>
+      <div class="grid3">
+        <div class="idea-card"><div class="idea-tag tag-yr1">Year 1</div><div class="idea-title">HRMS connector marketplace</div><div class="idea-sub">Charge HRMS vendors (SAP, Keka, Darwinbox, Zoho, GreytHR) a certification + listing fee. They pay to be in the PRANA ecosystem.</div><div class="idea-price">₹50k–2L one-time cert + ₹10k/mo listing</div><div class="idea-risk">Low risk · 6 potential connectors in Year 1</div></div>
+        <div class="idea-card"><div class="idea-tag tag-yr1">Year 1</div><div class="idea-title">Certified document PDF stamp</div><div class="idea-sub">Tamper-proof certified PDF with verifiable hash + QR code. Shareable with banks, visa offices, landlords. ₹0.10 cost to generate.</div><div class="idea-price">₹25–50 per certified export</div><div class="idea-risk">No compliance overhead · High perceived value</div></div>
+        <div class="idea-card"><div class="idea-tag tag-yr1">Year 1</div><div class="idea-title">Bulk historical migration</div><div class="idea-sub">Orgs onboarding have 3–7 years of payslips + Form 16s in email or shared drives. Charge per doc migrated.</div><div class="idea-price">₹2–5 per doc migrated</div><div class="idea-risk">One-time per org · Boosts storage MRR permanently</div></div>
+      </div>
+    </div>
+    <div class="section">
+      <div class="section-label">Year 2 — unlock after 200+ orgs</div>
+      <div class="grid3">
+        <div class="idea-card"><div class="idea-tag tag-yr2">Year 2</div><div class="idea-title">Salary benchmarking reports</div><div class="idea-sub">Anonymised salary band data by role, city, industry, experience. Sold to orgs for compensation planning. Near-zero marginal cost — data already exists.</div><div class="idea-price">₹25k–2L per report / quarter</div><div class="idea-risk">Needs 500+ orgs for statistical validity</div></div>
+        <div class="idea-card"><div class="idea-tag tag-yr2">Year 2</div><div class="idea-title">New-employer verified profile</div><div class="idea-sub">New employer pays PRANA for a consent-backed verified career summary when a candidate applies. Competes with LinkedIn Verified — backed by actual payslip data.</div><div class="idea-price">₹100–300 per candidate profile</div><div class="idea-risk">Consent flow already built</div></div>
+        <div class="idea-card"><div class="idea-tag tag-yr2">Year 2</div><div class="idea-title">Attrition risk API (CHRO)</div><div class="idea-sub">Cross-tenant flight-risk signals (role, tenure, salary band movement — no PII). Sold as HR analytics API or CHRO dashboard add-on.</div><div class="idea-price">₹10k–50k/mo per org</div><div class="idea-risk">High margin · Needs solid data lake</div></div>
+      </div>
+    </div>
+    <div class="section">
+      <div class="section-label">Year 3+ — platform plays</div>
+      <div class="grid3">
+        <div class="idea-card"><div class="idea-tag tag-yr3">Year 3+</div><div class="idea-title">White-label licensing</div><div class="idea-sub">License PRANA stack to large banks, NBFC groups, or state governments who want a private-labelled vault. Shifts infra cost to licensee — boosts your gross margin.</div><div class="idea-price">₹50L–2Cr one-time + ₹5–20L/mo SLA</div><div class="idea-risk">Long sales cycle · Very high ACV</div></div>
+        <div class="idea-card"><div class="idea-tag tag-yr3">Year 3+</div><div class="idea-title">Income-linked insurance / credit</div><div class="idea-sub">Partner with insurer or NBFC for pre-approved products based on verified PRANA employment continuity score. PRANA earns referral fee per conversion.</div><div class="idea-price">₹200–500 per referral conversion</div><div class="idea-risk">Needs IRDAI / RBI partnerships</div></div>
+        <div class="idea-card"><div class="idea-tag tag-yr3">Year 3+</div><div class="idea-title">Govt / compliance reporting API</div><div class="idea-sub">Automate bulk TDS reconciliation, PF filing, Form 16 generation from PRANA vault. Integrates with TRACES, EPFO, Unified Labour Portal.</div><div class="idea-price">₹500–2000 per org per filing season</div><div class="idea-risk">Compliance deadlines = guaranteed demand</div></div>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<script>
+let plChartInst = null, mixChartInst = null, minioChartInst = null;
+let selectedStrat = 'erasure';
+let blendedS3PerGb = 0; // set by calcStorage(), used in recalc()
+
+/* ── Cloud provider presets ── */
+const CLOUDS = {
+  aws: {
+    name: 'AWS ap-south-1 Mumbai + ap-south-2 Hyderabad',
+    note: 'S3 Standard → S3-IA → Glacier Instant → Glacier Deep Archive. Secondary via Cross-Region Replication (CRR). Cold and archive are cheapest here — always use AWS for those tiers.',
+    tierNames: ['S3 Standard','S3-IA','Glacier Instant','Glacier Deep Archive'],
+    p:  [2.08, 1.15, 0.33, 0.08],
+    s:  [1.15, 0.33, 0.08, 0.04],
+  },
+  azure: {
+    name: 'Azure Blob — India Central (Pune) with GRS',
+    note: 'Blob Hot → Cool → Cold → Archive. GRS (Geo-Redundant Storage) bundles secondary replication to India South (Chennai) in the primary price — set secondary rates to 0 for GRS tiers. Hot/warm 25–28% cheaper than AWS. Archive same price as Glacier DA.',
+    tierNames: ['Blob Hot (GRS)','Blob Cool (GRS)','Blob Cold','Blob Archive'],
+    p:  [3.00, 1.67, 0.30, 0.08],   // GRS pricing includes secondary — full price shown in primary
+    s:  [0,    0,    0.08, 0.04],    // Cold/archive: use AWS Glacier for secondary (cheaper)
+  },
+  gcs: {
+    name: 'Google Cloud Storage — asia-south1 Mumbai',
+    note: 'Standard → Nearline → Coldline → Archive. Hot tier marginally cheaper than AWS. Warm/cold/archive more expensive. Archive at ₹0.21 is 2.6× AWS Glacier Deep Archive — avoid GCS for long-term storage.',
+    tierNames: ['GCS Standard','GCS Nearline','GCS Coldline','GCS Archive'],
+    p:  [1.92, 1.33, 0.50, 0.21],
+    s:  [1.33, 0.50, 0.21, 0.10],
+  },
+  optimal: {
+    name: 'Optimal split — Azure hot/warm + AWS cold/archive',
+    note: 'Best-of-breed across clouds: Azure Blob GRS for hot (₹3.00 all-in incl. replication) and warm (₹1.67 GRS), then AWS Glacier Instant for cold and Glacier Deep Archive for archive. Secondary already bundled in Azure GRS price so set to 0 for hot/warm. Saves ~20% vs pure AWS on a typical PRANA vault.',
+    tierNames: ['Azure Hot GRS','Azure Cool GRS','AWS Glacier Instant','AWS Glacier DA'],
+    p:  [3.00, 1.67, 0.33, 0.08],
+    s:  [0,    0,    0.08, 0.04],
+  },
+};
+
+const AWS_BASELINE_BLENDED_REF = 2.08; // used for savings calc
+
+function applyCloud(key){
+  const c = CLOUDS[key];
+  if(!c) return;
+  document.querySelectorAll('.cloud-btn').forEach(b => b.classList.remove('active'));
+  document.getElementById('cp-' + key).classList.add('active');
+  document.getElementById('rates-cloud-name').textContent = c.name;
+  document.getElementById('cloud-note').textContent = c.note;
+
+  const pIds = ['r_hot','r_warm','r_cold','r_archive'];
+  const sIds = ['rs_hot','rs_warm','rs_cold','rs_archive'];
+  const lIds = document.querySelectorAll('#tab-storage .inp-label[style*="color"]');
+
+  pIds.forEach((id,i) => { document.getElementById(id).value = c.p[i]; });
+  sIds.forEach((id,i) => { document.getElementById(id).value = c.s[i]; });
+
+  // Update tier label names in primary rates card
+  const labels = document.querySelectorAll('#tab-storage .card .inp-label[style*="color:#0F6E56"], #tab-storage .card .inp-label[style*="color:#185FA5"], #tab-storage .card .inp-label[style*="color:#534AB7"], #tab-storage .card .inp-label[style*="color:#854F0B"]');
+  const primaryLabels = Array.from(labels).slice(0,4);
+  primaryLabels.forEach((el,i) => { el.textContent = c.tierNames[i]; });
+
+  // Update secondary note for GRS
+  const secNote = document.getElementById('sec-note');
+  if(secNote) secNote.textContent = (key==='azure'||key==='optimal') ? '(GRS tiers = 0, already in primary price)' : '(replication)';
+
+  // Also update strategy secondary rates to match
+  document.getElementById('rs_hot').value    = c.s[0];
+  document.getElementById('rs_warm').value   = c.s[1];
+  document.getElementById('rs_cold').value   = c.s[2];
+  document.getElementById('rs_archive').value= c.s[3];
+
+  calcStorage();
+}
+
+/* ── Strategy overhead multipliers for secondary region ── */
+const STRAT = {
+  erasure:    { overhead: 1.33, secMult: 0,    label: 'Erasure coding 1.33×' },
+  crr_tiered: { overhead: 1.40, secMult: 0.40, label: 'CRR tiered 1.4×' },
+  active_warm:{ overhead: 1.60, secMult: 1.00, label: 'Active-warm 1.6×' },
+  full_aa:    { overhead: 2.00, secMult: 1.00, label: 'Full active-active 2×' },
+};
+
+function selectStrat(name){
+  selectedStrat = name;
+  document.querySelectorAll('.strat-card').forEach(c => c.classList.remove('selected'));
+  document.getElementById('strat-' + name).classList.add('selected');
+  // auto-set secondary rates to match strategy intent
+  const secRates = {
+    erasure:    { hot:0, warm:0, cold:0, archive:0 },
+    crr_tiered: { hot:1.25, warm:0.33, cold:0.08, archive:0.04 },
+    active_warm:{ hot:2.0, warm:1.25, cold:0.33, archive:0.08 },
+    full_aa:    { hot:2.0, warm:1.25, cold:0.33, archive:0.08 },
+  };
+  const r = secRates[name];
+  document.getElementById('rs_hot').value     = r.hot;
+  document.getElementById('rs_warm').value    = r.warm;
+  document.getElementById('rs_cold').value    = r.cold;
+  document.getElementById('rs_archive').value = r.archive;
+  calcStorage();
+}
+
+function syncTierPcts(changed){
+  const ids = ['t_hot_pct','t_warm_pct','t_cold_pct','t_archive_pct'];
+  let sum = ids.reduce((s,id) => s + (parseFloat(document.getElementById(id).value)||0), 0);
+  const warn = document.getElementById('pct-warning');
+  warn.style.display = Math.abs(sum - 100) > 0.5 ? 'block' : 'none';
+  // update bar
+  ids.forEach((id, i) => {
+    const pct = parseFloat(document.getElementById(id).value)||0;
+    const bars = ['bar-hot','bar-warm','bar-cold','bar-archive'];
+    const labels = ['hot','warm','cold','archive'];
+    document.getElementById(bars[i]).style.flex = pct;
+    document.getElementById(bars[i]).textContent = pct > 5 ? pct + '% ' + labels[i] : '';
+  });
+  calcStorage();
+}
+
+function calcStorage(){
+  const hotPct     = (parseFloat(document.getElementById('t_hot_pct').value)||0) / 100;
+  const warmPct    = (parseFloat(document.getElementById('t_warm_pct').value)||0) / 100;
+  const coldPct    = (parseFloat(document.getElementById('t_cold_pct').value)||0) / 100;
+  const archivePct = (parseFloat(document.getElementById('t_archive_pct').value)||0) / 100;
+
+  const rHot  = parseFloat(document.getElementById('r_hot').value)||0;
+  const rWarm = parseFloat(document.getElementById('r_warm').value)||0;
+  const rCold = parseFloat(document.getElementById('r_cold').value)||0;
+  const rArch = parseFloat(document.getElementById('r_archive').value)||0;
+
+  const rsHot  = parseFloat(document.getElementById('rs_hot').value)||0;
+  const rsWarm = parseFloat(document.getElementById('rs_warm').value)||0;
+  const rsCold = parseFloat(document.getElementById('rs_cold').value)||0;
+  const rsArch = parseFloat(document.getElementById('rs_archive').value)||0;
+
+  const docSizeKb = parseFloat(document.getElementById('e_doc_size_kb').value)||300;
+  const docSizeGb = docSizeKb / (1024 * 1024);
+
+  // Blended primary cost per GB
+  const blPrimary = hotPct*rHot + warmPct*rWarm + coldPct*rCold + archivePct*rArch;
+  // Blended secondary cost per GB
+  const blSecondary = selectedStrat === 'erasure'
+    ? blPrimary * 0.33   // erasure adds ~33% overhead, no full secondary
+    : hotPct*rsHot + warmPct*rsWarm + coldPct*rsCold + archivePct*rsArch;
+  const blTotal = blPrimary + blSecondary;
+
+  blendedS3PerGb = blTotal; // used in recalc()
+
+  const naiveCost = 4.0; // 2× S3 Standard in both regions
+  const primarySave = (((rHot - blPrimary) / rHot) * 100).toFixed(0);
+  const totalSave   = (((naiveCost - blTotal) / naiveCost) * 100).toFixed(0);
+
+  document.getElementById('bl_primary').textContent     = '₹' + blPrimary.toFixed(2) + '/GB/mo';
+  document.getElementById('bl_primary_note').textContent = primarySave + '% cheaper vs S3 Standard';
+  document.getElementById('bl_total').textContent       = '₹' + blTotal.toFixed(2) + '/GB/mo';
+  document.getElementById('bl_total_note').textContent  = totalSave + '% vs naive 2× ₹4.00';
+
+  // Third box: savings vs AWS baseline (only meaningful when non-AWS preset active)
+  const awsBtn = document.getElementById('cp-aws');
+  const activeCloud = document.querySelector('.cloud-btn.active');
+  const activeKey = activeCloud ? activeCloud.id.replace('cp-','') : 'aws';
+  const awsBlended = CLOUDS.aws.p[0]*hotPct + CLOUDS.aws.p[1]*warmPct + CLOUDS.aws.p[2]*coldPct + CLOUDS.aws.p[3]*archivePct
+                   + CLOUDS.aws.s[0]*hotPct + CLOUDS.aws.s[1]*warmPct + CLOUDS.aws.s[2]*coldPct + CLOUDS.aws.s[3]*archivePct;
+  if(activeKey === 'aws'){
+    document.getElementById('bl_saving').textContent      = totalSave + '%';
+    document.getElementById('bl_saving_label').textContent = 'vs naive full 2× Standard';
+    document.getElementById('bl_saving_note').textContent  = 'with tiering + ' + (STRAT[selectedStrat]?.label||'erasure coding');
+    document.getElementById('bl_saving_box').style.background = '#f0fdf4';
+    document.getElementById('bl_saving_box').style.borderColor = '#86efac';
+  } else {
+    const savingPct = awsBlended > 0 ? (((awsBlended - blTotal) / awsBlended) * 100).toFixed(0) : 0;
+    const savingRs  = (awsBlended - blTotal).toFixed(2);
+    const cheaper = blTotal < awsBlended;
+    document.getElementById('bl_saving').textContent      = (cheaper ? '-' : '+') + '₹' + Math.abs(savingRs) + '/GB/mo';
+    document.getElementById('bl_saving_label').textContent = cheaper ? 'cheaper than AWS baseline' : 'more expensive than AWS';
+    document.getElementById('bl_saving_note').textContent  = cheaper
+      ? savingPct + '% saving vs equivalent AWS tiering'
+      : 'consider switching to AWS for cost savings';
+    document.getElementById('bl_saving_box').style.background = cheaper ? '#f0fdf4' : '#fff7ed';
+    document.getElementById('bl_saving_box').style.borderColor = cheaper ? '#86efac' : '#fed7aa';
+    document.getElementById('bl_saving_box').querySelector('.blended-val').style.color = cheaper ? '#0F6E56' : '#c2410c';
+  }
+
+  // Tier detail table
+  const tiers = [
+    { name:'Hot (0–6 mo)',   pct:hotPct,     rp:rHot,  rs:rsHot,  color:'#0F6E56', cls:'S3 Standard' },
+    { name:'Warm (6–24 mo)', pct:warmPct,    rp:rWarm, rs:rsWarm, color:'#185FA5', cls:'S3-IA' },
+    { name:'Cold (2–7 yr)',  pct:coldPct,    rp:rCold, rs:rsCold, color:'#534AB7', cls:'Glacier Instant' },
+    { name:'Archive (7+ yr)',pct:archivePct, rp:rArch, rs:rsArch, color:'#854F0B', cls:'Glacier Deep Archive' },
+  ];
+
+  const costPerDoc = blTotal * docSizeGb;
+  document.getElementById('tier-detail-table').innerHTML = `
+    <table style="font-size:12px;width:100%;border-collapse:collapse">
+      <thead><tr>
+        <th style="text-align:left;padding:7px 10px;border-bottom:1px solid #e2e0d8;background:#faf9f7;font-size:11px;font-weight:600;color:#777">Tier</th>
+        <th style="text-align:right;padding:7px 10px;border-bottom:1px solid #e2e0d8;background:#faf9f7;font-size:11px;font-weight:600;color:#777">% of vault</th>
+        <th style="text-align:right;padding:7px 10px;border-bottom:1px solid #e2e0d8;background:#faf9f7;font-size:11px;font-weight:600;color:#777">Storage class</th>
+        <th style="text-align:right;padding:7px 10px;border-bottom:1px solid #e2e0d8;background:#faf9f7;font-size:11px;font-weight:600;color:#777">Primary ₹/GB/mo</th>
+        <th style="text-align:right;padding:7px 10px;border-bottom:1px solid #e2e0d8;background:#faf9f7;font-size:11px;font-weight:600;color:#777">Secondary ₹/GB/mo</th>
+        <th style="text-align:right;padding:7px 10px;border-bottom:1px solid #e2e0d8;background:#faf9f7;font-size:11px;font-weight:600;color:#777">Blended cost/doc/mo</th>
+      </tr></thead>
+      <tbody>
+        ${tiers.map(t => `<tr>
+          <td style="padding:7px 10px;border-bottom:1px solid #f0eeea;font-weight:600;color:${t.color}">${t.name}</td>
+          <td style="text-align:right;padding:7px 10px;border-bottom:1px solid #f0eeea">${(t.pct*100).toFixed(0)}%</td>
+          <td style="text-align:right;padding:7px 10px;border-bottom:1px solid #f0eeea;color:#666">${t.cls}</td>
+          <td style="text-align:right;padding:7px 10px;border-bottom:1px solid #f0eeea">₹${t.rp.toFixed(2)}</td>
+          <td style="text-align:right;padding:7px 10px;border-bottom:1px solid #f0eeea">₹${t.rs.toFixed(2)}</td>
+          <td style="text-align:right;padding:7px 10px;border-bottom:1px solid #f0eeea;font-weight:600">₹${((t.rp+t.rs)*docSizeGb).toFixed(4)}</td>
+        </tr>`).join('')}
+        <tr style="background:#f5f5f3">
+          <td colspan="5" style="padding:7px 10px;font-weight:600">Blended (weighted average)</td>
+          <td style="text-align:right;padding:7px 10px;font-weight:700;color:#0F6E56">₹${costPerDoc.toFixed(4)}/doc/mo</td>
+        </tr>
+        <tr style="background:#fef9c3">
+          <td colspan="5" style="padding:7px 10px;font-weight:600">Naive 2× Standard (no tiering)</td>
+          <td style="text-align:right;padding:7px 10px;font-weight:700;color:#b91c1c">₹${(naiveCost*docSizeGb).toFixed(4)}/doc/mo</td>
+        </tr>
+      </tbody>
+    </table>
+  `;
+}
+
+function v(id){ const el = document.getElementById(id); return el ? (parseFloat(el.value)||0) : 0; }
+
+function fmtK(n){
+  const sign = n < 0 ? '-' : '';
+  n = Math.abs(Math.round(n));
+  if(n >= 10000000) return sign+'₹'+(n/10000000).toFixed(2)+' Cr';
+  if(n >= 100000)   return sign+'₹'+(n/100000).toFixed(1)+' L';
+  if(n >= 1000)     return sign+'₹'+(n/1000).toFixed(0)+'k';
+  return sign+'₹'+n.toLocaleString('en-IN');
+}
+function fmtFull(n){ return '₹'+Math.round(n).toLocaleString('en-IN'); }
+function fmtN(n){ return Math.round(n).toLocaleString('en-IN'); }
+
+function recalc(){
+  const orgs0        = v('i_orgs');
+  const empPerOrg    = v('i_emp_per_org');
+  const newOrgsMo    = v('i_new_orgs_mo');
+  const docsPerEmp   = v('i_docs_per_emp');
+  const seatFee      = v('i_seat_fee');
+  const docFee       = v('i_doc_fee');
+  const setupFee     = v('i_setup_fee');
+  const legalPct     = v('i_legal_hold_pct') / 100;
+  const legalFee     = v('i_legal_fee');
+  const selfupPct0   = v('i_selfup_pct') / 100;
+  const selfupDocs   = v('i_selfup_docs');
+  const selfupFree   = v('i_selfup_free');
+  const selfupFee    = v('i_selfup_fee');
+  const selfupProc   = v('i_selfup_proc');
+  const selfupGrowth = v('i_selfup_growth') / 100;
+  const premPct0     = v('i_emp_premium_pct') / 100;
+  const premPrice    = v('i_premium_price');
+  const selfDocs     = v('i_self_docs');
+  const premGrowth   = v('i_prem_growth') / 100;
+  const bgvCos       = v('i_bgv_cos');
+  const bgvCalls0    = v('i_bgv_calls');
+  const bgvPrice     = v('i_bgv_price');
+  const bgvSub       = v('i_bgv_sub');
+  const bgvGrowth    = v('i_bgv_growth') / 100;
+  const bankCos      = v('i_bank_cos');
+  const bankCalls    = v('i_bank_calls');
+  const bankPrice    = v('i_bank_price');
+  const bankSub      = v('i_bank_sub');
+  const months       = Math.max(1, Math.round(v('i_months')));
+
+  const eYugabyte    = v('e_yugabyte'); const eKafka  = v('e_kafka'); const eRedis  = v('e_redis');
+  const eApiEc2      = v('e_api_ec2');  const eGpu    = v('e_gpu');   const eKms    = v('e_kms');
+  const eCdn         = v('e_cdn');      const eTemporal=v('e_temporal'); const eMonitoring=v('e_monitoring');
+  const eSecurity    = v('e_security'); const infraGrowth = v('e_infra_growth') / 100;
+  const eTextract    = v('e_textract'); const ePagesPerDoc = v('e_pages_per_doc');
+  const eSes         = v('e_ses');      const eEmailsPerEmp = v('e_emails_per_emp');
+  const eSms         = v('e_sms');      const eSmsPerEmp = v('e_sms_per_emp');
+  const eEng         = v('e_eng');      const eProduct = v('e_product'); const eSales = v('e_sales');
+  const eCs          = v('e_cs');       const eGa = v('e_ga');          const ePeopleGrowth = v('e_people_growth') / 100;
+  const eOffice      = v('e_office');   const eSaas = v('e_saas');      const eMktg = v('e_mktg');
+  const eLegal       = v('e_legal');    const eMisc = v('e_misc');
+
+  const docSizeKb    = v('e_doc_size_kb');
+  const docSizeGb    = docSizeKb / (1024 * 1024);
+  const s3PerGb      = blendedS3PerGb > 0 ? blendedS3PerGb : 2.0; // fallback if storage tab not visited
+
+  const baseInfraFixed = eYugabyte+eKafka+eRedis+eApiEc2+eGpu+eKms+eCdn+eTemporal+eMonitoring+eSecurity;
+  const basePeople     = eEng+eProduct+eSales+eCs+eGa;
+  const baseOtherOpex  = eOffice+eSaas+eMktg+eLegal+eMisc;
+
+  const rows = [];
+  let totalOrgs=orgs0, bgvCalls=bgvCalls0, premPct=premPct0, selfupPct=selfupPct0, cumPL=0;
+
+  for(let m=1; m<=months; m++){
+    if(m>1) totalOrgs += newOrgsMo;
+    const totalEmp   = totalOrgs * empPerOrg;
+    const activeDocs = totalEmp * docsPerEmp;
+    const legalDocs  = activeDocs * legalPct;
+
+    const seatRev    = totalEmp * seatFee;
+    const docStoreRv = activeDocs * docFee;
+    const legalDocRv = legalDocs * legalFee;
+    const setupRev   = (m===1?orgs0:newOrgsMo) * setupFee;
+    const empRev     = seatRev + docStoreRv + legalDocRv + setupRev;
+    const bgvRev     = bgvCos*bgvCalls*bgvPrice + bgvCos*bgvSub;
+    const bankRev    = bankCos*bankCalls*bankPrice + bankCos*bankSub;
+    // Free-tier self-upload revenue: storage on docs beyond free quota + per-upload processing fee
+    const selfupEmps      = totalEmp * selfupPct;
+    const paidSelfupDocs  = Math.max(0, selfupDocs - selfupFree); // docs beyond free quota per emp
+    const selfupStorageRev= selfupEmps * paidSelfupDocs * selfupFee;
+    // Processing fee: each emp uploads selfupDocs total; assume spread over first 6 months (one-time)
+    const selfupProcRev   = m <= 6 ? (selfupEmps / 6) * selfupDocs * selfupProc : 0;
+    const selfupRev       = selfupStorageRev + selfupProcRev;
+
+    const premEmps   = totalEmp * premPct;
+    const premRev    = premEmps*premPrice + premEmps*selfDocs*1; // premium includes unlimited storage
+    const totalRev   = empRev + bgvRev + bankRev + selfupRev + premRev;
+
+    const infraFixed  = baseInfraFixed * Math.pow(1+infraGrowth, m-1);
+    // S3 cost: cumulative docs stored × doc size × blended rate
+    const cumDocs     = activeDocs * m; // simplified cumulative
+    const s3Cost      = cumDocs * docSizeGb * s3PerGb;
+    const textractCost= (m===1?orgs0:newOrgsMo)*empPerOrg*docsPerEmp * ePagesPerDoc * eTextract;
+    const emailCost   = (totalEmp*eEmailsPerEmp/1000)*eSes;
+    const smsCost     = totalEmp*eSmsPerEmp*eSms;
+    const perDocCost  = textractCost + emailCost + smsCost;
+    const people      = basePeople * Math.pow(1+ePeopleGrowth, m-1);
+    const otherOpex   = baseOtherOpex;
+    const totalCost   = infraFixed + s3Cost + perDocCost + people + otherOpex;
+    const pl          = totalRev - totalCost;
+    const margin      = totalRev>0 ? (pl/totalRev)*100 : 0;
+    cumPL += pl;
+
+    rows.push({m,totalOrgs,totalEmp,activeDocs,empRev,bgvRev,bankRev,selfupRev,premRev,totalRev,infraFixed,s3Cost,perDocCost,people,otherOpex,totalCost,pl,margin,cumPL});
+    bgvCalls *= (1+bgvGrowth);
+    premPct   = Math.min(1, premPct*(1+premGrowth));
+    selfupPct = Math.min(0.6, selfupPct*(1+selfupGrowth)); // cap at 60% of employees
+  }
+
+  const last      = rows[rows.length-1];
+  const breakEven = rows.find(r => r.cumPL >= 0);
+  const profitCls = last.pl>=0?'green':'red';
+  const cumCls    = cumPL>=0?'green':'amber';
+
+  document.getElementById('summary-cards').innerHTML=`
+    <div class="metric"><div class="metric-label">Monthly revenue (M${months})</div><div class="metric-val prana-green">${fmtK(last.totalRev)}</div><div class="metric-note">ARR ${fmtK(last.totalRev*12)}</div></div>
+    <div class="metric"><div class="metric-label">Monthly total cost (M${months})</div><div class="metric-val">${fmtK(last.totalCost)}</div><div class="metric-note">S3: ${fmtK(last.s3Cost)} · people: ${fmtK(last.people)}</div></div>
+    <div class="metric ${profitCls}"><div class="metric-label">Monthly profit / (loss) M${months}</div><div class="metric-val">${fmtK(last.pl)}</div><div class="metric-note">margin ${last.margin.toFixed(1)}% · strat: ${STRAT[selectedStrat].label}</div></div>
+    <div class="metric ${cumCls}"><div class="metric-label">Cumulative P&L (${months} months)</div><div class="metric-val">${fmtK(cumPL)}</div><div class="metric-note">${breakEven?'Break-even M'+breakEven.m:'No break-even in window'}</div></div>
+  `;
+
+  document.getElementById('pl-tbody').innerHTML=rows.map(r=>{
+    const cls=r.pl>=0?'td-green':'td-red';
+    const cCls=r.cumPL>=0?'td-green':'td-red';
+    return `<tr><td>M${r.m}</td><td class="td-green">${fmtK(r.totalRev)}</td><td>${fmtK(r.infraFixed)}</td><td>${fmtK(r.s3Cost)}</td><td>${fmtK(r.perDocCost)}</td><td>${fmtK(r.people)}</td><td>${fmtK(r.otherOpex)}</td><td class="td-red">${fmtK(r.totalCost)}</td><td class="${cls}" style="font-weight:700">${fmtK(r.pl)}</td><td class="${cls}">${r.margin.toFixed(1)}%</td><td class="${cCls}">${fmtK(r.cumPL)}</td></tr>`;
+  }).join('');
+
+  const labels=rows.map(r=>'M'+r.m);
+  if(plChartInst) plChartInst.destroy();
+  plChartInst=new Chart(document.getElementById('plChart'),{
+    type:'line',
+    data:{labels,datasets:[
+      {label:'Revenue',   data:rows.map(r=>Math.round(r.totalRev)), borderColor:'#0F6E56',backgroundColor:'rgba(15,110,86,.08)',fill:true,tension:.3,borderWidth:2,pointRadius:2},
+      {label:'Total cost',data:rows.map(r=>Math.round(r.totalCost)),borderColor:'#b91c1c',backgroundColor:'rgba(185,28,28,.05)',fill:true,tension:.3,borderWidth:2,pointRadius:2},
+      {label:'Profit/(Loss)',data:rows.map(r=>Math.round(r.pl)),borderColor:'#185FA5',backgroundColor:'transparent',fill:false,tension:.3,borderWidth:2,pointRadius:2,borderDash:[5,3]},
+    ]},
+    options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false},tooltip:{callbacks:{label:c=>c.dataset.label+': '+fmtK(c.raw)}}},scales:{x:{ticks:{font:{size:10},autoSkip:true,maxTicksLimit:18}},y:{ticks:{callback:val=>fmtK(val),font:{size:10}}}}}
+  });
+  document.getElementById('pl-legend').innerHTML=[['#0F6E56','Revenue'],['#b91c1c','Total cost'],['#185FA5','Profit/(Loss) — dashed']].map(([c,l])=>`<span style="display:flex;align-items:center;gap:5px"><span class="legend-dot" style="background:${c}"></span>${l}</span>`).join('');
+
+  const mixData=[last.empRev,last.bgvRev,last.bankRev,last.selfupRev,last.premRev];
+  const mixTotal=mixData.reduce((a,b)=>a+b,0)||1;
+  const colors4=['#0F6E56','#854F0B','#534AB7','#16a34a','#185FA5'];
+  const labels4=['Employer','BGV','Bank/NBFC','Emp self-upload','Emp premium'];
+  if(mixChartInst) mixChartInst.destroy();
+  mixChartInst=new Chart(document.getElementById('mixChart'),{type:'doughnut',data:{labels:labels4,datasets:[{data:mixData,backgroundColor:colors4,borderWidth:0}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false},tooltip:{callbacks:{label:c=>c.label+': '+fmtK(c.raw)+' ('+((c.raw/mixTotal)*100).toFixed(1)+'%)'}}}}});
+  document.getElementById('mix-legend').innerHTML=labels4.map((l,i)=>{const pct=((mixData[i]/mixTotal)*100).toFixed(1);return`<div style="display:flex;align-items:center;gap:8px;margin-bottom:10px"><span class="legend-dot" style="background:${colors4[i]};width:14px;height:14px;border-radius:3px;flex-shrink:0"></span><div><div style="font-size:13px;font-weight:600;color:#111">${l}</div><div style="font-size:12px;color:#666">${fmtK(mixData[i])}/mo · ${pct}%</div></div></div>`;}).join('');
+
+  const perOrgSeat=empPerOrg*seatFee; const perOrgDoc=empPerOrg*docsPerEmp*docFee; const perOrgMRR=perOrgSeat+perOrgDoc;
+  const perOrgS3=(empPerOrg*docsPerEmp*docSizeGb)*s3PerGb;
+  document.getElementById('per-org-card').innerHTML=`
+    <div class="row"><span class="rl">Seat fee / month</span><span class="rv">${fmtFull(perOrgSeat)}</span></div>
+    <div class="row"><span class="rl">Doc storage / month</span><span class="rv">${fmtFull(perOrgDoc)}</span></div>
+    <div class="row"><span class="rl">Monthly recurring (MRR)</span><span class="rv green">${fmtFull(perOrgMRR)}</span></div>
+    <div class="row"><span class="rl">S3 cost / month (blended ${STRAT[selectedStrat].label})</span><span class="rv red">-${fmtFull(perOrgS3)}</span></div>
+    <div class="row"><span class="rl">Setup fee (one-time)</span><span class="rv">${fmtFull(setupFee)}</span></div>
+    <div class="row"><span class="rl">Year 1 total (incl. setup)</span><span class="rv green">${fmtFull(perOrgMRR*12+setupFee)}</span></div>
+    <div class="row"><span class="rl">LTV at 5 years</span><span class="rv">${fmtFull(perOrgMRR*60+setupFee)}</span></div>
+  `;
+
+  const yr1=rows.slice(0,12),yr2=rows.slice(12,24);
+  const sum=(arr,key)=>arr.reduce((s,r)=>s+r[key],0);
+  document.getElementById('yr-compare').innerHTML=[{label:'Year 1',r:yr1},{label:'Year 2',r:yr2}].filter(x=>x.r.length>0).map(x=>{
+    const rev=sum(x.r,'totalRev'),cost=sum(x.r,'totalCost'),pl=rev-cost;
+    return`<div class="card"><div style="font-size:13px;font-weight:600;color:#555;margin-bottom:.75rem">${x.label}</div>
+      <div class="row"><span class="rl">Total revenue</span><span class="rv green">${fmtK(rev)}</span></div>
+      <div class="row"><span class="rl">Total cost</span><span class="rv red">${fmtK(cost)}</span></div>
+      <div class="row"><span class="rl">Net profit / (loss)</span><span class="rv ${pl>=0?'green':'red'}">${fmtK(pl)}</span></div>
+      <div class="row"><span class="rl">Avg margin</span><span class="rv">${(pl/rev*100).toFixed(1)}%</span></div>
+      <div class="row"><span class="rl">Ending orgs</span><span class="rv">${fmtN(x.r[x.r.length-1].totalOrgs)}</span></div>
+    </div>`;
+  }).join('');
+
+  document.getElementById('calc-note').textContent='Updated '+new Date().toLocaleTimeString();
+}
+
+function showTab(name){
+  document.querySelectorAll('.tab').forEach(t=>t.classList.remove('active'));
+  document.querySelectorAll('.tab-panel').forEach(p=>p.classList.remove('active'));
+  document.querySelector(`.tab[onclick="showTab('${name}')"]`).classList.add('active');
+  document.getElementById('tab-'+name).classList.add('active');
+  if(name==='storage'){ calcStorage(); calcMinio(); }
+  if(name!=='inputs'&&name!=='expenses'&&name!=='morerv'&&name!=='storage') recalc();
+}
+
+function calcMinio(){
+  const hotNodes     = Math.max(4, Math.round(v('m_hot_nodes')));
+  const hotTbNode    = v('m_hot_tb') || 7.5;
+  const nodeCost     = v('m_hot_node_cost') || 37000;
+  const ecOverhead   = (v('m_ec_overhead') || 50) / 100;
+  const opsSalary    = v('m_ops_salary') || 150000;
+  const tooling      = v('m_tooling') || 20000;
+
+  const rawTb        = hotNodes * hotTbNode;
+  const usableTb     = rawTb * (1 - ecOverhead);
+  const usableGb     = usableTb * 1024;
+  const fixedCost    = (hotNodes * nodeCost) + opsSalary + tooling;
+  const costPerGb    = usableGb > 0 ? fixedCost / usableGb : 0;
+
+  const s3Standard   = 2.0;   // ₹/GB/mo S3 Standard
+  const s3IA         = 1.25;  // ₹/GB/mo S3-IA
+
+  // Break-even vs S3 Standard: fixedCost / (s3Standard - 0) = GB needed
+  // At X GB: MinIO cost = fixedCost (flat), S3 cost = X * s3Standard
+  // MinIO wins when fixedCost < X * s3Standard → X > fixedCost / s3Standard
+  const beVsStd  = fixedCost / s3Standard;
+  const beVsIA   = fixedCost / s3IA;
+  const beVsStdTb = beVsStd / 1024;
+  const beVsIATb  = beVsIA / 1024;
+
+  const resultCard = document.getElementById('minio-result-card');
+  if(resultCard) resultCard.innerHTML = `
+    <div style="font-size:12px;font-weight:600;color:#111;margin-bottom:.75rem">MinIO cluster — calculated</div>
+    <div class="row"><span class="rl">Nodes</span><span class="rv">${hotNodes} × i3en (NVMe)</span></div>
+    <div class="row"><span class="rl">Raw storage</span><span class="rv">${rawTb.toFixed(1)} TB</span></div>
+    <div class="row"><span class="rl">Usable (after EC overhead)</span><span class="rv">${usableTb.toFixed(1)} TB</span></div>
+    <div class="row"><span class="rl">Fixed monthly cost</span><span class="rv red">₹${Math.round(fixedCost).toLocaleString('en-IN')}/mo</span></div>
+    <div class="row"><span class="rl">Effective cost per GB</span><span class="rv" id="minio-cpgb" style="color:${costPerGb < s3Standard ? '#0F6E56' : '#b91c1c'}">₹${costPerGb.toFixed(2)}/GB/mo</span></div>
+    <div class="row"><span class="rl">S3 Standard comparison</span><span class="rv">₹${s3Standard.toFixed(2)}/GB/mo</span></div>
+  `;
+
+  const verdictCard = document.getElementById('minio-verdict-card');
+  if(verdictCard){
+    const atCapacity = usableTb >= 150;
+    verdictCard.innerHTML = `
+      <div style="font-size:12px;font-weight:600;color:#111;margin-bottom:.75rem">Break-even vs S3</div>
+      <div class="row"><span class="rl">MinIO beats S3 Standard at</span><span class="rv ${beVsStdTb < 500 ? 'amber' : 'red'}">${beVsStdTb.toFixed(0)} TB hot data</span></div>
+      <div class="row"><span class="rl">MinIO beats S3-IA at</span><span class="rv red">${beVsIATb.toFixed(0)} TB hot data</span></div>
+      <div class="row"><span class="rl">At this cluster size usable</span><span class="rv">${usableTb.toFixed(1)} TB</span></div>
+      <div style="margin-top:10px;padding:8px 10px;border-radius:8px;font-size:11px;font-weight:600;
+        background:${costPerGb <= s3Standard ? '#f0fdf4' : '#fef2f2'};
+        color:${costPerGb <= s3Standard ? '#15803d' : '#b91c1c'}">
+        ${costPerGb <= s3Standard
+          ? `MinIO is cheaper at this cluster size — but only if you actually fill ${usableTb.toFixed(0)} TB. Idle capacity wastes the advantage.`
+          : `S3 is cheaper until you reach ${beVsStdTb.toFixed(0)} TB. At PRANA's current growth, that's Year ${Math.ceil(beVsStdTb/50)}+.`}
+      </div>
+    `;
+  }
+
+  // Build break-even chart: x = TB of data, y = ₹/GB/mo
+  const tbPoints = [1,5,10,25,50,100,150,200,300,500,750,1000];
+  const minioLine = tbPoints.map(tb => parseFloat((fixedCost / (tb * 1024)).toFixed(4)));
+  const s3Line    = tbPoints.map(() => s3Standard);
+  const iaLine    = tbPoints.map(() => s3IA);
+
+  if(minioChartInst) minioChartInst.destroy();
+  minioChartInst = new Chart(document.getElementById('minioChart'), {
+    type: 'line',
+    data: {
+      labels: tbPoints.map(t => t >= 1000 ? (t/1000)+'PB' : t+'TB'),
+      datasets: [
+        { label:'MinIO ₹/GB/mo', data: minioLine, borderColor:'#0F6E56', backgroundColor:'rgba(15,110,86,.06)', fill:true,  tension:0.3, borderWidth:2, pointRadius:2 },
+        { label:'S3 Standard',   data: s3Line,    borderColor:'#b91c1c', backgroundColor:'transparent',          fill:false, tension:0,   borderWidth:1.5, borderDash:[4,3], pointRadius:0 },
+        { label:'S3-IA',         data: iaLine,    borderColor:'#185FA5', backgroundColor:'transparent',          fill:false, tension:0,   borderWidth:1.5, borderDash:[4,3], pointRadius:0 },
+      ]
+    },
+    options: {
+      responsive:true, maintainAspectRatio:false,
+      plugins:{ legend:{display:false}, tooltip:{ callbacks:{ label: c => c.dataset.label+': ₹'+parseFloat(c.raw).toFixed(2)+'/GB/mo' } } },
+      scales:{
+        x:{ ticks:{font:{size:10}} },
+        y:{ ticks:{ callback: val => '₹'+parseFloat(val).toFixed(2), font:{size:10} }, min:0 }
+      }
+    }
+  });
+
+  const note = document.getElementById('minio-breakeven-note');
+  if(note) note.textContent =
+    `With this cluster config, MinIO beats S3 Standard at ${beVsStdTb.toFixed(0)} TB and S3-IA at ${beVsIATb.toFixed(0)} TB of hot data. `+
+    `Cold/archive always stays on Glacier regardless — MinIO only replaces the hot tier.`;
+}
+
+// Init
+calcStorage();
+calcMinio();
+recalc();
+</script>
+</body>
+</html>

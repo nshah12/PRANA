@@ -67,6 +67,28 @@ async def test_login_user_not_found_returns_401_without_revealing_existence(clie
 
 
 @pytest.mark.asyncio
+async def test_login_user_not_found_still_writes_login_attempt_log(client, mock_db):
+    """Regression guard: an unknown identifier must still leave an audit trail
+    (user_id=NULL, failure_reason=UNKNOWN_USER) — matching the pattern
+    routers/auth_oa.py already uses. Without this, brute-force/enumeration
+    against non-existent accounts is invisible to login_attempt_log and to
+    the BRUTE_FORCE anomaly detector that reads from it."""
+    mock_db.fetchrow.return_value = None
+    with patch("routers.auth_employee.verify_password", return_value=False):
+        await client.post("/auth/employee/login", json={
+            "identifier": "nobody@example.com",
+            "password": "whatever",
+        })
+
+    insert_call = next(
+        c for c in mock_db.execute.call_args_list if "INSERT INTO login_attempt_log" in c.args[0]
+    )
+    sql, *args = insert_call.args
+    assert args[0] is None  # user_id
+    assert "UNKNOWN_USER" in args
+
+
+@pytest.mark.asyncio
 async def test_login_wrong_password_returns_401(client, mock_db):
     mock_db.fetchrow.return_value = _emp_row()
     with patch("routers.auth_employee.verify_password", return_value=False):
@@ -192,6 +214,7 @@ async def test_totp_verify_wrong_code_returns_401(client, mock_db, mock_redis):
         {"totp_secret_enc": "ENC_TOTP", "failed_totp_count": 0, "status": "ACTIVE"},
         {"config_value": "5"},
     ]
+    mock_db.fetchval.return_value = 1  # atomic increment → below lock threshold
     with patch("routers.auth_employee.TOTPService") as MockTOTP:
         MockTOTP.return_value.verify.return_value = False
         resp = await client.post("/auth/employee/totp", json={
@@ -210,6 +233,7 @@ async def test_totp_5_failures_locks_account(client, mock_db, mock_redis):
         {"totp_secret_enc": "ENC_TOTP", "failed_totp_count": 4, "status": "ACTIVE"},
         {"config_value": "5"},
     ]
+    mock_db.fetchval.return_value = 5  # atomic increment → hits lock threshold
     with patch("routers.auth_employee.TOTPService") as MockTOTP:
         MockTOTP.return_value.verify.return_value = False
         resp = await client.post("/auth/employee/totp", json={

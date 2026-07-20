@@ -2,6 +2,7 @@ import { useQuery } from '@tanstack/react-query'
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid } from 'recharts'
 import { Download } from 'lucide-react'
 import { api } from '@/lib/api'
+import { tUi } from '@/i18n'
 
 export function VaultHealthChro() {
   const { data, isLoading } = useQuery({
@@ -13,12 +14,12 @@ export function VaultHealthChro() {
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-xl font-semibold text-slate-800">Vault Health Dashboard</h1>
-          <p className="text-sm text-slate-500 mt-0.5">Organisation-wide document completeness</p>
+          <h1 className="text-xl font-semibold text-slate-800">{tUi('CHRO_VAULT_HEALTH_TITLE')}</h1>
+          <p className="text-sm text-slate-500 mt-0.5">{tUi('CHRO_VAULT_HEALTH_SUB')}</p>
         </div>
         <button className="flex items-center gap-2 px-4 py-2 border border-slate-200
                            rounded-lg text-sm font-medium text-slate-600 hover:bg-canvas2">
-          <Download size={14}/> Export PDF
+          <Download size={14}/> {tUi('CHRO_VAULT_HEALTH_EXPORT_PDF')}
         </button>
       </div>
 
@@ -41,9 +42,9 @@ export function VaultHealthChro() {
 
       {/* Dept breakdown chart */}
       <div className="bg-white rounded-xl border border-slate-100 shadow-sm p-6">
-        <h2 className="font-medium text-slate-800 mb-4">Department breakdown</h2>
+        <h2 className="font-medium text-slate-800 mb-4">{tUi('CHRO_VAULT_HEALTH_DEPT_BREAKDOWN')}</h2>
         {isLoading ? (
-          <div className="h-48 flex items-center justify-center text-slate-400 text-sm">Loading…</div>
+          <div className="h-48 flex items-center justify-center text-slate-400 text-sm">{tUi('CFO_DIGEST_LOADING')}</div>
         ) : (
           <ResponsiveContainer width="100%" height={240}>
             <BarChart data={data?.by_department ?? []}>
@@ -60,7 +61,7 @@ export function VaultHealthChro() {
       {/* Gap cards */}
       {data?.gaps?.length > 0 && (
         <div className="bg-white rounded-xl border border-slate-100 shadow-sm p-6 space-y-3">
-          <h2 className="font-medium text-slate-800">Gaps detected</h2>
+          <h2 className="font-medium text-slate-800">{tUi('CHRO_VAULT_HEALTH_GAPS_DETECTED')}</h2>
           {data.gaps.map((gap: any, i: number) => (
             <div key={i} className="flex items-center justify-between p-4 bg-canvas2 rounded-xl">
               <div>

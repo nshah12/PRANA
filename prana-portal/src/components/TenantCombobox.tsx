@@ -2,6 +2,7 @@ import { useState, useRef, useEffect } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { api } from '@/lib/api'
 import { Search, ChevronDown } from 'lucide-react'
+import { tUi } from '@/i18n'
 
 interface Tenant {
   tenant_id: string
@@ -132,7 +133,7 @@ export function TenantCombobox({ value, onChange, placeholder = 'Search tenantâ€
               </div>
             )}
             {!isLoading && tenants.length === 0 && (
-              <p className="text-sm text-slate-400 text-center py-4">No tenants found</p>
+              <p className="text-sm text-slate-400 text-center py-4">{tUi('TENANT_COMBOBOX_NO_RESULTS')}</p>
             )}
             {tenants.map(t => (
               <button

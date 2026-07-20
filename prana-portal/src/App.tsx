@@ -36,6 +36,8 @@ import { UserManagement }  from '@/pages/oa/UserManagement'
 import { ElevationPage }   from '@/pages/oa/ElevationPage'
 import { OrgSettings }     from '@/pages/oa/OrgSettings'
 import { OrgProfile }      from '@/pages/oa/OrgProfile'
+import { ResetTotp }       from '@/pages/oa/ResetTotp'
+import { EmployeePasswordReset as OaEmployeePasswordReset } from '@/pages/oa/EmployeePasswordReset'
 
 // CHRO pages
 import { VaultHealthChro }      from '@/pages/chro/VaultHealthChro'
@@ -46,6 +48,8 @@ import { MonthlySummary }       from '@/pages/chro/MonthlySummary'
 import { QuarterlyReport }      from '@/pages/chro/QuarterlyReport'
 import { AlertConfig }          from '@/pages/chro/AlertConfig'
 import { StatutoryCompliance }  from '@/pages/chro/StatutoryCompliance'
+import { AlumniNetwork }        from '@/pages/chro/AlumniNetwork'
+import { CompBenchmarking }     from '@/pages/chro/CompBenchmarking'
 
 // CFO pages
 import { PayrollIntelligence } from '@/pages/cfo/PayrollIntelligence'
@@ -77,6 +81,7 @@ import { SecOpsDashboard }   from '@/pages/pa/SecOpsDashboard'
 import { AnomalyDetection }  from '@/pages/pa/AnomalyDetection'
 import { IncidentRegister }         from '@/pages/pa/IncidentRegister'
 import { SecurityIncidentRegister } from '@/pages/pa/SecurityIncidentRegister'
+import { IncidentPolicyConfig }     from '@/pages/pa/IncidentPolicyConfig'
 import { PaNotificationLog }        from '@/pages/pa/PaNotificationLog'
 import { CryptoHealth }             from '@/pages/pa/CryptoHealth'
 import { ApiKeys }           from '@/pages/pa/ApiKeys'
@@ -108,12 +113,18 @@ import { TenantDirectory }      from '@/pages/pa/TenantDirectory'
 import { TenantDetail }         from '@/pages/pa/TenantDetail'
 import { CreateTenantWizard }  from '@/pages/pa/CreateTenantWizard'
 import { OaEmergency }       from '@/pages/pa/OaEmergency'
+import { EmployeeTotpReset } from '@/pages/pa/EmployeeTotpReset'
+import { PaUnlock }          from '@/pages/pa/PaUnlock'
+import { EmployeePasswordReset as PaEmployeePasswordReset } from '@/pages/pa/EmployeePasswordReset'
+import { EmployeeMerge } from '@/pages/pa/EmployeeMerge'
 import { StorageRequests }   from '@/pages/pa/StorageRequests'
 import { PipelineHealth }    from '@/pages/pa/PipelineHealth'
 import { AuditTrail }        from '@/pages/pa/AuditTrail'
 import { RateLimits }        from '@/pages/pa/RateLimits'
 import { Announcements }     from '@/pages/pa/Announcements'
 import { ContactInquiries }  from '@/pages/pa/ContactInquiries'
+import { HRMSCatalogue }    from '@/pages/pa/HRMSCatalogue'
+import { HRMSSettings }     from '@/pages/oa/HRMSSettings'
 
 // Zustand's `persist` middleware rehydrates from localStorage asynchronously —
 // on first render after a page reload, `user` is still null even for an
@@ -130,24 +141,75 @@ function useHasHydrated(store: { persist: { hasHydrated: () => boolean; onFinish
   return hydrated
 }
 
-function RequireEmpAuth({ children }: { children: React.ReactNode }) {
-  const user = useEmpAuthStore(s => s.user)
-  const hydrated = useHasHydrated(useEmpAuthStore)
-  const location = useLocation()
+function AuthBootstrapSpinner() {
+  return (
+    <div className="min-h-screen flex items-center justify-center">
+      <div className="w-8 h-8 border-2 border-slate-200 border-t-sky-500 rounded-full animate-spin" />
+    </div>
+  )
+}
+
+export function RequireEmpAuth({ children }: { children: React.ReactNode }) {
+  const user           = useEmpAuthStore(s => s.user)
+  const accessToken    = useEmpAuthStore(s => s.accessToken)
+  const setAccessToken = useEmpAuthStore(s => s.setAccessToken)
+  const logout         = useEmpAuthStore(s => s.logout)
+  const hydrated       = useHasHydrated(useEmpAuthStore)
+  const location       = useLocation()
+
+  // Access token lives in memory only (never persisted — CLAUDE.md), so it's
+  // null on every fresh tab/reload even when `user` is a valid persisted
+  // session. Resolve it proactively via the httpOnly refresh cookie BEFORE
+  // rendering children, instead of letting every child query fire, 401, and
+  // retry after a reactive refresh — same outcome, half the network calls,
+  // and no false 401s in the browser console/network tab.
+  const [bootstrapping, setBootstrapping] = useState(!accessToken && !!user)
+  useEffect(() => {
+    if (user && !accessToken) {
+      api.post('/auth/employee/refresh', {}, { withCredentials: true })
+        .then(({ data }) => setAccessToken(data.access_token))
+        .catch(() => logout())
+        .finally(() => setBootstrapping(false))
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
+  // Must wait for the persisted `user` to rehydrate before deciding to
+  // redirect — otherwise every refresh briefly sees user=null and bounces
+  // to login before localStorage has a chance to load.
   if (!hydrated) return null
-  if (!user) return <Navigate to="/emp/login" state={{ from: location }} replace />
+  if (!user && !accessToken) return <Navigate to="/emp/login" state={{ from: location }} replace />
+  if (bootstrapping) return <AuthBootstrapSpinner />
   return <>{children}</>
 }
 
-function RequireAuth({ children }: { children: React.ReactNode }) {
-  const user = useAuthStore(s => s.user)
-  const hydrated = useHasHydrated(useAuthStore)
-  const location = useLocation()
+export function RequireAuth({ children }: { children: React.ReactNode }) {
+  const user           = useAuthStore(s => s.user)
+  const accessToken    = useAuthStore(s => s.accessToken)
+  const setAccessToken = useAuthStore(s => s.setAccessToken)
+  const logout         = useAuthStore(s => s.logout)
+  const hydrated       = useHasHydrated(useAuthStore)
+  const location       = useLocation()
+
+  // Same proactive-bootstrap rationale as RequireEmpAuth above.
+  const [bootstrapping, setBootstrapping] = useState(!accessToken && !!user)
+  useEffect(() => {
+    if (user && !accessToken) {
+      const refreshPath = user.role === 'portal_admin' ? '/auth/admin/refresh' : '/auth/org/refresh'
+      api.post(refreshPath, {}, { withCredentials: true })
+        .then(({ data }) => setAccessToken(data.access_token))
+        .catch(() => logout())
+        .finally(() => setBootstrapping(false))
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
   if (!hydrated) return null
   if (!user) {
     const loginPage = location.pathname.startsWith('/admin') ? '/admin/login' : '/org/login'
     return <Navigate to={loginPage} replace />
   }
+  if (bootstrapping) return <AuthBootstrapSpinner />
   return <>{children}</>
 }
 
@@ -223,6 +285,9 @@ export default function App() {
       <Route path="/org/elevations" element={<RequireAuth><PortalLayout><ElevationPage /></PortalLayout></RequireAuth>} />
       <Route path="/org/elevation"  element={<RequireAuth><PortalLayout><ElevationPage /></PortalLayout></RequireAuth>} />
       <Route path="/org/settings"   element={<RequireAuth><PortalLayout><OrgSettings /></PortalLayout></RequireAuth>} />
+      <Route path="/org/reset-totp" element={<RequireAuth><PortalLayout><ResetTotp /></PortalLayout></RequireAuth>} />
+      <Route path="/org/reset-password" element={<RequireAuth><PortalLayout><OaEmployeePasswordReset /></PortalLayout></RequireAuth>} />
+      <Route path="/org/hrms"       element={<RequireAuth><PortalLayout><HRMSSettings /></PortalLayout></RequireAuth>} />
       <Route path="/org/profile"    element={<RequireAuth><PortalLayout><OrgProfile /></PortalLayout></RequireAuth>} />
 
       {/* CHRO routes */}
@@ -235,6 +300,8 @@ export default function App() {
       <Route path="/org/alerts"           element={<RequireAuth><PortalLayout><AlertConfig /></PortalLayout></RequireAuth>} />
       <Route path="/org/statutory"         element={<RequireAuth><PortalLayout><StatutoryCompliance /></PortalLayout></RequireAuth>} />
       <Route path="/org/compliance-posture" element={<RequireAuth><PortalLayout><CompliancePosture /></PortalLayout></RequireAuth>} />
+      <Route path="/org/alumni"            element={<RequireAuth><PortalLayout><AlumniNetwork /></PortalLayout></RequireAuth>} />
+      <Route path="/org/comp-benchmarking" element={<RequireAuth><PortalLayout><CompBenchmarking /></PortalLayout></RequireAuth>} />
 
       {/* CFO routes */}
       <Route path="/org/payroll"      element={<RequireAuth><PortalLayout><PayrollIntelligence /></PortalLayout></RequireAuth>} />
@@ -269,6 +336,10 @@ export default function App() {
       <Route path="/admin/tenants/new" element={<RequireAuth><PortalLayout><CreateTenantWizard /></PortalLayout></RequireAuth>} />
       <Route path="/admin/tenants/:id" element={<RequireAuth><PortalLayout><TenantDetail /></PortalLayout></RequireAuth>} />
       <Route path="/admin/oa-override"element={<RequireAuth><PortalLayout><OaEmergency /></PortalLayout></RequireAuth>} />
+      <Route path="/admin/reset-totp" element={<RequireAuth><PortalLayout><EmployeeTotpReset /></PortalLayout></RequireAuth>} />
+      <Route path="/admin/pa-unlock"  element={<RequireAuth><PortalLayout><PaUnlock /></PortalLayout></RequireAuth>} />
+      <Route path="/admin/reset-password" element={<RequireAuth><PortalLayout><PaEmployeePasswordReset /></PortalLayout></RequireAuth>} />
+      <Route path="/admin/employee-merge" element={<RequireAuth><PortalLayout><EmployeeMerge /></PortalLayout></RequireAuth>} />
       <Route path="/admin/storage"    element={<RequireAuth><PortalLayout><StorageRequests /></PortalLayout></RequireAuth>} />
       <Route path="/admin/pipeline"   element={<RequireAuth><PortalLayout><PipelineHealth /></PortalLayout></RequireAuth>} />
       <Route path="/admin/exceptions" element={<RequireAuth><PortalLayout><ExceptionOverview /></PortalLayout></RequireAuth>} />
@@ -276,6 +347,7 @@ export default function App() {
       <Route path="/admin/anomalies"  element={<RequireAuth><PortalLayout><AnomalyDetection /></PortalLayout></RequireAuth>} />
       <Route path="/admin/incidents"           element={<RequireAuth><PortalLayout><IncidentRegister /></PortalLayout></RequireAuth>} />
       <Route path="/admin/security-incidents" element={<RequireAuth><PortalLayout><SecurityIncidentRegister /></PortalLayout></RequireAuth>} />
+      <Route path="/admin/incident-policy"    element={<RequireAuth><PortalLayout><IncidentPolicyConfig /></PortalLayout></RequireAuth>} />
       <Route path="/admin/notifications"      element={<RequireAuth><PortalLayout><PaNotificationLog /></PortalLayout></RequireAuth>} />
       <Route path="/admin/crypto"     element={<RequireAuth><PortalLayout><CryptoHealth /></PortalLayout></RequireAuth>} />
       <Route path="/admin/audit"      element={<RequireAuth><PortalLayout><AuditTrail /></PortalLayout></RequireAuth>} />
@@ -283,6 +355,7 @@ export default function App() {
       <Route path="/admin/rate-limits"      element={<RequireAuth><PortalLayout><RateLimits /></PortalLayout></RequireAuth>} />
       <Route path="/admin/announcements"   element={<RequireAuth><PortalLayout><Announcements /></PortalLayout></RequireAuth>} />
       <Route path="/admin/inquiries"      element={<RequireAuth><PortalLayout><ContactInquiries /></PortalLayout></RequireAuth>} />
+      <Route path="/admin/hrms"          element={<RequireAuth><PortalLayout><HRMSCatalogue /></PortalLayout></RequireAuth>} />
 
       {/* Employee self-service portal */}
       <Route path="/emp/login" element={<EmpLogin />} />

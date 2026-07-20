@@ -85,8 +85,10 @@ async def test_save_config_upserts_correct_key(svc):
 # ── validate_window ────────────────────────────────────────────────────────────
 
 def test_validate_window_rejects_future_to():
+    # validate_window allows up to now+1day+1min slack (exclusive bound for to_date).
+    # Must exceed that threshold to trigger DATE_RANGE_FUTURE.
     from_dt = dt.datetime.now(UTC) - dt.timedelta(days=7)
-    to_dt   = dt.datetime.now(UTC) + dt.timedelta(hours=2)
+    to_dt   = dt.datetime.now(UTC) + dt.timedelta(days=2)
     with pytest.raises(ValueError) as exc_info:
         validate_window(from_dt, to_dt)
     assert exc_info.value.args[0]["error"] == "DATE_RANGE_FUTURE"

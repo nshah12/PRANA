@@ -20,7 +20,8 @@ rapidfuzz==3.10.0     # fuzzy name matching (Stage 05)
 
 # Scanning
 clamd==1.0.2          # ClamAV Python client
-# NSFW/CSAM: wire PhotoDNA or custom model — placeholder in stage03_scan.py
+nudenet==3.4.2        # NSFW detection — v3 API, SUFFIX-based labels (*_EXPOSED / *_COVERED)
+# CSAM: SHA-256 hash list (NCMEC/PhotoDNA) + optional Microsoft PhotoDNA Cloud API — see stage03_scan.py
 
 # Encryption
 cryptography==43.0.1

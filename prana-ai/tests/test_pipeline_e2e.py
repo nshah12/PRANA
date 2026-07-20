@@ -43,7 +43,6 @@ def _manifest(
 ) -> ManifestData:
     return ManifestData(
         manifest_id="m-e2e-001",
-        tenant_id=None,
         doc_type=doc_type,
         required_fields=required_fields or ["employee_name", "net_pay", "pay_period_month"],
         identity_fields=identity_fields or ["pan_number", "employee_id", "employee_name"],
@@ -102,7 +101,21 @@ def _make_stage04(llm_response: str = None, manifest: ManifestData = None) -> tu
 def _make_stage05(employee_uuid=None) -> tuple:
     from resolution.resolution_service import ResolutionResult
     mock_db = AsyncMock()
-    mock_db.fetchrow.return_value = {"employee_uuid": employee_uuid or uuid4()}
+
+    # fetchrow serves two distinct callers behind the same mock:
+    #   1. Stage05Resolve.run()'s cross-tenant check
+    #      ("SELECT tenant_id FROM employee_master ...") — no row = no violation.
+    #   2. ResolutionService._match_pan_token()
+    #      ("SELECT em.employee_uuid FROM employee_master ...") — resolves the employee.
+    # A single blanket return_value can't satisfy both column shapes, so dispatch on
+    # the query text (mirrors the real distinct queries in stage05_resolve.py /
+    # resolution_service.py).
+    async def _fetchrow(query, *args, **kwargs):
+        if "SELECT tenant_id" in query:
+            return None
+        return {"employee_uuid": employee_uuid or uuid4()}
+
+    mock_db.fetchrow = AsyncMock(side_effect=_fetchrow)
     mock_emb = AsyncMock()
     mock_emb.embed.return_value = [0.1] * 768
     stage = Stage05Resolve(db=mock_db, embedding_client=mock_emb, qdrant_client=None)
@@ -118,8 +131,13 @@ def _make_stage06() -> tuple:
         "p25": 800000, "p50": 1100000, "p75": 1400000, "p90": 1800000,
         "band_label": "Senior Engineer",
     }
-    mock_db.transaction.return_value.__aenter__ = AsyncMock(return_value=None)
-    mock_db.transaction.return_value.__aexit__ = AsyncMock(return_value=False)
+    # db.transaction() is a synchronous call returning an async context manager
+    # (mirrors real asyncpg.Connection.transaction()) — must be a MagicMock, not
+    # AsyncMock, or calling it produces an unawaited coroutine instead of the ctx.
+    txn_ctx = MagicMock()
+    txn_ctx.__aenter__ = AsyncMock(return_value=None)
+    txn_ctx.__aexit__ = AsyncMock(return_value=False)
+    mock_db.transaction = MagicMock(return_value=txn_ctx)
     mock_db.execute = AsyncMock()
     benchmark = BenchmarkService(mock_db)
     stage = Stage06Route(db=mock_db, benchmark_svc=benchmark)
@@ -193,7 +211,7 @@ async def test_stage04_output_feeds_stage05():
     stage05, mock_db = _make_stage05(employee_uuid=emp_uuid)
 
     # Stage 04
-    with patch.object(stage04, "_ocr_pdf", return_value="salary slip text"):
+    with patch.object(stage04, "_ocr_pdf", return_value="salary slip text march 2024"):
         s4_result = await stage04.run(
             file_bytes=b"fake", ext="pdf",
             doc_type="SALARY_SLIP", tenant_id="t-001",
@@ -252,8 +270,9 @@ async def test_stage05_output_feeds_stage06_no_raw_salary_stored():
     # Extract the safe_fields JSON that was passed to the DB
     update_call = update_calls[0]
     args = update_call[0]
-    # safe_fields is the 4th positional arg in the UPDATE call (index 3)
-    safe_fields_json = args[3] if len(args) > 3 else None
+    # execute(query, document_id, employee_uuid, pan_token, safe_fields_json, ...)
+    # — safe_fields_json is index 4 (query string is index 0).
+    safe_fields_json = args[4] if len(args) > 4 else None
 
     if safe_fields_json:
         safe_fields = json.loads(safe_fields_json) if isinstance(safe_fields_json, str) else safe_fields_json

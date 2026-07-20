@@ -8,6 +8,7 @@ import { TrendingUp, TrendingDown, AlertTriangle, Download, Settings } from 'luc
 import { api } from '@/lib/api'
 import { Link } from 'react-router-dom'
 import { DigestDatePicker, type DateWindow } from '@/components/digest/DigestDatePicker'
+import { tUi } from '@/i18n'
 
 function todayISO() { return new Date().toISOString().split('T')[0] }
 function daysAgoISO(n: number) {
@@ -35,9 +36,9 @@ export function CfoDigest() {
     <div className="space-y-4">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-xl font-semibold text-slate-800">CFO Digest</h1>
+          <h1 className="text-xl font-semibold text-slate-800">{tUi('CFO_DIGEST_TITLE')}</h1>
           <p className="text-xs text-slate-400 mt-0.5">
-            {data ? `${data.from} → ${data.to}` : 'Loading…'} · cost figures are CFO-configured estimates
+            {data ? `${data.from} → ${data.to}` : tUi('CFO_DIGEST_LOADING')} · {tUi('CFO_DIGEST_ESTIMATE_NOTE')}
           </p>
         </div>
         <div className="flex items-center gap-2">
@@ -77,8 +78,8 @@ export function CfoDigest() {
     <div className="space-y-6 max-w-2xl">
       {header}
       <div className="flex flex-col items-center justify-center py-20 text-slate-400">
-        <p className="text-sm">Failed to load CFO digest.</p>
-        <button onClick={() => refetch()} className="mt-3 text-xs text-cyan-600 hover:underline">Retry</button>
+        <p className="text-sm">{tUi('CFO_DIGEST_LOAD_FAILED')}</p>
+        <button onClick={() => refetch()} className="mt-3 text-xs text-cyan-600 hover:underline">{tUi('CFO_ATTRITION_RETRY')}</button>
       </div>
     </div>
   )
@@ -124,7 +125,7 @@ export function CfoDigest() {
       {(avgCTC || replCost) && (
         <div className="bg-white rounded-xl border border-slate-100 shadow-sm p-5">
           <div className="flex items-center justify-between mb-4">
-            <h2 className="text-sm font-medium text-slate-700">Cost indicators</h2>
+            <h2 className="text-sm font-medium text-slate-700">{tUi('CFO_DIGEST_COST_INDICATORS')}</h2>
             <span className="text-xs text-slate-400 bg-slate-50 border border-slate-200 px-2 py-0.5 rounded-full">
               {data?.cost_indicators?.note}
             </span>
@@ -132,7 +133,7 @@ export function CfoDigest() {
           <div className="grid grid-cols-3 gap-3">
             {avgCTC && (
               <div className="bg-slate-50 rounded-lg p-3">
-                <p className="text-xs text-slate-400">Est. monthly payroll</p>
+                <p className="text-xs text-slate-400">{tUi('CFO_DIGEST_EST_MONTHLY_PAYROLL')}</p>
                 <p className="text-base font-bold font-mono text-slate-800 mt-1">
                   {formatRupee(avgCTC * headcount)}
                 </p>
@@ -141,7 +142,7 @@ export function CfoDigest() {
             )}
             {replCost && exits > 0 && (
               <div className="bg-slate-50 rounded-lg p-3">
-                <p className="text-xs text-slate-400">Attrition cost est.</p>
+                <p className="text-xs text-slate-400">{tUi('CFO_DIGEST_ATTRITION_COST_EST')}</p>
                 <p className="text-base font-bold font-mono text-slate-800 mt-1">
                   {formatRupee(replCost * exits)}
                 </p>
@@ -150,7 +151,7 @@ export function CfoDigest() {
             )}
             {budget && budget > headcount && avgCTC && (
               <div className="bg-slate-50 rounded-lg p-3">
-                <p className="text-xs text-slate-400">Unfilled budget</p>
+                <p className="text-xs text-slate-400">{tUi('CFO_DIGEST_UNFILLED_BUDGET')}</p>
                 <p className="text-base font-bold font-mono text-slate-800 mt-1">
                   {formatRupee(avgCTC * (budget - headcount) / 12)}
                 </p>
@@ -163,9 +164,9 @@ export function CfoDigest() {
 
       {budget && (
         <div className="bg-white rounded-xl border border-slate-100 shadow-sm p-5">
-          <h2 className="text-sm font-medium text-slate-700 mb-4">Headcount vs budget</h2>
+          <h2 className="text-sm font-medium text-slate-700 mb-4">{tUi('CFO_DIGEST_HEADCOUNT_VS_BUDGET')}</h2>
           <div className="flex items-center gap-3">
-            <span className="text-xs text-slate-500 w-20 text-right flex-shrink-0">Headcount</span>
+            <span className="text-xs text-slate-500 w-20 text-right flex-shrink-0">{tUi('CFO_DIGEST_HEADCOUNT_LABEL')}</span>
             <div className="flex-1 h-3 bg-slate-100 rounded-full overflow-hidden">
               <div className="h-full rounded-full"
                    style={{ width: `${Math.min(budgetPct ?? 0, 100)}%`,
@@ -184,7 +185,7 @@ export function CfoDigest() {
 
       {compRows.length > 0 && (
         <div className="bg-white rounded-xl border border-slate-100 shadow-sm p-5">
-          <h2 className="text-sm font-medium text-slate-700 mb-4">Financial document compliance</h2>
+          <h2 className="text-sm font-medium text-slate-700 mb-4">{tUi('CFO_DIGEST_FINANCIAL_COMPLIANCE')}</h2>
           <div className="space-y-2.5">
             {compRows.map(row => (
               <div key={row.doc} className="flex items-center gap-3">

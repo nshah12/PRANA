@@ -1,0 +1,1380 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>PRANA — Agentic AI Capabilities v1</title>
+<style>
+  :root {
+    --primary: #6366f1;
+    --primary-dark: #4f46e5;
+    --primary-light: #a5b4fc;
+    --primary-bg: #eef2ff;
+    --accent: #f59e0b;
+    --accent-bg: #fffbeb;
+    --success: #10b981;
+    --success-bg: #ecfdf5;
+    --danger: #ef4444;
+    --danger-bg: #fef2f2;
+    --info: #3b82f6;
+    --info-bg: #eff6ff;
+    --gray-50: #f9fafb;
+    --gray-100: #f3f4f6;
+    --gray-200: #e5e7eb;
+    --gray-300: #d1d5db;
+    --gray-500: #6b7280;
+    --gray-700: #374151;
+    --gray-900: #111827;
+    --font: 'Segoe UI', system-ui, -apple-system, sans-serif;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: var(--font); background: var(--gray-50); color: var(--gray-900); line-height: 1.6; }
+
+  /* Header */
+  .header {
+    background: linear-gradient(135deg, #1e1b4b 0%, #312e81 50%, #4338ca 100%);
+    color: white;
+    padding: 48px 40px 40px;
+    position: relative;
+    overflow: hidden;
+  }
+  .header::before {
+    content: '';
+    position: absolute;
+    top: -60px; right: -60px;
+    width: 240px; height: 240px;
+    background: rgba(99,102,241,0.25);
+    border-radius: 50%;
+  }
+  .header::after {
+    content: '';
+    position: absolute;
+    bottom: -80px; left: 30%;
+    width: 320px; height: 320px;
+    background: rgba(165,180,252,0.1);
+    border-radius: 50%;
+  }
+  .header-inner { max-width: 1100px; margin: 0 auto; position: relative; z-index: 1; }
+  .logo-row { display: flex; align-items: center; gap: 14px; margin-bottom: 24px; }
+  .logo-badge {
+    width: 48px; height: 48px;
+    background: linear-gradient(135deg, var(--primary-light), var(--primary));
+    border-radius: 12px;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 22px; font-weight: 900; color: white; letter-spacing: -1px;
+  }
+  .logo-text { font-size: 22px; font-weight: 700; letter-spacing: 2px; color: rgba(255,255,255,0.95); }
+  .logo-sub { font-size: 12px; color: rgba(255,255,255,0.55); letter-spacing: 1px; text-transform: uppercase; margin-top: 2px; }
+  h1 { font-size: 38px; font-weight: 800; line-height: 1.2; margin-bottom: 12px; }
+  h1 span { color: var(--primary-light); }
+  .header-meta { display: flex; gap: 24px; margin-top: 20px; flex-wrap: wrap; }
+  .meta-badge {
+    background: rgba(255,255,255,0.12);
+    border: 1px solid rgba(255,255,255,0.2);
+    border-radius: 20px;
+    padding: 5px 14px;
+    font-size: 12px;
+    color: rgba(255,255,255,0.85);
+    letter-spacing: 0.5px;
+  }
+  .header-desc { font-size: 16px; color: rgba(255,255,255,0.75); max-width: 680px; margin-top: 8px; }
+
+  /* Nav Tabs */
+  .nav-tabs {
+    background: white;
+    border-bottom: 1px solid var(--gray-200);
+    position: sticky; top: 0; z-index: 100;
+    box-shadow: 0 1px 4px rgba(0,0,0,0.06);
+  }
+  .nav-tabs-inner { max-width: 1100px; margin: 0 auto; display: flex; overflow-x: auto; }
+  .tab-btn {
+    padding: 14px 20px;
+    border: none;
+    background: none;
+    cursor: pointer;
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--gray-500);
+    border-bottom: 3px solid transparent;
+    white-space: nowrap;
+    transition: all 0.2s;
+    font-family: var(--font);
+  }
+  .tab-btn:hover { color: var(--primary); }
+  .tab-btn.active { color: var(--primary); border-bottom-color: var(--primary); }
+
+  /* Main layout */
+  .main { max-width: 1100px; margin: 0 auto; padding: 40px 20px; }
+  .section { display: none; }
+  .section.active { display: block; }
+
+  /* Overview section */
+  .overview-grid { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 20px; margin: 28px 0; }
+  .overview-card {
+    background: white;
+    border-radius: 12px;
+    padding: 24px;
+    border: 1px solid var(--gray-200);
+    border-top: 3px solid var(--primary);
+  }
+  .overview-card h3 { font-size: 15px; font-weight: 700; color: var(--gray-900); margin-bottom: 8px; }
+  .overview-card p { font-size: 13px; color: var(--gray-500); line-height: 1.6; }
+  .icon-circle {
+    width: 40px; height: 40px;
+    border-radius: 10px;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 18px;
+    margin-bottom: 14px;
+  }
+  .ic-purple { background: var(--primary-bg); }
+  .ic-amber { background: var(--accent-bg); }
+  .ic-green { background: var(--success-bg); }
+  .ic-blue { background: var(--info-bg); }
+  .ic-red { background: var(--danger-bg); }
+
+  .principles-box {
+    background: linear-gradient(135deg, #eef2ff, #e0e7ff);
+    border-radius: 12px;
+    padding: 28px 32px;
+    margin: 24px 0;
+    border: 1px solid #c7d2fe;
+  }
+  .principles-box h3 { font-size: 17px; font-weight: 700; color: var(--primary-dark); margin-bottom: 16px; }
+  .principles-list { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+  .principle-item { display: flex; align-items: flex-start; gap: 10px; font-size: 13px; color: var(--gray-700); }
+  .principle-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--primary); margin-top: 6px; flex-shrink: 0; }
+
+  .stack-chips { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 16px; }
+  .chip {
+    padding: 5px 12px;
+    border-radius: 20px;
+    font-size: 12px;
+    font-weight: 600;
+    letter-spacing: 0.3px;
+  }
+  .chip-purple { background: var(--primary-bg); color: var(--primary-dark); }
+  .chip-green { background: var(--success-bg); color: #065f46; }
+  .chip-amber { background: var(--accent-bg); color: #92400e; }
+  .chip-blue { background: var(--info-bg); color: #1e40af; }
+  .chip-gray { background: var(--gray-100); color: var(--gray-700); }
+
+  /* Section headings */
+  .section-title { font-size: 26px; font-weight: 800; color: var(--gray-900); margin-bottom: 6px; }
+  .section-sub { font-size: 14px; color: var(--gray-500); margin-bottom: 28px; }
+
+  /* Agent cards */
+  .agents-grid { display: grid; grid-template-columns: 1fr; gap: 28px; }
+  .agent-card {
+    background: white;
+    border-radius: 16px;
+    border: 1px solid var(--gray-200);
+    overflow: hidden;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.04);
+  }
+  .agent-header {
+    padding: 20px 24px;
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    background: linear-gradient(90deg, #1e1b4b, #312e81);
+    color: white;
+  }
+  .agent-number {
+    width: 36px; height: 36px;
+    border-radius: 10px;
+    background: rgba(255,255,255,0.15);
+    display: flex; align-items: center; justify-content: center;
+    font-size: 16px; font-weight: 800;
+    flex-shrink: 0;
+  }
+  .agent-header-text h2 { font-size: 17px; font-weight: 700; }
+  .agent-header-text .agent-tagline { font-size: 12px; color: rgba(255,255,255,0.65); margin-top: 2px; }
+  .agent-body { padding: 24px; display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
+  .agent-col h4 {
+    font-size: 11px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    color: var(--gray-500);
+    margin-bottom: 10px;
+  }
+  .step-list { list-style: none; }
+  .step-item {
+    display: flex; gap: 12px;
+    align-items: flex-start;
+    margin-bottom: 10px;
+    font-size: 13px;
+    color: var(--gray-700);
+  }
+  .step-num {
+    width: 22px; height: 22px;
+    border-radius: 50%;
+    background: var(--primary-bg);
+    color: var(--primary-dark);
+    display: flex; align-items: center; justify-content: center;
+    font-size: 11px; font-weight: 700;
+    flex-shrink: 0;
+    margin-top: 1px;
+  }
+  .tool-tag {
+    display: inline-block;
+    padding: 3px 10px;
+    border-radius: 6px;
+    font-size: 11px;
+    font-weight: 600;
+    margin: 3px 4px 3px 0;
+    background: var(--gray-100);
+    color: var(--gray-700);
+    border: 1px solid var(--gray-200);
+  }
+  .tool-tag.kafka { background: #fef3c7; color: #92400e; border-color: #fcd34d; }
+  .tool-tag.temporal { background: #ede9fe; color: #5b21b6; border-color: #c4b5fd; }
+  .tool-tag.redis { background: #fee2e2; color: #991b1b; border-color: #fca5a5; }
+  .tool-tag.llm { background: #ecfdf5; color: #065f46; border-color: #6ee7b7; }
+  .tool-tag.db { background: #eff6ff; color: #1e40af; border-color: #93c5fd; }
+  .tool-tag.s3 { background: #fff7ed; color: #9a3412; border-color: #fdba74; }
+  .tool-tag.ext { background: #fdf4ff; color: #6b21a8; border-color: #d8b4fe; }
+
+  .hitl-box {
+    background: #fffbeb;
+    border: 1px solid #fcd34d;
+    border-radius: 8px;
+    padding: 12px 14px;
+    font-size: 12px;
+    color: #78350f;
+    margin-top: 4px;
+  }
+  .hitl-box strong { display: block; margin-bottom: 4px; font-size: 11px; text-transform: uppercase; letter-spacing: 0.5px; }
+
+  .output-box {
+    background: var(--success-bg);
+    border: 1px solid #a7f3d0;
+    border-radius: 8px;
+    padding: 12px 14px;
+    font-size: 12px;
+    color: #065f46;
+    margin-top: 4px;
+  }
+  .output-box strong { display: block; margin-bottom: 4px; font-size: 11px; text-transform: uppercase; letter-spacing: 0.5px; }
+
+  .trigger-box {
+    background: var(--primary-bg);
+    border: 1px solid #c7d2fe;
+    border-radius: 8px;
+    padding: 10px 14px;
+    font-size: 12px;
+    color: var(--primary-dark);
+    margin-bottom: 14px;
+    display: flex; align-items: center; gap: 8px;
+  }
+  .trigger-label { font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 1px; color: var(--primary); margin-right: 4px; }
+
+  .agent-footer {
+    padding: 12px 24px;
+    background: var(--gray-50);
+    border-top: 1px solid var(--gray-200);
+    display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
+  }
+  .footer-label { font-size: 11px; font-weight: 700; color: var(--gray-500); text-transform: uppercase; letter-spacing: 0.5px; }
+
+  /* Architecture section */
+  .arch-diagram {
+    background: white;
+    border-radius: 16px;
+    border: 1px solid var(--gray-200);
+    padding: 36px;
+    margin-bottom: 28px;
+  }
+  .arch-layers { display: flex; flex-direction: column; gap: 0; }
+  .arch-layer {
+    display: flex;
+    align-items: stretch;
+    gap: 0;
+    position: relative;
+  }
+  .arch-layer + .arch-layer::before {
+    content: '▼';
+    position: absolute;
+    left: 50%;
+    top: -16px;
+    transform: translateX(-50%);
+    color: var(--gray-300);
+    font-size: 14px;
+  }
+  .arch-label {
+    width: 140px;
+    flex-shrink: 0;
+    display: flex;
+    align-items: center;
+    font-size: 11px;
+    font-weight: 700;
+    color: var(--gray-500);
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    padding-right: 16px;
+  }
+  .arch-boxes { display: flex; gap: 12px; flex: 1; flex-wrap: wrap; margin: 10px 0; }
+  .arch-box {
+    flex: 1;
+    min-width: 120px;
+    border-radius: 10px;
+    padding: 14px 16px;
+    font-size: 12px;
+    font-weight: 600;
+    text-align: center;
+    border: 1px solid;
+  }
+  .arch-box-purple { background: var(--primary-bg); border-color: #c7d2fe; color: var(--primary-dark); }
+  .arch-box-green { background: var(--success-bg); border-color: #a7f3d0; color: #065f46; }
+  .arch-box-amber { background: var(--accent-bg); border-color: #fcd34d; color: #78350f; }
+  .arch-box-blue { background: var(--info-bg); border-color: #93c5fd; color: #1e40af; }
+  .arch-box-gray { background: var(--gray-100); border-color: var(--gray-300); color: var(--gray-700); }
+  .arch-box small { display: block; font-size: 10px; font-weight: 400; margin-top: 3px; opacity: 0.75; }
+
+  .arch-flow-row {
+    display: grid;
+    grid-template-columns: repeat(5, 1fr);
+    gap: 0;
+    margin: 28px 0;
+    align-items: center;
+  }
+  .flow-box {
+    background: var(--primary-bg);
+    border: 1px solid #c7d2fe;
+    border-radius: 10px;
+    padding: 14px 10px;
+    text-align: center;
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--primary-dark);
+    position: relative;
+  }
+  .flow-box small { display: block; font-size: 10px; font-weight: 400; color: var(--gray-500); margin-top: 3px; }
+  .flow-arrow {
+    text-align: center;
+    color: var(--gray-300);
+    font-size: 20px;
+    font-weight: 300;
+  }
+
+  .arch-note {
+    background: var(--gray-50);
+    border-left: 4px solid var(--primary);
+    padding: 14px 18px;
+    border-radius: 0 8px 8px 0;
+    font-size: 13px;
+    color: var(--gray-700);
+    margin-top: 20px;
+  }
+  .arch-note strong { color: var(--primary-dark); }
+
+  /* Roadmap section */
+  .roadmap-grid { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 20px; margin: 28px 0; }
+  .roadmap-phase {
+    border-radius: 12px;
+    overflow: hidden;
+    border: 1px solid var(--gray-200);
+    background: white;
+  }
+  .phase-header {
+    padding: 16px 20px;
+    font-size: 13px;
+    font-weight: 700;
+    color: white;
+  }
+  .phase-header.p1 { background: linear-gradient(135deg, #065f46, #10b981); }
+  .phase-header.p2 { background: linear-gradient(135deg, #1e40af, #3b82f6); }
+  .phase-header.p3 { background: linear-gradient(135deg, #4338ca, #6366f1); }
+  .phase-body { padding: 16px 20px; }
+  .phase-badge {
+    display: inline-block;
+    font-size: 10px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    padding: 3px 10px;
+    border-radius: 20px;
+    margin-bottom: 12px;
+  }
+  .pb-green { background: var(--success-bg); color: #065f46; }
+  .pb-blue { background: var(--info-bg); color: #1e40af; }
+  .pb-purple { background: var(--primary-bg); color: var(--primary-dark); }
+  .phase-items { list-style: none; }
+  .phase-item {
+    padding: 8px 0;
+    border-bottom: 1px solid var(--gray-100);
+    font-size: 13px;
+    color: var(--gray-700);
+    display: flex; align-items: flex-start; gap: 8px;
+  }
+  .phase-item:last-child { border-bottom: none; }
+  .phase-item::before { content: '→'; color: var(--gray-400); flex-shrink: 0; }
+  .phase-item strong { display: block; color: var(--gray-900); font-weight: 600; }
+  .phase-item span { font-size: 11px; color: var(--gray-500); }
+
+  .effort-table { width: 100%; border-collapse: collapse; margin: 24px 0; font-size: 13px; }
+  .effort-table th { background: var(--gray-100); padding: 10px 14px; text-align: left; font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; color: var(--gray-500); }
+  .effort-table td { padding: 12px 14px; border-bottom: 1px solid var(--gray-100); color: var(--gray-700); vertical-align: middle; }
+  .effort-table tr:last-child td { border-bottom: none; }
+  .effort-table tr:hover td { background: var(--gray-50); }
+  .effort-bar { display: flex; gap: 3px; }
+  .bar-dot { width: 10px; height: 10px; border-radius: 50%; }
+  .bar-dot.filled { background: var(--primary); }
+  .bar-dot.empty { background: var(--gray-200); }
+  .priority-badge { padding: 3px 10px; border-radius: 20px; font-size: 11px; font-weight: 700; }
+  .pri-high { background: #fee2e2; color: #991b1b; }
+  .pri-med { background: #fef3c7; color: #92400e; }
+  .pri-low { background: #ecfdf5; color: #065f46; }
+
+  /* Privacy callout */
+  .privacy-callout {
+    background: linear-gradient(135deg, #1e1b4b, #312e81);
+    border-radius: 12px;
+    padding: 28px 32px;
+    color: white;
+    margin: 28px 0;
+    display: flex;
+    align-items: flex-start;
+    gap: 20px;
+  }
+  .privacy-icon { font-size: 32px; flex-shrink: 0; }
+  .privacy-callout h3 { font-size: 17px; font-weight: 700; margin-bottom: 8px; }
+  .privacy-callout p { font-size: 13px; color: rgba(255,255,255,0.75); line-height: 1.7; }
+  .privacy-callout ul { margin-top: 10px; padding-left: 16px; font-size: 13px; color: rgba(255,255,255,0.75); line-height: 1.9; }
+
+  /* Responsive */
+  @media (max-width: 768px) {
+    .overview-grid { grid-template-columns: 1fr; }
+    .agent-body { grid-template-columns: 1fr; }
+    .roadmap-grid { grid-template-columns: 1fr; }
+    .arch-flow-row { grid-template-columns: 1fr; }
+    .flow-arrow { transform: rotate(90deg); }
+    .principles-list { grid-template-columns: 1fr; }
+    h1 { font-size: 26px; }
+  }
+</style>
+</head>
+<body>
+
+<!-- HEADER -->
+<div class="header">
+  <div class="header-inner">
+    <div class="logo-row">
+      <div class="logo-badge">P</div>
+      <div>
+        <div class="logo-text">PRANA</div>
+        <div class="logo-sub">Career Document Vault · India</div>
+      </div>
+    </div>
+    <h1>Agentic AI <span>Capabilities</span></h1>
+    <p class="header-desc">Multi-step, tool-using agents that autonomously resolve complex document, compliance, and career intelligence tasks — backed by Temporal workflows and Kafka event streams.</p>
+    <div class="header-meta">
+      <span class="meta-badge">8 Agent Types</span>
+      <span class="meta-badge">Temporal-Backed</span>
+      <span class="meta-badge">Kafka Event-Driven</span>
+      <span class="meta-badge">Privacy-First LLM</span>
+      <span class="meta-badge">Human-in-the-Loop</span>
+      <span class="meta-badge">v1 · June 2026</span>
+    </div>
+  </div>
+</div>
+
+<!-- NAV TABS -->
+<div class="nav-tabs">
+  <div class="nav-tabs-inner">
+    <button class="tab-btn active" onclick="showTab('overview')">Overview</button>
+    <button class="tab-btn" onclick="showTab('agents')">8 Agents</button>
+    <button class="tab-btn" onclick="showTab('architecture')">Architecture</button>
+    <button class="tab-btn" onclick="showTab('roadmap')">Build Roadmap</button>
+  </div>
+</div>
+
+<div class="main">
+
+<!-- OVERVIEW TAB -->
+<div id="tab-overview" class="section active">
+  <h2 class="section-title">What is Agentic AI in PRANA?</h2>
+  <p class="section-sub">Agents are Temporal workflows that call LLMs iteratively, invoke external tools, and pause for human approval — not single-shot LLM calls.</p>
+
+  <div class="overview-grid">
+    <div class="overview-card">
+      <div class="icon-circle ic-purple">🤖</div>
+      <h3>Multi-Step Reasoning</h3>
+      <p>Each agent decomposes a complex task into sub-steps: gather evidence, analyse, decide, act. No single-shot prompting — agents iterate until confident or escalate.</p>
+    </div>
+    <div class="overview-card">
+      <div class="icon-circle ic-amber">🔧</div>
+      <h3>Tool-Using</h3>
+      <p>Agents call real tools: EPFO API, TRACES cross-check, YugabyteDB queries, Kafka publish, Temporal signals. LLM decides which tool to call next based on intermediate results.</p>
+    </div>
+    <div class="overview-card">
+      <div class="icon-circle ic-green">⏱️</div>
+      <h3>Temporal-Backed</h3>
+      <p>Every agent run is a named Temporal workflow — durable, retryable, replayable. Long-running agents (e.g. grievance resolution over 30 days) survive restarts automatically.</p>
+    </div>
+    <div class="overview-card">
+      <div class="icon-circle ic-blue">🧑</div>
+      <h3>Human-in-the-Loop</h3>
+      <p>Agents pause at decision points needing human approval. Temporal signals resume the workflow after OA-Admin acts. No polling — push-based via SSE → browser.</p>
+    </div>
+    <div class="overview-card">
+      <div class="icon-circle ic-purple">🔒</div>
+      <h3>Privacy Contract Enforced</h3>
+      <p>Agents follow the same LLM privacy contract as the pipeline: raw ₹ salary and PAN are never in LLM output, never stored, never surfaced in any agent response.</p>
+    </div>
+    <div class="overview-card">
+      <div class="icon-circle ic-amber">📡</div>
+      <h3>Event-Driven Triggers</h3>
+      <p>Agents start from Kafka events (document ingested, grievance filed, vault gap detected) — not from cron jobs or polling loops. Kafka consumer → WorkflowConsumer → Temporal.</p>
+    </div>
+  </div>
+
+  <div class="principles-box">
+    <h3>Core Agentic Principles PRANA Follows</h3>
+    <div class="principles-list">
+      <div class="principle-item"><div class="principle-dot"></div>Agents never bypass the HTTP handler Kafka contract — no direct DB writes from agent LLM output</div>
+      <div class="principle-item"><div class="principle-dot"></div>Every agent action is audit-logged via AuditConsumer — agents cannot skip audit trails</div>
+      <div class="principle-item"><div class="principle-dot"></div>Agent LLM receives document context only if tenant_id and employee_user_id match — no cross-tenant data leakage</div>
+      <div class="principle-item"><div class="principle-dot"></div>Tool calls use the same asyncpg pool as API handlers — no separate DB connections for agents</div>
+      <div class="principle-item"><div class="principle-dot"></div>Agent max steps = 12 per run — hard cap prevents runaway loops; escalates to OA-Admin if not resolved</div>
+      <div class="principle-item"><div class="principle-dot"></div>All agent outputs go through privacy filter before storage or surfacing — same as Stage 05 pipeline</div>
+    </div>
+  </div>
+
+  <div style="background:white;border-radius:12px;border:1px solid var(--gray-200);padding:24px;margin-top:4px;">
+    <h3 style="font-size:15px;font-weight:700;color:var(--gray-900);margin-bottom:14px;">Technology Stack for Agents</h3>
+    <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:16px;font-size:13px;">
+      <div>
+        <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.5px;color:var(--gray-500);margin-bottom:8px;">Orchestration</div>
+        <div class="stack-chips">
+          <span class="chip chip-purple">Temporal Python SDK v1</span>
+          <span class="chip chip-gray">53 Named Workflows</span>
+          <span class="chip chip-gray">5 Task Queues</span>
+        </div>
+      </div>
+      <div>
+        <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.5px;color:var(--gray-500);margin-bottom:8px;">LLM / AI</div>
+        <div class="stack-chips">
+          <span class="chip chip-green">Qwen2.5-14B-Instruct</span>
+          <span class="chip chip-green">Llama-3.1-8B-Instruct</span>
+          <span class="chip chip-green">bge-m3 Embeddings</span>
+        </div>
+      </div>
+      <div>
+        <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.5px;color:var(--gray-500);margin-bottom:8px;">Infrastructure</div>
+        <div class="stack-chips">
+          <span class="chip chip-amber">Apache Kafka (MSK)</span>
+          <span class="chip chip-blue">Redis Enterprise</span>
+          <span class="chip chip-blue">YugabyteDB</span>
+          <span class="chip chip-gray">AWS S3</span>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- AGENTS TAB -->
+<div id="tab-agents" class="section">
+  <h2 class="section-title">8 Agentic AI Use Cases</h2>
+  <p class="section-sub">Each card shows: trigger → steps → tools → human approval points → output delivered.</p>
+
+  <div class="agents-grid">
+
+    <!-- Agent 1: Document Verification -->
+    <div class="agent-card">
+      <div class="agent-header">
+        <div class="agent-number">01</div>
+        <div class="agent-header-text">
+          <h2>Document Verification Agent</h2>
+          <div class="agent-tagline">Cross-checks Form 16 vs TRACES · PF slips vs EPFO UAN passbook</div>
+        </div>
+      </div>
+      <div class="agent-body">
+        <div class="agent-col">
+          <div class="trigger-box"><span class="trigger-label">Trigger</span> Employee submits Form 16 or PF slip via mobile app; or OA pushes batch of salary slips</div>
+          <h4>Agent Steps</h4>
+          <ul class="step-list">
+            <li class="step-item"><div class="step-num">1</div>Extract structured data from document (OCR + Qwen LLM) — TAN, PAN-token, employer name, amounts</li>
+            <li class="step-item"><div class="step-num">2</div>Derive TRACES query parameters from extracted TAN + PAN-token + FY</li>
+            <li class="step-item"><div class="step-num">3</div>Call TRACES API / scraper — pull employer TDS deduction certificate</li>
+            <li class="step-item"><div class="step-num">4</div>LLM diff step: compare extracted amounts vs TRACES figures (insight-level, no raw ₹ stored)</li>
+            <li class="step-item"><div class="step-num">5</div>For PF slips: call EPFO UAN passbook API with employer credentials from tenant_config</li>
+            <li class="step-item"><div class="step-num">6</div>Produce verification_result: MATCH | MISMATCH | UNVERIFIABLE with reason</li>
+          </ul>
+        </div>
+        <div class="agent-col">
+          <h4>Tools Used</h4>
+          <div>
+            <span class="tool-tag llm">Qwen2.5-14B (extract)</span>
+            <span class="tool-tag ext">TRACES API</span>
+            <span class="tool-tag ext">EPFO UAN API</span>
+            <span class="tool-tag db">YugabyteDB (document)</span>
+            <span class="tool-tag s3">S3 (document bytes)</span>
+            <span class="tool-tag kafka">Kafka (audit event)</span>
+            <span class="tool-tag temporal">Temporal (durable run)</span>
+          </div>
+          <br>
+          <div class="hitl-box">
+            <strong>⚠ Human-in-the-Loop Points</strong>
+            MISMATCH result → OA-Operator notified via Portal bell + email. OA must acknowledge or dispute before document status changes to VERIFIED_FAILED. Employee notified of outcome only after OA action.
+          </div>
+          <div class="output-box" style="margin-top:10px;">
+            <strong>✓ Output</strong>
+            document.verification_status updated · audit_event written · employee push notification (insight only: "Your Form 16 verification is complete") · OA exception report if MISMATCH
+          </div>
+        </div>
+      </div>
+      <div class="agent-footer">
+        <span class="footer-label">Complexity:</span>
+        <span class="chip chip-amber">High</span>
+        <span class="footer-label" style="margin-left:10px;">Task Queue:</span>
+        <span class="chip chip-purple">prana-pipeline</span>
+        <span class="footer-label" style="margin-left:10px;">Workflow:</span>
+        <span class="chip chip-gray">DocumentVerificationWorkflow</span>
+      </div>
+    </div>
+
+    <!-- Agent 2: Career Navigation -->
+    <div class="agent-card">
+      <div class="agent-header">
+        <div class="agent-number">02</div>
+        <div class="agent-header-text">
+          <h2>Career Navigation Agent</h2>
+          <div class="agent-tagline">Employee states a career goal → agent produces a personalized multi-step plan</div>
+        </div>
+      </div>
+      <div class="agent-body">
+        <div class="agent-col">
+          <div class="trigger-box"><span class="trigger-label">Trigger</span> Employee types career goal in Ask PRANA chat: "I want to become a CFO in 7 years"</div>
+          <h4>Agent Steps</h4>
+          <ul class="step-list">
+            <li class="step-item"><div class="step-num">1</div>Retrieve employee career timeline from Qdrant (RAG over all career documents)</li>
+            <li class="step-item"><div class="step-num">2</div>Extract: current designation, years of experience, skill signals from offer letters + appraisals</li>
+            <li class="step-item"><div class="step-num">3</div>LLM gap analysis: current trajectory vs stated goal (Llama-3.1-8B with career benchmark context)</li>
+            <li class="step-item"><div class="step-num">4</div>Generate 3–5 milestone plan with specific document types employee should obtain (Form 16, certifications)</li>
+            <li class="step-item"><div class="step-num">5</div>Privacy filter: remove any specific salary figures from plan output</li>
+            <li class="step-item"><div class="step-num">6</div>Return structured plan as chat response + save to employee vault as career_plan record</li>
+          </ul>
+        </div>
+        <div class="agent-col">
+          <h4>Tools Used</h4>
+          <div>
+            <span class="tool-tag llm">Llama-3.1-8B (RAG plan)</span>
+            <span class="tool-tag llm">bge-m3 (embeddings)</span>
+            <span class="tool-tag ext">Qdrant (career RAG)</span>
+            <span class="tool-tag db">YugabyteDB (employee_master)</span>
+            <span class="tool-tag kafka">Kafka (analytics event)</span>
+          </div>
+          <br>
+          <div class="hitl-box">
+            <strong>⚠ Human-in-the-Loop Points</strong>
+            Fully autonomous — no human approval needed. Employee can save, share, or dismiss the plan. Saved plans surface in vault under "Career Planning" tab.
+          </div>
+          <div class="output-box" style="margin-top:10px;">
+            <strong>✓ Output</strong>
+            Structured career plan in chat · saved as career_plan in vault · milestone reminders scheduled as Temporal timers · analytics event for plan generation rate
+          </div>
+        </div>
+      </div>
+      <div class="agent-footer">
+        <span class="footer-label">Complexity:</span>
+        <span class="chip chip-green">Medium</span>
+        <span class="footer-label" style="margin-left:10px;">Task Queue:</span>
+        <span class="chip chip-purple">prana-pipeline</span>
+        <span class="footer-label" style="margin-left:10px;">Workflow:</span>
+        <span class="chip chip-gray">CareerNavigationWorkflow</span>
+      </div>
+    </div>
+
+    <!-- Agent 3: Compliance Audit -->
+    <div class="agent-card">
+      <div class="agent-header">
+        <div class="agent-number">03</div>
+        <div class="agent-header-text">
+          <h2>Compliance Audit Agent</h2>
+          <div class="agent-tagline">Tenant-scoped scan · finds missing required docs · generates exception reports for CHRO/CFO</div>
+        </div>
+      </div>
+      <div class="agent-body">
+        <div class="agent-col">
+          <div class="trigger-box"><span class="trigger-label">Trigger</span> Monthly Temporal timer OR CHRO clicks "Run Compliance Audit" in Portal</div>
+          <h4>Agent Steps</h4>
+          <ul class="step-list">
+            <li class="step-item"><div class="step-num">1</div>Load tenant's required document matrix from tenant_config (which doc types are mandatory for which employee grades)</li>
+            <li class="step-item"><div class="step-num">2</div>Query all active employees in tenant: cross-join with document table to find gaps</li>
+            <li class="step-item"><div class="step-num">3</div>Classify gaps: CRITICAL (Form 16 missing), WARNING (PF slip > 3 months old), INFO (offer letter missing)</li>
+            <li class="step-item"><div class="step-num">4</div>LLM drafts human-readable exception report with risk classification per employee cohort</li>
+            <li class="step-item"><div class="step-num">5</div>Publish exception_report_created event to Kafka → NotifConsumer emails CHRO/CFO</li>
+            <li class="step-item"><div class="step-num">6</div>Store report as document in tenant vault with doc_type = COMPLIANCE_REPORT</li>
+          </ul>
+        </div>
+        <div class="agent-col">
+          <h4>Tools Used</h4>
+          <div>
+            <span class="tool-tag llm">Llama-3.1-8B (report draft)</span>
+            <span class="tool-tag db">YugabyteDB (employee + document)</span>
+            <span class="tool-tag kafka">Kafka (notification event)</span>
+            <span class="tool-tag s3">S3 (report storage)</span>
+            <span class="tool-tag temporal">Temporal timer (schedule)</span>
+            <span class="tool-tag redis">Redis (vault completeness cache)</span>
+          </div>
+          <br>
+          <div class="hitl-box">
+            <strong>⚠ Human-in-the-Loop Points</strong>
+            CHRO must approve before report is shared with HRMS partner. CFO approval required if financial document gaps exceed threshold in tenant_config. Approval via Portal → Temporal signal resumes workflow.
+          </div>
+          <div class="output-box" style="margin-top:10px;">
+            <strong>✓ Output</strong>
+            Exception report PDF in tenant vault · CHRO/CFO email with summary · Portal dashboard badge updated · OA-Operator action list per employee gap
+          </div>
+        </div>
+      </div>
+      <div class="agent-footer">
+        <span class="footer-label">Complexity:</span>
+        <span class="chip chip-green">Medium</span>
+        <span class="footer-label" style="margin-left:10px;">Task Queue:</span>
+        <span class="chip chip-purple">prana-analytics</span>
+        <span class="footer-label" style="margin-left:10px;">Workflow:</span>
+        <span class="chip chip-gray">ComplianceAuditWorkflow</span>
+      </div>
+    </div>
+
+    <!-- Agent 4: Payroll Anomaly -->
+    <div class="agent-card">
+      <div class="agent-header">
+        <div class="agent-number">04</div>
+        <div class="agent-header-text">
+          <h2>Payroll Anomaly Agent</h2>
+          <div class="agent-tagline">Detects CTC jumps without appraisal · duplicate PAN tokens across tenants · suspicious patterns</div>
+        </div>
+      </div>
+      <div class="agent-body">
+        <div class="agent-col">
+          <div class="trigger-box"><span class="trigger-label">Trigger</span> New salary slip ingested via HRMS push → DOC_INGESTED Kafka event consumed by WorkflowConsumer</div>
+          <h4>Agent Steps</h4>
+          <ul class="step-list">
+            <li class="step-item"><div class="step-num">1</div>Retrieve employee's salary insight history (insight-level only, no raw ₹ figures) from document table for this pan_token</li>
+            <li class="step-item"><div class="step-num">2</div>LLM compares salary band signals: detect significant jump vs previous month without corresponding appraisal document</li>
+            <li class="step-item"><div class="step-num">3</div>Check pan_token across tenants: detect if same employee has active employment at competing tenants (cross-tenant dedup)</li>
+            <li class="step-item"><div class="step-num">4</div>Statistical anomaly check: flag if salary insight is > 2 standard deviations from employee's peer cohort band</li>
+            <li class="step-item"><div class="step-num">5</div>If anomaly detected: classify severity (HIGH/MEDIUM/LOW) and reason code</li>
+            <li class="step-item"><div class="step-num">6</div>Publish anomaly_detected event → AuditConsumer logs → NotifConsumer alerts CFO/CISO</li>
+          </ul>
+        </div>
+        <div class="agent-col">
+          <h4>Tools Used</h4>
+          <div>
+            <span class="tool-tag llm">Qwen2.5-14B (pattern detect)</span>
+            <span class="tool-tag db">YugabyteDB (document history)</span>
+            <span class="tool-tag redis">Redis (pan_token identity cache)</span>
+            <span class="tool-tag kafka">Kafka (anomaly event)</span>
+            <span class="tool-tag temporal">Temporal (durable analysis)</span>
+          </div>
+          <br>
+          <div class="hitl-box">
+            <strong>⚠ Human-in-the-Loop Points</strong>
+            HIGH severity anomalies require CISO + CFO acknowledgement before alert is escalated to HR. Cross-tenant duplicate PAN detection escalates to Portal Admin (platform level, not tenant level).
+          </div>
+          <div class="output-box" style="margin-top:10px;">
+            <strong>✓ Output</strong>
+            Anomaly record in audit_event · CFO/CISO portal notification · severity classification · recommended action (REQUEST_APPRAISAL_DOC, FLAG_FOR_REVIEW, ESCALATE_TO_ADMIN)
+          </div>
+        </div>
+      </div>
+      <div class="agent-footer">
+        <span class="footer-label">Complexity:</span>
+        <span class="chip chip-amber">High</span>
+        <span class="footer-label" style="margin-left:10px;">Task Queue:</span>
+        <span class="chip chip-purple">prana-pipeline</span>
+        <span class="footer-label" style="margin-left:10px;">Workflow:</span>
+        <span class="chip chip-gray">PayrollAnomalyWorkflow</span>
+      </div>
+    </div>
+
+    <!-- Agent 5: HRMS Reconciliation -->
+    <div class="agent-card">
+      <div class="agent-header">
+        <div class="agent-number">05</div>
+        <div class="agent-header-text">
+          <h2>HRMS Reconciliation Agent</h2>
+          <div class="agent-tagline">Identity resolution when HRMS pushes unknown employee PAN token</div>
+        </div>
+      </div>
+      <div class="agent-body">
+        <div class="agent-col">
+          <div class="trigger-box"><span class="trigger-label">Trigger</span> HRMS push contains employee whose pan_token does not match any employee_master row in tenant</div>
+          <h4>Agent Steps</h4>
+          <ul class="step-list">
+            <li class="step-item"><div class="step-num">1</div>Attempt fuzzy match on employee name + DOB + UAN from HRMS payload against existing employee_master rows</li>
+            <li class="step-item"><div class="step-num">2</div>If fuzzy match found (score > 0.85): propose identity merge → queue for OA-Operator review</li>
+            <li class="step-item"><div class="step-num">3</div>If no match: check if pan_token exists in other tenants (cross-org employee) → propose inter-tenant link</li>
+            <li class="step-item"><div class="step-num">4</div>LLM drafts reconciliation recommendation with evidence: "Likely same employee based on name+UAN match at 92% confidence"</li>
+            <li class="step-item"><div class="step-num">5</div>OA-Operator approves or rejects via Portal — Temporal signal resumes workflow</li>
+            <li class="step-item"><div class="step-num">6</div>On approval: create employee_master row, link pan_token, retry original document ingestion</li>
+          </ul>
+        </div>
+        <div class="agent-col">
+          <h4>Tools Used</h4>
+          <div>
+            <span class="tool-tag llm">Qwen2.5-14B (identity reason)</span>
+            <span class="tool-tag db">YugabyteDB (employee_master)</span>
+            <span class="tool-tag redis">Redis (pan_token identity cache)</span>
+            <span class="tool-tag ext">EPFO UAN verify</span>
+            <span class="tool-tag kafka">Kafka (retry ingest event)</span>
+            <span class="tool-tag temporal">Temporal signal (OA action)</span>
+          </div>
+          <br>
+          <div class="hitl-box">
+            <strong>⚠ Human-in-the-Loop Points</strong>
+            ALL identity merge decisions require OA-Operator explicit approval. Agent never auto-merges identities. If OA rejects: document is held in EXCEPTION state and HRMS partner is notified to correct employee data.
+          </div>
+          <div class="output-box" style="margin-top:10px;">
+            <strong>✓ Output</strong>
+            New employee_master row created · pan_token linked · document retry queued · audit trail of identity resolution decision · HRMS partner notified of outcome
+          </div>
+        </div>
+      </div>
+      <div class="agent-footer">
+        <span class="footer-label">Complexity:</span>
+        <span class="chip chip-amber">High</span>
+        <span class="footer-label" style="margin-left:10px;">Task Queue:</span>
+        <span class="chip chip-purple">prana-ingest</span>
+        <span class="footer-label" style="margin-left:10px;">Workflow:</span>
+        <span class="chip chip-gray">HRMSReconciliationWorkflow</span>
+      </div>
+    </div>
+
+    <!-- Agent 6: Vault Gap -->
+    <div class="agent-card">
+      <div class="agent-header">
+        <div class="agent-number">06</div>
+        <div class="agent-header-text">
+          <h2>Vault Gap Agent</h2>
+          <div class="agent-tagline">Scans vault completeness · pings OA-Operator with prioritized missing doc list</div>
+        </div>
+      </div>
+      <div class="agent-body">
+        <div class="agent-col">
+          <div class="trigger-box"><span class="trigger-label">Trigger</span> Weekly Temporal timer per tenant OR new employee joins (employee_created event via Kafka)</div>
+          <h4>Agent Steps</h4>
+          <ul class="step-list">
+            <li class="step-item"><div class="step-num">1</div>Load vault completeness requirements from tenant_config: required docs per grade, per employment type</li>
+            <li class="step-item"><div class="step-num">2</div>Query document table for each active employee: what's present vs what's required</li>
+            <li class="step-item"><div class="step-num">3</div>Score completeness per employee (0–100%) and per tenant overall</li>
+            <li class="step-item"><div class="step-num">4</div>Prioritize gaps: critical docs missing for new joiners (< 30 days) ranked highest</li>
+            <li class="step-item"><div class="step-num">5</div>LLM generates OA-Operator action list in natural language: "3 employees missing Form 16 for FY 2024-25 — push deadline is 31 July"</li>
+            <li class="step-item"><div class="step-num">6</div>Update Redis vault completeness cache: vault:{pan_token} = completeness JSON</li>
+          </ul>
+        </div>
+        <div class="agent-col">
+          <h4>Tools Used</h4>
+          <div>
+            <span class="tool-tag llm">Llama-3.1-8B (action list)</span>
+            <span class="tool-tag db">YugabyteDB (document + employee)</span>
+            <span class="tool-tag redis">Redis (vault completeness)</span>
+            <span class="tool-tag kafka">Kafka (notification event)</span>
+            <span class="tool-tag temporal">Temporal timer (weekly)</span>
+          </div>
+          <br>
+          <div class="hitl-box">
+            <strong>⚠ Human-in-the-Loop Points</strong>
+            Fully autonomous scan and notification. OA-Operator can snooze individual alerts for 7 days via Portal. Snooze is a Temporal timer signal — no cron job needed.
+          </div>
+          <div class="output-box" style="margin-top:10px;">
+            <strong>✓ Output</strong>
+            Portal OA-Operator dashboard updated with gap list · email digest to OA-Operator · completeness score per employee updated in Redis · tenant health score in analytics
+          </div>
+        </div>
+      </div>
+      <div class="agent-footer">
+        <span class="footer-label">Complexity:</span>
+        <span class="chip chip-green">Low</span>
+        <span class="footer-label" style="margin-left:10px;">Task Queue:</span>
+        <span class="chip chip-purple">prana-analytics</span>
+        <span class="footer-label" style="margin-left:10px;">Workflow:</span>
+        <span class="chip chip-gray">VaultGapWorkflow</span>
+      </div>
+    </div>
+
+    <!-- Agent 7: Grievance Resolution -->
+    <div class="agent-card">
+      <div class="agent-header">
+        <div class="agent-number">07</div>
+        <div class="agent-header-text">
+          <h2>Grievance Resolution Agent</h2>
+          <div class="agent-tagline">DPDP grievance → autonomously gathers evidence → drafts resolution under 48h SLA</div>
+        </div>
+      </div>
+      <div class="agent-body">
+        <div class="agent-col">
+          <div class="trigger-box"><span class="trigger-label">Trigger</span> Employee submits grievance via mobile or Portal: POST /dpdp/grievance → GrievanceWorkflow starts</div>
+          <h4>Agent Steps</h4>
+          <ul class="step-list">
+            <li class="step-item"><div class="step-num">1</div>Parse grievance text: classify type (DATA_ACCESS, INCORRECT_DATA, PROCESSING_OBJECTION, ERASURE_DELAY)</li>
+            <li class="step-item"><div class="step-num">2</div>Gather evidence autonomously: query document_access_log, consent_log, audit_event for employee's recent activity</li>
+            <li class="step-item"><div class="step-num">3</div>LLM drafts auto-acknowledgement (within 48h per DPDP Act) with evidence summary</li>
+            <li class="step-item"><div class="step-num">4</div>For DATA_ACCESS grievances: pull share token history, watermark logs, access_channel breakdown</li>
+            <li class="step-item"><div class="step-num">5</div>Draft resolution recommendation for Grievance Officer with all evidence collated</li>
+            <li class="step-item"><div class="step-num">6</div>Grievance Officer reviews draft in Portal — approves/modifies before sending to employee</li>
+          </ul>
+        </div>
+        <div class="agent-col">
+          <h4>Tools Used</h4>
+          <div>
+            <span class="tool-tag llm">Qwen2.5-14B (classify + draft)</span>
+            <span class="tool-tag db">YugabyteDB (audit_event, access_log, consent_log)</span>
+            <span class="tool-tag kafka">Kafka (notification event)</span>
+            <span class="tool-tag temporal">Temporal timer (30-day SLA)</span>
+            <span class="tool-tag ext">AWS SES (acknowledgement email)</span>
+          </div>
+          <br>
+          <div class="hitl-box">
+            <strong>⚠ Human-in-the-Loop Points</strong>
+            Grievance Officer must review and approve resolution before sending. Auto-escalates to Portal Admin if Grievance Officer doesn't act within 7 days. Employee receives auto-ack immediately — full resolution within 30 days per DPDP Act.
+          </div>
+          <div class="output-box" style="margin-top:10px;">
+            <strong>✓ Output</strong>
+            DPDP-compliant acknowledgement within 48h · evidence bundle for Grievance Officer · resolution letter drafted · audit trail in audit_event · closure email to employee after approval
+          </div>
+        </div>
+      </div>
+      <div class="agent-footer">
+        <span class="footer-label">Complexity:</span>
+        <span class="chip chip-amber">High</span>
+        <span class="footer-label" style="margin-left:10px;">Task Queue:</span>
+        <span class="chip chip-purple">prana-compliance</span>
+        <span class="footer-label" style="margin-left:10px;">Workflow:</span>
+        <span class="chip chip-gray">GrievanceResolutionWorkflow</span>
+      </div>
+    </div>
+
+    <!-- Agent 8: Tenant Onboarding -->
+    <div class="agent-card">
+      <div class="agent-header">
+        <div class="agent-number">08</div>
+        <div class="agent-header-text">
+          <h2>Tenant Onboarding Agent</h2>
+          <div class="agent-tagline">Guides OA through KEK provisioning · API key setup · first document push · validation</div>
+        </div>
+      </div>
+      <div class="agent-body">
+        <div class="agent-col">
+          <div class="trigger-box"><span class="trigger-label">Trigger</span> Portal Admin creates new tenant → TenantOnboardingWorkflow starts automatically</div>
+          <h4>Agent Steps</h4>
+          <ul class="step-list">
+            <li class="step-item"><div class="step-num">1</div>Provision tenant KEK in AWS KMS (ap-south-1): create customer-managed key, tag with tenant_id</li>
+            <li class="step-item"><div class="step-num">2</div>Generate API key pair for HRMS integration: store key_hash in api_key table, send signing_secret securely to OA-Admin email</li>
+            <li class="step-item"><div class="step-num">3</div>Guide OA through Platform Config via conversational UI: required_doc_matrix, grievance_officer, notification channels</li>
+            <li class="step-item"><div class="step-num">4</div>Validate HRMS integration: send test payload to HRMS push endpoint, verify HMAC signature roundtrip</li>
+            <li class="step-item"><div class="step-num">5</div>Push onboarding document checklist to Portal: "5 things to do before your first employee document arrives"</li>
+            <li class="step-item"><div class="step-num">6</div>Mark onboarding complete: update tenant.onboarding_status = COMPLETE, publish onboarding_complete event</li>
+          </ul>
+        </div>
+        <div class="agent-col">
+          <h4>Tools Used</h4>
+          <div>
+            <span class="tool-tag ext">AWS KMS (KEK provision)</span>
+            <span class="tool-tag db">YugabyteDB (tenant, api_key, platform_config)</span>
+            <span class="tool-tag llm">Llama-3.1-8B (guide text)</span>
+            <span class="tool-tag kafka">Kafka (onboarding events)</span>
+            <span class="tool-tag ext">AWS SES (API key email)</span>
+            <span class="tool-tag temporal">Temporal (durable onboarding)</span>
+          </div>
+          <br>
+          <div class="hitl-box">
+            <strong>⚠ Human-in-the-Loop Points</strong>
+            OA-Admin must complete each config step in Portal — agent waits via Temporal timer (up to 7 days per step). Portal Admin can view onboarding progress and nudge OA. HMAC test must pass before agent marks onboarding complete.
+          </div>
+          <div class="output-box" style="margin-top:10px;">
+            <strong>✓ Output</strong>
+            KEK provisioned in KMS · API key delivered securely · tenant_config populated · onboarding checklist in Portal · tenant ready to receive HRMS documents
+          </div>
+        </div>
+      </div>
+      <div class="agent-footer">
+        <span class="footer-label">Complexity:</span>
+        <span class="chip chip-green">Medium</span>
+        <span class="footer-label" style="margin-left:10px;">Task Queue:</span>
+        <span class="chip chip-purple">prana-admin</span>
+        <span class="footer-label" style="margin-left:10px;">Workflow:</span>
+        <span class="chip chip-gray">TenantOnboardingWorkflow</span>
+      </div>
+    </div>
+
+  </div><!-- /agents-grid -->
+
+  <div class="privacy-callout" style="margin-top:36px;">
+    <div class="privacy-icon">🔒</div>
+    <div>
+      <h3>Privacy Contract Applies to All Agents</h3>
+      <p>Every agent that processes employee documents must follow the same LLM privacy contract as the AI pipeline:</p>
+      <ul>
+        <li>LLM receives full document context for reasoning — this is required for accuracy</li>
+        <li>LLM output (agent decision, recommendation, draft) contains insights only — no raw ₹ salary figures, no PAN, no NIK</li>
+        <li>Agent-generated content passes through the same privacy filter as Stage 05 of the pipeline before storage or delivery</li>
+        <li>Cross-tenant queries use only pan_token (HMAC output) — never plaintext PAN in any agent query or log</li>
+      </ul>
+    </div>
+  </div>
+</div>
+
+<!-- ARCHITECTURE TAB -->
+<div id="tab-architecture" class="section">
+  <h2 class="section-title">How Agents Fit the Stack</h2>
+  <p class="section-sub">Agents are Temporal workflows that call LLM activities. They consume Kafka events and publish results back to Kafka — no special infrastructure.</p>
+
+  <div class="arch-diagram">
+    <h3 style="font-size:16px;font-weight:700;color:var(--gray-900);margin-bottom:24px;">Agent Execution Flow</h3>
+
+    <div class="arch-flow-row">
+      <div class="flow-box" style="background:#ede9fe;border-color:#c4b5fd;">
+        Trigger Event
+        <small>Kafka consumer / HTTP / Temporal timer</small>
+      </div>
+      <div class="flow-arrow">→</div>
+      <div class="flow-box" style="background:#ecfdf5;border-color:#6ee7b7;">
+        WorkflowConsumer
+        <small>Starts Temporal workflow</small>
+      </div>
+      <div class="flow-arrow">→</div>
+      <div class="flow-box" style="background:var(--primary-bg);border-color:#c7d2fe;">
+        Agent Workflow
+        <small>Temporal: durable, replayable</small>
+      </div>
+    </div>
+
+    <div style="text-align:center;color:var(--gray-300);font-size:20px;margin:4px 0;">▼</div>
+
+    <div class="arch-flow-row">
+      <div class="flow-box" style="background:#eff6ff;border-color:#93c5fd;">
+        LLM Activity
+        <small>Qwen / Llama via LLMClient</small>
+      </div>
+      <div class="flow-arrow">→</div>
+      <div class="flow-box" style="background:#fff7ed;border-color:#fdba74;">
+        Tool Activities
+        <small>DB / S3 / EPFO / TRACES / KMS</small>
+      </div>
+      <div class="flow-arrow">→</div>
+      <div class="flow-box" style="background:#fef3c7;border-color:#fcd34d;">
+        HITL Pause (if needed)
+        <small>Temporal.waitForSignal()</small>
+      </div>
+    </div>
+
+    <div style="text-align:center;color:var(--gray-300);font-size:20px;margin:4px 0;">▼</div>
+
+    <div class="arch-flow-row">
+      <div class="flow-box" style="background:#ecfdf5;border-color:#6ee7b7;">
+        Privacy Filter
+        <small>Strip raw ₹ / PAN from output</small>
+      </div>
+      <div class="flow-arrow">→</div>
+      <div class="flow-box" style="background:#ede9fe;border-color:#c4b5fd;">
+        Kafka Publish
+        <small>audit / notification / analytics</small>
+      </div>
+      <div class="flow-arrow">→</div>
+      <div class="flow-box" style="background:#f0fdf4;border-color:#86efac;">
+        Consumers Act
+        <small>AuditConsumer · NotifConsumer · SSEFanout</small>
+      </div>
+    </div>
+
+    <div class="arch-note">
+      <strong>Key design principle:</strong> Agents call LLM as a Temporal activity — if the LLM call fails, Temporal retries with exponential backoff. No LLM call is ever in the HTTP path. Each agent step is a separate activity, so partial progress is checkpointed automatically.
+    </div>
+  </div>
+
+  <div class="arch-diagram">
+    <h3 style="font-size:16px;font-weight:700;color:var(--gray-900);margin-bottom:24px;">Kafka Topics Used by Agents</h3>
+    <div class="arch-layers">
+      <div class="arch-layer">
+        <div class="arch-label">Ingest Layer</div>
+        <div class="arch-boxes">
+          <div class="arch-box arch-box-amber">prana.ingest.events<small>DOC_INGESTED · triggers Verification + Anomaly + Reconciliation agents</small></div>
+        </div>
+      </div>
+      <div style="height:20px;"></div>
+      <div class="arch-layer">
+        <div class="arch-label">Pipeline Layer</div>
+        <div class="arch-boxes">
+          <div class="arch-box arch-box-purple">prana.pipeline.events<small>STAGE_COMPLETE · SSEFanout pushes to browser for career + verification agents</small></div>
+        </div>
+      </div>
+      <div style="height:20px;"></div>
+      <div class="arch-layer">
+        <div class="arch-label">Audit Layer</div>
+        <div class="arch-boxes">
+          <div class="arch-box arch-box-blue">prana.audit.events<small>Every agent decision → AuditConsumer → audit_event table (7-year retention)</small></div>
+        </div>
+      </div>
+      <div style="height:20px;"></div>
+      <div class="arch-layer">
+        <div class="arch-label">Notifications</div>
+        <div class="arch-boxes">
+          <div class="arch-box arch-box-green">prana.notifications<small>Agent outcomes → NotifConsumer → SES email · SMS · WhatsApp · Portal bell</small></div>
+        </div>
+      </div>
+      <div style="height:20px;"></div>
+      <div class="arch-layer">
+        <div class="arch-label">Analytics</div>
+        <div class="arch-boxes">
+          <div class="arch-box arch-box-gray">prana.analytics.events<small>Agent run metrics → AnalyticsConsumer → tenant health scores · completeness rates</small></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="arch-diagram">
+    <h3 style="font-size:16px;font-weight:700;color:var(--gray-900);margin-bottom:20px;">Temporal Task Queue Assignment</h3>
+    <table class="effort-table">
+      <thead>
+        <tr>
+          <th>Task Queue</th>
+          <th>Workers</th>
+          <th>Agents Running Here</th>
+          <th>Notes</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td><strong>prana-ingest</strong></td>
+          <td>prana-api</td>
+          <td>HRMS Reconciliation Agent</td>
+          <td>Runs before document is accepted — blocks ingest on identity failure</td>
+        </tr>
+        <tr>
+          <td><strong>prana-pipeline</strong></td>
+          <td>prana-ai (GPU)</td>
+          <td>Document Verification, Payroll Anomaly</td>
+          <td>Needs GPU for LLM activities; runs after OCR+extraction</td>
+        </tr>
+        <tr>
+          <td><strong>prana-compliance</strong></td>
+          <td>prana-api</td>
+          <td>Grievance Resolution, Compliance Audit</td>
+          <td>Long-running (up to 30 days); DPDP SLA timers managed here</td>
+        </tr>
+        <tr>
+          <td><strong>prana-admin</strong></td>
+          <td>prana-api</td>
+          <td>Tenant Onboarding</td>
+          <td>Waits for human steps; can run for 7 days per config step</td>
+        </tr>
+        <tr>
+          <td><strong>prana-analytics</strong></td>
+          <td>prana-api</td>
+          <td>Vault Gap, Career Navigation</td>
+          <td>Low-urgency; scheduled timers; CPU-only LLM for summaries</td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<!-- ROADMAP TAB -->
+<div id="tab-roadmap" class="section">
+  <h2 class="section-title">Build Roadmap</h2>
+  <p class="section-sub">Agents are prioritized by: business value delivered, infrastructure dependencies already built, and implementation risk.</p>
+
+  <div class="roadmap-grid">
+    <div class="roadmap-phase">
+      <div class="phase-header p1">Phase 1 — Foundation (Months 1–2)</div>
+      <div class="phase-body">
+        <span class="phase-badge pb-green">Ship First · Highest ROI</span>
+        <ul class="phase-items">
+          <li class="phase-item">
+            <div>
+              <strong>06 Vault Gap Agent</strong>
+              <span>Lowest complexity. Infrastructure fully exists. Directly reduces churn — OA-Operators who see vault gaps act on them.</span>
+            </div>
+          </li>
+          <li class="phase-item">
+            <div>
+              <strong>08 Tenant Onboarding Agent</strong>
+              <span>Sales blocker today. Slow onboarding = lost tenants. Uses only KMS + DB + email — no LLM risk.</span>
+            </div>
+          </li>
+          <li class="phase-item">
+            <div>
+              <strong>02 Career Navigation Agent (MVP)</strong>
+              <span>Employee-facing differentiation. RAG infra (Qdrant + bge-m3) already built in prana-ask. Adapts it for career context.</span>
+            </div>
+          </li>
+        </ul>
+      </div>
+    </div>
+
+    <div class="roadmap-phase">
+      <div class="phase-header p2">Phase 2 — Trust Layer (Months 3–4)</div>
+      <div class="phase-body">
+        <span class="phase-badge pb-blue">Compliance + Verification Value</span>
+        <ul class="phase-items">
+          <li class="phase-item">
+            <div>
+              <strong>07 Grievance Resolution Agent</strong>
+              <span>DPDP Act compliance requirement. 48h SLA at scale requires automation. Legal risk if skipped.</span>
+            </div>
+          </li>
+          <li class="phase-item">
+            <div>
+              <strong>03 Compliance Audit Agent</strong>
+              <span>CHRO/CFO ask in every demo. Monthly audit report is a recurring OA pain point today — automating it = immediate value.</span>
+            </div>
+          </li>
+          <li class="phase-item">
+            <div>
+              <strong>05 HRMS Reconciliation Agent</strong>
+              <span>Required for HRMS partner integrations at scale. Unknown employee pushes are the #1 ingest failure today.</span>
+            </div>
+          </li>
+        </ul>
+      </div>
+    </div>
+
+    <div class="roadmap-phase">
+      <div class="phase-header p3">Phase 3 — Intelligence Layer (Months 5–6)</div>
+      <div class="phase-body">
+        <span class="phase-badge pb-purple">Advanced AI · External APIs</span>
+        <ul class="phase-items">
+          <li class="phase-item">
+            <div>
+              <strong>01 Document Verification Agent</strong>
+              <span>Highest trust signal for employees. Depends on TRACES API access (requires MoF partnership) and EPFO scraping stability.</span>
+            </div>
+          </li>
+          <li class="phase-item">
+            <div>
+              <strong>04 Payroll Anomaly Agent</strong>
+              <span>High value for CISO/CFO but requires 6+ months of salary insight history to be statistically meaningful. Must be built on mature data.</span>
+            </div>
+          </li>
+        </ul>
+      </div>
+    </div>
+  </div>
+
+  <h3 style="font-size:18px;font-weight:700;color:var(--gray-900);margin:32px 0 16px;">Implementation Effort vs Value Matrix</h3>
+  <table class="effort-table">
+    <thead>
+      <tr>
+        <th>Agent</th>
+        <th>Effort (1–5)</th>
+        <th>Business Value</th>
+        <th>External API Risk</th>
+        <th>Phase</th>
+        <th>Priority</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td><strong>06 Vault Gap</strong></td>
+        <td><div class="effort-bar"><div class="bar-dot filled"></div><div class="bar-dot empty"></div><div class="bar-dot empty"></div><div class="bar-dot empty"></div><div class="bar-dot empty"></div></div></td>
+        <td>OA retention, tenant health</td>
+        <td>None</td>
+        <td>1</td>
+        <td><span class="priority-badge pri-high">P0</span></td>
+      </tr>
+      <tr>
+        <td><strong>08 Tenant Onboarding</strong></td>
+        <td><div class="effort-bar"><div class="bar-dot filled"></div><div class="bar-dot filled"></div><div class="bar-dot empty"></div><div class="bar-dot empty"></div><div class="bar-dot empty"></div></div></td>
+        <td>Sales conversion, time-to-first-doc</td>
+        <td>KMS only (low risk)</td>
+        <td>1</td>
+        <td><span class="priority-badge pri-high">P0</span></td>
+      </tr>
+      <tr>
+        <td><strong>02 Career Navigation</strong></td>
+        <td><div class="effort-bar"><div class="bar-dot filled"></div><div class="bar-dot filled"></div><div class="bar-dot empty"></div><div class="bar-dot empty"></div><div class="bar-dot empty"></div></div></td>
+        <td>Employee engagement, differentiation</td>
+        <td>None (Qdrant exists)</td>
+        <td>1</td>
+        <td><span class="priority-badge pri-high">P0</span></td>
+      </tr>
+      <tr>
+        <td><strong>07 Grievance Resolution</strong></td>
+        <td><div class="effort-bar"><div class="bar-dot filled"></div><div class="bar-dot filled"></div><div class="bar-dot filled"></div><div class="bar-dot empty"></div><div class="bar-dot empty"></div></div></td>
+        <td>DPDP compliance, legal risk reduction</td>
+        <td>SES only (low risk)</td>
+        <td>2</td>
+        <td><span class="priority-badge pri-high">P1</span></td>
+      </tr>
+      <tr>
+        <td><strong>03 Compliance Audit</strong></td>
+        <td><div class="effort-bar"><div class="bar-dot filled"></div><div class="bar-dot filled"></div><div class="bar-dot empty"></div><div class="bar-dot empty"></div><div class="bar-dot empty"></div></div></td>
+        <td>CHRO/CFO value, recurring report automation</td>
+        <td>None</td>
+        <td>2</td>
+        <td><span class="priority-badge pri-high">P1</span></td>
+      </tr>
+      <tr>
+        <td><strong>05 HRMS Reconciliation</strong></td>
+        <td><div class="effort-bar"><div class="bar-dot filled"></div><div class="bar-dot filled"></div><div class="bar-dot filled"></div><div class="bar-dot empty"></div><div class="bar-dot empty"></div></div></td>
+        <td>HRMS partner satisfaction, ingest reliability</td>
+        <td>EPFO UAN (medium risk)</td>
+        <td>2</td>
+        <td><span class="priority-badge pri-med">P2</span></td>
+      </tr>
+      <tr>
+        <td><strong>01 Doc Verification</strong></td>
+        <td><div class="effort-bar"><div class="bar-dot filled"></div><div class="bar-dot filled"></div><div class="bar-dot filled"></div><div class="bar-dot filled"></div><div class="bar-dot empty"></div></div></td>
+        <td>Employee trust, premium feature</td>
+        <td>TRACES (high risk — needs MoF)</td>
+        <td>3</td>
+        <td><span class="priority-badge pri-med">P2</span></td>
+      </tr>
+      <tr>
+        <td><strong>04 Payroll Anomaly</strong></td>
+        <td><div class="effort-bar"><div class="bar-dot filled"></div><div class="bar-dot filled"></div><div class="bar-dot filled"></div><div class="bar-dot filled"></div><div class="bar-dot filled"></div></div></td>
+        <td>CISO/CFO, fraud detection</td>
+        <td>None (internal data)</td>
+        <td>3</td>
+        <td><span class="priority-badge pri-low">P3</span></td>
+      </tr>
+    </tbody>
+  </table>
+
+  <div style="background:white;border-radius:12px;border:1px solid var(--gray-200);padding:28px;margin-top:28px;">
+    <h3 style="font-size:16px;font-weight:700;color:var(--gray-900);margin-bottom:16px;">Pre-conditions Before Building Any Agent</h3>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;font-size:13px;">
+      <div>
+        <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.5px;color:var(--gray-500);margin-bottom:10px;">Infrastructure Must Be Live</div>
+        <ul style="list-style:none;">
+          <li style="padding:6px 0;border-bottom:1px solid var(--gray-100);display:flex;gap:8px;align-items:center;"><span style="color:var(--success);">✓</span> All 5 Kafka consumers running</li>
+          <li style="padding:6px 0;border-bottom:1px solid var(--gray-100);display:flex;gap:8px;align-items:center;"><span style="color:var(--success);">✓</span> Temporal worker running on all 5 task queues</li>
+          <li style="padding:6px 0;border-bottom:1px solid var(--gray-100);display:flex;gap:8px;align-items:center;"><span style="color:var(--success);">✓</span> Redis Pub/Sub SSE fanout working</li>
+          <li style="padding:6px 0;border-bottom:1px solid var(--gray-100);display:flex;gap:8px;align-items:center;"><span style="color:var(--success);">✓</span> LLMClient in both prana-ai and prana-ask</li>
+          <li style="padding:6px 0;display:flex;gap:8px;align-items:center;"><span style="color:var(--success);">✓</span> Privacy filter (Stage 05) production-tested</li>
+        </ul>
+      </div>
+      <div>
+        <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.5px;color:var(--gray-500);margin-bottom:10px;">TDD Requirements</div>
+        <ul style="list-style:none;">
+          <li style="padding:6px 0;border-bottom:1px solid var(--gray-100);display:flex;gap:8px;align-items:center;"><span style="color:var(--primary);">→</span> Every agent workflow needs test_&lt;name&gt;_workflow.py</li>
+          <li style="padding:6px 0;border-bottom:1px solid var(--gray-100);display:flex;gap:8px;align-items:center;"><span style="color:var(--primary);">→</span> LLM activities must be mockable (dependency injection)</li>
+          <li style="padding:6px 0;border-bottom:1px solid var(--gray-100);display:flex;gap:8px;align-items:center;"><span style="color:var(--primary);">→</span> Privacy filter must have dedicated test: no raw ₹ in agent output</li>
+          <li style="padding:6px 0;border-bottom:1px solid var(--gray-100);display:flex;gap:8px;align-items:center;"><span style="color:var(--primary);">→</span> HITL pause tests: workflow waits correctly for signal</li>
+          <li style="padding:6px 0;display:flex;gap:8px;align-items:center;"><span style="color:var(--primary);">→</span> Tenant isolation test: agent cannot read another tenant's data</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+</div>
+
+</div><!-- /main -->
+
+<div style="background:var(--gray-100);border-top:1px solid var(--gray-200);padding:20px 40px;text-align:center;font-size:12px;color:var(--gray-500);margin-top:40px;">
+  PRANA Platform · Agentic AI Architecture v1 · June 2026 · Confidential — Internal Use Only
+</div>
+
+<script>
+  function showTab(name) {
+    document.querySelectorAll('.section').forEach(s => s.classList.remove('active'));
+    document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+    document.getElementById('tab-' + name).classList.add('active');
+    event.currentTarget.classList.add('active');
+  }
+</script>
+</body>
+</html>

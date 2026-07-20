@@ -1,0 +1,50 @@
+{
+  "version": "1.0.0",
+  "updated": "2026-06-29",
+  "source": "scanned",
+  "colors": {
+    "shell": "#0F172A",
+    "canvas": "#F8FAFC",
+    "canvas2": "#F1F5F9",
+    "muted": "#64748B",
+    "border": "#E2E8F0",
+    "ink": "#0F172A",
+    "inkBody": "#334155",
+    "accent": "#6366F1",
+    "roles": {
+      "employee": "#0EA5E9",
+      "oaOperator": "#10B981",
+      "oaAdmin": "#8B5CF6",
+      "portalAdmin": "#F59E0B",
+      "chro": "#EC4899",
+      "cfo": "#6366F1",
+      "ciso": "#EF4444"
+    }
+  },
+  "typography": {
+    "fontFamily": "Inter, system-ui, sans-serif",
+    "monoFamily": "'JetBrains Mono', 'Fira Code', monospace",
+    "weights": [400, 500, 600, 700, 800]
+  },
+  "radii": {
+    "sm": "8px",
+    "md": "12px",
+    "lg": "16px",
+    "xl": "20px",
+    "2xl": "24px",
+    "pill": "9999px"
+  },
+  "shadows": {
+    "card": "none",
+    "hover": "0 4px 16px rgba(99,102,241,0.10)",
+    "modal": "0 8px 32px rgba(15,23,42,0.12)"
+  },
+  "bans": [
+    "gradient-text",
+    "side-tab-border",
+    "eyebrow-every-section",
+    "numbered-scaffold",
+    "hero-metric-template",
+    "gray-on-color"
+  ]
+}

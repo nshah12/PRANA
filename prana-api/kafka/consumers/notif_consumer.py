@@ -17,7 +17,19 @@ Events handled:
   CROSS_TENANT_UPLOAD → notify Tenant CISO (email + bell) + PA Admin (email)
   DPDP_ERASURE_DONE   → notify employee (email)
   DPDP_EXPORT_READY   → notify employee (email)
+  SHARE_ACCESSED      → notify employee/share-owner (email) — published by
+                        workflows/vault_shares.py's notify_share_accessed activity
   DIGEST_READY        → notify role recipients (email)
+  AUDIT_INTEGRITY_MISMATCH → notify all active PA Admins (email) — platform-level,
+                        raised by AuditIntegrityVerificationWorkflow when a
+                        recent audit_event row no longer matches its Immudb
+                        dual-write (see KAFKA_REDIS_ARCHITECTURE.md §8)
+  VAULT_WELCOME / VAULT_WELCOME_REJOIN → notify employee their vault is active
+                        (SMS to mobile + email if present) — published by
+                        workflows/employee_lifecycle.py's send_vault_welcome activity
+  EMPLOYEE_CREDENTIALS_ISSUED → notify employee an account now exists (SMS + email) —
+                        published by routers/employees.py when create/import supplied
+                        a mobile or email, so a temp password was actually generated
 """
 import json
 import logging
@@ -60,7 +72,11 @@ class NotifConsumer:
                         svc   = NotificationService(db=conn)
                         isvc  = IncidentService(db=conn)
                         await self._dispatch(event, etype, svc, isvc, conn)
-                except Exception:
+                except Exception as exc:
+                    from kafka.error_capture import record_consumer_error
+                    await record_consumer_error(
+                        self._db_pool, consumer_name="NotifConsumer", exc=exc, event_type=etype,
+                    )
                     log.exception("NotifConsumer error event_type=%s", etype)
         finally:
             await self._consumer.stop()
@@ -93,8 +109,14 @@ class NotifConsumer:
             await self._handle_dpdp_employee(event, svc, conn, template_id="ERASURE_COMPLETE")
         elif etype == "DPDP_EXPORT_READY":
             await self._handle_dpdp_employee(event, svc, conn, template_id="EXPORT_READY")
+        elif etype == "SHARE_ACCESSED":
+            await self._handle_dpdp_employee(event, svc, conn, template_id="SHARE_ACCESSED")
         elif etype == "DIGEST_READY":
             await self._handle_digest_ready(event, svc, conn)
+        elif etype == "AUDIT_INTEGRITY_MISMATCH":
+            await self._handle_audit_integrity_mismatch(event, svc, conn)
+        elif etype in ("VAULT_WELCOME", "VAULT_WELCOME_REJOIN", "EMPLOYEE_CREDENTIALS_ISSUED"):
+            await self._handle_employee_welcome(event, etype, svc, conn)
         else:
             log.debug("NotifConsumer: unhandled event_type=%s", etype)
 
@@ -112,7 +134,15 @@ class NotifConsumer:
         tenant_id   = event.get("tenant_id")
         anomaly_id  = event.get("anomaly_id")
         rule_name   = event.get("rule_name", "UNKNOWN")
-        severity    = event.get("severity", "P2")
+        severity    = event.get("severity")
+        if not severity:
+            # Same shared policy lookup security_consumer.py uses — the two consumers
+            # can no longer default to different severities for the same event. See
+            # prana-docs/SEVERITY_SLA_POLICY_DESIGN.md §4.
+            from services.severity_policy_service import SeverityPolicyService
+            severity = await SeverityPolicyService(conn).resolve_severity(
+                domain="ANOMALY_RULE", value=rule_name,
+            ) or "P3"
 
         ciso = await self._lookup_ciso(conn, tenant_id)
         if ciso:
@@ -144,7 +174,7 @@ class NotifConsumer:
             return
 
         row = await conn.fetchrow(
-            "SELECT email, phone FROM employee_user WHERE employee_user_id = $1", emp_id
+            "SELECT email, mobile FROM employee_user WHERE employee_user_id = $1", emp_id
         )
         if not row:
             log.warning("DOC_ROUTED: employee not found employee_user_id=%s", emp_id)
@@ -166,7 +196,7 @@ class NotifConsumer:
             event_type="DOC_ROUTED",
             recipient_id=emp_id,
             recipient_type=RecipientType.EMPLOYEE,
-            recipient_phone=row["phone"],
+            recipient_phone=row["mobile"],
             channel=Channel.WHATSAPP,
             template_id="DOC_ROUTED",
             template_data={"doc_type": doc_type},
@@ -256,6 +286,55 @@ class NotifConsumer:
             template_data={"login_url": login_url},
         )
 
+    async def _handle_employee_welcome(
+        self, event: dict, etype: str, svc: NotificationService, conn: asyncpg.Connection
+    ) -> None:
+        """VAULT_WELCOME/VAULT_WELCOME_REJOIN (workflows/employee_lifecycle.py's
+        send_vault_welcome, fired once a document is routed and the vault is
+        activated) and EMPLOYEE_CREDENTIALS_ISSUED (routers/employees.py, fired at
+        employee creation when the employer supplied a mobile/email) were both
+        previously unhandled here — this method used to not exist at all, so every
+        one of these events silently fell through to the `unhandled event_type`
+        debug log with no notification ever sent. mobile is the employee's primary
+        login handle (schema.sql comment on employee_user.mobile), so SMS is tried
+        first; email is a secondary/fallback channel sent in addition when present.
+        Same as OA's _handle_welcome, the temp password itself is never put in
+        template_data/notification_log — only that credentials now exist."""
+        emp_id    = event.get("recipient_id") or event.get("employee_user_id")
+        tenant_id = event.get("tenant_id")
+        if not emp_id:
+            return
+
+        row = await conn.fetchrow(
+            "SELECT mobile, email FROM employee_user WHERE employee_user_id = $1", emp_id
+        )
+        if not row or (not row["mobile"] and not row["email"]):
+            log.warning("%s: no delivery channel for employee_user_id=%s", etype, emp_id)
+            return
+
+        if row["mobile"]:
+            await svc.notify(
+                tenant_id=tenant_id,
+                event_type=etype,
+                recipient_id=emp_id,
+                recipient_type=RecipientType.EMPLOYEE,
+                recipient_phone=row["mobile"],
+                channel=Channel.SMS,
+                template_id=etype,
+                template_data={},
+            )
+        if row["email"]:
+            await svc.notify(
+                tenant_id=tenant_id,
+                event_type=etype,
+                recipient_id=emp_id,
+                recipient_type=RecipientType.EMPLOYEE,
+                recipient_email=row["email"],
+                channel=Channel.EMAIL,
+                template_id=etype,
+                template_data={},
+            )
+
     async def _handle_account_locked(
         self, event: dict, svc: NotificationService, conn: asyncpg.Connection
     ) -> None:
@@ -335,6 +414,31 @@ class NotifConsumer:
                 recipient_email=pa["email"],
                 channel=Channel.EMAIL,
                 template_id="CROSS_TENANT_UPLOAD_ALERT",
+                template_data=template_data,
+            )
+
+    async def _handle_audit_integrity_mismatch(
+        self, event: dict, svc: NotificationService, conn: asyncpg.Connection
+    ) -> None:
+        """Platform-level alert — spans potentially any tenant, so every active
+        PA Admin is notified rather than a single tenant's CISO."""
+        template_data = {
+            "checked_count":     event.get("checked_count", 0),
+            "mismatched_count":  event.get("mismatched_count", 0),
+            "unverified_count":  event.get("unverified_count", 0),
+        }
+        pa_admins = await conn.fetch(
+            "SELECT pa_id, email FROM portal_admin WHERE status='ACTIVE'",
+        )
+        for pa in pa_admins:
+            await svc.notify(
+                tenant_id=None,
+                event_type="AUDIT_INTEGRITY_MISMATCH",
+                recipient_id=str(pa["pa_id"]),
+                recipient_type=RecipientType.OA_USER,
+                recipient_email=pa["email"],
+                channel=Channel.EMAIL,
+                template_id="AUDIT_INTEGRITY_MISMATCH",
                 template_data=template_data,
             )
 

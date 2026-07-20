@@ -64,7 +64,10 @@ async def stage02_encrypt(params: dict) -> dict:
             access_key_id=settings.aws_access_key_id,
             secret_access_key=settings.aws_secret_access_key,
         )
-        dek = await kms.decrypt_dek(enc_dek, params["tenant_kek_arn"])
+        # KMSService.unwrap_dek is synchronous (boto3 kms.decrypt is not async) —
+        # this used to call a nonexistent "decrypt_dek" method with `await`, which
+        # would raise AttributeError before ever reaching the real coroutine issue.
+        dek = kms.unwrap_dek(enc_dek, params["tenant_kek_arn"])
         try:
             from ff3 import FF3Cipher
             key_hex    = dek[:16].hex()           # FF3-1 uses 16, 24, or 32-byte key
@@ -94,7 +97,7 @@ async def stage02_encrypt(params: dict) -> dict:
             access_key_id=settings.aws_access_key_id,
             secret_access_key=settings.aws_secret_access_key,
         )
-        file_dek = await kms.decrypt_dek(params["enc_dek"], params["tenant_kek_arn"])
+        file_dek = kms.unwrap_dek(params["enc_dek"], params["tenant_kek_arn"])
         try:
             from cryptography.hazmat.primitives.ciphers.aead import AESGCM
             obj = s3.get_object(Bucket=staging_bucket, Key=staging_key)
@@ -233,6 +236,11 @@ async def stage05_handle_cross_tenant_violation(params: dict) -> dict:
         pan_token          = params.get("pan_token", "")
         actor_id           = params.get("uploaded_by")   # oa_user_id who triggered the upload
 
+        from services.severity_policy_service import SeverityPolicyService
+        severity = await SeverityPolicyService(db).resolve_severity(
+            domain="ANOMALY_RULE", value="CROSS_TENANT_UPLOAD_ATTEMPT",
+        ) or "P0"
+
         async with db.transaction():
             anomaly_id = str(uuid.uuid4())
             await db.execute(
@@ -244,7 +252,7 @@ async def stage05_handle_cross_tenant_violation(params: dict) -> dict:
                 anomaly_id,
                 uploading_tenant_id,
                 "CROSS_TENANT_UPLOAD_ATTEMPT",
-                "P0",
+                severity,
                 actor_id,
                 json.dumps({
                     "document_id":        document_id,
@@ -283,8 +291,10 @@ async def stage05_handle_cross_tenant_violation(params: dict) -> dict:
                 "actor_id":            actor_id,
             }, key=uploading_tenant_id)
             await kafka.stop()
-        except Exception:
-            pass  # Temporal will retry the activity; Kafka publish is best-effort within the retry
+        except Exception as exc:
+            from workflows.error_capture_interceptor import _record
+            await _record(exc, "cross_tenant_upload_reject:kafka_publish")
+            # Temporal will retry the activity; Kafka publish is best-effort within the retry
 
         return {"status": "CROSS_TENANT_REJECTED", "anomaly_id": anomaly_id}
     finally:
@@ -492,7 +502,10 @@ async def close_grievance(params: dict) -> None:
 @activity.defn(name="get_batch_config")
 async def get_batch_config(params: dict) -> dict:
     """
-    Read pipeline_max_duration_hours and batch_max_duration_hours from config.
+    Read pipeline_max_duration_hours and batch_max_duration_hours from config, and
+    (when batch_id is given) the document_ids belonging to that batch — BATCH_UPLOADED
+    events carry only a count, not the ids, so BatchProgressWorkflow's fan-out has to
+    look them up here rather than receive them in its start params.
     Tenant config overrides platform config.
     """
     import asyncpg
@@ -514,10 +527,16 @@ async def get_batch_config(params: dict) -> dict:
             )
             return row["val"] if row else default
 
-        return {
+        result = {
             "pipeline_max_duration_hours": await _cfg("pipeline_max_duration_hours", "4"),
             "batch_max_duration_hours":    await _cfg("batch_max_duration_hours",    "24"),
         }
+        if params.get("batch_id"):
+            rows = await db.fetch(
+                "SELECT document_id FROM document WHERE batch_id=$1", params["batch_id"],
+            )
+            result["document_ids"] = [str(r["document_id"]) for r in rows]
+        return result
     finally:
         await db.close()
 
@@ -820,23 +839,61 @@ async def provision_tenant(params: dict) -> dict:
             tenant_id,
         )
 
-        # 4. Publish to Kafka → NotifConsumer sends welcome email with temp password
-        # (Kafka publish is best-effort from activity — real reliability via Temporal retry)
+        # 4. Register tenant's HRMS API key as a Kong consumer so ingest calls are authorised.
+        # Without this, all HRMS pushes for this tenant get 401 at Kong.
+        # Kong Admin API is VPC-internal only (port 8001, never exposed via ALB).
+        api_key_row = await db.fetchrow(
+            "SELECT key_id, signing_secret_enc FROM api_key WHERE tenant_id=$1 AND status='ACTIVE' LIMIT 1",
+            tenant_id,
+        )
+        if api_key_row:
+            try:
+                import httpx
+                kong_admin_url = settings.kong_admin_url  # e.g. http://kong.prod.internal:8001
+                consumer_username = f"tenant-{tenant_id}"
+                async with httpx.AsyncClient(timeout=10) as client:
+                    # Create consumer
+                    await client.post(f"{kong_admin_url}/consumers", json={
+                        "username":  consumer_username,
+                        "custom_id": str(tenant_id),
+                    })
+                    # Register HMAC credential
+                    await client.post(
+                        f"{kong_admin_url}/consumers/{consumer_username}/hmac-auth",
+                        json={
+                            "username": str(api_key_row["key_id"]),
+                            "secret":   api_key_row["signing_secret_enc"],  # decrypted at call site
+                        },
+                    )
+                await db.execute(
+                    "UPDATE api_key SET kong_consumer_registered=TRUE WHERE tenant_id=$1",
+                    tenant_id,
+                )
+            except Exception:
+                # Non-fatal — PA can re-trigger via /admin/tenants/{id}/register-kong
+                import logging
+                logging.getLogger(__name__).exception(
+                    "Kong consumer registration failed tenant=%s — retry via PA console", tenant_id
+                )
+
+        # 5. Publish to Kafka → NotifConsumer sends welcome email with temp password
         try:
             from kafka.producer import KafkaPub
             kafka = KafkaPub(settings)
             await kafka.start()
-            await kafka.publish("prana.notifications", {
+            await kafka.tenant_event({
                 "event_type":     "TENANT_PROVISIONED",
                 "tenant_id":      tenant_id,
                 "oa_user_id":     admin["oa_user_id"],
                 "admin_email":    admin["email"],
                 "temp_password":  temp_password,
-                "login_url":      "https://prana.in/org/login",
-            }, key=tenant_id)
+                "login_url":      settings.portal_url + "/org/login",
+            })
             await kafka.stop()
-        except Exception:
-            pass  # Non-fatal — email delivery is best-effort; admin can resend from PA console
+        except Exception as exc:
+            from workflows.error_capture_interceptor import _record
+            await _record(exc, "tenant_provisioning:welcome_email_publish")
+            # Non-fatal — admin can resend from PA console
 
         return {"tenant_id": tenant_id, "oa_admin_id": admin["oa_user_id"]}
     finally:

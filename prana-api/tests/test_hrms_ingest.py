@@ -94,6 +94,7 @@ async def test_hrms_upload_accepts_correctly_signed_request(client, mock_db, moc
     mock_db.execute = AsyncMock()
     mock_redis.incr = AsyncMock(return_value=1)
     mock_redis.expire = AsyncMock()
+    app.state.s3.put_object_async = AsyncMock()
 
     signature = _valid_signature(_MINIMAL_PDF_BYTES)
 
@@ -119,6 +120,7 @@ async def test_hrms_upload_never_writes_audit_event_or_starts_workflow(client, m
     mock_db.execute = AsyncMock()
     mock_redis.incr = AsyncMock(return_value=1)
     mock_redis.expire = AsyncMock()
+    app.state.s3.put_object_async = AsyncMock()
 
     signature = _valid_signature(_MINIMAL_PDF_BYTES)
 
@@ -173,6 +175,7 @@ async def test_hrms_upload_under_limit_does_not_publish_rate_limit_event(
     mock_db.execute = AsyncMock()
     mock_redis.incr = AsyncMock(return_value=1)
     mock_redis.expire = AsyncMock()
+    app.state.s3.put_object_async = AsyncMock()
 
     signature = _valid_signature(_MINIMAL_PDF_BYTES)
 

@@ -195,3 +195,20 @@ class ShareService:
         )
         if result == "UPDATE 0":
             raise PermissionError("NOT_FOUND")
+
+    # ── Internal (Temporal-activity) mutations — no ownership check, the
+    # workflow already has an authorized actor context. Both idempotent:
+    # a retry or a race with the other revoke() path is a safe no-op. ────────
+
+    async def revoke_by_id(self, share_id: str) -> None:
+        await self._db.execute(
+            "UPDATE share_token SET status='REVOKED', revoked_at=NOW() "
+            "WHERE token_id=$1 AND status='ACTIVE'",
+            share_id,
+        )
+
+    async def mark_expired(self, share_id: str) -> None:
+        await self._db.execute(
+            "UPDATE share_token SET status='EXPIRED' WHERE token_id=$1 AND status='ACTIVE'",
+            share_id,
+        )

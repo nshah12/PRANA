@@ -94,6 +94,7 @@ async def test_pa_totp_invalid_lockout(client, mock_db, mock_redis):
         },
         {"config_value": "3"},
     ]
+    mock_db.fetchval.return_value = 3  # atomic increment → hits PA lock threshold
 
     with patch("routers.auth_pa.TOTPService") as MockTOTP:
         instance = MagicMock()

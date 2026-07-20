@@ -37,7 +37,7 @@ TDD-01 is ERROR. A router, service, or workflow with no test file cannot be merg
 ## Files exempt from TDD-01
 
 These are infrastructure/config, not logic:
-`__init__.py`, `config.py`, `main.py`, `db.py`, `versioning.py`, `worker.py`, `llm_client.py`
+`__init__.py`, `config.py`, `main.py`, `db.py`, `versioning.py`, `worker.py`, `llm_client.py`, `limiter.py` (shared SlowAPI singleton — its rate-limiting behavior is tested at the consuming router, e.g. `tests/test_public.py::test_verify_rate_limited_after_threshold`)
 Directories: `middleware/`, `kafka/`, `scripts/`, `migrations/`, `seeds/`, `prompts/`, `schemas/`
 
 ## Test structure — prana-api

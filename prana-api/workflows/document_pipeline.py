@@ -1,13 +1,48 @@
 """
 DocumentPipelineWorkflow — thin Temporal shell.
-All business logic lives in prana-ai pipeline stages (plain Python, no Temporal imports).
-This file contains ONLY Temporal primitives: workflow, activities, task queue wiring.
+Stage activities (stage02-06) are implemented once in workflows/activities.py
+and imported here directly — not redeclared — so there is exactly one
+@activity.defn per name and no risk of a duplicate stub shadowing the real
+implementation (see scripts/enforce_rules.py's ACTIVITY-01 check, added after
+exactly that bug shipped in workflows/compliance.py). Stages 03-06 call
+prana-ai via HTTP internally; stage02 (encryption) runs locally since it needs
+KMS access, which prana-ai does not have.
+
+workflows.activities imports boto3 at module level. Temporal's workflow
+sandbox re-imports, in a restricted/deterministic environment, every module
+that contains a @workflow.defn class — including this one — and boto3's
+import chain (via urllib3/http.client) trips the sandbox's restrictions,
+raising RuntimeError: Failed validating workflow DocumentPipelineWorkflow the
+moment a real worker process starts (not caught by any test: pytest imports
+this module directly, never through Temporal's sandboxed worker startup path).
+imports_passed_through() tells the sandbox not to re-validate this import —
+correct here because activities never execute inside the workflow sandbox in
+the first place, only @workflow.run code does.
 """
 from datetime import timedelta
 from temporalio import workflow, activity
 from temporalio.common import RetryPolicy
 
-TASK_QUEUE = "document-pipeline"
+with workflow.unsafe.imports_passed_through():
+    from workflows.activities import (
+        stage02_encrypt,
+        stage03_scan,
+        stage04_extract,
+        stage04_write_unclassified,
+        stage05_resolve,
+        stage05_handle_cross_tenant_violation,
+        stage06_route,
+        stage06_raise_exception,
+        update_pipeline_status,
+    )
+
+# Must match worker.py's WORKERS dict key exactly — this constant is imported by
+# workflow_consumer.py (DocumentPipelineWorkflow/BatchTimeoutMonitorWorkflow starts)
+# and by batch_progress.py (BatchProgressWorkflow's own child-workflow starts), so a
+# wrong value here silently breaks every document upload: start_workflow() never
+# validates a queue has a listening worker, so nothing errors — the document simply
+# never leaves pipeline_status=QUEUED. See scripts/enforce_rules.py's QUEUE-01 check.
+TASK_QUEUE = "ingestsvc-queue"
 
 _RETRY = RetryPolicy(
     maximum_attempts=3,
@@ -17,34 +52,18 @@ _RETRY = RetryPolicy(
 )
 
 
-# ── Activity stubs (implementations live in prana-ai, called via HTTP) ────────
+# ── EmbeddingUpdateWorkflow's activities are registered by prana-ai's own ────
+# worker process on this same task queue (see worker.py's "resolution-queue"
+# entry: "activities": [] # activities registered by prana-ai worker) — prana-
+# api never registers a compute_document_embedding/write_document_embedding
+# implementation, and must not: doing so from prana-api would create the exact
+# duplicate-registration hazard this file's stage02-06 activities used to have
+# (see the import block above), just in the opposite direction.
+@activity.defn(name="compute_document_embedding")
+async def compute_document_embedding(params: dict) -> dict: ...
 
-@activity.defn(name="stage02_encrypt")
-async def stage02_encrypt(params: dict) -> dict: ...
-
-@activity.defn(name="stage03_scan")
-async def stage03_scan(params: dict) -> dict: ...
-
-@activity.defn(name="stage04_extract")
-async def stage04_extract(params: dict) -> dict: ...
-
-@activity.defn(name="stage05_resolve")
-async def stage05_resolve(params: dict) -> dict: ...
-
-@activity.defn(name="stage06_route")
-async def stage06_route(params: dict) -> dict: ...
-
-@activity.defn(name="stage06_raise_exception")
-async def stage06_raise_exception(params: dict) -> dict: ...
-
-@activity.defn(name="stage04_write_unclassified")
-async def stage04_write_unclassified(params: dict) -> dict: ...
-
-@activity.defn(name="stage05_handle_cross_tenant_violation")
-async def stage05_handle_cross_tenant_violation(params: dict) -> dict: ...
-
-@activity.defn(name="update_pipeline_status")
-async def update_pipeline_status(params: dict) -> None: ...
+@activity.defn(name="write_document_embedding")
+async def write_document_embedding(params: dict) -> None: ...
 
 
 # ── Workflow ──────────────────────────────────────────────────────────────────
@@ -61,132 +80,67 @@ class DocumentPipelineWorkflow:
 
     @workflow.run
     async def run(self, params: dict) -> dict:
-        document_id = params["document_id"]
-        tenant_id   = params["tenant_id"]
+        doc_id = params["document_id"]
+        enc  = await workflow.execute_activity(stage02_encrypt, params, start_to_close_timeout=timedelta(minutes=10), retry_policy=_RETRY)
+        scan = await workflow.execute_activity(stage03_scan, {**params, **enc}, start_to_close_timeout=timedelta(minutes=15), retry_policy=_RETRY)
+        if scan.get("csam_detected"):
+            return await self._handle_csam(params, doc_id)
+        if scan.get("virus_status") == "QUARANTINED": return {"status": "QUARANTINED", "document_id": doc_id}  # noqa: E701
+        ext = await workflow.execute_activity(stage04_extract, {**params, **enc}, start_to_close_timeout=timedelta(minutes=10), retry_policy=_RETRY)
+        if ext.get("status") == "unclassified":
+            return await self._handle_unclassified(params, ext, doc_id)
+        res = await workflow.execute_activity(stage05_resolve, {**params, **ext}, start_to_close_timeout=timedelta(minutes=5), retry_policy=_RETRY)
+        if res.get("violation_type") == "CROSS_TENANT":
+            return await self._handle_cross_tenant(params, res, doc_id)
+        if res.get("needs_exception"):
+            res = await self._handle_exception_wait(params, ext, res, doc_id)
+            if res is None:
+                return {"status": "EXCEPTION_TIMEOUT", "document_id": doc_id}
+        await workflow.execute_activity(stage06_route, {**params, **enc, **ext, **res}, start_to_close_timeout=timedelta(minutes=10), retry_policy=_RETRY)
+        return {"status": "ROUTED", "document_id": doc_id}
 
+    async def _handle_exception_wait(
+        self, params: dict, ext: dict, res: dict, doc_id: str
+    ) -> dict | None:
+        """Raise exception, wait up to 7 days for OA-Admin signal. Returns None on timeout."""
         await workflow.execute_activity(
-            update_pipeline_status,
-            {"document_id": document_id, "status": "ENCRYPTING"},
+            stage06_raise_exception, {**params, **ext, **res},
             start_to_close_timeout=timedelta(minutes=5),
-            retry_policy=_RETRY,
         )
-
-        # Stage 02
-        enc_result = await workflow.execute_activity(
-            stage02_encrypt, params,
-            start_to_close_timeout=timedelta(minutes=10),
-            retry_policy=_RETRY,
+        await workflow.wait_condition(
+            lambda: self._exception_resolution is not None, timeout=timedelta(days=7)
         )
+        return self._exception_resolution
 
-        # Stage 03
-        await workflow.execute_activity(
-            update_pipeline_status,
-            {"document_id": document_id, "status": "SCANNING"},
-            start_to_close_timeout=timedelta(minutes=2),
-        )
-        scan_result = await workflow.execute_activity(
-            stage03_scan, {**params, **enc_result},
-            start_to_close_timeout=timedelta(minutes=15),
-            retry_policy=_RETRY,
-        )
-        if scan_result.get("csam_detected"):
-            return {"status": "CSAM_HOLD", "document_id": document_id}
-        if scan_result.get("virus_status") == "QUARANTINED":
-            return {"status": "QUARANTINED", "document_id": document_id}
-
-        # Stage 04
-        await workflow.execute_activity(
-            update_pipeline_status,
-            {"document_id": document_id, "status": "EXTRACTING"},
-            start_to_close_timeout=timedelta(minutes=2),
-        )
-        extract_result = await workflow.execute_activity(
-            stage04_extract, {**params, **enc_result},
-            start_to_close_timeout=timedelta(minutes=10),
-            retry_policy=_RETRY,
-        )
-
-        # AUTO_DETECT failed — doc type unknown, OA-Admin must classify manually
-        if extract_result.get("status") == "unclassified":
-            await workflow.execute_activity(
-                update_pipeline_status,
-                {"document_id": document_id, "status": "UNCLASSIFIED"},
-                start_to_close_timeout=timedelta(minutes=2),
-            )
-            await workflow.execute_activity(
-                stage04_write_unclassified,
-                {
-                    "document_id":        document_id,
-                    "tenant_id":          tenant_id,
-                    "doc_type":           params.get("doc_type"),
-                    "best_guess_doc_type": extract_result.get("best_guess_doc_type"),
-                    "best_guess_score":    extract_result.get("best_guess_score", 0.0),
-                    "partial_fields":      extract_result.get("partial_fields", {}),
-                    "reason":              "AUTO_DETECT_FAILED",
-                },
-                start_to_close_timeout=timedelta(minutes=5),
-            )
-            return {"status": "UNCLASSIFIED", "document_id": document_id}
-
-        # Stage 05
-        await workflow.execute_activity(
-            update_pipeline_status,
-            {"document_id": document_id, "status": "RESOLVING"},
-            start_to_close_timeout=timedelta(minutes=2),
-        )
-        resolve_result = await workflow.execute_activity(
-            stage05_resolve, {**params, **extract_result},
-            start_to_close_timeout=timedelta(minutes=5),
-            retry_policy=_RETRY,
-        )
-
-        # Cross-tenant contamination — reject, write anomaly, alert CISO + PA Admin
-        if resolve_result.get("violation_type") == "CROSS_TENANT":
-            await workflow.execute_activity(
-                stage05_handle_cross_tenant_violation,
-                {**params, **resolve_result},
-                start_to_close_timeout=timedelta(minutes=5),
-            )
-            return {"status": "CROSS_TENANT_REJECTED", "document_id": document_id}
-
-        # Exception path: wait up to 7 days for OA-Admin signal
-        if resolve_result.get("needs_exception"):
-            await workflow.execute_activity(
-                stage06_raise_exception, {**params, **extract_result, **resolve_result},
-                start_to_close_timeout=timedelta(minutes=5),
-            )
-            # Wait for exception_resolved signal (OA-Admin picks employee_uuid)
-            await workflow.wait_condition(
-                lambda: self._exception_resolution is not None,
-                timeout=timedelta(days=7),
-            )
-            if self._exception_resolution is None:
-                return {"status": "EXCEPTION_TIMEOUT", "document_id": document_id}
-            resolve_result = self._exception_resolution
-
-        # Stage 06
-        route_result = await workflow.execute_activity(
-            stage06_route, {**params, **enc_result, **extract_result, **resolve_result},
-            start_to_close_timeout=timedelta(minutes=10),
-            retry_policy=_RETRY,
-        )
-
-        # Fire-and-forget: generate LLM insight + embed into Qdrant
-        # Runs on insight-queue independently — pipeline doesn't wait for it
+    async def _handle_csam(self, params: dict, doc_id: str) -> dict:
         await workflow.execute_child_workflow(
-            "InsightRefreshWorkflow",
-            {
-                "document_id": document_id,
-                "employee_uuid": resolve_result.get("employee_uuid"),
-                "doc_type": params.get("doc_type"),
-                "doc_period": params.get("doc_period"),
-                "benchmarks": route_result.get("benchmarks", {}),
-            },
-            task_queue="insight-queue",
-            execution_timeout=timedelta(minutes=15),
+            "CSAMReportingWorkflow",
+            {"document_id": doc_id, "tenant_id": params["tenant_id"],
+             "s3_key": params.get("s3_key"), "s3_bucket": params.get("s3_bucket")},
+            task_queue="safety-queue",
+            execution_timeout=timedelta(minutes=30),
         )
+        return {"status": "CSAM_HOLD", "document_id": doc_id}
 
-        return {"status": "ROUTED", "document_id": document_id}
+    async def _handle_unclassified(self, params: dict, ext: dict, doc_id: str) -> dict:
+        await workflow.execute_activity(
+            stage04_write_unclassified,
+            {"document_id": doc_id, "tenant_id": params["tenant_id"],
+             "doc_type": params.get("doc_type"),
+             "best_guess_doc_type": ext.get("best_guess_doc_type"),
+             "best_guess_score": ext.get("best_guess_score", 0.0),
+             "partial_fields": ext.get("partial_fields", {}),
+             "reason": "AUTO_DETECT_FAILED"},
+            start_to_close_timeout=timedelta(minutes=5),
+        )
+        return {"status": "UNCLASSIFIED", "document_id": doc_id}
+
+    async def _handle_cross_tenant(self, params: dict, res: dict, doc_id: str) -> dict:
+        await workflow.execute_activity(
+            stage05_handle_cross_tenant_violation, {**params, **res},
+            start_to_close_timeout=timedelta(minutes=5),
+        )
+        return {"status": "CROSS_TENANT_REJECTED", "document_id": doc_id}
 
     @workflow.signal(name="exception_resolved")
     def exception_resolved(self, payload: dict) -> None:
@@ -207,17 +161,16 @@ class EmbeddingUpdateWorkflow:
 
     @workflow.run
     async def run(self, params: dict) -> dict:
-        from temporalio.common import RetryPolicy
         result = await workflow.execute_activity(
-            "compute_document_embedding",
+            compute_document_embedding,
             params,
             start_to_close_timeout=timedelta(minutes=15),
-            retry_policy=RetryPolicy(maximum_attempts=3),
+            retry_policy=_RETRY,
         )
         await workflow.execute_activity(
-            "write_document_embedding",
+            write_document_embedding,
             {**params, **result},
             start_to_close_timeout=timedelta(minutes=5),
-            retry_policy=RetryPolicy(maximum_attempts=3),
+            retry_policy=_RETRY,
         )
         return result

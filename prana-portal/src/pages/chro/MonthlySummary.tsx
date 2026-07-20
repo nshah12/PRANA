@@ -4,6 +4,7 @@ import { Download, TrendingUp, TrendingDown, Users, FileText, Settings } from 'l
 import { api } from '@/lib/api'
 import { Link } from 'react-router-dom'
 import { DigestDatePicker, type DateWindow } from '@/components/digest/DigestDatePicker'
+import { tUi } from '@/i18n'
 
 function todayISO() { return new Date().toISOString().split('T')[0] }
 function daysAgoISO(n: number) {
@@ -25,9 +26,9 @@ export function MonthlySummary() {
     <div className="space-y-4">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-xl font-semibold text-slate-800">Monthly Summary</h1>
+          <h1 className="text-xl font-semibold text-slate-800">{tUi('CHRO_MONTHLY_TITLE')}</h1>
           <p className="text-xs text-slate-400 mt-0.5">
-            {data ? `${data.from} → ${data.to}` : 'Loading…'}
+            {data ? `${data.from} → ${data.to}` : tUi('CFO_DIGEST_LOADING')}
           </p>
         </div>
         <div className="flex items-center gap-2">
@@ -68,8 +69,8 @@ export function MonthlySummary() {
     <div className="space-y-6 max-w-2xl">
       {header}
       <div className="flex flex-col items-center justify-center py-20 text-slate-400">
-        <p className="text-sm">Failed to load monthly summary.</p>
-        <button onClick={() => refetch()} className="mt-3 text-xs text-indigo-600 hover:underline">Retry</button>
+        <p className="text-sm">{tUi('CHRO_MONTHLY_LOAD_FAILED')}</p>
+        <button onClick={() => refetch()} className="mt-3 text-xs text-indigo-600 hover:underline">{tUi('CFO_ATTRITION_RETRY')}</button>
       </div>
     </div>
   )
@@ -103,7 +104,7 @@ export function MonthlySummary() {
         <div className="bg-white rounded-xl border border-slate-100 shadow-sm p-5">
           <div className="flex items-center gap-2 mb-4">
             <Users size={14} className="text-slate-400"/>
-            <h2 className="text-sm font-medium text-slate-700">Vault completeness by department</h2>
+            <h2 className="text-sm font-medium text-slate-700">{tUi('CHRO_MONTHLY_VAULT_BY_DEPT')}</h2>
           </div>
           <div className="space-y-2.5">
             {data.vault_by_department.map((row: any) => (
@@ -127,7 +128,7 @@ export function MonthlySummary() {
         <div className="bg-white rounded-xl border border-slate-100 shadow-sm p-5">
           <div className="flex items-center gap-2 mb-4">
             <FileText size={14} className="text-slate-400"/>
-            <h2 className="text-sm font-medium text-slate-700">Documents by type</h2>
+            <h2 className="text-sm font-medium text-slate-700">{tUi('CHRO_MONTHLY_DOCS_BY_TYPE')}</h2>
           </div>
           <div className="space-y-2.5">
             {data.docs_by_type.map((row: any) => {

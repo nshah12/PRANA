@@ -10,6 +10,7 @@ Usage:
     svc.put_object(bucket, key, body, content_type)
     url = svc.presign_get(bucket, key, expires=3600)
 """
+import anyio
 import boto3
 from botocore.config import Config
 from botocore.exceptions import ClientError
@@ -44,6 +45,15 @@ class S3Service:
         if metadata:
             extra["Metadata"] = metadata
         self._client.put_object(Bucket=bucket, Key=key, Body=body, **extra)
+
+    async def put_object_async(self, bucket: str, key: str, body: bytes,
+                               content_type: str = "application/pdf",
+                               metadata: dict | None = None) -> None:
+        """Non-blocking wrapper — runs put_object in a thread pool so the async event
+        loop is never blocked by the synchronous boto3 network call."""
+        await anyio.to_thread.run_sync(
+            lambda: self.put_object(bucket, key, body, content_type, metadata)
+        )
 
     def get_object(self, bucket: str, key: str) -> bytes:
         resp = self._client.get_object(Bucket=bucket, Key=key)

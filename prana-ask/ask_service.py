@@ -61,13 +61,9 @@ class AskService:
 Employee's question: {query}"""
 
         if history:
-            # Prepend context to the very first user message in history, then append current query
-            messages = [{"role": "user", "content": first_user_content}]
-            # history already has alternating user/assistant pairs from past turns;
-            # replace the reconstructed first turn with the enriched version and replay history
-            messages = list(history) + [{"role": "user", "content": query}]
-            # Patch: inject context into the system prompt (already done via SYSTEM)
-            user_prompt = query
+            # Replay prior turns then append current query with fresh RAG context injected
+            messages = list(history) + [{"role": "user", "content": first_user_content}]
+            user_prompt = first_user_content
         else:
             messages = None
             user_prompt = first_user_content

@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import { useForm } from 'react-hook-form'
 import { api } from '@/lib/api'
 import { useAuthStore } from '@/store/auth'
+import { tUi } from '@/i18n'
 
 interface LoginForm { email: string; password: string }
 
@@ -16,7 +17,7 @@ function ForgotPasswordModal({ onClose }: { onClose: () => void }) {
           <div className="w-12 h-12 rounded-xl mx-auto mb-3 flex items-center justify-center text-2xl bg-violet-50">
             🔑
           </div>
-          <h2 className="text-lg font-bold text-slate-900">Password reset</h2>
+          <h2 className="text-lg font-bold text-slate-900">{tUi('ORG_LOGIN_PASSWORD_RESET_TITLE')}</h2>
         </div>
         <div className="space-y-3 text-sm text-slate-600 leading-relaxed">
           <p>
@@ -102,7 +103,7 @@ export function OrgLogin() {
               prana.<span className="text-sky-400">in</span>
             </span>
           </div>
-          <p className="text-slate-400 text-xs pl-12">Organisation Portal</p>
+          <p className="text-slate-400 text-xs pl-12">{tUi('ORG_LOGIN_ORG_PORTAL_LABEL')}</p>
         </div>
 
         {/* Main copy */}
@@ -153,10 +154,10 @@ export function OrgLogin() {
               <div className="inline-flex items-center gap-2 bg-violet-50 border border-violet-100
                               rounded-full px-3 py-1 mb-4">
                 <div className="w-1.5 h-1.5 rounded-full bg-violet-500" />
-                <span className="text-[10px] font-bold text-violet-600 uppercase tracking-widest">Organisation access</span>
+                <span className="text-[10px] font-bold text-violet-600 uppercase tracking-widest">{tUi('ORG_LOGIN_ACCESS_BADGE')}</span>
               </div>
-              <h1 className="text-2xl font-extrabold text-slate-900">Welcome back</h1>
-              <p className="text-slate-400 text-sm mt-1">Sign in with your organisation work email</p>
+              <h1 className="text-2xl font-extrabold text-slate-900">{tUi('ORG_LOGIN_WELCOME_BACK')}</h1>
+              <p className="text-slate-400 text-sm mt-1">{tUi('ORG_LOGIN_SUB')}</p>
             </div>
 
             <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
@@ -177,7 +178,7 @@ export function OrgLogin() {
               <div>
                 <div className="flex items-center justify-between mb-1.5">
                   <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider">Password</label>
-                  <button type="button" onClick={() => setShowForgot(true)} className="text-xs text-violet-600 hover:underline">Forgot password?</button>
+                  <button type="button" onClick={() => setShowForgot(true)} className="text-xs text-violet-600 hover:underline">{tUi('ORG_LOGIN_FORGOT_PASSWORD')}</button>
                 </div>
                 <div className="relative">
                   <input

@@ -1,4 +1,4 @@
-"""
+﻿"""
 Document ingest — OA-Operator / OA-Admin.
 
 POST /ingest/upload              — single / multi-file upload → publishes DOC_INGESTED per file
@@ -17,6 +17,7 @@ Exception signal (resolve/dismiss) is a direct Temporal signal — not a Kafka e
 because it targets a specific running workflow instance.
 """
 import asyncio
+from messages import SuccessCode, success_response
 import datetime
 import hashlib
 import json
@@ -31,6 +32,8 @@ from pydantic import BaseModel
 
 from dependencies import ApiKeyAuth, DbConn, require_oa
 from kafka.producer import TOPIC_INGEST
+from errors import PranaError
+from services.statutory_hold_service import compute_hold_until
 
 router = APIRouter()
 
@@ -38,7 +41,11 @@ OAOperator = Depends(require_oa("oa_operator", "oa_admin"))
 OAAdmin    = Depends(require_oa("oa_admin"))
 
 _ALLOWED_EXTENSIONS = {"pdf"}
-_MAX_BATCH_BYTES    = 500 * 1024 * 1024   # 500 MB per batch (spec §4 Upload)
+_MAX_BATCH_BYTES    = 500 * 1024 * 1024   # 500 MB compressed archive (spec §4 Upload)
+# Zip-bomb defences (H4): a small archive must not inflate without bound.
+_MAX_UNCOMPRESSED_TOTAL_BYTES = 2 * 1024 * 1024 * 1024   # 2 GB total decompressed
+_MAX_ENTRY_UNCOMPRESSED_BYTES = 200 * 1024 * 1024        # 200 MB per file
+_MAX_COMPRESSION_RATIO        = 200                       # entry uncompressed / compressed
 
 
 # ── Multi-file upload (1–N PDFs) ──────────────────────────────────────────────
@@ -54,7 +61,7 @@ async def upload_documents(
     current=Depends(require_oa("oa_operator", "oa_admin")),
 ):
     """Accept 1-N PDF files. Each gets its own document_id and DOC_INGESTED Kafka event."""
-    started_at  = datetime.datetime.utcnow()
+    started_at  = datetime.datetime.now(datetime.timezone.utc)
     ip          = _client_ip(request)
     ua          = request.headers.get("user-agent", "")
     actor_type  = _actor_type(current.role)
@@ -71,6 +78,23 @@ async def upload_documents(
         except HTTPException as e:
             errors.append({"filename": f.filename, "error": e.detail})
             results.append({"filename": f.filename, "error": e.detail})
+            if kafka:
+                try:
+                    await kafka.integration_event({
+                        "event_type": "HRMS_WEBHOOK_FAILED",
+                        "tenant_id":  current.tenant_id,
+                        "reason":     e.detail,
+                        "filename":   f.filename,
+                        "actor_id":   current.user_id,
+                    })
+                except Exception as exc:
+                    from services.error_observability_service import ErrorObservabilityService
+                    try:
+                        await ErrorObservabilityService(db).record(
+                            exc=exc, source="HTTP", source_detail="upload_documents:publish_hrms_webhook_failed",
+                        )
+                    except Exception:
+                        pass
             continue
 
         total_bytes += len(file_bytes)
@@ -88,7 +112,7 @@ async def upload_documents(
     # BATCH_UPLOADED event — consumed by AuditConsumer + WorkflowConsumer(BatchProgressWorkflow)
     accepted = [r for r in results if "document_id" in r]
     if batch_id:
-        ended_at = datetime.datetime.utcnow()
+        ended_at = datetime.datetime.now(datetime.timezone.utc)
         batch_event = {
             "event_type":  "BATCH_UPLOADED",
             "event_id":    str(uuid.uuid4()),
@@ -131,7 +155,7 @@ async def batch_upload(
     comment: Optional[str] = Form(None),
     current=Depends(require_oa("oa_operator", "oa_admin")),
 ):
-    started_at    = datetime.datetime.utcnow()
+    started_at    = datetime.datetime.now(datetime.timezone.utc)
     ip            = _client_ip(request)
     ua            = request.headers.get("user-agent", "")
     actor_type    = _actor_type(current.role)
@@ -139,17 +163,25 @@ async def batch_upload(
     archive_bytes = await archive.read()
 
     if not archive.filename.lower().endswith(".zip"):
-        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail="ARCHIVE_MUST_BE_ZIP")
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=PranaError.ARCHIVE_MUST_BE_ZIP)
+
+    # H4: reject an oversized compressed archive before touching it.
+    if len(archive_bytes) > _MAX_BATCH_BYTES:
+        raise HTTPException(status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE, detail=PranaError.ARCHIVE_TOO_LARGE)
 
     batch_id = str(uuid.uuid4())
     results: list  = []
     errors: list   = []
     total_bytes    = 0
+    uncompressed_total = 0
 
     try:
         zf = zipfile.ZipFile(io.BytesIO(archive_bytes))
     except zipfile.BadZipFile:
-        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail="INVALID_ZIP")
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=PranaError.INVALID_ZIP)
+
+    # H4: pre-flight the central directory (declared sizes, no decompression yet).
+    _assert_not_zip_bomb(zf)
 
     all_filenames = [e.filename for e in zf.infolist() if not e.is_dir()]
 
@@ -162,6 +194,10 @@ async def batch_upload(
             continue
 
         file_bytes = zf.read(entry.filename)
+        # Content sniff (not just extension) — reject non-PDFs renamed to .pdf.
+        if not file_bytes.startswith(b"%PDF-"):
+            errors.append({"filename": entry.filename, "error": "UNSUPPORTED_FILE_TYPE"})
+            continue
         total_bytes += len(file_bytes)
 
         doc_id, event = await _ingest_one(
@@ -176,7 +212,17 @@ async def batch_upload(
         results.append({"filename": entry.filename, "document_id": doc_id, "pipeline_status": "QUEUED"})
 
     accepted  = [r for r in results if "document_id" in r]
-    ended_at  = datetime.datetime.utcnow()
+    ended_at  = datetime.datetime.now(datetime.timezone.utc)
+
+    if accepted:
+        # BatchProgressWorkflow's write_batch_summary activity UPDATEs this row once
+        # every child pipeline settles — must exist before that workflow starts.
+        await db.execute(
+            "INSERT INTO document_batch (batch_id, tenant_id, total_files, status) "
+            "VALUES ($1, $2, $3, 'PROCESSING')",
+            batch_id, current.tenant_id, len(accepted),
+        )
+
     batch_event = {
         "event_type":  "BATCH_UPLOADED",
         "event_id":    str(uuid.uuid4()),
@@ -228,7 +274,11 @@ async def pipeline_status_stream(
         document_id, tenant_id,
     )
     if not row:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="DOCUMENT_NOT_FOUND")
+        from services.tenant_isolation_guard import TenantIsolationGuard
+        await TenantIsolationGuard(db).check_document_access(
+            document_id=document_id, requesting_tenant_id=tenant_id, actor_id=current.user_id,
+        )
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=PranaError.DOCUMENT_NOT_FOUND)
 
     initial_status = row["pipeline_status"]
 
@@ -274,7 +324,7 @@ async def list_documents(
     offset: int = 0,
     current=Depends(require_oa("oa_operator", "oa_admin")),
 ):
-    conditions = ["tenant_id=$1", "is_deleted=FALSE"]
+    conditions = ["tenant_id=$1", "is_deleted=FALSE", "employer_visible=TRUE"]
     params: list = [current.tenant_id]
     i = 2
 
@@ -284,14 +334,20 @@ async def list_documents(
         conditions.append(f"doc_type=${i}"); params.append(doc_type); i += 1
 
     where = " AND ".join(conditions)
+    total = await db.fetchval(
+        "SELECT COUNT(*) FROM document WHERE " + where,
+        *params,
+    )
+    lim_i = i
+    off_i = i + 1
     rows = await db.fetch(
         f"""
         SELECT document_id, doc_type, doc_period, pipeline_status,
                resolution_method, resolution_confidence, pushed_at, routed_at
         FROM document WHERE {where}
-        ORDER BY pushed_at DESC LIMIT {limit} OFFSET {offset}
+        ORDER BY pushed_at DESC LIMIT ${lim_i} OFFSET ${off_i}
         """,
-        *params,
+        *params, min(limit, 200), offset,
     )
     docs = [
         {
@@ -306,7 +362,7 @@ async def list_documents(
         }
         for r in rows
     ]
-    return {"documents": docs, "total": len(docs)}
+    return {"documents": docs, "total": int(total or 0)}
 
 
 # ── Dashboard stats ───────────────────────────────────────────────────────────
@@ -317,13 +373,13 @@ async def dashboard_stats(
     current=Depends(require_oa("oa_operator", "oa_admin")),
 ):
     total_docs = await db.fetchval(
-        "SELECT COUNT(*) FROM document WHERE tenant_id=$1 AND is_deleted=FALSE",
+        "SELECT COUNT(*) FROM document WHERE tenant_id=$1 AND is_deleted=FALSE AND employer_visible=TRUE",
         current.tenant_id,
     )
     pending = await db.fetchval(
         """
         SELECT COUNT(*) FROM document
-        WHERE tenant_id=$1 AND is_deleted=FALSE
+        WHERE tenant_id=$1 AND is_deleted=FALSE AND employer_visible=TRUE
           AND pipeline_status NOT IN ('ROUTED','EXCEPTION')
         """,
         current.tenant_id,
@@ -403,9 +459,9 @@ async def resolve_exception(
         exception_id, current.tenant_id,
     )
     if not row:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="EXCEPTION_NOT_FOUND")
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=PranaError.EXCEPTION_NOT_FOUND)
     if row["status"] != "OPEN":
-        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="ALREADY_RESOLVED")
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=PranaError.ALREADY_RESOLVED)
 
     async with db.transaction():
         await db.execute(
@@ -419,7 +475,7 @@ async def resolve_exception(
     await kafka.exception_resolved({
         "event_type":    "EXCEPTION_RESOLVED",
         "event_id":      str(uuid.uuid4()),
-        "occurred_at":   datetime.datetime.utcnow().isoformat(),
+        "occurred_at":   datetime.datetime.now(datetime.timezone.utc).isoformat(),
         "tenant_id":     current.tenant_id,
         "document_id":   row["document_id"],
         "exception_id":  exception_id,
@@ -439,10 +495,17 @@ async def resolve_exception(
                 "exception_resolved",
                 {"employee_uuid": body.employee_uuid, "method": "MANUAL_OA", "confidence": 1.0},
             )
-        except Exception:
-            pass   # workflow may have timed out — DB is source of truth
+        except Exception as exc:
+            from services.error_observability_service import ErrorObservabilityService
+            try:
+                await ErrorObservabilityService(db).record(
+                    exc=exc, source="HTTP", source_detail="resolve_exception:signal_workflow",
+                )
+            except Exception:
+                pass
+            # workflow may have timed out — DB is source of truth
 
-    return {"message": "Exception resolved"}
+    return {"message": SuccessCode.EXCEPTION_RESOLVED}
 
 
 @router.post("/exceptions/{exception_id}/dismiss", status_code=status.HTTP_200_OK)
@@ -457,7 +520,7 @@ async def dismiss_exception(
         exception_id, current.tenant_id,
     )
     if not row:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="EXCEPTION_NOT_FOUND")
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=PranaError.EXCEPTION_NOT_FOUND)
 
     async with db.transaction():
         await db.execute(
@@ -470,7 +533,7 @@ async def dismiss_exception(
     await kafka.exception_resolved({
         "event_type":   "EXCEPTION_DISMISSED",
         "event_id":     str(uuid.uuid4()),
-        "occurred_at":  datetime.datetime.utcnow().isoformat(),
+        "occurred_at":  datetime.datetime.now(datetime.timezone.utc).isoformat(),
         "tenant_id":    current.tenant_id,
         "document_id":  row["document_id"],
         "exception_id": exception_id,
@@ -480,13 +543,13 @@ async def dismiss_exception(
         "ip_address":   _client_ip(request),
     })
 
-    return {"message": "Exception dismissed"}
+    return {"message": SuccessCode.EXCEPTION_DISMISSED}
 
 
 # ── HRMS API-key push (X-PRANA-Key-ID + X-PRANA-Signature) ────────────────────
 # integrations.md "HRMS push endpoint behaviour":
 #   validate signature → validate payload → S3 put → INSERT document
-#   → kafka.publish(DOC_INGESTED) → 202. Idempotent: dedup handled by
+#   → kafka.doc_ingested() → 202. Idempotent: dedup handled by
 #   _ingest_one()'s file_hash check (reused from the OA-Operator path).
 #
 # The request body IS the raw file (Content-Type: application/pdf), not
@@ -522,12 +585,35 @@ async def hrms_upload(
 
 # ── Helpers ───────────────────────────────────────────────────────────────────
 
+def _assert_not_zip_bomb(zf: zipfile.ZipFile) -> None:
+    """
+    Reject decompression bombs (H4) using declared central-directory sizes — no
+    decompression happens here. Trips on: an entry too large uncompressed, an absurd
+    per-entry compression ratio, or an oversized decompressed total across the archive.
+    """
+    uncompressed_total = 0
+    for entry in zf.infolist():
+        if entry.is_dir():
+            continue
+        if entry.file_size > _MAX_ENTRY_UNCOMPRESSED_BYTES:
+            raise HTTPException(status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE, detail=PranaError.ZIP_BOMB_DETECTED)
+        if entry.compress_size > 0 and (entry.file_size / entry.compress_size) > _MAX_COMPRESSION_RATIO:
+            raise HTTPException(status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE, detail=PranaError.ZIP_BOMB_DETECTED)
+        uncompressed_total += entry.file_size
+        if uncompressed_total > _MAX_UNCOMPRESSED_TOTAL_BYTES:
+            raise HTTPException(status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE, detail=PranaError.ZIP_BOMB_DETECTED)
+
+
 def _validate_file(filename: str, file_bytes: bytes) -> None:
     ext = filename.rsplit(".", 1)[-1].lower() if filename and "." in filename else ""
     if ext not in _ALLOWED_EXTENSIONS:
-        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail="UNSUPPORTED_FILE_TYPE")
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=PranaError.UNSUPPORTED_FILE_TYPE)
     if len(file_bytes) == 0:
-        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail="EMPTY_FILE")
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=PranaError.EMPTY_FILE)
+    # Content sniff (not just extension): a real PDF begins with the %PDF- magic bytes.
+    # Rejects a malicious/other file renamed to .pdf before it reaches the pipeline.
+    if not file_bytes.startswith(b"%PDF-"):
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=PranaError.UNSUPPORTED_FILE_TYPE)
 
 
 async def _ingest_one(
@@ -573,9 +659,12 @@ async def _ingest_one(
         return str(existing), event
 
     # Stage 01: upload to S3/MinIO staging
+    # hash_prefix: first 4 chars of the UUID distribute writes across 65,536 S3 key prefixes,
+    # avoiding the 3,500 req/s per-prefix throttle under large batch loads.
     ext = filename.rsplit(".", 1)[-1].lower()
-    staging_key = f"staging/{tenant_id}/{document_id}.{ext}"
-    request.app.state.s3.put_object(
+    hash_prefix = document_id[:4]
+    staging_key = f"staging/{hash_prefix}/{tenant_id}/{document_id}.{ext}"
+    await request.app.state.s3.put_object_async(
         settings.s3_bucket_staging, staging_key, file_bytes, content_type="application/pdf"
     )
 
@@ -593,6 +682,18 @@ async def _ingest_one(
         len(file_bytes), file_hash,
         actor_id, batch_id, filename, comment,
     )
+
+    # Infer statutory retention hold from doc_type — set at upload so ErasureWorkflow
+    # can check it without needing the original upload context.
+    from datetime import date as _date
+    hold_reason, hold_until = compute_hold_until(doc_type, _date.today())
+    if hold_until:
+        await db.execute(
+            "UPDATE document SET statutory_hold_reason=$1, statutory_hold_until=$2, "
+            "statutory_hold_set_at=NOW(), statutory_hold_set_by='SYSTEM_INFER' "
+            "WHERE document_id=$3",
+            hold_reason, hold_until, document_id,
+        )
 
     event = _build_doc_ingested_event(
         document_id=document_id, tenant_id=tenant_id, batch_id=batch_id,
@@ -616,7 +717,7 @@ def _build_doc_ingested_event(
     return {
         "event_type":        "DOC_INGESTED",
         "event_id":          str(uuid.uuid4()),
-        "occurred_at":       datetime.datetime.utcnow().isoformat(),
+        "occurred_at":       datetime.datetime.now(datetime.timezone.utc).isoformat(),
         "tenant_id":         tenant_id,
         "document_id":       document_id,
         "batch_id":          batch_id,
@@ -640,10 +741,9 @@ def _sse(data: dict) -> str:
 
 
 def _client_ip(request: Request) -> str:
-    xff = request.headers.get("x-forwarded-for")
-    if xff:
-        return xff.split(",")[0].strip()
-    return str(request.client.host) if request.client else "unknown"
+    # Spoof-resistant (H3): trust only the hop our proxy appended, not the leftmost.
+    from lib.client_ip import get_client_ip
+    return get_client_ip(request, request.app.state.settings.trusted_proxy_count)
 
 
 def _actor_type(role: str, is_elevated: bool = False) -> str:
@@ -652,3 +752,4 @@ def _actor_type(role: str, is_elevated: bool = False) -> str:
     if is_elevated:
         return "OA_OPERATOR_ELEVATED"
     return "OA_OPERATOR"
+

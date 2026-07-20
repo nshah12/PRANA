@@ -108,9 +108,8 @@ async def test_oa_user_welcome_email_dispatched_via_kafka(client, mock_db, mock_
     assert resp.status_code == 201
 
     # Kafka publish must have been called with OA_USER_CREATED
-    mock_kafka.publish.assert_called_once()
-    topic, payload = mock_kafka.publish.call_args[0][:2]
-    assert topic == "prana.notifications"
+    mock_kafka.oa_user_event.assert_called_once()
+    payload = mock_kafka.oa_user_event.call_args[0][0]
     assert payload["event_type"] == "OA_USER_CREATED"
     assert payload["email"] == "newop@acme.com"
     assert payload["tenant_id"] == "tenant-001"
@@ -133,3 +132,82 @@ async def test_create_oa_user_response_shape(client, mock_db, mock_kafka):
     data = resp.json()
     assert "oa_user_id" in data
     assert "message" in data
+
+
+# -- Resend welcome email --------------------------------------------------------
+
+@pytest.mark.asyncio
+async def test_resend_welcome_requires_oa_admin(client, mock_db):
+    resp = await client.post("/v1/org/users/oa-uuid-002/resend-welcome")
+    assert resp.status_code in (401, 403)
+
+
+@pytest.mark.asyncio
+async def test_resend_welcome_rejects_oa_operator(client, mock_db):
+    _set_auth(client, role="oa_operator", tenant_id="tenant-001")
+    resp = await client.post("/v1/org/users/oa-uuid-002/resend-welcome", headers=AUTH_HEADER)
+    assert resp.status_code == 403
+
+
+@pytest.mark.asyncio
+async def test_resend_welcome_not_found_returns_404(client, mock_db):
+    _set_auth(client, role="oa_admin", tenant_id="tenant-001")
+    mock_db.fetchrow.return_value = None
+    resp = await client.post("/v1/org/users/oa-uuid-999/resend-welcome", headers=AUTH_HEADER)
+    assert resp.status_code == 404
+    assert resp.json()["detail"] == "USER_NOT_FOUND"
+
+
+@pytest.mark.asyncio
+async def test_resend_welcome_publishes_oa_welcome_resent_event(client, mock_db, mock_kafka):
+    _set_auth(client, role="oa_admin", tenant_id="tenant-001", user_id="admin-uuid-9")
+    mock_db.fetchrow.return_value = {"oa_user_id": "oa-uuid-002", "email": "bounced@acme.com"}
+
+    resp = await client.post("/v1/org/users/oa-uuid-002/resend-welcome", headers=AUTH_HEADER)
+
+    assert resp.status_code == 200
+    assert resp.json()["message"] == "OA_WELCOME_EMAIL_RESENT"
+
+    mock_kafka.oa_user_event.assert_called_once()
+    payload = mock_kafka.oa_user_event.call_args[0][0]
+    assert payload["event_type"] == "OA_WELCOME_RESENT"
+    assert payload["email"] == "bounced@acme.com"
+    assert payload["tenant_id"] == "tenant-001"
+    assert payload["oa_user_id"] == "oa-uuid-002"
+    assert payload["resent_by"] == "admin-uuid-9"
+
+
+# -- change-role publishes ROLE_CHANGED (audit trail + PRIVILEGE_ESCALATION detection
+# both happen downstream in OAUserConsumer, never directly in this HTTP handler) --------
+
+@pytest.mark.asyncio
+async def test_change_role_publishes_role_changed_event(client, mock_db, mock_kafka):
+    _set_auth(client, role="oa_admin", tenant_id="tenant-001", user_id="admin-uuid-9")
+    mock_db.fetchrow.return_value = {"role": "oa_operator"}
+
+    resp = await client.post(
+        "/v1/org/users/oa-uuid-002/change-role", headers=AUTH_HEADER, json={"role": "oa_admin"},
+    )
+
+    assert resp.status_code == 200
+    mock_kafka.oa_user_event.assert_called_once()
+    payload = mock_kafka.oa_user_event.call_args[0][0]
+    assert payload["event_type"] == "ROLE_CHANGED"
+    assert payload["tenant_id"] == "tenant-001"
+    assert payload["oa_user_id"] == "oa-uuid-002"
+    assert payload["old_role"] == "oa_operator"
+    assert payload["new_role"] == "oa_admin"
+    assert payload["actor_id"] == "admin-uuid-9"
+
+
+@pytest.mark.asyncio
+async def test_change_role_not_found_returns_404_and_no_publish(client, mock_db, mock_kafka):
+    _set_auth(client, role="oa_admin", tenant_id="tenant-001")
+    mock_db.fetchrow.return_value = None
+
+    resp = await client.post(
+        "/v1/org/users/oa-uuid-999/change-role", headers=AUTH_HEADER, json={"role": "oa_admin"},
+    )
+
+    assert resp.status_code == 404
+    mock_kafka.oa_user_event.assert_not_called()

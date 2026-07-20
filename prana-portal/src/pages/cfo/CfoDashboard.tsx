@@ -1,5 +1,6 @@
 import { useQuery } from '@tanstack/react-query'
 import { api } from '@/lib/api'
+import { tUi } from '@/i18n'
 
 export function CfoDashboard() {
   const { data, isLoading, isError, refetch } = useQuery({
@@ -20,17 +21,17 @@ export function CfoDashboard() {
   )
   if (isError) return (
     <div className="flex flex-col items-center justify-center py-20 text-slate-400">
-      <p className="text-sm">Failed to load dashboard.</p>
-      <button onClick={() => refetch()} className="mt-3 text-xs text-indigo-600 hover:underline">Retry</button>
+      <p className="text-sm">{tUi('CFO_DASHBOARD_LOAD_FAILED')}</p>
+      <button onClick={() => refetch()} className="mt-3 text-xs text-indigo-600 hover:underline">{tUi('CFO_ATTRITION_RETRY')}</button>
     </div>
   )
 
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-xl font-semibold text-slate-800">CFO Dashboard</h1>
+        <h1 className="text-xl font-semibold text-slate-800">{tUi('CFO_DASHBOARD_TITLE')}</h1>
         <p className="text-xs text-indigo-600 bg-indigo-50 rounded-md px-2 py-1 mt-1 inline-block">
-          Aggregated data only — no individual salary figures or document content
+          {tUi('CFO_DASHBOARD_SUB')}
         </p>
       </div>
 

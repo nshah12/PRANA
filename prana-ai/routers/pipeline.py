@@ -13,6 +13,7 @@ Stage 06 /exception    — identity resolution failed → exception_queue
 Stage 06 /unclassified — doc type unknown → unclassified_queue
 """
 
+import asyncio
 import base64
 import json
 import logging
@@ -70,7 +71,8 @@ class ScanResponse(BaseModel):
 async def scan(body: ScanRequest, request: Request):
     stage: Stage03Scan = request.app.state.stage03
     file_bytes = _decode_b64(body.file_b64, "file_b64")
-    result = stage.run(file_bytes, body.ext.lower())
+    # stage.run is sync (clamd socket + httpx.Client) — offload to thread
+    result = await asyncio.to_thread(stage.run, file_bytes, body.ext.lower())
     return ScanResponse(
         virus_status=result.virus_status,
         nsfw_status=result.nsfw_status,

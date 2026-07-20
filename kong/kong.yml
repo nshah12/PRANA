@@ -1,0 +1,329 @@
+# PRANA Kong Gateway — Declarative Configuration (DB-less)
+# Format: Kong 3.x deck/declarative format
+# Deployed: uploaded to S3, Kong reads on ECS task startup
+# DO NOT add admin API listener — it is bound to 127.0.0.1 inside container only
+#
+# Route structure:
+#   /v1/ingest/*     → prana-api  (HRMS callers — HMAC-signed API key)
+#   /v1/vault/*      → prana-api  (mobile app — JWT employee)
+#   /v1/dpdp/*       → prana-api  (mobile app — JWT employee)
+#   /auth/*          → prana-api  (unversioned — all roles — no gateway auth plugin)
+#   /org/*           → prana-api  (portal OA — JWT OA user)
+#   /admin/*         → prana-api  (portal admin — JWT portal admin)
+#   /ask/*           → prana-ask  (mobile app — JWT employee)
+#   /health          → Kong itself (ALB health probe — no upstream)
+
+_format_version: "3.0"
+_transform: true
+
+# ── Upstreams ─────────────────────────────────────────────────────────────────
+# In ECS with service discovery, these resolve to internal DNS names.
+# KONG_API_UPSTREAM and KONG_ASK_UPSTREAM are injected via env vars at deploy time.
+# Using environment variable substitution via Kong's env var feature.
+
+upstreams:
+  - name: prana-api
+    algorithm: round-robin
+    healthchecks:
+      active:
+        http_path: /health
+        healthy:
+          interval: 10
+          successes: 2
+        unhealthy:
+          interval: 5
+          http_failures: 3
+    targets:
+      # ECS service discovery DNS — updated via Terraform at deploy time
+      - target: "${KONG_API_UPSTREAM_HOST}:8000"
+        weight: 100
+
+  - name: prana-ask
+    algorithm: round-robin
+    healthchecks:
+      active:
+        http_path: /health
+        healthy:
+          interval: 10
+          successes: 2
+        unhealthy:
+          interval: 5
+          http_failures: 3
+    targets:
+      - target: "${KONG_ASK_UPSTREAM_HOST}:8080"
+        weight: 100
+
+# ── Services ──────────────────────────────────────────────────────────────────
+
+services:
+  # prana-api — handles all /v1/*, /auth/*, /org/*, /admin/* paths
+  - name: prana-api-service
+    url: http://prana-api
+    connect_timeout: 5000
+    write_timeout: 30000
+    read_timeout: 30000
+    retries: 2
+
+    routes:
+      # HRMS ingest — HMAC-signed API key auth
+      - name: ingest
+        paths: ["/v1/ingest"]
+        strip_path: false
+        methods: [POST]
+        plugins:
+          - name: hmac-auth
+            config:
+              hide_credentials: true
+              clock_skew: 300
+              enforce_headers: [date, x-prana-key-id]
+              validate_request_body: true
+          - name: rate-limiting
+            config:
+              minute: 1000
+              hour: 30000
+              policy: redis
+              redis_host: "${KONG_REDIS_HOST}"
+              redis_port: 6379
+              redis_ssl: true
+              limit_by: header
+              header_name: X-PRANA-Key-ID
+          - name: request-size-limiting
+            config:
+              allowed_payload_size: 50    # 50 MB max document size
+              size_unit: megabytes
+
+      # Mobile vault — JWT employee auth
+      - name: vault
+        paths: ["/v1/vault"]
+        strip_path: false
+        methods: [GET, POST, DELETE, PATCH]
+        plugins:
+          - name: jwt
+            config:
+              claims_to_verify: [exp]
+              key_claim_name: sub
+              secret_is_base64: false
+          - name: rate-limiting
+            config:
+              minute: 300
+              policy: redis
+              redis_host: "${KONG_REDIS_HOST}"
+              redis_port: 6379
+              redis_ssl: true
+              limit_by: consumer
+
+      # DPDP compliance endpoints — JWT employee auth
+      - name: dpdp
+        paths: ["/v1/dpdp"]
+        strip_path: false
+        methods: [GET, POST]
+        plugins:
+          - name: jwt
+            config:
+              claims_to_verify: [exp]
+              key_claim_name: sub
+          - name: rate-limiting
+            config:
+              minute: 60     # lower limit — compliance requests are low volume
+              policy: redis
+              redis_host: "${KONG_REDIS_HOST}"
+              redis_port: 6379
+              redis_ssl: true
+              limit_by: consumer
+
+      # Auth endpoints — no gateway-level auth (these ARE the auth endpoints)
+      - name: auth
+        paths: ["/auth"]
+        strip_path: false
+        methods: [POST, DELETE]
+        plugins:
+          - name: rate-limiting
+            config:
+              minute: 20     # strict: 20 login attempts per minute per IP
+              policy: redis
+              redis_host: "${KONG_REDIS_HOST}"
+              redis_port: 6379
+              redis_ssl: true
+              limit_by: ip
+
+      # Portal OA routes — JWT OA user auth
+      - name: org
+        paths: ["/org", "/v1/org"]
+        strip_path: false
+        methods: [GET, POST, PUT, PATCH, DELETE]
+        plugins:
+          - name: jwt
+            config:
+              claims_to_verify: [exp]
+              key_claim_name: sub
+          - name: rate-limiting
+            config:
+              minute: 500
+              policy: redis
+              redis_host: "${KONG_REDIS_HOST}"
+              redis_port: 6379
+              redis_ssl: true
+              limit_by: consumer
+
+      # Portal admin routes — JWT portal admin auth
+      - name: admin-portal
+        paths: ["/admin"]
+        strip_path: false
+        methods: [GET, POST, PUT, PATCH, DELETE]
+        plugins:
+          - name: jwt
+            config:
+              claims_to_verify: [exp]
+              key_claim_name: sub
+          - name: rate-limiting
+            config:
+              minute: 200
+              policy: redis
+              redis_host: "${KONG_REDIS_HOST}"
+              redis_port: 6379
+              redis_ssl: true
+              limit_by: consumer
+
+      # Comp benchmarking — employee consent + CHRO/CFO band queries (JWT)
+      - name: benchmarking
+        paths: ["/v1/benchmarking"]
+        strip_path: false
+        methods: [GET, POST]
+        plugins:
+          - name: jwt
+            config:
+              claims_to_verify: [exp]
+              key_claim_name: sub
+          - name: rate-limiting
+            config:
+              minute: 60
+              policy: redis
+              redis_host: "${KONG_REDIS_HOST}"
+              redis_port: 6379
+              redis_ssl: true
+              limit_by: consumer
+
+      # Alumni network — employee consent + CHRO outreach (JWT, both roles)
+      - name: alumni
+        paths: ["/v1/alumni"]
+        strip_path: false
+        methods: [GET, POST]
+        plugins:
+          - name: jwt
+            config:
+              claims_to_verify: [exp]
+              key_claim_name: sub
+          - name: rate-limiting
+            config:
+              minute: 60
+              policy: redis
+              redis_host: "${KONG_REDIS_HOST}"
+              redis_port: 6379
+              redis_ssl: true
+              limit_by: consumer
+
+      # SSE endpoints — long-lived connections, no rate limit, JWT required
+      - name: sse
+        paths: ["/v1/sse", "/v1/ingest/status"]
+        strip_path: false
+        methods: [GET]
+        plugins:
+          - name: jwt
+            config:
+              claims_to_verify: [exp]
+              key_claim_name: sub
+
+  # prana-ask — handles /ask/* (employee chatbot)
+  - name: prana-ask-service
+    url: http://prana-ask
+    connect_timeout: 5000
+    write_timeout: 120000   # chatbot responses can be slow
+    read_timeout: 120000
+    retries: 1
+
+    routes:
+      - name: ask
+        paths: ["/ask"]
+        strip_path: false
+        methods: [GET, POST]
+        plugins:
+          - name: jwt
+            config:
+              claims_to_verify: [exp]
+              key_claim_name: sub
+          - name: rate-limiting
+            config:
+              minute: 30     # chatbot is expensive — 30 requests/min per user
+              policy: redis
+              redis_host: "${KONG_REDIS_HOST}"
+              redis_port: 6379
+              redis_ssl: true
+              limit_by: consumer
+
+# ── Global plugins (apply to ALL routes) ──────────────────────────────────────
+
+plugins:
+  # CORS — mobile app and portal origins
+  - name: cors
+    config:
+      origins:
+        - "https://prana.in"
+        - "https://portal.prana.in"
+        - "https://app.prana.in"
+      methods: [GET, POST, PUT, PATCH, DELETE, OPTIONS]
+      headers: [Accept, Accept-Version, Content-Length, Content-Type, Authorization, X-PRANA-Key-ID, X-PRANA-Signature]
+      exposed_headers: [X-Request-ID, Deprecation, Sunset, X-Migration-Guide]
+      credentials: true
+      max_age: 3600
+      preflight_continue: false
+
+  # Request ID — inject into every request so FastAPI and logs can correlate
+  - name: correlation-id
+    config:
+      header_name: X-Request-ID
+      generator: uuid#counter
+      echo_downstream: true
+
+  # Strip internal headers before forwarding to upstreams
+  - name: request-transformer
+    config:
+      remove:
+        headers:
+          - X-Forwarded-For    # re-added by Kong correctly below
+      add:
+        headers:
+          - "X-Forwarded-Proto:https"
+
+  # Response headers — security baseline
+  - name: response-transformer
+    config:
+      add:
+        headers:
+          - "Strict-Transport-Security:max-age=31536000; includeSubDomains"
+          - "X-Content-Type-Options:nosniff"
+          - "X-Frame-Options:DENY"
+          - "Referrer-Policy:strict-origin-when-cross-origin"
+      remove:
+        headers:
+          - Server
+          - X-Powered-By
+          - Via
+
+  # Prometheus metrics — scraped by CloudWatch Container Insights
+  - name: prometheus
+    config:
+      status_code_metrics: true
+      latency_metrics: true
+      per_consumer: true
+
+# ── Consumers (HMAC API keys for HRMS callers) ────────────────────────────────
+# Real consumers are provisioned by the tenant-provisioning workflow via Kong Admin API.
+# This section shows the structure — in production, consumers are added dynamically.
+# For dev/staging testing, a test consumer is defined here.
+
+consumers:
+  - username: hrms-test-consumer
+    custom_id: test-tenant-hrms
+    hmac_auth_credentials:
+      - username: test-key-id
+        secret: "${KONG_HMAC_TEST_SECRET}"   # injected from Secrets Manager in dev/staging only

@@ -1,0 +1,1846 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>PRANA Mobile — Full Prototype (New Visual Direction)</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=Inter:wght@400;500;600;700&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+:root {
+  --space: #0B0F1E;
+  --space2: #131B33;
+  --space3: #1C2747;
+  --indigo: #6366F1;
+  --cyan: #22D3EE;
+  --emerald: #34D399;
+  --amber: #FBBF24;
+  --rose: #FB7185;
+  --grad-journey: linear-gradient(135deg, #6366F1 0%, #22D3EE 55%, #34D399 100%);
+  --surface: #FAFAF8;
+  --surface2: #FFFFFF;
+  --surface3: #F0EFEA;
+  --ink: #14171F;
+  --ink2: #5C6270;
+  --ink3: #9CA1AE;
+  --display: 'Space Grotesk', sans-serif;
+  --body: 'Inter', sans-serif;
+  --mono: 'DM Mono', monospace;
+}
+* { box-sizing: border-box; margin: 0; padding: 0; -webkit-font-smoothing: antialiased; }
+body {
+  font-family: var(--body);
+  background: #060812;
+  color: var(--ink);
+  font-size: 14px;
+  min-height: 100vh;
+  display: flex; flex-direction: column; align-items: center;
+  padding: 2.5rem 1rem;
+}
+
+.proto-header { width: 100%; max-width: 1200px; color: #CBD5E1; margin-bottom: 2rem; }
+.proto-header h1 { font-family: var(--display); font-size: 20px; color: #fff; font-weight: 600; margin-bottom: .4rem; letter-spacing: -.01em; }
+.proto-header p { font-size: 13px; color: #8B93A7; line-height: 1.7; max-width: 760px; font-family: var(--body); }
+.proto-header .tag {
+  display: inline-block; font-size: 10px; font-weight: 600;
+  padding: 3px 10px; border-radius: 6px; margin-right: 6px; margin-bottom: .6rem;
+  text-transform: uppercase; letter-spacing: .08em; font-family: var(--mono);
+}
+.tag-new { background: rgba(99,102,241,.18); color: #A5B4FC; }
+.tag-dir { background: rgba(52,211,153,.15); color: #6EE7B7; }
+
+.gallery { display: flex; flex-wrap: wrap; gap: 2.5rem; width: 100%; max-width: 1200px; justify-content: center; }
+.phone-wrap { display: flex; flex-direction: column; align-items: center; }
+.phone-label {
+  font-family: var(--mono); font-size: 11px; color: #8B93A7;
+  margin-bottom: .8rem; text-align: center; display: flex; flex-direction: column; gap: 2px;
+}
+.phone-label .step-num { color: var(--cyan); font-weight: 700; font-size: 13px; }
+
+.phone {
+  width: 330px; height: 690px; background: #000; border-radius: 42px;
+  padding: 12px; box-shadow: 0 30px 80px rgba(0,0,0,.6), 0 0 0 1px rgba(255,255,255,.04);
+  position: relative; flex-shrink: 0;
+}
+.phone-screen {
+  width: 100%; height: 100%; border-radius: 32px; overflow: hidden;
+  position: relative; display: flex; flex-direction: column;
+}
+.notch {
+  position: absolute; top: 10px; left: 50%; transform: translateX(-50%);
+  width: 120px; height: 28px; background: #000; border-radius: 16px; z-index: 50;
+}
+.status-bar {
+  height: 48px; flex-shrink: 0; display: flex; align-items: center; justify-content: space-between;
+  padding: 0 1.4rem; font-size: 12px; font-weight: 600; font-family: var(--mono); z-index: 40; position: relative;
+}
+
+/* ════════ SPLASH SCREEN ════════ */
+.splash-screen {
+  background: radial-gradient(ellipse 120% 80% at 50% -10%, #1E2A4F 0%, var(--space2) 45%, var(--space) 100%);
+  flex: 1; display: flex; flex-direction: column; position: relative; overflow: hidden;
+}
+.splash-stars {
+  position: absolute; inset: 0; opacity: .6;
+}
+.splash-illustration {
+  flex: 1; display: flex; align-items: center; justify-content: center; padding: 1rem;
+}
+.splash-bottom {
+  padding: 0 2rem 4rem; text-align: center; position: relative; z-index: 5;
+}
+.splash-title {
+  font-family: var(--display); font-size: 30px; font-weight: 700; color: #fff;
+  letter-spacing: -.02em; margin-bottom: .5rem;
+  opacity: 0; animation: fadeUp .7s ease-out 1.8s forwards;
+}
+.splash-title span {
+  background: var(--grad-journey); -webkit-background-clip: text; background-clip: text; color: transparent;
+}
+.splash-tagline {
+  font-size: 14px; color: #9CA8C9; line-height: 1.6; font-weight: 400;
+  opacity: 0; animation: fadeUp .7s ease-out 2.1s forwards;
+}
+@keyframes fadeUp { from { opacity: 0; transform: translateY(12px); } to { opacity: 1; transform: translateY(0); } }
+
+/* Career thread illustration */
+.thread-svg { width: 280px; height: 280px; }
+.thread-path {
+  fill: none; stroke-width: 3; stroke-linecap: round;
+  stroke-dasharray: 600; stroke-dashoffset: 600;
+  animation: drawThread 1.6s ease-out .3s forwards;
+}
+@keyframes drawThread { to { stroke-dashoffset: 0; } }
+.thread-node {
+  opacity: 0; transform-origin: center;
+  animation: popIn .5s cubic-bezier(.34,1.56,.64,1) forwards;
+}
+.thread-node.n1 { animation-delay: .4s; }
+.thread-node.n2 { animation-delay: .75s; }
+.thread-node.n3 { animation-delay: 1.1s; }
+.thread-vault { opacity: 0; transform-origin: center; animation: vaultIn .6s cubic-bezier(.34,1.56,.64,1) 1.5s forwards; }
+@keyframes popIn { from { opacity: 0; transform: scale(0); } to { opacity: 1; transform: scale(1); } }
+@keyframes vaultIn { from { opacity: 0; transform: scale(.4) rotate(-15deg); } to { opacity: 1; transform: scale(1) rotate(0); } }
+.thread-glow {
+  animation: glowPulse 2.5s ease-in-out infinite;
+}
+@keyframes glowPulse { 0%, 100% { opacity: .4; } 50% { opacity: .9; } }
+
+/* ════════ AUTH SCREENS (Sign In) ════════ */
+.auth-screen {
+  background: radial-gradient(ellipse 130% 60% at 50% 0%, #1E2A4F 0%, var(--space2) 50%, var(--space) 100%);
+  flex: 1; display: flex; flex-direction: column; position: relative; overflow: hidden;
+}
+.auth-orb {
+  position: absolute; border-radius: 50%; filter: blur(40px); opacity: .35; pointer-events: none;
+}
+.auth-orb.o1 { width: 200px; height: 200px; background: var(--indigo); top: -60px; right: -60px; }
+.auth-orb.o2 { width: 160px; height: 160px; background: var(--emerald); bottom: 80px; left: -60px; opacity: .25; }
+
+.auth-content { flex: 1; display: flex; flex-direction: column; padding: 1.5rem 1.6rem; position: relative; z-index: 5; overflow-y: auto; }
+.auth-content::-webkit-scrollbar { width: 0; }
+
+.auth-brand { display: flex; align-items: center; gap: 10px; margin-bottom: 2rem; }
+.auth-brand-mark {
+  width: 38px; height: 38px; border-radius: 12px; background: var(--grad-journey);
+  display: flex; align-items: center; justify-content: center; flex-shrink: 0;
+}
+.auth-brand-mark svg { width: 20px; height: 20px; }
+.auth-brand-name { font-family: var(--display); font-size: 18px; font-weight: 700; color: #fff; letter-spacing: -.01em; }
+
+.auth-heading { font-family: var(--display); font-size: 26px; font-weight: 700; color: #fff; letter-spacing: -.01em; line-height: 1.25; margin-bottom: .5rem; }
+.auth-sub { font-size: 13px; color: #9CA8C9; line-height: 1.6; margin-bottom: 1.8rem; }
+
+.glass-card {
+  background: rgba(255,255,255,.05); border: 1px solid rgba(255,255,255,.1);
+  border-radius: 20px; padding: 1.1rem 1.2rem; backdrop-filter: blur(20px);
+  margin-bottom: 1rem;
+}
+.glass-field { margin-bottom: 1rem; }
+.glass-field:last-child { margin-bottom: 0; }
+.glass-field label {
+  display: block; font-size: 11px; font-weight: 600; color: #8B93A7;
+  text-transform: uppercase; letter-spacing: .07em; margin-bottom: .4rem; font-family: var(--mono);
+}
+.glass-input {
+  background: rgba(255,255,255,.06); border: 1px solid rgba(255,255,255,.12);
+  border-radius: 12px; padding: .85rem 1rem; font-size: 15px; font-family: var(--mono);
+  color: #fff; width: 100%; outline: none;
+}
+.glass-input::placeholder { color: #5C6685; }
+
+.btn-grad {
+  background: var(--grad-journey); border: none; border-radius: 16px;
+  color: #04261C; font-family: var(--display); font-weight: 700; font-size: 15px;
+  padding: 1rem; width: 100%; cursor: pointer; letter-spacing: .01em;
+  box-shadow: 0 8px 24px -8px rgba(99,102,241,.6);
+  display: flex; align-items: center; justify-content: center; gap: .5rem;
+}
+.btn-ghost-dark {
+  background: rgba(255,255,255,.04); border: 1px solid rgba(255,255,255,.1);
+  border-radius: 16px; color: #CBD5E1; font-family: var(--body); font-weight: 600; font-size: 14px;
+  padding: .9rem; width: 100%; cursor: pointer; text-align: center;
+}
+.auth-link {
+  font-size: 13px; color: var(--cyan); text-align: center; font-weight: 600;
+  margin-top: 1rem; line-height: 1.5;
+}
+.info-pill {
+  display: flex; gap: .6rem; align-items: flex-start; font-size: 12px; color: #9CA8C9;
+  line-height: 1.6; padding: .9rem 1rem; background: rgba(99,102,241,.1);
+  border: 1px solid rgba(99,102,241,.2); border-radius: 14px; margin-top: 1rem;
+}
+
+/* ════════ VAULT HOME ════════ */
+.vault-screen {
+  background: var(--surface); flex: 1; display: flex; flex-direction: column; position: relative;
+}
+.vault-topbg {
+  background: radial-gradient(ellipse 140% 100% at 50% -20%, #2A3A6B 0%, var(--space2) 55%, var(--space) 100%);
+  padding: 0 1.5rem 2.4rem; position: relative; overflow: hidden;
+}
+.vault-topbg .auth-orb.o1 { width: 180px; height: 180px; top: -50px; right: -50px; opacity: .3; }
+.vault-status { display:flex; align-items:center; justify-content:space-between; padding: 1rem 0 1.4rem; position: relative; z-index: 5; color: #fff; font-size: 12px; font-weight: 600; font-family: var(--mono); }
+.vault-greeting { position: relative; z-index: 5; }
+.vault-greeting .hi { font-size: 13px; color: #9CA8C9; margin-bottom: .2rem; }
+.vault-greeting .name { font-family: var(--display); font-size: 24px; font-weight: 700; color: #fff; letter-spacing: -.01em; }
+.vault-bell {
+  width: 38px; height: 38px; border-radius: 12px; background: rgba(255,255,255,.08);
+  border: 1px solid rgba(255,255,255,.1); display: flex; align-items: center; justify-content: center;
+  font-size: 16px; position: relative; z-index: 5;
+}
+.vault-bell .dot { position: absolute; top: 7px; right: 7px; width: 8px; height: 8px; border-radius: 50%; background: var(--amber); border: 2px solid var(--space); }
+
+.vault-hero {
+  margin: -1.6rem 1.2rem 0; position: relative; z-index: 10;
+  background: var(--grad-journey); border-radius: 22px; padding: 1.3rem 1.4rem;
+  box-shadow: 0 16px 40px -12px rgba(99,102,241,.5);
+}
+.vault-hero-label { font-size: 10px; font-weight: 700; color: rgba(4,38,28,.65); text-transform: uppercase; letter-spacing: .08em; font-family: var(--mono); margin-bottom: .3rem; }
+.vault-hero-url { font-family: var(--mono); font-size: 12.5px; font-weight: 600; color: #04261C; margin-bottom: .4rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.vault-hero-meta { font-size: 11px; color: rgba(4,38,28,.7); font-weight: 500; }
+
+.vault-body { flex: 1; padding: 1.6rem 1.2rem 6.5rem; overflow-y: auto; }
+.vault-body::-webkit-scrollbar { width: 0; }
+.vault-section-label { font-size: 11px; font-weight: 700; color: var(--ink3); text-transform: uppercase; letter-spacing: .08em; font-family: var(--mono); margin-bottom: .7rem; }
+
+.stat-grid { display: grid; grid-template-columns: 1fr 1fr; gap: .7rem; margin-bottom: 1.6rem; }
+.stat-card {
+  background: var(--surface2); border-radius: 18px; padding: 1rem 1.1rem;
+  border: 1px solid rgba(0,0,0,.04); box-shadow: 0 2px 12px -4px rgba(0,0,0,.06);
+}
+.stat-card .num { font-family: var(--display); font-size: 26px; font-weight: 700; letter-spacing: -.02em; }
+.stat-card .lbl { font-size: 11px; color: var(--ink3); margin-top: .2rem; font-weight: 500; }
+.stat-card.c-indigo .num { color: var(--indigo); }
+.stat-card.c-emerald .num { color: #10B981; }
+
+.doc-card {
+  background: #F0EFEA; border-radius: 18px; padding: 1rem 1.1rem; margin-bottom: .7rem;
+  border: 1px solid rgba(0,0,0,.03); box-shadow: 0 1px 6px -2px rgba(0,0,0,.04);
+  display: flex; gap: .8rem;
+}
+.doc-icon {
+  width: 44px; height: 44px; border-radius: 13px; flex-shrink: 0;
+  display: flex; align-items: center; justify-content: center; font-size: 20px;
+  box-shadow: 0 4px 12px -4px rgba(0,0,0,.2);
+}
+.doc-icon.salary { background: linear-gradient(135deg, #6366F1, #818CF8); }
+.doc-icon.form16 { background: linear-gradient(135deg, #22D3EE, #34D399); }
+.doc-icon.invest { background: linear-gradient(135deg, #FBBF24, #FB923C); }
+
+/* Calendar chip */
+.cal-chip {
+  width: 38px; height: 38px; border-radius: 10px; flex-shrink: 0; overflow: hidden;
+  border: 1px solid rgba(0,0,0,.06); display: flex; flex-direction: column;
+  box-shadow: 0 2px 8px -3px rgba(0,0,0,.12);
+}
+.cal-chip .cal-month {
+  background: var(--rose); color: #fff; font-size: 9px; font-weight: 700;
+  text-align: center; padding: 2px 0; text-transform: uppercase; letter-spacing: .04em;
+  font-family: var(--mono);
+}
+.cal-chip .cal-day {
+  background: #fff; color: var(--ink); font-size: 16px; font-weight: 700;
+  text-align: center; flex: 1; display: flex; align-items: center; justify-content: center;
+  font-family: var(--display);
+}
+.doc-bottom-row { display: flex; align-items: center; justify-content: space-between; margin-top: .5rem; gap: .5rem; }
+.doc-info { flex: 1; min-width: 0; }
+.doc-title { font-size: 13px; font-weight: 600; color: var(--ink); margin-bottom: .15rem; }
+.doc-meta { font-size: 11px; color: var(--ink3); margin-bottom: .1rem; }
+.provenance {
+  display: flex; align-items: center; justify-content: center;
+  width: 28px; height: 28px; border-radius: 50%; flex-shrink: 0;
+  font-size: 14px;
+}
+.provenance.employer { background: rgba(52,211,153,.15); color: #047857; }
+.provenance.self { background: rgba(251,191,36,.18); color: #92400E; }
+.provenance.thirdparty { background: rgba(99,102,241,.15); color: #4338CA; }
+
+.vault-fab {
+  position: absolute; bottom: 100px; right: 20px; width: 54px; height: 54px; border-radius: 16px;
+  background: var(--grad-journey); border: none; display: flex; align-items: center; justify-content: center;
+  font-size: 22px; color: #04261C; box-shadow: 0 12px 28px -8px rgba(99,102,241,.6); z-index: 30;
+}
+
+.vault-nav {
+  position: absolute; bottom: 18px; left: 16px; right: 16px;
+  background: rgba(255,255,255,.85); backdrop-filter: blur(20px);
+  border: 1px solid rgba(0,0,0,.04); border-radius: 22px;
+  display: flex; justify-content: space-around; padding: .7rem 0;
+  box-shadow: 0 12px 32px -10px rgba(0,0,0,.18); z-index: 25;
+}
+.vault-nav-item {
+  display: flex; flex-direction: column; align-items: center; gap: 3px;
+  font-size: 10px; font-weight: 600; color: var(--ink3); border: none; background: none; font-family: var(--body);
+}
+.vault-nav-item.active { color: var(--indigo); }
+.vault-nav-icon { font-size: 18px; }
+
+/* ════════ MENU DRAWER ════════ */
+.menu-trigger {
+  width: 38px; height: 38px; border-radius: 12px; background: rgba(255,255,255,.1);
+  border: 1px solid rgba(255,255,255,.14); display: flex; align-items: center;
+  justify-content: center; font-size: 14px; color: #fff; flex-shrink: 0;
+}
+.menu-overlay {
+  position: absolute; inset: 0; background: rgba(10,14,28,.55); backdrop-filter: blur(2px);
+  z-index: 60; display: flex; flex-direction: column;
+}
+.menu-panel {
+  margin: 4.6rem 1rem 0; background: rgba(30,42,79,.92); backdrop-filter: blur(24px);
+  border: 1px solid rgba(255,255,255,.1); border-radius: 20px; padding: .6rem;
+  box-shadow: 0 24px 60px -16px rgba(0,0,0,.5);
+}
+.menu-profile {
+  display: flex; align-items: center; gap: .8rem; padding: .9rem .8rem 1rem;
+  border-bottom: 1px solid rgba(255,255,255,.08); margin-bottom: .4rem;
+}
+.menu-avatar {
+  width: 44px; height: 44px; border-radius: 14px; background: var(--grad-journey);
+  display: flex; align-items: center; justify-content: center; font-family: var(--display);
+  font-weight: 700; font-size: 16px; color: #04261C; flex-shrink: 0;
+}
+.menu-profile-name { font-family: var(--display); font-size: 15px; font-weight: 700; color: #fff; }
+.menu-profile-url { font-family: var(--mono); font-size: 11px; color: #8B93A7; margin-top: 1px; }
+
+.menu-item {
+  display: flex; align-items: center; gap: .8rem; padding: .8rem .8rem;
+  border-radius: 12px; font-size: 14px; font-weight: 600; color: #E2E8F0;
+}
+.menu-item .menu-icon {
+  width: 34px; height: 34px; border-radius: 10px; display: flex; align-items: center;
+  justify-content: center; font-size: 15px; flex-shrink: 0;
+}
+.menu-item-sub { font-size: 11px; color: #8B93A7; font-weight: 400; margin-top: 1px; }
+.menu-divider { height: 1px; background: rgba(255,255,255,.08); margin: .4rem .8rem; }
+.menu-item.danger { color: #FCA5A5; }
+.menu-item.danger .menu-icon { background: rgba(251,113,133,.15); color: #FB7185; }
+
+
+/* ════════ AUTH EXTRAS ════════ */
+.otp-grid { display: flex; gap: .5rem; justify-content: center; margin: 1.6rem 0; }
+.otp-box {
+  width: 42px; height: 52px; border-radius: 14px; background: rgba(255,255,255,.06);
+  border: 1px solid rgba(255,255,255,.12); display: flex; align-items: center; justify-content: center;
+  font-family: var(--display); font-size: 22px; font-weight: 700; color: #fff;
+}
+.otp-box.active { border-color: var(--cyan); box-shadow: 0 0 0 3px rgba(34,211,238,.15); }
+
+.qr-card {
+  background: rgba(255,255,255,.05); border: 1px solid rgba(255,255,255,.1);
+  border-radius: 20px; padding: 1.3rem; text-align: center; backdrop-filter: blur(20px);
+  margin-bottom: 1rem;
+}
+.qr-box {
+  width: 150px; height: 150px; margin: 0 auto .8rem; border-radius: 14px; overflow: hidden;
+  background: repeating-conic-gradient(#fff 0% 25%, #0B0F1E 0% 50%) 0 0/18px 18px;
+  display: flex; align-items: center; justify-content: center; border: 4px solid #fff;
+}
+.qr-box-inner { background: #fff; padding: .5rem .8rem; border-radius: 6px; font-size: 10px; color: var(--ink3); font-family: var(--mono); }
+.qr-key {
+  font-family: var(--mono); font-size: 14px; font-weight: 700; color: #fff;
+  background: rgba(255,255,255,.06); border: 1px solid rgba(255,255,255,.1);
+  border-radius: 12px; padding: .7rem; letter-spacing: .08em;
+}
+
+.bio-orb-wrap { display: flex; align-items: center; justify-content: center; padding: 2rem 0; }
+.bio-orb {
+  width: 120px; height: 120px; border-radius: 36px; position: relative;
+  background: linear-gradient(135deg, rgba(99,102,241,.25), rgba(34,211,238,.18));
+  border: 1px solid rgba(255,255,255,.12); display: flex; align-items: center; justify-content: center;
+  font-size: 48px;
+  animation: bioPulse 2.4s ease-in-out infinite;
+}
+@keyframes bioPulse {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(99,102,241,.0); }
+  50% { box-shadow: 0 0 0 16px rgba(99,102,241,.08); }
+}
+.bio-ring {
+  position: absolute; inset: -8px; border-radius: 44px; border: 2.5px solid transparent;
+  border-top-color: var(--cyan); border-left-color: var(--cyan);
+  animation: bioSpin 2.4s linear infinite;
+}
+@keyframes bioSpin { to { transform: rotate(360deg); } }
+
+.notif-card {
+  background: rgba(255,255,255,.07); border: 1px solid rgba(255,255,255,.12);
+  border-radius: 20px; padding: 1.2rem; backdrop-filter: blur(20px); margin-bottom: 1rem;
+  animation: notifSlide .5s cubic-bezier(.34,1.56,.64,1);
+}
+@keyframes notifSlide { from { opacity: 0; transform: translateY(-16px) scale(.96); } to { opacity: 1; transform: translateY(0) scale(1); } }
+.notif-icon-wrap {
+  width: 44px; height: 44px; border-radius: 14px; background: var(--grad-journey);
+  display: flex; align-items: center; justify-content: center; font-size: 20px; flex-shrink: 0;
+}
+.detail-row { display: flex; justify-content: space-between; padding: .55rem 0; border-bottom: 1px solid rgba(255,255,255,.06); font-size: 12px; }
+.detail-row:last-child { border-bottom: none; }
+.detail-label { color: #8B93A7; }
+.detail-val { color: #fff; font-family: var(--mono); font-weight: 600; }
+
+.btn-row { display: flex; gap: .6rem; }
+.btn-deny {
+  flex: 1; background: rgba(251,113,133,.12); border: 1px solid rgba(251,113,133,.25);
+  border-radius: 16px; color: #FCA5A5; font-family: var(--body); font-weight: 700; font-size: 14px;
+  padding: 1rem; cursor: pointer;
+}
+.btn-approve {
+  flex: 2; background: var(--grad-journey); border: none; border-radius: 16px;
+  color: #04261C; font-family: var(--display); font-weight: 700; font-size: 13px;
+  padding: 1rem; cursor: pointer; box-shadow: 0 8px 24px -8px rgba(99,102,241,.6);
+}
+
+.checklist-card {
+  background: rgba(255,255,255,.05); border: 1px solid rgba(255,255,255,.1);
+  border-radius: 18px; padding: 1.1rem; backdrop-filter: blur(20px); margin: 1rem 0;
+}
+.checklist-row { display: flex; align-items: center; gap: .6rem; padding: .45rem 0; font-size: 12px; color: #CBD5E1; }
+.checklist-row .check-icon { font-size: 14px; flex-shrink: 0; }
+
+/* ════════ LIGHT PAGE SCREENS ════════ */
+.page-screen { background: var(--surface); flex: 1; display: flex; flex-direction: column; position: relative; }
+.page-header {
+  padding: 1.2rem 1.4rem .6rem; display: flex; align-items: flex-start; justify-content: space-between;
+}
+.page-header .ph-icon {
+  width: 38px; height: 38px; border-radius: 12px; background: var(--surface3);
+  display: flex; align-items: center; justify-content: center; font-size: 15px; flex-shrink: 0;
+}
+.page-title { font-family: var(--display); font-size: 24px; font-weight: 700; color: var(--ink); letter-spacing: -.01em; margin-bottom: .3rem; }
+.page-sub { font-size: 12px; color: var(--ink2); line-height: 1.6; }
+.page-body { flex: 1; padding: 1rem 1.2rem 6.5rem; overflow-y: auto; }
+.page-body::-webkit-scrollbar { width: 0; }
+.status-bar-light { height: 36px; flex-shrink: 0; display: flex; align-items: center; justify-content: space-between; padding: 0 1.4rem; font-size: 12px; font-weight: 600; font-family: var(--mono); color: var(--ink); }
+
+/* Timeline */
+.tl-card { background: #F0EFEA; border-radius: 18px; padding: 1rem 1.1rem; margin-bottom: .7rem; }
+.tl-row { display: flex; gap: .7rem; padding: .55rem 0; }
+.tl-row:not(:last-child) { border-bottom: 1px solid rgba(0,0,0,.04); }
+.tl-dot { width: 10px; height: 10px; border-radius: 50%; margin-top: 4px; flex-shrink: 0; }
+.tl-text { font-size: 12px; color: var(--ink); line-height: 1.55; }
+.tl-time { font-size: 10px; color: var(--ink3); margin-top: 2px; }
+
+/* Career timeline */
+.career-node-wrap { position: relative; padding-left: 2.4rem; }
+.career-line { position: absolute; left: 13px; top: 28px; bottom: 8px; width: 2px; background: linear-gradient(180deg, var(--indigo), var(--surface3)); z-index: 1; }
+.career-item { position: relative; margin-bottom: 1.3rem; z-index: 2; }
+.career-marker {
+  position: absolute; left: -2.4rem; top: 0; width: 28px; height: 28px; border-radius: 50%;
+  display: flex; align-items: center; justify-content: center; font-size: 13px;
+  border: 3px solid var(--surface); z-index: 3;
+}
+.career-marker.active { background: var(--grad-journey); }
+.career-marker.alumni { background: var(--surface3); color: var(--ink3); }
+.career-org { font-family: var(--display); font-size: 15px; font-weight: 700; color: var(--ink); }
+.career-role { font-size: 12px; color: var(--ink2); margin: .15rem 0 .4rem; }
+.pill {
+  display: inline-block; font-size: 10px; font-weight: 700; padding: 3px 10px;
+  border-radius: 8px; text-transform: uppercase; letter-spacing: .04em;
+}
+.pill.active { background: rgba(52,211,153,.15); color: #047857; }
+.pill.alumni { background: var(--surface3); color: var(--ink2); }
+
+/* Bottom sheet (consent dialog) */
+.sheet-overlay {
+  position: absolute; inset: 0; background: rgba(11,15,30,.6); backdrop-filter: blur(3px);
+  display: flex; align-items: flex-end; z-index: 60;
+}
+.sheet-glass {
+  width: 100%; background: rgba(28,39,71,.94); backdrop-filter: blur(24px);
+  border-radius: 24px 24px 0 0; padding: 1.4rem 1.3rem 1.6rem;
+  border-top: 1px solid rgba(255,255,255,.1);
+  animation: sheetUp .35s cubic-bezier(.34,1.56,.64,1);
+}
+@keyframes sheetUp { from { transform: translateY(100%); } to { transform: translateY(0); } }
+.sheet-handle { width: 36px; height: 4px; background: rgba(255,255,255,.2); border-radius: 2px; margin: 0 auto 1.1rem; }
+
+/* Form cards */
+.form-card { background: #F0EFEA; border-radius: 18px; padding: 1rem 1.1rem; margin-bottom: .8rem; }
+.form-label { font-size: 11px; font-weight: 700; color: var(--ink3); text-transform: uppercase; letter-spacing: .06em; font-family: var(--mono); margin-bottom: .6rem; }
+.access-row { display: flex; align-items: center; justify-content: space-between; padding: .5rem 0; }
+.radio-dot {
+  width: 20px; height: 20px; border-radius: 50%; border: 2px solid var(--surface3);
+  display: flex; align-items: center; justify-content: center; flex-shrink: 0;
+}
+.radio-dot.selected { border-color: var(--indigo); }
+.radio-dot.selected::after { content: ''; width: 10px; height: 10px; border-radius: 50%; background: var(--grad-journey); }
+.expiry-pills { display: flex; gap: .5rem; }
+.expiry-pill {
+  flex: 1; text-align: center; padding: .6rem; border-radius: 12px; font-size: 12px; font-weight: 600;
+  border: 1px solid var(--surface3); color: var(--ink2);
+}
+.expiry-pill.selected { background: var(--grad-journey); color: #04261C; border: none; font-weight: 700; }
+
+/* Settings */
+.settings-group-label { font-size: 11px; font-weight: 700; color: var(--ink3); text-transform: uppercase; letter-spacing: .06em; font-family: var(--mono); margin: 1.2rem 0 .6rem; }
+.settings-group-label:first-child { margin-top: 0; }
+.setting-row {
+  display: flex; align-items: center; justify-content: space-between; padding: .8rem 0; gap: .6rem;
+}
+.setting-row > div:first-child { display: flex; align-items: center; flex: 1; min-width: 0; }
+.setting-row > div:first-child > div:last-child { min-width: 0; flex: 1; }
+.setting-row:not(:last-child) { border-bottom: 1px solid rgba(0,0,0,.04); }
+.setting-icon { width: 34px; height: 34px; border-radius: 10px; display: flex; align-items: center; justify-content: center; font-size: 15px; margin-right: .7rem; flex-shrink: 0; }
+.setting-text-title { font-size: 13px; font-weight: 600; color: var(--ink); white-space: nowrap; }
+.setting-text-sub { font-size: 10px; color: var(--ink3); margin-top: 1px; font-family: var(--mono); }
+.toggle2 { width: 42px; height: 24px; border-radius: 12px; background: var(--surface3); position: relative; flex-shrink: 0; }
+.toggle2.on { background: var(--grad-journey); }
+.toggle2::after { content: ''; position: absolute; top: 2px; left: 2px; width: 20px; height: 20px; border-radius: 50%; background: #fff; box-shadow: 0 1px 4px rgba(0,0,0,.15); transition: left .2s; }
+.toggle2.on::after { left: 20px; }
+
+/* Document viewer */
+.viewer-screen { background: #0B0F1E; flex: 1; display: flex; flex-direction: column; }
+.viewer-topbar { padding: 1rem 1.2rem; display: flex; align-items: center; justify-content: space-between; }
+.viewer-back { font-size: 13px; font-weight: 600; color: #fff; font-family: var(--display); }
+.viewer-page { flex: 1; padding: 0 1.2rem; display: flex; align-items: center; }
+.viewer-doc { background: #fff; border-radius: 14px; padding: 1.4rem; width: 100%; min-height: 440px; position: relative; overflow: hidden; }
+.viewer-watermark {
+  position: absolute; inset: 0; display: flex; align-items: center; justify-content: center;
+  transform: rotate(-28deg); opacity: .06; font-size: 12px; font-weight: 700; color: #000;
+  text-align: center; line-height: 2.4; pointer-events: none;
+}
+.viewer-footer { padding: 1.2rem; text-align: center; }
+
+/* ════════ NOTIFICATION BANNER ════════ */
+.doc-banner {
+  background: var(--grad-journey); border-radius: 18px; padding: 1rem 1.1rem;
+  margin-bottom: 1.2rem; display: flex; align-items: center; gap: .8rem;
+  box-shadow: 0 10px 28px -10px rgba(99,102,241,.45);
+  animation: bannerIn .5s cubic-bezier(.34,1.56,.64,1);
+}
+@keyframes bannerIn { from { opacity: 0; transform: translateY(-10px) scale(.98); } to { opacity: 1; transform: translateY(0) scale(1); } }
+.doc-banner-icon {
+  width: 40px; height: 40px; border-radius: 12px; background: rgba(4,38,28,.15);
+  display: flex; align-items: center; justify-content: center; font-size: 19px; flex-shrink: 0;
+}
+.doc-banner-text { flex: 1; }
+.doc-banner-title { font-family: var(--display); font-size: 13px; font-weight: 700; color: #04261C; margin-bottom: .1rem; }
+.doc-banner-sub { font-size: 11px; color: rgba(4,38,28,.7); }
+.doc-banner-close {
+  width: 24px; height: 24px; border-radius: 50%; background: rgba(4,38,28,.1);
+  display: flex; align-items: center; justify-content: center; font-size: 12px;
+  color: rgba(4,38,28,.6); flex-shrink: 0; border: none;
+}
+
+/* Bell badge with count */
+.bell-badge {
+  position: absolute; top: 6px; right: 6px; min-width: 16px; height: 16px; border-radius: 8px;
+  background: var(--rose); border: 2px solid var(--space); display: flex; align-items: center;
+  justify-content: center; font-size: 9px; font-weight: 700; color: #fff; font-family: var(--mono);
+  padding: 0 3px;
+}
+
+/* ════════ EMPTY STATE ════════ */
+.empty-state {
+  flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center;
+  text-align: center; padding: 2rem 1.6rem 6.5rem; overflow-y: auto;
+}
+.empty-state::-webkit-scrollbar { width: 0; }
+.empty-illustration { width: 160px; height: 160px; margin-bottom: 1.2rem; }
+.empty-title { font-family: var(--display); font-size: 20px; font-weight: 700; color: var(--ink); margin-bottom: .5rem; letter-spacing: -.01em; }
+.empty-sub { font-size: 13px; color: var(--ink2); line-height: 1.6; max-width: 240px; margin-bottom: 1.6rem; }
+.empty-checklist {
+  background: #F0EFEA; border-radius: 18px; padding: 1.1rem; width: 100%; text-align: left; margin-bottom: 1.4rem;
+}
+.empty-check-row { display: flex; align-items: center; gap: .6rem; padding: .4rem 0; font-size: 12px; color: var(--ink2); }
+.empty-check-row .ec-icon {
+  width: 26px; height: 26px; border-radius: 8px; display: flex; align-items: center; justify-content: center;
+  font-size: 13px; flex-shrink: 0;
+}
+</style>
+</head>
+<body>
+
+<div class="proto-header">
+  <h1>PRANA Mobile — Full Prototype, New Visual Direction (16 screens)</h1>
+  <p>
+    <span class="tag tag-new">New direction</span><span class="tag tag-dir">All 16 screens — onboarding through settings</span><br>
+    Breaking from the web-portal layout toward a mobile-native identity: animated
+    illustration on launch, a deep space/journey palette with an indigo→cyan→emerald
+    accent gradient, glassmorphism, and bigger, more confident type (Space Grotesk +
+    Inter). The splash tells PRANA's actual story — a career thread across employers,
+    converging into one vault that's permanently yours.
+    <br><br>
+    <strong style="color:#CBD5E1;">Provenance icons</strong> (screen 3) replace the
+    "VERIFIED" text badge — a green shield for employer-pushed documents, an amber
+    upload arrow for self-uploads, and an indigo checkmark reserved for future
+    third-party-verified sources (DigiLocker etc.), per document.source_type from §29.
+    No legend bar — the icons read on their own, and document cards are now a soft
+    light-gray (#F0EFEA) so they sit distinctly below the white stat cards.
+    <br><br>
+    <strong style="color:#CBD5E1;">Full set:</strong> 1 Splash · 2 Sign in · 3 Set up
+    2FA (conditional) · 4 Enter code · 5 Register device · 6 Enable Face ID ·
+    7 Biometric unlock (returning user) · 8 Push-approval login · 9 Vault home ·
+    10 Menu · 11 Activity · 12 Career · 13 Self-upload + consent (§29) ·
+    14 Create share · 15 Settings · 16 Document viewer.
+    <br><br>
+    Dark "space/journey" screens (1–8, 16) carry the gradient + glassmorphism
+    language; light screens (9–15) use the warm off-white surface with gray
+    (#F0EFEA) cards, the floating glass pill nav, and provenance icons throughout.
+    <br><br>
+    <strong style="color:#CBD5E1;">Screens 17–18</strong> address two user-delight
+    gaps benchmarked against Revolut/Apple Wallet/PhonePe: 17 shows the proactive
+    "new document" banner (gradient, dismissible) plus a numbered bell badge — so
+    an employer push is <em>felt</em>, not just discoverable by scrolling; 18 is
+    the empty state a brand-new employee sees before their first document arrives,
+    with an on-brand illustration, a progress checklist, and a self-upload fallback.
+    Motion, haptics, and loading-state specs are documented separately in
+    PRANA_Mobile_DesignLanguage.md.
+  </p>
+</div>
+
+<div class="gallery">
+
+<!-- ═══════════════════════════════════════════════════════ -->
+<!-- SCREEN 1 — SPLASH (animated illustration)                -->
+<!-- ═══════════════════════════════════════════════════════ -->
+<div class="phone-wrap">
+  <div class="phone-label"><span class="step-num">1</span> Splash — animated launch</div>
+  <div class="phone">
+    <div class="notch"></div>
+    <div class="phone-screen">
+      <div class="splash-screen">
+        <svg class="splash-stars" viewBox="0 0 330 690" xmlns="http://www.w3.org/2000/svg">
+          <circle cx="40" cy="80" r="1.2" fill="#fff" opacity=".5"/>
+          <circle cx="280" cy="140" r="1" fill="#fff" opacity=".4"/>
+          <circle cx="90" cy="200" r="1.5" fill="#fff" opacity=".3"/>
+          <circle cx="250" cy="60" r="1" fill="#fff" opacity=".6"/>
+          <circle cx="180" cy="240" r="1.2" fill="#fff" opacity=".35"/>
+          <circle cx="60" cy="320" r="1" fill="#fff" opacity=".4"/>
+          <circle cx="300" cy="300" r="1.3" fill="#fff" opacity=".3"/>
+          <circle cx="150" cy="100" r="1" fill="#fff" opacity=".5"/>
+          <circle cx="30" cy="450" r="1.2" fill="#fff" opacity=".3"/>
+          <circle cx="290" cy="420" r="1" fill="#fff" opacity=".4"/>
+        </svg>
+
+        <div class="splash-illustration">
+          <svg class="thread-svg" viewBox="0 0 280 280" xmlns="http://www.w3.org/2000/svg">
+            <defs>
+              <linearGradient id="threadGrad" x1="0%" y1="100%" x2="100%" y2="0%">
+                <stop offset="0%" stop-color="#6366F1"/>
+                <stop offset="55%" stop-color="#22D3EE"/>
+                <stop offset="100%" stop-color="#34D399"/>
+              </linearGradient>
+              <radialGradient id="vaultGlow" cx="50%" cy="50%" r="50%">
+                <stop offset="0%" stop-color="#34D399" stop-opacity=".5"/>
+                <stop offset="100%" stop-color="#34D399" stop-opacity="0"/>
+              </radialGradient>
+            </defs>
+
+            <path class="thread-path" d="M 40 230 C 70 230, 80 190, 95 170 C 115 145, 130 150, 145 130 C 165 105, 175 95, 195 80"
+                  stroke="url(#threadGrad)"/>
+
+            <circle class="thread-glow" cx="222" cy="58" r="46" fill="url(#vaultGlow)"/>
+
+            <g class="thread-node n1">
+              <circle cx="40" cy="230" r="13" fill="#1E2A4F" stroke="#6366F1" stroke-width="2.5"/>
+              <rect x="34" y="224" width="12" height="12" rx="2" fill="#6366F1" opacity=".7"/>
+            </g>
+
+            <g class="thread-node n2">
+              <circle cx="95" cy="170" r="13" fill="#1E2A4F" stroke="#22D3EE" stroke-width="2.5"/>
+              <rect x="89" y="164" width="12" height="12" rx="2" fill="#22D3EE" opacity=".7"/>
+            </g>
+
+            <g class="thread-node n3">
+              <circle cx="145" cy="130" r="13" fill="#1E2A4F" stroke="#34D399" stroke-width="2.5"/>
+              <rect x="139" y="124" width="12" height="12" rx="2" fill="#34D399" opacity=".7"/>
+            </g>
+
+            <g class="thread-vault">
+              <circle cx="222" cy="58" r="32" fill="#1E2A4F" stroke="url(#threadGrad)" stroke-width="3"/>
+              <rect x="208" y="50" width="28" height="22" rx="3" fill="none" stroke="#34D399" stroke-width="2.5"/>
+              <rect x="214" y="50" width="16" height="8" rx="2" fill="none" stroke="#34D399" stroke-width="2.5"/>
+              <circle cx="222" cy="61" r="2.5" fill="#34D399"/>
+            </g>
+          </svg>
+        </div>
+
+        <div class="splash-bottom">
+          <div class="splash-title">Your career.<br>One <span>vault</span>, forever yours.</div>
+          <div class="splash-tagline">Every employer adds to it. Nobody can take it away.</div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════ -->
+<!-- SCREEN 2 — SIGN IN (glassmorphism, gradient accents)     -->
+<!-- ═══════════════════════════════════════════════════════ -->
+<div class="phone-wrap">
+  <div class="phone-label"><span class="step-num">2</span> Sign in — glass + gradient</div>
+  <div class="phone">
+    <div class="notch"></div>
+    <div class="phone-screen">
+      <div class="auth-screen">
+        <div class="auth-orb o1"></div>
+        <div class="auth-orb o2"></div>
+        <div class="status-bar" style="color:#fff;"><span>9:30</span><span>●●●</span></div>
+
+        <div class="auth-content">
+          <div class="auth-brand">
+            <div class="auth-brand-mark">
+              <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                <rect x="3" y="6" width="18" height="14" rx="2" stroke="#04261C" stroke-width="2"/>
+                <path d="M8 6V4a2 2 0 012-2h4a2 2 0 012 2v2" stroke="#04261C" stroke-width="2"/>
+                <circle cx="12" cy="13" r="1.5" fill="#04261C"/>
+              </svg>
+            </div>
+            <div class="auth-brand-name">PRANA</div>
+          </div>
+
+          <div class="auth-heading">Welcome back.<br>Let's link this device.</div>
+          <div class="auth-sub">
+            Sign in with the same credentials you use on the PRANA web portal —
+            this links your phone to your existing vault.
+          </div>
+
+          <div class="glass-card">
+            <div class="glass-field">
+              <label>Registered mobile number</label>
+              <input class="glass-input" type="text" value="+91 98765 43210">
+            </div>
+            <div class="glass-field">
+              <label>Password</label>
+              <input class="glass-input" type="password" value="••••••••••••">
+            </div>
+          </div>
+
+          <button class="btn-grad">Continue <span style="font-size:16px;">→</span></button>
+
+          <div class="info-pill">
+            <span style="font-size:16px;flex-shrink:0;">ⓘ</span>
+            <span>
+              First time on PRANA — on web or app? You'll set up your authenticator
+              right after this.
+            </span>
+          </div>
+
+          <div class="auth-link">First time? Activate with the link from your employer</div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════ -->
+<!-- SCREEN 3 — SET UP TWO-FACTOR AUTH (first-time)           -->
+<!-- ═══════════════════════════════════════════════════════ -->
+<div class="phone-wrap">
+  <div class="phone-label"><span class="step-num">3</span> Set up two-factor auth <span style="color:#5C6685;">— shown only if no TOTP yet</span></div>
+  <div class="phone">
+    <div class="notch"></div>
+    <div class="phone-screen">
+      <div class="auth-screen">
+        <div class="auth-orb o1"></div>
+        <div class="auth-orb o2"></div>
+        <div class="status-bar" style="color:#fff;"><span>9:30</span><span>●●●</span></div>
+
+        <div class="auth-content">
+          <div class="info-pill" style="margin-top:0;margin-bottom:1.2rem;background:rgba(251,191,36,.1);border-color:rgba(251,191,36,.25);">
+            <span style="font-size:16px;flex-shrink:0;">⚡</span>
+            <span style="color:#FCD34D;"><strong>No authenticator found.</strong> Set up two-factor authentication — required before this device can be registered.</span>
+          </div>
+
+          <div class="auth-heading">Add PRANA to your authenticator app</div>
+          <div class="auth-sub">
+            Use Google Authenticator, Authy, or any TOTP app. If you have one on this
+            phone, open it and scan the code below.
+          </div>
+
+          <div class="qr-card">
+            <div class="qr-box"><div class="qr-box-inner">QR CODE</div></div>
+            <div style="font-size:11px;color:#8B93A7;margin-bottom:.8rem;">Or enter this key manually</div>
+            <div class="qr-key">JBSW Y3DP EHPK 3PXP</div>
+          </div>
+
+          <button class="btn-grad">I've added it — Continue <span style="font-size:16px;">→</span></button>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════ -->
+<!-- SCREEN 4 — TOTP VERIFICATION                             -->
+<!-- ═══════════════════════════════════════════════════════ -->
+<div class="phone-wrap">
+  <div class="phone-label"><span class="step-num">4</span> Enter authenticator code <span style="color:#5C6685;">— proves existing 2FA</span></div>
+  <div class="phone">
+    <div class="notch"></div>
+    <div class="phone-screen">
+      <div class="auth-screen">
+        <div class="auth-orb o1"></div>
+        <div class="auth-orb o2"></div>
+        <div class="status-bar" style="color:#fff;"><span>9:31</span><span>●●●</span></div>
+
+        <div class="auth-content">
+          <div class="auth-heading">Enter your code</div>
+          <div class="auth-sub">
+            Open the authenticator app you set up when you first activated PRANA —
+            on this phone or another device — and enter the current 6-digit code.
+          </div>
+
+          <div class="otp-grid">
+            <div class="otp-box">4</div>
+            <div class="otp-box">8</div>
+            <div class="otp-box">2</div>
+            <div class="otp-box">9</div>
+            <div class="otp-box active">1</div>
+            <div class="otp-box">5</div>
+          </div>
+
+          <div class="checklist-card">
+            <div style="font-size:11px;font-weight:700;color:#8B93A7;text-transform:uppercase;letter-spacing:.07em;font-family:var(--mono);margin-bottom:.5rem;">Why this step</div>
+            <div style="font-size:12px;color:#CBD5E1;line-height:1.6;">
+              Linking a new device is high-trust — it lets this device create a
+              biometric login key. TOTP proves it's really you first.
+            </div>
+          </div>
+
+          <button class="btn-grad">Verify <span style="font-size:16px;">→</span></button>
+          <div class="auth-link" style="color:#8B93A7;">Lost access? Use a backup code</div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════ -->
+<!-- SCREEN 5 — REGISTER THIS DEVICE                          -->
+<!-- ═══════════════════════════════════════════════════════ -->
+<div class="phone-wrap">
+  <div class="phone-label"><span class="step-num">5</span> Register this device <span style="color:#5C6685;">— device_credential created</span></div>
+  <div class="phone">
+    <div class="notch"></div>
+    <div class="phone-screen">
+      <div class="auth-screen">
+        <div class="auth-orb o1"></div>
+        <div class="auth-orb o2"></div>
+        <div class="status-bar" style="color:#fff;"><span>9:32</span><span>●●●</span></div>
+
+        <div class="auth-content">
+          <div style="text-align:center;margin-bottom:1rem;">
+            <div style="width:64px;height:64px;margin:0 auto .8rem;border-radius:20px;background:var(--grad-journey);display:flex;align-items:center;justify-content:center;font-size:28px;box-shadow:0 8px 24px -8px rgba(99,102,241,.6);">📱</div>
+            <div class="auth-heading" style="text-align:center;">Register this device</div>
+          </div>
+          <div class="auth-sub" style="text-align:center;">
+            A secure key is generated and stored in this phone's hardware chip.
+            It never leaves this device.
+          </div>
+
+          <div class="glass-card">
+            <div class="glass-field">
+              <label>Device name</label>
+              <input class="glass-input" type="text" value="iPhone 14 — Rahul" style="font-family:var(--body);">
+            </div>
+          </div>
+
+          <div class="checklist-card">
+            <div style="font-size:11px;font-weight:700;color:#8B93A7;text-transform:uppercase;letter-spacing:.07em;font-family:var(--mono);margin-bottom:.4rem;">What gets created</div>
+            <div class="checklist-row"><span class="check-icon">🔑</span>Keypair — Secure Enclave · P-256</div>
+            <div class="checklist-row"><span class="check-icon">☁️</span>Public key → sent to server</div>
+            <div class="checklist-row"><span class="check-icon">🔒</span><span style="color:#6EE7B7;">Private key — never leaves phone</span></div>
+            <div class="checklist-row"><span class="check-icon">✓</span>trust_source: STEP_UP_VERIFIED</div>
+          </div>
+
+          <button class="btn-grad">Register Device <span style="font-size:16px;">→</span></button>
+          <div class="auth-link" style="color:#8B93A7;">Skip — sign in with password each time</div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════ -->
+<!-- SCREEN 6 — ENABLE FACE ID                                -->
+<!-- ═══════════════════════════════════════════════════════ -->
+<div class="phone-wrap">
+  <div class="phone-label"><span class="step-num">6</span> Enable Face ID <span style="color:#5C6685;">— biometric_enrolled=true</span></div>
+  <div class="phone">
+    <div class="notch"></div>
+    <div class="phone-screen">
+      <div class="auth-screen" style="justify-content:center;">
+        <div class="auth-orb o1"></div>
+        <div class="auth-orb o2"></div>
+        <div class="status-bar" style="color:#fff;position:absolute;top:0;width:100%;"><span>9:33</span><span>●●●</span></div>
+
+        <div class="auth-content" style="justify-content:center;text-align:center;">
+          <div class="bio-orb-wrap">
+            <div class="bio-orb">
+              <div class="bio-ring"></div>
+              🆔
+            </div>
+          </div>
+
+          <div class="auth-heading" style="text-align:center;">Enable Face ID for PRANA?</div>
+          <div class="auth-sub" style="text-align:center;">
+            Use Face ID to unlock the app and approve logins instantly — no more
+            typing passwords or codes on this device.
+          </div>
+
+          <div class="checklist-card" style="text-align:left;">
+            <div class="checklist-row"><span class="check-icon">✓</span>Unlocks the app</div>
+            <div class="checklist-row"><span class="check-icon">✓</span>Approves login attempts</div>
+            <div class="checklist-row"><span class="check-icon" style="color:#FCA5A5;">✕</span><span style="color:#FCA5A5;">Sent to PRANA servers — never</span></div>
+          </div>
+
+          <div class="btn-row" style="margin-top:.5rem;">
+            <button class="btn-ghost-dark">Skip</button>
+            <button class="btn-approve" style="flex:2;font-size:14px;">Enable</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════ -->
+<!-- SCREEN 7 — BIOMETRIC UNLOCK (returning user)             -->
+<!-- ═══════════════════════════════════════════════════════ -->
+<div class="phone-wrap">
+  <div class="phone-label"><span class="step-num">7</span> Biometric unlock <span style="color:#5C6685;">— returning user</span></div>
+  <div class="phone">
+    <div class="notch"></div>
+    <div class="phone-screen">
+      <div class="auth-screen" style="justify-content:center;">
+        <div class="auth-orb o1"></div>
+        <div class="auth-orb o2"></div>
+        <div class="status-bar" style="color:#fff;position:absolute;top:0;width:100%;"><span>9:41</span><span>🔒</span></div>
+
+        <div class="auth-content" style="justify-content:center;text-align:center;">
+          <div class="bio-orb-wrap">
+            <div class="bio-orb">
+              <div class="bio-ring"></div>
+              🆔
+            </div>
+          </div>
+
+          <div class="auth-heading" style="text-align:center;">Unlock PRANA</div>
+          <div class="auth-sub" style="text-align:center;">Use Face ID to access your vault</div>
+
+          <div style="font-size:11px;color:#5C6685;font-family:var(--mono);line-height:1.7;margin-bottom:2rem;">
+            Rahul Sharma<br>prana.in/vault/rahul-sharma-xk72
+          </div>
+
+          <button class="btn-ghost-dark">Use App PIN Instead</button>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════ -->
+<!-- SCREEN 8 — PUSH-APPROVAL LOGIN                           -->
+<!-- ═══════════════════════════════════════════════════════ -->
+<div class="phone-wrap">
+  <div class="phone-label"><span class="step-num">8</span> Push-approval login <span style="color:#5C6685;">— §27 login flow</span></div>
+  <div class="phone">
+    <div class="notch"></div>
+    <div class="phone-screen">
+      <div class="auth-screen">
+        <div class="auth-orb o1"></div>
+        <div class="auth-orb o2"></div>
+        <div class="status-bar" style="color:#fff;"><span>9:42</span><span>🔔</span></div>
+
+        <div class="auth-content">
+          <div class="notif-card">
+            <div style="display:flex;gap:.7rem;align-items:flex-start;">
+              <div class="notif-icon-wrap">🔔</div>
+              <div>
+                <div style="font-family:var(--display);font-weight:700;font-size:14px;color:#fff;margin-bottom:.2rem;">Login attempt</div>
+                <div style="font-size:12px;color:#9CA8C9;line-height:1.6;">
+                  Someone is trying to access your PRANA vault from
+                  <strong style="color:#fff;">Chrome on Windows</strong>, near
+                  <strong style="color:#fff;">Mumbai, Maharashtra</strong>.
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div class="glass-card">
+            <div class="detail-row"><span class="detail-label">Device</span><span class="detail-val">Chrome · Windows</span></div>
+            <div class="detail-row"><span class="detail-label">Location</span><span class="detail-val">Mumbai (±8km)</span></div>
+            <div class="detail-row"><span class="detail-label">ISP</span><span class="detail-val">Reliance Jio</span></div>
+            <div class="detail-row"><span class="detail-label">Known device?</span><span class="detail-val" style="color:#6EE7B7;">Yes</span></div>
+            <div class="detail-row"><span class="detail-label">Requested</span><span class="detail-val">Just now</span></div>
+          </div>
+
+          <div style="font-size:11px;color:#5C6685;text-align:center;line-height:1.6;margin-bottom:1.2rem;">
+            If this wasn't you, tap Deny — your password stays unchanged but
+            we'll flag this attempt for review.
+          </div>
+
+          <div class="btn-row">
+            <button class="btn-deny">✕ Deny</button>
+            <button class="btn-approve">✓ Approve · Face ID</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════ -->
+<!-- SCREEN 9 — VAULT HOME (data-dense, new visual language)  -->
+<!-- ═══════════════════════════════════════════════════════ -->
+<div class="phone-wrap">
+  <div class="phone-label"><span class="step-num">9</span> Vault home — hero + stats + docs</div>
+  <div class="phone">
+    <div class="notch"></div>
+    <div class="phone-screen">
+      <div class="vault-screen">
+        <div class="vault-topbg">
+          <div class="auth-orb o1"></div>
+          <div class="vault-status"><span>9:43</span><span>●●●</span></div>
+          <div class="vault-greeting" style="display:flex;align-items:flex-start;justify-content:space-between;">
+            <div>
+              <div class="hi">Good morning</div>
+              <div class="name">Rahul Sharma</div>
+            </div>
+            <div class="vault-bell">🔔<span class="dot"></span></div>
+          </div>
+        </div>
+
+        <div class="vault-hero">
+          <div class="vault-hero-label">Your permanent vault</div>
+          <div class="vault-hero-url">prana.in/vault/rahul-sharma-xk72</div>
+          <div class="vault-hero-meta">Active since Mar 2019 · 2 employers · 16 documents</div>
+        </div>
+
+        <div class="vault-body">
+          <div class="stat-grid">
+            <div class="stat-card c-indigo">
+              <div class="num">16</div>
+              <div class="lbl">Documents</div>
+            </div>
+            <div class="stat-card c-emerald">
+              <div class="num">3</div>
+              <div class="lbl">Active shares</div>
+            </div>
+          </div>
+
+          <div class="vault-section-label">Recent documents</div>
+
+          <div class="doc-card" style="align-items:flex-start;">
+            <div class="doc-icon salary">💰</div>
+            <div class="doc-info">
+              <div class="doc-title">Salary Slip — May 2026</div>
+              <div class="doc-meta">NPCI · Pushed by employer</div>
+              <div class="doc-bottom-row">
+                <div style="display:flex;align-items:center;gap:.5rem;min-width:0;">
+                  <div class="cal-chip">
+                    <div class="cal-month">Jun</div>
+                    <div class="cal-day">02</div>
+                  </div>
+                  <span style="font-size:11px;color:var(--ink3);white-space:nowrap;">Received</span>
+                </div>
+                <div class="provenance employer" title="Pushed by employer">🛡</div>
+              </div>
+            </div>
+          </div>
+
+          <div class="doc-card" style="align-items:flex-start;">
+            <div class="doc-icon form16">🧾</div>
+            <div class="doc-info">
+              <div class="doc-title">Form 16 — FY 2024-25</div>
+              <div class="doc-meta">NPCI · Pushed by employer</div>
+              <div class="doc-bottom-row">
+                <div style="display:flex;align-items:center;gap:.5rem;min-width:0;">
+                  <div class="cal-chip">
+                    <div class="cal-month">May</div>
+                    <div class="cal-day">28</div>
+                  </div>
+                  <span style="font-size:11px;color:var(--ink3);white-space:nowrap;">Received</span>
+                </div>
+                <div class="provenance employer" title="Pushed by employer">🛡</div>
+              </div>
+            </div>
+          </div>
+
+          <div class="doc-card" style="align-items:flex-start;">
+            <div class="doc-icon invest">📊</div>
+            <div class="doc-info">
+              <div class="doc-title">Investment Proof — LIC</div>
+              <div class="doc-meta">Self-uploaded</div>
+              <div class="doc-bottom-row">
+                <div style="display:flex;align-items:center;gap:.5rem;min-width:0;">
+                  <div class="cal-chip">
+                    <div class="cal-month">Jun</div>
+                    <div class="cal-day">12</div>
+                  </div>
+                  <span style="font-size:11px;color:var(--ink3);white-space:nowrap;">Uploaded</span>
+                </div>
+                <div class="provenance self" title="Self-uploaded — unverified">⬆</div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <button class="vault-fab">⬆</button>
+        <div class="vault-nav">
+          <button class="vault-nav-item active"><span class="vault-nav-icon">🗂</span>Vault</button>
+          <button class="vault-nav-item"><span class="vault-nav-icon">🕐</span>Activity</button>
+          <button class="vault-nav-item"><span class="vault-nav-icon">💼</span>Career</button>
+          <button class="vault-nav-item"><span class="vault-nav-icon">↗</span>Shares</button>
+          <button class="vault-nav-item"><span class="vault-nav-icon">⚙</span>Settings</button>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════ -->
+<!-- SCREEN 10 — MENU DRAWER (opened from top-right)           -->
+<!-- ═══════════════════════════════════════════════════════ -->
+<div class="phone-wrap">
+  <div class="phone-label"><span class="step-num">10</span> Menu — profile, settings, logout</div>
+  <div class="phone">
+    <div class="notch"></div>
+    <div class="phone-screen">
+      <div class="vault-screen">
+        <div class="vault-topbg">
+          <div class="auth-orb o1"></div>
+          <div class="vault-status"><span>9:43</span><span>●●●</span></div>
+          <div class="vault-greeting" style="display:flex;align-items:flex-start;justify-content:space-between;">
+            <div>
+              <div class="hi">Good morning</div>
+              <div class="name">Rahul Sharma</div>
+            </div>
+            <div class="menu-trigger">☰</div>
+          </div>
+        </div>
+
+        <div class="vault-hero">
+          <div class="vault-hero-label">Your permanent vault</div>
+          <div class="vault-hero-url">prana.in/vault/rahul-sharma-…</div>
+          <div class="vault-hero-meta">Active since Mar 2019 · 2 employers · 16 documents</div>
+        </div>
+
+        <div class="vault-body">
+          <div class="stat-grid">
+            <div class="stat-card c-indigo">
+              <div class="num">16</div>
+              <div class="lbl">Documents</div>
+            </div>
+            <div class="stat-card c-emerald">
+              <div class="num">3</div>
+              <div class="lbl">Active shares</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Menu overlay -->
+        <div class="menu-overlay">
+          <div class="menu-panel">
+            <div class="menu-profile">
+              <div class="menu-avatar">RS</div>
+              <div>
+                <div class="menu-profile-name">Rahul Sharma</div>
+                <div class="menu-profile-url">prana.in/vault/rahul-sharma-xk72</div>
+              </div>
+            </div>
+
+            <div class="menu-item">
+              <div class="menu-icon" style="background:rgba(99,102,241,.15);color:#A5B4FC;">📱</div>
+              <div>
+                Manage Devices
+                <div class="menu-item-sub">1 device linked — this iPhone 14</div>
+              </div>
+            </div>
+
+            <div class="menu-item">
+              <div class="menu-icon" style="background:rgba(34,211,238,.15);color:#67E8F9;">🔐</div>
+              <div>
+                Privacy &amp; DPDP Rights
+                <div class="menu-item-sub">Consent log, data export, erasure</div>
+              </div>
+            </div>
+
+            <div class="menu-item">
+              <div class="menu-icon" style="background:rgba(52,211,153,.15);color:#6EE7B7;">💬</div>
+              <div>
+                Help &amp; Support
+              </div>
+            </div>
+
+            <div class="menu-item">
+              <div class="menu-icon" style="background:rgba(251,191,36,.15);color:#FCD34D;">🌐</div>
+              <div>
+                Open Web Portal
+                <div class="menu-item-sub">prana.in</div>
+              </div>
+            </div>
+
+            <div class="menu-divider"></div>
+
+            <div class="menu-item danger">
+              <div class="menu-icon">⏻</div>
+              <div>Log Out</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════ -->
+<!-- SCREEN 11 — ACTIVITY LOG                                 -->
+<!-- ═══════════════════════════════════════════════════════ -->
+<div class="phone-wrap">
+  <div class="phone-label"><span class="step-num">11</span> Activity log <span style="color:var(--ink3);">— document + login history</span></div>
+  <div class="phone">
+    <div class="notch"></div>
+    <div class="phone-screen">
+      <div class="page-screen">
+        <div class="status-bar-light"><span>9:44</span><span>●●●</span></div>
+        <div class="page-header">
+          <div>
+            <div class="page-title">Activity</div>
+            <div class="page-sub">Every document event — pushes, accesses, shares, revocations</div>
+          </div>
+          <div class="ph-icon">☰</div>
+        </div>
+
+        <div class="page-body">
+          <div class="settings-group-label" style="margin-top:0;">Documents</div>
+          <div class="tl-card">
+            <div class="tl-row">
+              <div class="tl-dot" style="background:var(--indigo);"></div>
+              <div>
+                <div class="tl-text"><strong>HDFC Bank Loan Officer</strong> downloaded Salary Slip June 2024 via your share link · watermarked</div>
+                <div class="tl-time">Today, 11:23</div>
+              </div>
+            </div>
+            <div class="tl-row">
+              <div class="tl-dot" style="background:#10B981;"></div>
+              <div>
+                <div class="tl-text"><strong>ABCD Bank</strong> pushed Salary Slip October 2024 to your vault</div>
+                <div class="tl-time">01 Nov 2024</div>
+              </div>
+            </div>
+            <div class="tl-row">
+              <div class="tl-dot" style="background:var(--cyan);"></div>
+              <div>
+                <div class="tl-text">You shared Experience + Relieving Letter with BackgroundSecure BGV · view only · 48hr</div>
+                <div class="tl-time">11 Jun 2026</div>
+              </div>
+            </div>
+            <div class="tl-row">
+              <div class="tl-dot" style="background:var(--amber);"></div>
+              <div>
+                <div class="tl-text">You uploaded <strong>Investment Proof — LIC</strong> (self-upload)</div>
+                <div class="tl-time">12 Jun 2026</div>
+              </div>
+            </div>
+            <div class="tl-row">
+              <div class="tl-dot" style="background:var(--ink3);"></div>
+              <div>
+                <div class="tl-text">You revoked the share with Landlord Verification — link invalidated</div>
+                <div class="tl-time">15 Jan 2024</div>
+              </div>
+            </div>
+          </div>
+
+          <div class="settings-group-label">Login history — §27</div>
+          <div class="tl-card">
+            <div class="tl-row">
+              <div class="tl-dot" style="background:#10B981;"></div>
+              <div>
+                <div class="tl-text">Push approval · Chrome, Windows · Mumbai <span style="color:#047857;font-weight:600;">(known device)</span></div>
+                <div class="tl-time">Today, 09:42</div>
+              </div>
+            </div>
+            <div class="tl-row">
+              <div class="tl-dot" style="background:#10B981;"></div>
+              <div>
+                <div class="tl-text">Face ID · PRANA App, iPhone · Mumbai</div>
+                <div class="tl-time">Yesterday, 18:10</div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="vault-nav">
+          <button class="vault-nav-item"><span class="vault-nav-icon">🗂</span>Vault</button>
+          <button class="vault-nav-item active"><span class="vault-nav-icon">🕐</span>Activity</button>
+          <button class="vault-nav-item"><span class="vault-nav-icon">💼</span>Career</button>
+          <button class="vault-nav-item"><span class="vault-nav-icon">↗</span>Shares</button>
+          <button class="vault-nav-item"><span class="vault-nav-icon">⚙</span>Settings</button>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════ -->
+<!-- SCREEN 12 — CAREER HISTORY                               -->
+<!-- ═══════════════════════════════════════════════════════ -->
+<div class="phone-wrap">
+  <div class="phone-label"><span class="step-num">12</span> Career history <span style="color:var(--ink3);">— same pan_token, linked employers</span></div>
+  <div class="phone">
+    <div class="notch"></div>
+    <div class="phone-screen">
+      <div class="page-screen">
+        <div class="status-bar-light"><span>9:45</span><span>●●●</span></div>
+        <div class="page-header">
+          <div>
+            <div class="page-title">Career</div>
+            <div class="page-sub">Linked across employers, one timeline</div>
+          </div>
+          <div class="ph-icon">☰</div>
+        </div>
+
+        <div class="page-body">
+          <div class="career-node-wrap">
+            <div class="career-line"></div>
+            <div class="career-item">
+              <div class="career-marker active">🏢</div>
+              <div class="career-org">NPCI</div>
+              <div class="career-role">Software Engineer · Mar 2019 – Present</div>
+              <span class="pill active">Active</span>
+            </div>
+            <div class="career-item">
+              <div class="career-marker alumni">🏢</div>
+              <div class="career-org">ABCD Bank</div>
+              <div class="career-role">Associate Developer · Jun 2016 – Feb 2019</div>
+              <span class="pill alumni">Alumni</span>
+            </div>
+          </div>
+
+          <div class="settings-group-label">Career events</div>
+          <div class="tl-card">
+            <div class="tl-row">
+              <div class="tl-dot" style="background:var(--indigo);"></div>
+              <div>
+                <div class="tl-text"><strong>Promotion</strong> — Senior Software Engineer</div>
+                <div class="tl-time">NPCI · Effective 01 Apr 2025</div>
+              </div>
+            </div>
+            <div class="tl-row">
+              <div class="tl-dot" style="background:var(--cyan);"></div>
+              <div>
+                <div class="tl-text"><strong>Increment</strong> — Annual review</div>
+                <div class="tl-time">NPCI · Effective 01 Apr 2024</div>
+              </div>
+            </div>
+            <div class="tl-row">
+              <div class="tl-dot" style="background:var(--ink3);"></div>
+              <div>
+                <div class="tl-text"><strong>Relieved</strong> — ABCD Bank</div>
+                <div class="tl-time">Last working day 28 Feb 2019</div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="vault-nav">
+          <button class="vault-nav-item"><span class="vault-nav-icon">🗂</span>Vault</button>
+          <button class="vault-nav-item"><span class="vault-nav-icon">🕐</span>Activity</button>
+          <button class="vault-nav-item active"><span class="vault-nav-icon">💼</span>Career</button>
+          <button class="vault-nav-item"><span class="vault-nav-icon">↗</span>Shares</button>
+          <button class="vault-nav-item"><span class="vault-nav-icon">⚙</span>Settings</button>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════ -->
+<!-- SCREEN 13 — SELF-UPLOAD + LAYER 2 CONSENT                -->
+<!-- ═══════════════════════════════════════════════════════ -->
+<div class="phone-wrap">
+  <div class="phone-label"><span class="step-num">13</span> Self-upload + consent <span style="color:var(--ink3);">— §29 Layer 2</span></div>
+  <div class="phone">
+    <div class="notch"></div>
+    <div class="phone-screen">
+      <div class="page-screen">
+        <div class="status-bar-light"><span>9:46</span><span>●●●</span></div>
+        <div class="page-header">
+          <div>
+            <div class="page-title">Upload document</div>
+            <div class="page-sub">Add a personal document to your vault</div>
+          </div>
+          <div class="ph-icon">✕</div>
+        </div>
+
+        <div class="page-body">
+          <div class="form-card" style="text-align:center;padding:1.8rem 1rem;border:1.5px dashed var(--surface3);background:transparent;">
+            <div style="width:52px;height:52px;margin:0 auto .6rem;border-radius:14px;background:var(--surface3);display:flex;align-items:center;justify-content:center;font-size:24px;">📄</div>
+            <div style="font-size:13px;font-weight:600;color:var(--ink);margin-bottom:.2rem;">Contract_NPCI_Q2_2026.pdf</div>
+            <div style="font-size:10px;color:var(--ink3);">2.4 MB · Selected from Files</div>
+          </div>
+
+          <div class="form-card">
+            <div class="form-label">On-device capture — §27 + §29</div>
+            <div class="setting-row"><span style="font-size:12px;color:var(--ink2);">Device fingerprint</span><span style="font-size:11px;font-family:var(--mono);color:var(--ink);">f3a9… ✓ matched</span></div>
+            <div class="setting-row"><span style="font-size:12px;color:var(--ink2);">Network</span><span style="font-size:11px;font-family:var(--mono);color:var(--ink);">Cellular — L1 N/A</span></div>
+            <div class="setting-row"><span style="font-size:12px;color:var(--ink2);">File hash</span><span style="font-size:11px;font-family:var(--mono);color:var(--ink);">sha256:7d4e…</span></div>
+          </div>
+        </div>
+
+        <!-- Layer 2 consent sheet -->
+        <div class="sheet-overlay">
+          <div class="sheet-glass">
+            <div class="sheet-handle"></div>
+            <div style="display:flex;gap:.7rem;align-items:flex-start;margin-bottom:1rem;">
+              <div style="width:40px;height:40px;border-radius:12px;background:rgba(251,191,36,.18);display:flex;align-items:center;justify-content:center;font-size:18px;flex-shrink:0;">⚠️</div>
+              <div>
+                <div style="font-family:var(--display);font-weight:700;font-size:14px;color:#fff;margin-bottom:.3rem;">Corporate markings detected</div>
+                <div style="font-size:12px;color:#9CA8C9;line-height:1.6;">
+                  This document appears to contain "Confidential — Internal Use Only".
+                  Uploading personal copies of work documents may violate your
+                  employer's confidentiality policy.
+                </div>
+              </div>
+            </div>
+            <div style="font-size:10px;color:#5C6685;background:rgba(255,255,255,.04);padding:.7rem;border-radius:12px;margin-bottom:1.1rem;line-height:1.6;font-family:var(--mono);">
+              content_classification_flag = 'CORPORATE_MARKING_DETECTED' recorded in
+              document.self_upload_context regardless of choice below.
+            </div>
+            <div class="btn-row">
+              <button class="btn-ghost-dark">Cancel</button>
+              <button class="btn-approve" style="font-size:13px;">I understand,<br>upload anyway</button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════ -->
+<!-- SCREEN 14 — CREATE SHARE                                 -->
+<!-- ═══════════════════════════════════════════════════════ -->
+<div class="phone-wrap">
+  <div class="phone-label"><span class="step-num">14</span> Create share <span style="color:var(--ink3);">— C-Share, watermark</span></div>
+  <div class="phone">
+    <div class="notch"></div>
+    <div class="phone-screen">
+      <div class="page-screen">
+        <div class="status-bar-light"><span>9:47</span><span>●●●</span></div>
+        <div class="page-header">
+          <div>
+            <div class="page-title">Share documents</div>
+            <div class="page-sub">Create a secure, time-limited, watermarked link</div>
+          </div>
+          <div class="ph-icon">☰</div>
+        </div>
+
+        <div class="page-body">
+          <div class="form-label">Selected documents</div>
+          <div class="form-card">
+            <div class="setting-row">
+              <span style="font-size:12px;font-weight:600;color:var(--ink);">Salary Slip — May 2026</span>
+              <div class="provenance employer" style="width:24px;height:24px;font-size:12px;">🛡</div>
+            </div>
+            <div class="setting-row">
+              <span style="font-size:12px;font-weight:600;color:var(--ink);">Form 16 — FY 2024-25</span>
+              <div class="provenance employer" style="width:24px;height:24px;font-size:12px;">🛡</div>
+            </div>
+          </div>
+
+          <div class="form-label">Share with</div>
+          <div class="form-card">
+            <input type="text" placeholder="recipient@company.com" style="width:100%;border:none;background:none;font-size:13px;font-family:var(--body);outline:none;color:var(--ink);">
+          </div>
+
+          <div class="form-label">Access level</div>
+          <div class="form-card">
+            <div class="access-row">
+              <span style="font-size:12px;font-weight:600;color:var(--ink);">View only (watermarked)</span>
+              <div class="radio-dot selected"></div>
+            </div>
+            <div class="access-row">
+              <span style="font-size:12px;color:var(--ink3);">Download allowed</span>
+              <div class="radio-dot"></div>
+            </div>
+          </div>
+
+          <div class="form-label">Expires in</div>
+          <div class="expiry-pills" style="margin-bottom:1rem;">
+            <div class="expiry-pill">24h</div>
+            <div class="expiry-pill selected">48h</div>
+            <div class="expiry-pill">7d</div>
+          </div>
+
+          <div style="font-size:10px;color:var(--ink3);background:#F0EFEA;padding:.7rem;border-radius:12px;line-height:1.6;">
+            Recipient's email/IP is embedded as a visible watermark on every page —
+            document_access_log records every open.
+          </div>
+        </div>
+
+        <div style="position:absolute;bottom:18px;left:16px;right:16px;z-index:25;">
+          <button class="btn-grad" style="box-shadow:0 12px 28px -8px rgba(99,102,241,.5);">Create Share Link <span style="font-size:16px;">→</span></button>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════ -->
+<!-- SCREEN 15 — SETTINGS                                     -->
+<!-- ═══════════════════════════════════════════════════════ -->
+<div class="phone-wrap">
+  <div class="phone-label"><span class="step-num">15</span> Settings <span style="color:var(--ink3);">— identity, biometrics, devices</span></div>
+  <div class="phone">
+    <div class="notch"></div>
+    <div class="phone-screen">
+      <div class="page-screen">
+        <div class="status-bar-light"><span>9:48</span><span>●●●</span></div>
+        <div class="page-header">
+          <div>
+            <div class="page-title">Settings</div>
+            <div class="page-sub">Your vault identity, security, and devices</div>
+          </div>
+          <div class="ph-icon">☰</div>
+        </div>
+
+        <div class="page-body">
+          <div class="settings-group-label" style="margin-top:0;">Vault identity</div>
+          <div class="form-card">
+            <div class="setting-row"><span style="font-size:12px;color:var(--ink2);">Full name</span><span style="font-size:12px;font-weight:600;color:var(--ink);">Rahul Sharma</span></div>
+            <div class="setting-row"><span style="font-size:12px;color:var(--ink2);">NIK (PAN)</span><span style="font-size:11px;font-family:var(--mono);color:var(--ink);">tok:a3f8c2…9d1e</span></div>
+            <div class="setting-row"><span style="font-size:12px;color:var(--ink2);">Mobile (login)</span><span style="font-size:11px;font-family:var(--mono);color:var(--ink);">+91 98765 43210 ✓</span></div>
+          </div>
+
+          <div class="settings-group-label">Biometric &amp; device security — §27</div>
+          <div class="form-card">
+            <div class="setting-row">
+              <div style="display:flex;align-items:center;">
+                <div class="setting-icon" style="background:rgba(99,102,241,.12);">🆔</div>
+                <div>
+                  <div class="setting-text-title">Face ID login</div>
+                  <div class="setting-text-sub" style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">biometric_enrolled</div>
+                </div>
+              </div>
+              <div class="toggle2 on"></div>
+            </div>
+            <div class="setting-row">
+              <div style="display:flex;align-items:center;">
+                <div class="setting-icon" style="background:rgba(34,211,238,.12);">📲</div>
+                <div>
+                  <div class="setting-text-title">Push-approval login</div>
+                  <div class="setting-text-sub">Approve logins from this device</div>
+                </div>
+              </div>
+              <div class="toggle2 on"></div>
+            </div>
+            <div class="setting-row">
+              <div style="display:flex;align-items:center;">
+                <div class="setting-icon" style="background:rgba(52,211,153,.12);">📱</div>
+                <div>
+                  <div class="setting-text-title">This device</div>
+                  <div class="setting-text-sub">iPhone 14 · Registered 03 Jun 2026</div>
+                </div>
+              </div>
+              <span class="pill active">Trusted</span>
+            </div>
+          </div>
+
+          <div class="settings-group-label">Other trusted devices</div>
+          <div class="form-card">
+            <div class="setting-row">
+              <div style="display:flex;align-items:center;">
+                <div class="setting-icon" style="background:var(--surface3);">💻</div>
+                <div>
+                  <div class="setting-text-title">Chrome on Windows</div>
+                  <div class="setting-text-sub">Mumbai · Last used today</div>
+                </div>
+              </div>
+              <button class="btn-ghost-dark" style="width:auto;padding:.35rem .8rem;font-size:11px;background:var(--surface3);color:var(--ink2);border:none;">Remove</button>
+            </div>
+          </div>
+
+          <div class="settings-group-label">Notifications</div>
+          <div class="form-card">
+            <div class="setting-row">
+              <div>
+                <div class="setting-text-title">Login notifications</div>
+                <div class="setting-text-sub" style="font-family:var(--body);">Alert on every new login</div>
+              </div>
+              <div class="toggle2 on"></div>
+            </div>
+            <div class="setting-row">
+              <div>
+                <div class="setting-text-title">Document access alerts</div>
+                <div class="setting-text-sub" style="font-family:var(--body);">Alert when documents are viewed</div>
+              </div>
+              <div class="toggle2 on"></div>
+            </div>
+          </div>
+        </div>
+
+        <div class="vault-nav">
+          <button class="vault-nav-item"><span class="vault-nav-icon">🗂</span>Vault</button>
+          <button class="vault-nav-item"><span class="vault-nav-icon">🕐</span>Activity</button>
+          <button class="vault-nav-item"><span class="vault-nav-icon">💼</span>Career</button>
+          <button class="vault-nav-item"><span class="vault-nav-icon">↗</span>Shares</button>
+          <button class="vault-nav-item active"><span class="vault-nav-icon">⚙</span>Settings</button>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════ -->
+<!-- SCREEN 16 — DOCUMENT VIEWER                              -->
+<!-- ═══════════════════════════════════════════════════════ -->
+<div class="phone-wrap">
+  <div class="phone-label"><span class="step-num">16</span> Document viewer <span style="color:var(--ink3);">— watermark, audit log</span></div>
+  <div class="phone">
+    <div class="notch"></div>
+    <div class="phone-screen">
+      <div class="viewer-screen">
+        <div class="status-bar" style="color:#fff;"><span>9:49</span><span>●●●</span></div>
+        <div class="viewer-topbar">
+          <div class="viewer-back">← Salary Slip — May 2026</div>
+          <div class="menu-trigger" style="font-size:13px;">⤓</div>
+        </div>
+
+        <div class="viewer-page">
+          <div class="viewer-doc">
+            <div class="viewer-watermark">
+              rahul.sharma@npci.org.in<br>49.207.x.x · 14 Jun 2026 09:49<br>
+              rahul.sharma@npci.org.in<br>49.207.x.x · 14 Jun 2026 09:49<br>
+              rahul.sharma@npci.org.in<br>49.207.x.x · 14 Jun 2026 09:49
+            </div>
+            <div style="font-family:var(--display);font-size:13px;font-weight:700;color:#0F172A;margin-bottom:.8rem;">NPCI — SALARY SLIP</div>
+            <div style="font-size:11px;color:#475569;line-height:1.9;">
+              Employee: Rahul Sharma<br>
+              Employee ID: NPCI0042<br>
+              Period: May 2026<br>
+              Designation: Senior Software Engineer<br>
+              <br>
+              Basic Pay: ₹85,000<br>
+              HRA: ₹34,000<br>
+              Special Allowance: ₹22,000<br>
+              <br>
+              Gross: ₹1,41,000<br>
+              Deductions: ₹18,420<br>
+              <strong>Net Pay: ₹1,22,580</strong>
+            </div>
+          </div>
+        </div>
+
+        <div class="viewer-footer">
+          <div style="font-size:10px;color:#5C6685;line-height:1.6;">
+            Viewing your own document — own-vault views aren't watermarked or logged
+            (only shares/external access are).
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════ -->
+<!-- SCREEN 17 — VAULT HOME WITH NEW-DOCUMENT BANNER          -->
+<!-- ═══════════════════════════════════════════════════════ -->
+<div class="phone-wrap">
+  <div class="phone-label"><span class="step-num">17</span> Vault home — new document banner <span style="color:var(--ink3);">— proactive notification</span></div>
+  <div class="phone">
+    <div class="notch"></div>
+    <div class="phone-screen">
+      <div class="vault-screen">
+        <div class="vault-topbg">
+          <div class="auth-orb o1"></div>
+          <div class="vault-status"><span>9:43</span><span>●●●</span></div>
+          <div class="vault-greeting" style="display:flex;align-items:flex-start;justify-content:space-between;">
+            <div>
+              <div class="hi">Good morning</div>
+              <div class="name">Rahul Sharma</div>
+            </div>
+            <div class="menu-trigger" style="position:relative;">🔔<span class="bell-badge">2</span></div>
+          </div>
+        </div>
+
+        <div class="vault-hero">
+          <div class="vault-hero-label">Your permanent vault</div>
+          <div class="vault-hero-url">prana.in/vault/rahul-sharma-…</div>
+          <div class="vault-hero-meta">Active since Mar 2019 · 2 employers · 16 documents</div>
+        </div>
+
+        <div class="vault-body">
+          <div class="doc-banner">
+            <div class="doc-banner-icon">📄</div>
+            <div class="doc-banner-text">
+              <div class="doc-banner-title">New document received</div>
+              <div class="doc-banner-sub">Form 16 (FY25-26) · NPCI · 2 min ago</div>
+            </div>
+            <button class="doc-banner-close">✕</button>
+          </div>
+
+          <div class="stat-grid">
+            <div class="stat-card c-indigo">
+              <div class="num">17</div>
+              <div class="lbl">Documents</div>
+            </div>
+            <div class="stat-card c-emerald">
+              <div class="num">3</div>
+              <div class="lbl">Active shares</div>
+            </div>
+          </div>
+
+          <div class="vault-section-label">Recent documents</div>
+
+          <div class="doc-card" style="align-items:flex-start;border:1.5px solid rgba(99,102,241,.3);">
+            <div class="doc-icon form16">🧾</div>
+            <div class="doc-info">
+              <div class="doc-title">Form 16 — FY 2025-26</div>
+              <div class="doc-meta">NPCI · Pushed by employer</div>
+              <div class="doc-bottom-row">
+                <div style="display:flex;align-items:center;gap:.5rem;min-width:0;">
+                  <div class="cal-chip">
+                    <div class="cal-month">Jun</div>
+                    <div class="cal-day">14</div>
+                  </div>
+                  <span style="font-size:11px;color:var(--ink3);white-space:nowrap;">Received</span>
+                </div>
+                <div class="provenance employer" title="Pushed by employer">🛡</div>
+              </div>
+            </div>
+          </div>
+
+          <div class="doc-card" style="align-items:flex-start;">
+            <div class="doc-icon salary">💰</div>
+            <div class="doc-info">
+              <div class="doc-title">Salary Slip — May 2026</div>
+              <div class="doc-meta">NPCI · Pushed by employer</div>
+              <div class="doc-bottom-row">
+                <div style="display:flex;align-items:center;gap:.5rem;min-width:0;">
+                  <div class="cal-chip">
+                    <div class="cal-month">Jun</div>
+                    <div class="cal-day">02</div>
+                  </div>
+                  <span style="font-size:11px;color:var(--ink3);white-space:nowrap;">Received</span>
+                </div>
+                <div class="provenance employer" title="Pushed by employer">🛡</div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <button class="vault-fab">⬆</button>
+        <div class="vault-nav">
+          <button class="vault-nav-item active"><span class="vault-nav-icon">🗂</span>Vault</button>
+          <button class="vault-nav-item"><span class="vault-nav-icon">🕐</span>Activity</button>
+          <button class="vault-nav-item"><span class="vault-nav-icon">💼</span>Career</button>
+          <button class="vault-nav-item"><span class="vault-nav-icon">↗</span>Shares</button>
+          <button class="vault-nav-item"><span class="vault-nav-icon">⚙</span>Settings</button>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════ -->
+<!-- SCREEN 18 — VAULT HOME — EMPTY STATE (first-time user)   -->
+<!-- ═══════════════════════════════════════════════════════ -->
+<div class="phone-wrap">
+  <div class="phone-label"><span class="step-num">18</span> Vault home — empty state <span style="color:var(--ink3);">— before first employer push</span></div>
+  <div class="phone">
+    <div class="notch"></div>
+    <div class="phone-screen">
+      <div class="vault-screen">
+        <div class="vault-topbg">
+          <div class="auth-orb o1"></div>
+          <div class="vault-status"><span>9:43</span><span>●●●</span></div>
+          <div class="vault-greeting" style="display:flex;align-items:flex-start;justify-content:space-between;">
+            <div>
+              <div class="hi">Good morning</div>
+              <div class="name">Rahul Sharma</div>
+            </div>
+            <div class="menu-trigger">☰</div>
+          </div>
+        </div>
+
+        <div class="vault-hero">
+          <div class="vault-hero-label">Your permanent vault</div>
+          <div class="vault-hero-url">prana.in/vault/rahul-sharma-…</div>
+          <div class="vault-hero-meta">Activated 14 Jun 2026 · Ready for documents</div>
+        </div>
+
+        <div class="empty-state">
+          <svg class="empty-illustration" viewBox="0 0 160 160" xmlns="http://www.w3.org/2000/svg">
+            <defs>
+              <linearGradient id="emptyGrad" x1="0%" y1="100%" x2="100%" y2="0%">
+                <stop offset="0%" stop-color="#6366F1"/>
+                <stop offset="55%" stop-color="#22D3EE"/>
+                <stop offset="100%" stop-color="#34D399"/>
+              </linearGradient>
+            </defs>
+            <circle cx="80" cy="80" r="64" fill="#F0EFEA"/>
+            <rect x="50" y="46" width="60" height="74" rx="8" fill="#fff" stroke="url(#emptyGrad)" stroke-width="3"/>
+            <line x1="62" y1="64" x2="98" y2="64" stroke="#E2E0D8" stroke-width="3" stroke-linecap="round"/>
+            <line x1="62" y1="78" x2="98" y2="78" stroke="#E2E0D8" stroke-width="3" stroke-linecap="round"/>
+            <line x1="62" y1="92" x2="86" y2="92" stroke="#E2E0D8" stroke-width="3" stroke-linecap="round"/>
+            <circle cx="112" cy="108" r="22" fill="url(#emptyGrad)"/>
+            <line x1="112" y1="99" x2="112" y2="117" stroke="#04261C" stroke-width="3" stroke-linecap="round"/>
+            <line x1="103" y1="108" x2="121" y2="108" stroke="#04261C" stroke-width="3" stroke-linecap="round"/>
+          </svg>
+
+          <div class="empty-title">Your vault is ready</div>
+          <div class="empty-sub">
+            Once your employer pushes your first document — like a salary slip or
+            offer letter — it'll show up here automatically.
+          </div>
+
+          <div class="empty-checklist">
+            <div class="empty-check-row">
+              <div class="ec-icon" style="background:rgba(52,211,153,.15);color:#047857;">✓</div>
+              Vault activated &amp; secured
+            </div>
+            <div class="empty-check-row">
+              <div class="ec-icon" style="background:rgba(99,102,241,.15);color:#4338CA;">✓</div>
+              Device linked &amp; biometrics ready
+            </div>
+            <div class="empty-check-row">
+              <div class="ec-icon" style="background:rgba(251,191,36,.15);color:#92400E;">⏳</div>
+              Waiting for your first document
+            </div>
+          </div>
+
+          <button class="btn-grad" style="background:#F0EFEA;color:var(--ink);box-shadow:none;">
+            <span style="background:var(--grad-journey);-webkit-background-clip:text;background-clip:text;color:transparent;font-weight:700;">⬆ Upload a document yourself</span>
+          </button>
+        </div>
+
+        <div class="vault-nav">
+          <button class="vault-nav-item active"><span class="vault-nav-icon">🗂</span>Vault</button>
+          <button class="vault-nav-item"><span class="vault-nav-icon">🕐</span>Activity</button>
+          <button class="vault-nav-item"><span class="vault-nav-icon">💼</span>Career</button>
+          <button class="vault-nav-item"><span class="vault-nav-icon">↗</span>Shares</button>
+          <button class="vault-nav-item"><span class="vault-nav-icon">⚙</span>Settings</button>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+</div><!-- /gallery -->
+
+</body>
+</html>

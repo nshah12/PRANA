@@ -1,24 +1,37 @@
 import pyotp
 
-from services.encryption_service import aes_decrypt
+
+async def consume_totp_code(redis, user_type: str, user_id: str, code: str, ttl_seconds: int = 90) -> bool:
+    """
+    One-time-use guard for TOTP codes (replay protection).
+
+    Atomically records that `code` was used by this user. Returns True if this is the
+    first use, False if the code was already used within its validity window (a replay
+    of an intercepted code). Key auto-expires after ttl_seconds (± the 90s TOTP window).
+    """
+    key = f"totp_used:{user_type}:{user_id}:{code}"
+    was_set = await redis.set(key, "1", nx=True, ex=ttl_seconds)
+    return bool(was_set)
 
 
 class TOTPService:
     """
     RFC 6238 TOTP: 30-second window, 6 digits, ±1 window drift allowed.
-    totp_secret is stored AES-256-GCM encrypted in DB as totp_secret_enc.
+    totp_secret is stored in DB as totp_secret_enc, encrypted via the platform
+    auth KMS CMK (see services/encryption_service.py's resolve_platform_auth_kek_arn).
     """
 
     # ±1 window = 90-second validity window to handle clock drift
     _VALID_WINDOW = 1
 
-    def verify(self, code: str, totp_secret_enc: str, dek: bytes) -> bool:
+    def verify(self, code: str, totp_secret: str) -> bool:
         """
-        Decrypt TOTP secret and verify the provided code.
+        Verify the provided code against the plaintext TOTP secret. Caller
+        decrypts totp_secret_enc first (via KMSService.decrypt_value) — this
+        class has no encryption-key knowledge, on purpose.
         Returns True only if code matches current or adjacent window.
         """
-        secret = aes_decrypt(totp_secret_enc, dek)
-        totp = pyotp.TOTP(secret)
+        totp = pyotp.TOTP(totp_secret)
         return totp.verify(code, valid_window=self._VALID_WINDOW)
 
     def generate_secret(self) -> str:

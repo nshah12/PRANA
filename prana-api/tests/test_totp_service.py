@@ -1,31 +1,24 @@
 """Tests for services/totp_service.py."""
-import os
-import inspect
 import pathlib
 
 import pyotp
 import pytest
 
 from services.totp_service import TOTPService
-from services.encryption_service import aes_encrypt
 
 
 _svc = TOTPService()
-_DEK = os.urandom(32)
 
 
 def test_totp_verify_valid_code_returns_true():
     secret = _svc.generate_secret()
-    enc_secret = aes_encrypt(secret, _DEK)
     valid_code = pyotp.TOTP(secret).now()
-    assert _svc.verify(valid_code, enc_secret, _DEK) is True
+    assert _svc.verify(valid_code, secret) is True
 
 
-def test_totp_verify_invalid_code_increments_failed_count():
+def test_totp_verify_invalid_code_returns_false():
     secret = _svc.generate_secret()
-    enc_secret = aes_encrypt(secret, _DEK)
-    result = _svc.verify("000000", enc_secret, _DEK)
-    assert result is False
+    assert _svc.verify("000000", secret) is False
 
 
 def test_totp_lockout_at_5_failures():
@@ -34,7 +27,11 @@ def test_totp_lockout_at_5_failures():
         "auth_oa must track failed_totp_count for lockout"
 
 
-def test_totp_secret_stored_encrypted_never_plaintext():
+def test_totp_service_has_no_encryption_key_knowledge():
+    """TOTPService.verify takes a plaintext secret — decryption of totp_secret_enc
+    happens in the caller (via KMSService.decrypt_value + the platform auth CMK),
+    not here. Keeps this class decoupled from which key/mechanism protects the
+    stored secret."""
+    import inspect
     src = inspect.getsource(TOTPService.verify)
-    assert "aes_decrypt" in src or "decrypt" in src.lower(), \
-        "TOTPService.verify must decrypt stored secret before use"
+    assert "decrypt_value(" not in src and "aes_decrypt(" not in src

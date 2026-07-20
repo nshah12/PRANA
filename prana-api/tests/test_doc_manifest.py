@@ -62,9 +62,11 @@ def _manifest_row(doc_type="SALARY_SLIP", tenant_id=None, **overrides):
         "identity_fields":         json.dumps(["pan_number", "employee_id", "employee_name"]),
         "optional_fields":         json.dumps(["designation", "uan_number"]),
         "classification_signals":  json.dumps([["net_pay", "pay_period_month"]]),
+        "signal_weights":          json.dumps([]),
         "confidence_threshold":    0.75,
         "supported_formats":       json.dumps(["pdf", "docx", "jpeg", "jpg", "png", "tiff"]),
         "is_active":               True,
+        "usage_count":             0,
         "created_at":              None,
         "updated_at":              None,
     }
@@ -132,6 +134,44 @@ def test_manifest_record_score_null_values_dont_fire():
     record = ManifestRecord(row)
     assert record.score_against({"net_pay": None, "pay_period_month": "March"}) == 0.0
     assert record.score_against({"net_pay": "", "pay_period_month": "March"}) == 0.0
+
+
+def test_manifest_record_score_with_weights_prioritizes_higher_weight_signal():
+    # A generic signal (employee_name + employer_name) is far less discriminative
+    # than a specific one (uan_number + pf_number) but fired equally under the
+    # old unweighted scoring (gap 1d).
+    row = _manifest_row(
+        classification_signals=json.dumps([
+            ["employee_name", "employer_name"],
+            ["uan_number", "pf_number"],
+        ]),
+        signal_weights=json.dumps([1.0, 3.0]),
+    )
+    record = ManifestRecord(row)
+
+    generic_only = {"employee_name": "A", "employer_name": "B"}
+    assert record.score_against(generic_only) == 1.0 / 4.0
+
+    specific_only = {"uan_number": "123", "pf_number": "456"}
+    assert record.score_against(specific_only) == 3.0 / 4.0
+
+
+def test_manifest_record_score_no_weights_falls_back_to_equal():
+    row = _manifest_row(
+        classification_signals=json.dumps([["a", "b"], ["c", "d"]]),
+        signal_weights=json.dumps([]),
+    )
+    record = ManifestRecord(row)
+    assert record.score_against({"a": 1, "b": 2}) == 0.5
+
+
+def test_manifest_record_score_mismatched_weight_length_falls_back_to_equal():
+    row = _manifest_row(
+        classification_signals=json.dumps([["a", "b"], ["c", "d"]]),
+        signal_weights=json.dumps([5.0]),   # wrong length vs 2 signals — ignored
+    )
+    record = ManifestRecord(row)
+    assert record.score_against({"a": 1, "b": 2}) == 0.5
 
 
 # ── ManifestService.resolve ────────────────────────────────────────────────────
@@ -246,6 +286,71 @@ async def test_auto_detect_skips_unsupported_formats():
         ext="xlsx",
     )
     assert result is None
+
+
+@pytest.mark.asyncio
+async def test_auto_detect_tie_breaks_on_usage_count():
+    # Both manifests score identically — the one this tenant classifies more
+    # often should win the tie (gap 1c: frequency-informed AUTO_DETECT).
+    tenant_id = uuid4()
+    salary_row = _manifest_row(
+        doc_type="SALARY_SLIP", tenant_id=None,
+        classification_signals=json.dumps([["net_pay"]]),
+        usage_count=2,
+    )
+    form16_row = _manifest_row(
+        doc_type="FORM_16", tenant_id=None,
+        classification_signals=json.dumps([["net_pay"]]),
+        usage_count=10,
+    )
+    mock_db = AsyncMock()
+    mock_db.fetch.return_value = [salary_row, form16_row]
+
+    svc = ManifestService(mock_db)
+    result = await svc.auto_detect(tenant_id, {"net_pay": 1}, ext="pdf")
+
+    assert result.doc_type == "FORM_16"
+
+
+@pytest.mark.asyncio
+async def test_auto_detect_query_has_defensive_limit():
+    tenant_id = uuid4()
+    mock_db = AsyncMock()
+    mock_db.fetch.return_value = []
+
+    svc = ManifestService(mock_db)
+    await svc.auto_detect(tenant_id, {}, ext="pdf")
+
+    query = mock_db.fetch.call_args[0][0]
+    assert "LIMIT" in query.upper()
+
+
+# ── ManifestService.record_usage ──────────────────────────────────────────────
+
+@pytest.mark.asyncio
+async def test_record_usage_increments_tenant_override_when_present():
+    tenant_id = uuid4()
+    mock_db = AsyncMock()
+    mock_db.fetchval.return_value = uuid4()   # tenant override row was updated
+
+    svc = ManifestService(mock_db)
+    await svc.record_usage(tenant_id, "SALARY_SLIP")
+
+    mock_db.fetchval.assert_called_once()
+    mock_db.execute.assert_not_called()
+
+
+@pytest.mark.asyncio
+async def test_record_usage_falls_back_to_platform_default():
+    tenant_id = uuid4()
+    mock_db = AsyncMock()
+    mock_db.fetchval.return_value = None   # no tenant override exists
+
+    svc = ManifestService(mock_db)
+    await svc.record_usage(tenant_id, "SALARY_SLIP")
+
+    mock_db.fetchval.assert_called_once()
+    mock_db.execute.assert_called_once()
 
 
 # ── ManifestService.upsert ─────────────────────────────────────────────────────
@@ -399,3 +504,37 @@ async def test_resolve_unclassified_validates_doc_type(client, mock_db):
         headers=AUTH_HEADER,
     )
     assert response.status_code == 422
+
+
+def test_unclassified_list_query_uses_document_id_pk():
+    """Query must use document_id as PK — no unclassified_id column in schema."""
+    import pathlib
+    src = pathlib.Path(__file__).parent.parent.joinpath("routers/doc_manifest.py").read_text()
+    # Find the list_unclassified function body
+    start = src.index("async def list_unclassified")
+    body = src[start:start + 1000]
+    assert "unclassified_id" not in body, \
+        "unclassified_queue has document_id as PK — unclassified_id column does not exist"
+
+
+def test_resolve_unclassified_publishes_doc_reclassified_to_kafka():
+    """resolve_unclassified must publish DOC_RECLASSIFIED to prana.ingest.events."""
+    import pathlib
+    src = pathlib.Path(__file__).parent.parent.joinpath("routers/doc_manifest.py").read_text()
+    start = src.index("async def resolve_unclassified")
+    body = src[start:start + 1500]
+    assert "DOC_RECLASSIFIED" in body, \
+        "resolve_unclassified must publish DOC_RECLASSIFIED event to Kafka"
+    assert "stage_changed" in body, \
+        "DOC_RECLASSIFIED must use stage_changed domain helper (not direct publish)"
+
+
+def test_unclassified_queue_migration_exists():
+    """Migration 021 must exist to create the unclassified_queue table."""
+    import pathlib
+    migrations = list(pathlib.Path(__file__).parent.parent.parent.joinpath("prana-db/migrations").glob("021_*.sql"))
+    assert migrations, "Migration 021_unclassified_queue.sql must exist"
+    content = migrations[0].read_text()
+    assert "unclassified_queue" in content
+    assert "document_id" in content
+    assert "ROLLBACK" in content

@@ -3,6 +3,7 @@ import { useNavigate, useSearchParams } from 'react-router-dom'
 import QRCode from 'qrcode'
 import { api } from '@/lib/api'
 import { useAuthStore, AuthUser } from '@/store/auth'
+import { tUi } from '@/i18n'
 
 // Lockout screen — shown when ACCOUNT_LOCKED error received
 // Countdown from lockout_cooldown_minutes (default 30 from platform_config)
@@ -24,27 +25,27 @@ function LockoutScreen({ onBack }: { onBack: () => void }) {
         <div className="w-16 h-16 rounded-2xl mx-auto mb-4 flex items-center justify-center text-3xl bg-red-50 border border-red-100">
           🔒
         </div>
-        <h1 className="text-xl font-bold text-slate-900 mb-2">Account temporarily locked</h1>
+        <h1 className="text-xl font-bold text-slate-900 mb-2">{tUi('ORG_TOTP_LOCKED_TITLE')}</h1>
         <p className="text-slate-500 text-sm leading-relaxed mb-6">
-          Too many incorrect TOTP attempts. Your account has been locked for{' '}
-          <strong>{LOCK_MINUTES} minutes</strong> to protect against unauthorised access.
+          {tUi('ORG_TOTP_LOCKED_SUB_PREFIX')}{' '}
+          <strong>{LOCK_MINUTES} minutes</strong> {tUi('ORG_TOTP_LOCKED_SUB_SUFFIX')}
         </p>
 
         {remaining > 0 ? (
           <div className="bg-red-50 border border-red-100 rounded-2xl px-6 py-4 mb-6 inline-block">
-            <p className="text-xs text-red-500 uppercase tracking-widest mb-1 font-semibold">Unlocks in</p>
+            <p className="text-xs text-red-500 uppercase tracking-widest mb-1 font-semibold">{tUi('ORG_TOTP_UNLOCKS_IN_LABEL')}</p>
             <p className="text-3xl font-mono font-bold text-red-600">{mm}:{ss}</p>
           </div>
         ) : (
           <div className="bg-emerald-50 border border-emerald-100 rounded-2xl px-6 py-4 mb-6">
-            <p className="text-sm text-emerald-700 font-medium">Lock period expired — you can try again.</p>
+            <p className="text-sm text-emerald-700 font-medium">{tUi('ORG_TOTP_LOCK_EXPIRED')}</p>
           </div>
         )}
 
         <div className="bg-amber-50 border border-amber-100 rounded-xl px-4 py-3 mb-6 text-left">
-          <p className="text-xs font-semibold text-amber-700 mb-1">Need immediate access?</p>
+          <p className="text-xs font-semibold text-amber-700 mb-1">{tUi('ORG_TOTP_NEED_ACCESS_LABEL')}</p>
           <p className="text-xs text-amber-600 leading-relaxed">
-            Contact your OA-Admin to unlock your account manually via the User Management screen.
+            {tUi('ORG_TOTP_CONTACT_ADMIN_NOTE')}
           </p>
         </div>
 
@@ -151,7 +152,7 @@ export function OrgTotp() {
       setSetupToken(res.data.setup_token)
       setSetupPhase('qr')
     } catch {
-      setError('Failed to initialise TOTP setup. Please go back and try again.')
+      setError(tUi('ORG_TOTP_SETUP_INIT_FAILED'))
       setSetupPhase('qr')
     }
   }
@@ -192,10 +193,10 @@ export function OrgTotp() {
         if (remaining <= 2 && remaining > 0) {
           setError(`Incorrect code. ${remaining} attempt${remaining === 1 ? '' : 's'} remaining before lockout.`)
         } else {
-          setError('Incorrect code. Please check your authenticator app and try again.')
+          setError(tUi('ORG_TOTP_INCORRECT_CODE_DEFAULT'))
         }
       } else if (detail === 'STEP_TOKEN_EXPIRED') {
-        setError('Session expired. Please go back and log in again.')
+        setError(tUi('ORG_TOTP_SESSION_EXPIRED'))
       } else {
         setError(detail ?? 'Invalid code. Please try again.')
       }
@@ -226,10 +227,9 @@ export function OrgTotp() {
                 style={{ background: 'linear-gradient(135deg, #6366F1, #22D3EE)' }}>
                 📱
               </div>
-              <h1 className="text-xl font-bold text-slate-900 mb-2">Install an authenticator app</h1>
+              <h1 className="text-xl font-bold text-slate-900 mb-2">{tUi('ORG_TOTP_INSTALL_APP_TITLE')}</h1>
               <p className="text-slate-500 text-sm leading-relaxed">
-                Download one of these free TOTP apps before scanning the QR code.
-                If you already have one, skip ahead.
+                {tUi('ORG_TOTP_INSTALL_APP_SUB')}
               </p>
             </div>
 
@@ -248,12 +248,12 @@ export function OrgTotp() {
             <button onClick={loadQr}
               className="w-full text-white font-semibold py-3 rounded-xl hover:opacity-90 transition-opacity"
               style={{ background: 'linear-gradient(135deg, #6366F1, #22D3EE)' }}>
-              I have an app — show QR code →
+              {tUi('ORG_TOTP_SHOW_QR_BTN')}
             </button>
 
             <button type="button" onClick={() => navigate('/org/login')}
               className="w-full mt-3 text-sm text-slate-400 hover:text-slate-600 text-center">
-              ← Back to login
+              {tUi('ORG_TOTP_BACK_TO_LOGIN')}
             </button>
           </div>
         </div>
@@ -270,10 +270,10 @@ export function OrgTotp() {
             <SetupSteps active={1} />
 
             <div className="text-center mb-6">
-              <h1 className="text-xl font-bold text-slate-900 mb-2">Scan the QR code</h1>
+              <h1 className="text-xl font-bold text-slate-900 mb-2">{tUi('ORG_TOTP_SCAN_QR_TITLE')}</h1>
               <p className="text-slate-500 text-sm">
-                Open your authenticator app, tap <strong>+</strong> or <strong>Add account</strong>,
-                then scan this code.
+                {tUi('ORG_TOTP_SCAN_QR_SUB_PREFIX')} <strong>+</strong> or <strong>Add account</strong>,
+                {tUi('ORG_TOTP_SCAN_QR_SUB_SUFFIX')}
               </p>
             </div>
 
@@ -296,9 +296,9 @@ export function OrgTotp() {
                     className="w-full flex items-center justify-between px-4 py-3 hover:bg-slate-50 text-left">
                     <div className="flex items-center gap-2">
                       <span className="text-sm">🔑</span>
-                      <span className="text-sm font-medium text-slate-700">Backup codes</span>
+                      <span className="text-sm font-medium text-slate-700">{tUi('ADMIN_TOTP_BACKUP_CODES_LABEL')}</span>
                       <span className="text-xs text-amber-600 bg-amber-50 border border-amber-100 rounded-full px-2 py-0.5">
-                        Save these now
+                        {tUi('ORG_TOTP_SAVE_NOW_BADGE')}
                       </span>
                     </div>
                     <span className="text-slate-400 text-xs">{showBackup ? '▲ Hide' : '▼ Show'}</span>

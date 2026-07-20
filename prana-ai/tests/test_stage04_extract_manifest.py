@@ -31,10 +31,10 @@ def _manifest(
     classification_signals=None,
     supported_formats=None,
     confidence_threshold=0.75,
+    usage_count=0,
 ) -> ManifestData:
     return ManifestData(
         manifest_id="m-001",
-        tenant_id=None,
         doc_type=doc_type,
         required_fields=required_fields or ["employee_name", "net_pay"],
         identity_fields=identity_fields or ["pan_number", "employee_id"],
@@ -43,6 +43,7 @@ def _manifest(
         confidence_threshold=confidence_threshold,
         supported_formats=supported_formats or ["pdf", "docx", "jpeg", "jpg", "png"],
         is_tenant_override=False,
+        usage_count=usage_count,
     )
 
 
@@ -82,7 +83,10 @@ def test_ocr_pdf_returns_text():
     import fitz
     doc = fitz.open()  # empty PDF
     page = doc.new_page()
-    page.insert_text((50, 100), "SALARY SLIP NET PAY 50000")
+    # Must clear the 50-char native-text threshold in stage04_extract.py's
+    # _ocr_pdf() — below that it assumes a scanned page and falls back to
+    # Tesseract, which isn't installed in every dev/CI environment.
+    page.insert_text((50, 100), "SALARY SLIP NET PAY 50000 FOR MARCH 2024 EMPLOYEE RAHUL KUMAR")
     pdf_bytes = doc.tobytes()
     doc.close()
 
@@ -169,7 +173,7 @@ async def test_declared_doc_type_uses_manifest():
     manifest = _manifest(doc_type="SALARY_SLIP")
     mock_mc.resolve.return_value = manifest
 
-    with patch.object(svc, "_ocr_pdf", return_value="salary slip text"):
+    with patch.object(svc, "_ocr_pdf", return_value="salary slip text march 2024"):
         result = await svc.run(
             file_bytes=b"bytes",
             ext="pdf",
@@ -198,7 +202,7 @@ async def test_low_confidence_fields_detected():
     )
     mock_mc.resolve.return_value = manifest
 
-    with patch.object(svc, "_ocr_pdf", return_value="salary text"):
+    with patch.object(svc, "_ocr_pdf", return_value="salary slip text march 2024"):
         result = await svc.run(b"bytes", "pdf", "SALARY_SLIP", "t-001")
 
     assert "net_pay" in result.low_confidence_fields
@@ -212,7 +216,7 @@ async def test_unsupported_format_returns_auto_detect_failed():
     manifest = _manifest(supported_formats=["pdf", "docx"])
     mock_mc.resolve.return_value = manifest
 
-    with patch.object(svc, "_ocr_xlsx", return_value="spreadsheet data"):
+    with patch.object(svc, "_ocr_xlsx", return_value="spreadsheet data march 2024"):
         result = await svc.run(b"bytes", "xlsx", "SALARY_SLIP", "t-001")
 
     assert isinstance(result, AutoDetectFailed)
@@ -260,6 +264,50 @@ async def test_auto_detect_classifies_best_manifest():
 
 
 @pytest.mark.asyncio
+async def test_auto_detect_tie_breaks_on_usage_count():
+    """
+    When two manifests score identically, AUTO_DETECT must prefer the one this
+    tenant classifies more often (usage_count) — mirrors prana-api's
+    ManifestService.auto_detect tie-break so both scoring paths agree.
+    """
+    low_usage = _manifest(
+        doc_type="SALARY_SLIP",
+        classification_signals=[["net_pay", "pay_period_month"]],
+        usage_count=1,
+    )
+    high_usage = _manifest(
+        doc_type="FORM_16",
+        classification_signals=[["financial_year", "tds_deducted"]],
+        usage_count=99,
+    )
+
+    # Probe response fires both signals equally → tied score of 1.0 each
+    probe_resp = json.dumps({
+        "overall_confidence": 0.0,
+        "net_pay": {"value": 50000, "confidence": 0.9},
+        "pay_period_month": {"value": "March", "confidence": 0.85},
+        "financial_year": {"value": "2023-24", "confidence": 0.9},
+        "tds_deducted": {"value": 5000, "confidence": 0.9},
+    })
+    full_resp = _llm_response(confidence=0.88)
+
+    mock_llm = AsyncMock()
+    mock_llm.complete.side_effect = [probe_resp, full_resp]
+
+    mock_mc = AsyncMock()
+    mock_mc.list_all.return_value = [low_usage, high_usage]
+
+    svc = Stage04Extract(llm_client=mock_llm, manifest_client=mock_mc)
+
+    with patch.object(svc, "_ocr_pdf", return_value="March salary slip net pay 50000 form 16 tds"):
+        result = await svc.run(b"bytes", "pdf", "AUTO_DETECT", "t-001")
+
+    assert isinstance(result, Stage04Result)
+    assert result.doc_type == "FORM_16"
+    assert result.auto_detected is True
+
+
+@pytest.mark.asyncio
 async def test_auto_detect_returns_failed_when_no_match():
     """AUTO_DETECT: no manifest scores above threshold → AutoDetectFailed."""
     manifest_with_no_match = _manifest(
@@ -277,7 +325,7 @@ async def test_auto_detect_returns_failed_when_no_match():
 
     svc = Stage04Extract(llm_client=mock_llm, manifest_client=mock_mc)
 
-    with patch.object(svc, "_ocr_pdf", return_value="some random text"):
+    with patch.object(svc, "_ocr_pdf", return_value="some random unrelated document text"):
         result = await svc.run(b"bytes", "pdf", "AUTO_DETECT", "t-001")
 
     assert isinstance(result, AutoDetectFailed)
@@ -321,7 +369,7 @@ async def test_falls_back_to_legacy_when_no_manifest():
     svc, mock_llm, mock_mc = _make_stage04()
     mock_mc.resolve.side_effect = ValueError("No manifest for SALARY_SLIP")
 
-    with patch.object(svc, "_ocr_pdf", return_value="salary text"):
+    with patch.object(svc, "_ocr_pdf", return_value="salary slip text march 2024"):
         with patch.object(svc, "_legacy_extract", return_value=Stage04Result(
             extracted_fields={"employee_name": {"value": "A", "confidence": 0.9}},
             overall_confidence=0.9,

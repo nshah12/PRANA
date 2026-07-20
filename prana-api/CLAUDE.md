@@ -6,7 +6,7 @@
 - **Language:** Python 3.12
 - **Web framework:** FastAPI
 - **Workflow engine:** Temporal Python SDK v1.x
-- **Event streaming:** Apache Kafka (aiokafka) — `prana-api/kafka/` — producer + 5 consumers
+- **Event streaming:** Apache Kafka (aiokafka) — `prana-api/kafka/` — producer + 21 consumers
 - **Database:** YugabyteDB (asyncpg driver)
 - **Cache:** Redis Enterprise CRDT (redis-py async) — identity, share tokens, vault health, SSE Pub/Sub, JWT revocation
 - **Object storage:** AWS S3
@@ -25,14 +25,32 @@ Exception: direct Temporal **signals** (exception_resolved, elevation_approved) 
 
 Full reference: `prana-docs/KAFKA_REDIS_ARCHITECTURE.md`
 
-## Kafka Topics (5 total)
-| Topic | Partition Key |
-|-------|--------------|
-| `prana.ingest.events` | `tenant_id` |
-| `prana.pipeline.events` | `document_id` |
-| `prana.audit.events` | `tenant_id` |
-| `prana.notifications` | `user_id` |
-| `prana.analytics.events` | `tenant_id` |
+## Kafka Topics (21 total)
+| Topic | Partition Key | Consumer(s) |
+|-------|--------------|-------------|
+| `prana.ingest.events` | `tenant_id` | WorkflowConsumer, AuditConsumer |
+| `prana.pipeline.events` | `document_id` | SSEFanoutConsumer, AuditConsumer |
+| `prana.vault.events` | `document_id` | AuditConsumer |
+| `prana.employee.events` | `employee_uuid` | EmployeeConsumer |
+| `prana.tenant.events` | `tenant_id` | TenantConsumer |
+| `prana.oa_users.events` | `tenant_id` | OAUserConsumer |
+| `prana.compliance.events` | `employee_user_id` | ComplianceConsumer |
+| `prana.auth.events` | `user_id` | AuthConsumer |
+| `prana.security.events` | `tenant_id` | SecurityConsumer, AuditConsumer |
+| `prana.statutory.events` | `tenant_id` | StatutoryConsumer |
+| `prana.analytics.events` | `tenant_id` | AnalyticsConsumer |
+| `prana.integrations.events` | `tenant_id` | IntegrationConsumer, AuditConsumer |
+| `prana.platform.events` | `service` | PlatformConsumer, AuditConsumer |
+| `prana.audit.events` | `tenant_id` | AuditConsumer |
+| `prana.notifications.email` | `recipient_id` | EmailConsumer |
+| `prana.notifications.sms` | `recipient_id` | SMSConsumer |
+| `prana.notifications.push` | `recipient_id` | PushConsumer |
+| `prana.notifications.whatsapp` | `recipient_id` | WhatsAppConsumer |
+| `prana.notifications.portal_bell` | `recipient_id` | BellConsumer |
+
+Domain helpers in `kafka/producer.py`: `doc_ingested()`, `stage_changed()`, `doc_routed()`, `doc_accessed()`, `share_event()`, `employee_event()`, `tenant_event()`, `oa_user_event()`, `compliance_event()`, `auth_event()`, `security_event()`, `statutory_event()`, `integration_event()`, `platform_event()`, `notify_email()`, `notify_sms()`, `notify_push()`, `notify_whatsapp()`, `notify_bell()`
+
+Never call `kafka.publish("topic.name", {...})` directly — always use domain helpers.
 
 ## Service Architecture
 The 9 Temporal workflow owner services (from PRANA_Portal_v52.html):

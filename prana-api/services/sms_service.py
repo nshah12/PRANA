@@ -1,14 +1,15 @@
 """
-SMS dispatch via Exotel (primary) or MSG91 (fallback).
+SMS dispatch via AWS SNS, Exotel, or MSG91 — selected per environment.
 
 Provider selection:
-  settings.sms_provider = "exotel" | "msg91" | "dev"
+  settings.sms_provider = "aws" | "exotel" | "msg91" | "dev"
 
 Dev mode: logs OTP to console only. Never sends a real SMS.
 All providers use the same interface: send_otp(mobile, code).
 """
 import logging
 
+import boto3
 import httpx
 
 from config import Settings
@@ -25,12 +26,38 @@ class SMSService:
         if self._provider == "dev":
             log.info("[DEV SMS] mobile=%s code=%s", mobile, code)
             return
-        if self._provider == "exotel":
+        if self._provider == "aws":
+            await self._aws_sns(mobile, code)
+        elif self._provider == "exotel":
             await self._exotel(mobile, code)
         elif self._provider == "msg91":
             await self._msg91(mobile, code)
         else:
             log.warning("Unknown SMS provider %s — dropping OTP for %s", self._provider, mobile)
+
+    async def _aws_sns(self, mobile: str, code: str) -> None:
+        """AWS SNS direct-to-phone-number publish. Sync boto3 call — same pattern
+        already used for SES in notification_service.py and for KMS elsewhere in
+        this codebase (no async SDK for these AWS services)."""
+        s = self._settings
+        kwargs: dict = {"region_name": s.aws_region}
+        if s.aws_access_key_id:
+            kwargs["aws_access_key_id"] = s.aws_access_key_id
+            kwargs["aws_secret_access_key"] = s.aws_secret_access_key
+        if getattr(s, "sns_endpoint_url", ""):
+            kwargs["endpoint_url"] = s.sns_endpoint_url   # LocalStack (dev only)
+        client = boto3.client("sns", **kwargs)
+        try:
+            client.publish(
+                PhoneNumber=mobile,
+                Message=f"Your PRANA OTP is {code}. Valid for 10 minutes. Do not share.",
+                MessageAttributes={
+                    "AWS.SNS.SMS.SMSType": {"DataType": "String", "StringValue": "Transactional"},
+                },
+            )
+            log.info("AWS SNS SMS sent mobile=%s", mobile)
+        except Exception:
+            log.exception("AWS SNS SMS failed mobile=%s", mobile)
 
     async def _exotel(self, mobile: str, code: str) -> None:
         s = self._settings

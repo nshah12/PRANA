@@ -7,8 +7,10 @@
  *  4. Categorizes an active AUTO_APPROVE tenant created today into "Auto-Approved Today"
  *  5. Shows a "Retry" action for VERIFICATION_FAILED tenants
  *  6. Shows empty state when no applications in any bucket
+ *  7. Approve/reject/region-override actions on a Pending PA Review tenant
  */
 import { render, screen, waitFor } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { MemoryRouter } from 'react-router-dom'
@@ -17,6 +19,7 @@ import { OnboardingQueue } from './OnboardingQueue'
 vi.mock('@/lib/api', () => ({ api: { get: vi.fn(), post: vi.fn() } }))
 import { api } from '@/lib/api'
 const mockGet = vi.mocked(api.get)
+const mockPost = vi.mocked(api.post)
 
 function wrapper({ children }: { children: React.ReactNode }) {
   const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } })
@@ -32,6 +35,13 @@ function mockRoutes(overrides: Partial<Record<string, any>> = {}) {
     if (url.includes('status=VERIFICATION_FAILED')) return Promise.resolve({ data: overrides.failed ?? { tenants: [] } })
     return Promise.resolve({ data: {} })
   })
+}
+
+const PENDING_REVIEW_TENANT = {
+  tenant_id: 't-1', tenant_name: 'Acme Ltd', industry: 'IT & Software',
+  domain: 'acme.in', cin: 'U72900MH2010PTC123456', employee_headcount_band: '201-500',
+  approval_tier: 'PA_REVIEW', domain_verified_at: TODAY,
+  verification_remaining_hours: null, home_region: null, created_at: TODAY,
 }
 
 beforeEach(() => vi.clearAllMocks())
@@ -102,5 +112,49 @@ describe('OnboardingQueue', () => {
     mockRoutes()
     render(<OnboardingQueue />, { wrapper })
     await waitFor(() => expect(screen.getByText(/no pending applications/i)).toBeInTheDocument())
+  })
+
+  it('renders a Pending PA Review tenant application', async () => {
+    mockRoutes({ pending: { tenants: [PENDING_REVIEW_TENANT] } })
+    render(<OnboardingQueue />, { wrapper })
+    await waitFor(() => expect(screen.getByText('Acme Ltd')).toBeInTheDocument())
+    expect(screen.getByText('acme.in')).toBeInTheDocument()
+  })
+
+  it('approves a tenant without region override', async () => {
+    const user = userEvent.setup()
+    mockRoutes({ pending: { tenants: [PENDING_REVIEW_TENANT] } })
+    mockPost.mockResolvedValue({ data: { ok: true } })
+    render(<OnboardingQueue />, { wrapper })
+    await waitFor(() => expect(screen.getByText('Acme Ltd')).toBeInTheDocument())
+    await user.click(screen.getByRole('button', { name: /^approve$/i }))
+    await user.click(screen.getByRole('button', { name: /confirm approval/i }))
+    await waitFor(() => expect(mockPost).toHaveBeenCalledWith('/admin/tenants/t-1/activate', {
+      home_region_override: undefined, override_reason: undefined,
+    }))
+  })
+
+  it('requires an override reason before approving with a region override', async () => {
+    const user = userEvent.setup()
+    mockRoutes({ pending: { tenants: [PENDING_REVIEW_TENANT] } })
+    render(<OnboardingQueue />, { wrapper })
+    await waitFor(() => expect(screen.getByText('Acme Ltd')).toBeInTheDocument())
+    await user.click(screen.getByRole('button', { name: /^approve$/i }))
+    const regionSelect = screen.getByDisplayValue('Auto (recommended)')
+    await user.selectOptions(regionSelect, 'ap-south-2')
+    const confirmBtn = screen.getByRole('button', { name: /confirm approval/i })
+    expect(confirmBtn).toBeDisabled()
+    await user.type(screen.getByPlaceholderText('Reason for override (required)'), 'Employee base is in Hyderabad')
+    expect(confirmBtn).not.toBeDisabled()
+  })
+
+  it('rejects a tenant application', async () => {
+    const user = userEvent.setup()
+    mockRoutes({ pending: { tenants: [PENDING_REVIEW_TENANT] } })
+    mockPost.mockResolvedValue({ data: { ok: true } })
+    render(<OnboardingQueue />, { wrapper })
+    await waitFor(() => expect(screen.getByText('Acme Ltd')).toBeInTheDocument())
+    await user.click(screen.getByRole('button', { name: /reject/i }))
+    await waitFor(() => expect(mockPost).toHaveBeenCalledWith('/admin/tenants/t-1/reject'))
   })
 })

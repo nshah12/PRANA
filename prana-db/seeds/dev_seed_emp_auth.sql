@@ -10,11 +10,17 @@
 --     EU7WKZ66KHJKHQJY3UUPZKJOYPWJNFE4
 --   TOTP URI (scan this QR):
 --     otpauth://totp/PRANA:Dev%20Employee%20001?secret=EU7WKZ66KHJKHQJY3UUPZKJOYPWJNFE4&issuer=PRANA
+--
+-- totp_secret_enc below is AES-256-GCM-encrypted under the CURRENT
+-- resolve_auth_dek() (services/encryption_service.py), derived from
+-- platform_hmac_secret in dev. If that secret ever changes, this ciphertext
+-- will fail to decrypt (cryptography.exceptions.InvalidTag) — regenerate it
+-- with: aes_encrypt('EU7WKZ66KHJKHQJY3UUPZKJOYPWJNFE4', resolve_auth_dek(get_settings()))
 
 UPDATE employee_user
 SET
   password_hash       = '$argon2id$v=19$m=65536,t=2,p=2$baYcXT1/UniSJz2fTYDqFw$GDKNb23LwWjCbZLx8aH9yyifEEL9CG6cClG6dk3Xsgk',
-  totp_secret_enc     = 'PQQb8nrcVa7FBUBOFLVJCLZheQj4yn/itM4hVoDqjW4BkD4y6YePsh2svaYRxtV4ZTagar8h+Q6TqAVn',
+  totp_secret_enc     = 'cnawEDwo/pA9hJp/UUun5EMk0aoEMy5drGsGnC/Imy6CaOkbBYnUZKBOyDD9Rj00DSHY/AmtI1u4JK8B',
   totp_configured_at  = NOW(),
   consent_status      = 'GRANTED',
   force_reset         = FALSE,
