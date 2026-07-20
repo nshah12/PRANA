@@ -1,3 +1,4 @@
+import { useState, useEffect } from 'react'
 import { Routes, Route, Navigate, useLocation } from 'react-router-dom'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { useAuthStore } from '@/store/auth'
@@ -113,16 +114,35 @@ import { RateLimits }        from '@/pages/pa/RateLimits'
 import { Announcements }     from '@/pages/pa/Announcements'
 import { ContactInquiries }  from '@/pages/pa/ContactInquiries'
 
+// Zustand's `persist` middleware rehydrates from localStorage asynchronously —
+// on first render after a page reload, `user` is still null even for an
+// already-logged-in session. Without waiting for hydration, these guards would
+// redirect to login on every single refresh before the persisted session had
+// a chance to load. `store.persist.hasHydrated()` / `onFinishHydration()` let
+// us hold the redirect until rehydration actually completes.
+function useHasHydrated(store: { persist: { hasHydrated: () => boolean; onFinishHydration: (cb: () => void) => () => void } }) {
+  const [hydrated, setHydrated] = useState(store.persist.hasHydrated())
+  useEffect(() => {
+    if (store.persist.hasHydrated()) { setHydrated(true); return }
+    return store.persist.onFinishHydration(() => setHydrated(true))
+  }, [store])
+  return hydrated
+}
+
 function RequireEmpAuth({ children }: { children: React.ReactNode }) {
   const user = useEmpAuthStore(s => s.user)
+  const hydrated = useHasHydrated(useEmpAuthStore)
   const location = useLocation()
+  if (!hydrated) return null
   if (!user) return <Navigate to="/emp/login" state={{ from: location }} replace />
   return <>{children}</>
 }
 
 function RequireAuth({ children }: { children: React.ReactNode }) {
   const user = useAuthStore(s => s.user)
+  const hydrated = useHasHydrated(useAuthStore)
   const location = useLocation()
+  if (!hydrated) return null
   if (!user) {
     const loginPage = location.pathname.startsWith('/admin') ? '/admin/login' : '/org/login'
     return <Navigate to={loginPage} replace />
