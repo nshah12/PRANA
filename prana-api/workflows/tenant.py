@@ -5,7 +5,9 @@ DomainVerificationWorkflow
   Triggered when PA creates a new tenant application.
   Polls DNS TXT record every `domain_verification_poll_minutes` (default 15).
   Times out after `domain_verification_max_hours` (default 48).
-  On verified → signals TenantProvisioningWorkflow.
+  On verified → classifies onboarding tier (see services/onboarding_service.py):
+    Standard tenants auto-provision immediately; BFSI/Large and Enterprise
+    tenants wait for PA (and PA+Sales) manual review instead.
   On timeout  → marks tenant VERIFICATION_FAILED.
 
 TenantProvisioningWorkflow
@@ -64,6 +66,16 @@ class DomainVerificationWorkflow:
                 start_to_close_timeout=timedelta(seconds=30), retry_policy=_RETRY,
             )
             return {"tenant_id": tenant_id, "outcome": "VERIFICATION_FAILED"}
+
+        # Standard tenants auto-provision; BFSI/Large and Enterprise wait for
+        # PA (and PA+Sales) manual review — see onboarding_service.classify_onboarding_tier.
+        tier_result = await workflow.execute_activity(
+            "get_tenant_onboarding_tier", {"tenant_id": tenant_id},
+            start_to_close_timeout=timedelta(seconds=30), retry_policy=_RETRY,
+        )
+        if tier_result["tier"] != "AUTO_APPROVE":
+            return {"tenant_id": tenant_id, "outcome": "AWAITING_PA_REVIEW", "tier": tier_result["tier"]}
+
         await workflow.execute_activity(
             "provision_tenant", {"tenant_id": tenant_id},
             start_to_close_timeout=timedelta(minutes=5), retry_policy=_RETRY,

@@ -110,6 +110,7 @@ import { useEmpAuthStore } from '@/store/empAuth'
 import { MetaDashboard }     from '@/pages/pa/MetaDashboard'
 import { OnboardingQueue }   from '@/pages/pa/OnboardingQueue'
 import { TenantDirectory }      from '@/pages/pa/TenantDirectory'
+import { TenantDetail }         from '@/pages/pa/TenantDetail'
 import { CreateTenantWizard }  from '@/pages/pa/CreateTenantWizard'
 import { OaEmergency }       from '@/pages/pa/OaEmergency'
 import { EmployeeTotpReset } from '@/pages/pa/EmployeeTotpReset'
@@ -125,6 +126,21 @@ import { ContactInquiries }  from '@/pages/pa/ContactInquiries'
 import { HRMSCatalogue }    from '@/pages/pa/HRMSCatalogue'
 import { HRMSSettings }     from '@/pages/oa/HRMSSettings'
 
+// Zustand's `persist` middleware rehydrates from localStorage asynchronously —
+// on first render after a page reload, `user` is still null even for an
+// already-logged-in session. Without waiting for hydration, these guards would
+// redirect to login on every single refresh before the persisted session had
+// a chance to load. `store.persist.hasHydrated()` / `onFinishHydration()` let
+// us hold the redirect until rehydration actually completes.
+function useHasHydrated(store: { persist: { hasHydrated: () => boolean; onFinishHydration: (cb: () => void) => () => void } }) {
+  const [hydrated, setHydrated] = useState(store.persist.hasHydrated())
+  useEffect(() => {
+    if (store.persist.hasHydrated()) { setHydrated(true); return }
+    return store.persist.onFinishHydration(() => setHydrated(true))
+  }, [store])
+  return hydrated
+}
+
 function AuthBootstrapSpinner() {
   return (
     <div className="min-h-screen flex items-center justify-center">
@@ -138,6 +154,7 @@ export function RequireEmpAuth({ children }: { children: React.ReactNode }) {
   const accessToken    = useEmpAuthStore(s => s.accessToken)
   const setAccessToken = useEmpAuthStore(s => s.setAccessToken)
   const logout         = useEmpAuthStore(s => s.logout)
+  const hydrated       = useHasHydrated(useEmpAuthStore)
   const location       = useLocation()
 
   // Access token lives in memory only (never persisted — CLAUDE.md), so it's
@@ -157,6 +174,10 @@ export function RequireEmpAuth({ children }: { children: React.ReactNode }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
+  // Must wait for the persisted `user` to rehydrate before deciding to
+  // redirect — otherwise every refresh briefly sees user=null and bounces
+  // to login before localStorage has a chance to load.
+  if (!hydrated) return null
   if (!user && !accessToken) return <Navigate to="/emp/login" state={{ from: location }} replace />
   if (bootstrapping) return <AuthBootstrapSpinner />
   return <>{children}</>
@@ -167,6 +188,7 @@ export function RequireAuth({ children }: { children: React.ReactNode }) {
   const accessToken    = useAuthStore(s => s.accessToken)
   const setAccessToken = useAuthStore(s => s.setAccessToken)
   const logout         = useAuthStore(s => s.logout)
+  const hydrated       = useHasHydrated(useAuthStore)
   const location       = useLocation()
 
   // Same proactive-bootstrap rationale as RequireEmpAuth above.
@@ -182,6 +204,7 @@ export function RequireAuth({ children }: { children: React.ReactNode }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
+  if (!hydrated) return null
   if (!user) {
     const loginPage = location.pathname.startsWith('/admin') ? '/admin/login' : '/org/login'
     return <Navigate to={loginPage} replace />
@@ -311,6 +334,7 @@ export default function App() {
       <Route path="/admin/onboarding" element={<RequireAuth><PortalLayout><OnboardingQueue /></PortalLayout></RequireAuth>} />
       <Route path="/admin/tenants"     element={<RequireAuth><PortalLayout><TenantDirectory /></PortalLayout></RequireAuth>} />
       <Route path="/admin/tenants/new" element={<RequireAuth><PortalLayout><CreateTenantWizard /></PortalLayout></RequireAuth>} />
+      <Route path="/admin/tenants/:id" element={<RequireAuth><PortalLayout><TenantDetail /></PortalLayout></RequireAuth>} />
       <Route path="/admin/oa-override"element={<RequireAuth><PortalLayout><OaEmergency /></PortalLayout></RequireAuth>} />
       <Route path="/admin/reset-totp" element={<RequireAuth><PortalLayout><EmployeeTotpReset /></PortalLayout></RequireAuth>} />
       <Route path="/admin/pa-unlock"  element={<RequireAuth><PortalLayout><PaUnlock /></PortalLayout></RequireAuth>} />

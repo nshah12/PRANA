@@ -165,6 +165,8 @@ HTTP handler → validate → 1 DB write (source of truth) → 1 Kafka publish �
 | SSE Pub/Sub | `sse:doc:{document_id}` | N/A (ephemeral channel) | Auto on subscriber disconnect | N/A |
 | JWT revocation | `jwt:revoked:{jti}` | Until JWT natural expiry | Written on logout/elevation-end | LWW |
 | Elevation session | `elevation:{elevation_id}` | Until `ends_at` | Written on elevation end-early | LWW |
+| HRMS rate limit | `ratelimit:{api_key_id}:{minute_window}` | 60s | Auto-expire (sliding 1-min window) | Counter |
+| HRMS rate limit hits (dashboard) | `ratelimit:hits:1h` / `ratelimit:hits:24h` | 3600s / 86400s | Incremented on every 429; read by PA meta-dashboard + `/rate-limits` | Counter |
 
 ### 3.2 SSE Pattern (Redis Pub/Sub → Browser)
 

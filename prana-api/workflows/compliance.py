@@ -400,6 +400,9 @@ class AuditArchivalWorkflow:
 
     @workflow.run
     async def run(self, params: dict) -> None:
+        await self._archive(params)
+
+    async def _archive(self, params: dict) -> None:
         cutoff_str = await workflow.execute_activity(
             get_config_value,
             {"key": "audit_archival_cutoff_days", "tenant_id": params.get("tenant_id"), "default": "730"},
@@ -410,14 +413,13 @@ class AuditArchivalWorkflow:
             {"key": "audit_archival_batch_size", "tenant_id": params.get("tenant_id"), "default": "5000"},
             start_to_close_timeout=timedelta(minutes=2),
         )
-        result = await workflow.execute_activity(
+        # Log result (rows archived, bytes written) — activity handles the write
+        await workflow.execute_activity(
             archive_audit_events_batch,
             {**params, "cutoff_days": cutoff_str, "batch_size": batch_str},
             start_to_close_timeout=timedelta(hours=2),
             retry_policy=_RETRY,
         )
-        # Log result (rows archived, bytes written) — activity handles the write
-        _ = result
 
 
 # ── LegalHoldWorkflow (Pattern 2 — Signal-Driven) ────────────────────────────

@@ -86,6 +86,13 @@ class KafkaPub:
         await self.publish(TOPIC_INGEST, event, key=event["batch_id"])     # batch_id avoids tenant hot partition
         await self.publish(TOPIC_AUDIT,  event, key=event["tenant_id"])
 
+    async def domain_verification_requested(self, event: dict) -> None:
+        """Tenant onboarding: WorkflowConsumer polls TOPIC_INGEST (not TOPIC_TENANT),
+        so this must land there for DomainVerificationWorkflow to actually start —
+        publishing via tenant_event() alone would silently never trigger it."""
+        await self.publish(TOPIC_INGEST, event, key=event["tenant_id"])
+        await self.publish(TOPIC_AUDIT,  event, key=event["tenant_id"])
+
     async def stage_changed(self, event: dict) -> None:
         await self.publish(TOPIC_PIPELINE, event, key=event["document_id"])
         await self.publish(TOPIC_AUDIT,    event, key=event["tenant_id"])

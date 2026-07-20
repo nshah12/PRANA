@@ -10,18 +10,22 @@ PA can view/update platform-level defaults.
 """
 
 import logging
-from typing import Optional
+from typing import Annotated, Optional
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, Request
 from pydantic import BaseModel, Field, field_validator
 
+from dependencies import CurrentUser, DbConn, PortalAdmin, require_oa
 from services.manifest_service import ManifestService
 from errors import PranaError
 
 log = logging.getLogger(__name__)
 
 router = APIRouter()
+
+OaStaff = Annotated[CurrentUser, Depends(require_oa("oa_admin", "oa_operator"))]
+OaAdmin = Annotated[CurrentUser, Depends(require_oa("oa_admin"))]
 
 
 # ── Request / response models ──────────────────────────────────────────────────
@@ -68,29 +72,8 @@ class ManifestUpsertRequest(BaseModel):
 
 # ── Helpers ────────────────────────────────────────────────────────────────────
 
-def _get_svc(request: Request) -> ManifestService:
-    return ManifestService(request.app.state.db)
-
-
-def _require_oa_admin(request: Request) -> tuple[UUID, UUID]:
-    """Return (tenant_id, oa_user_id) from JWT. Raises 403 if not OA-Admin."""
-    claims = getattr(request.state, "jwt_claims", None)
-    if not claims:
-        raise HTTPException(status_code=401, detail=PranaError.MISSING_AUTH)
-    role = claims.get("role", "")
-    if role not in ("oa_admin", "oa_operator"):
-        raise HTTPException(status_code=403, detail=PranaError.OA_ADMIN_REQUIRED)
-    return UUID(claims["tenant_id"]), UUID(claims["sub"])
-
-
-def _require_portal_admin(request: Request) -> UUID:
-    """Return portal_admin_id from JWT. Raises 403 if not PA."""
-    claims = getattr(request.state, "jwt_claims", None)
-    if not claims:
-        raise HTTPException(status_code=401, detail=PranaError.MISSING_AUTH)
-    if claims.get("role") != "portal_admin":
-        raise HTTPException(status_code=403, detail=PranaError.PORTAL_ADMIN_REQUIRED)
-    return UUID(claims["sub"])
+def _get_svc(db) -> ManifestService:
+    return ManifestService(db)
 
 
 def _validate_doc_type(doc_type: str) -> str:
@@ -106,23 +89,23 @@ def _validate_doc_type(doc_type: str) -> str:
 # ── OA-Admin routes ────────────────────────────────────────────────────────────
 
 @router.get("/v1/manifests")
-async def list_manifests(request: Request):
+async def list_manifests(current: OaStaff, db: DbConn):
     """
     List effective manifests for the caller's tenant.
     Tenant overrides are shown with is_tenant_override=true.
     """
-    tenant_id, _ = _require_oa_admin(request)
-    svc = _get_svc(request)
+    tenant_id = UUID(current.tenant_id)
+    svc = _get_svc(db)
     items = await svc.list_for_tenant(tenant_id)
     return {"items": items, "total": len(items)}
 
 
 @router.get("/v1/manifests/{doc_type}")
-async def get_manifest(doc_type: str, request: Request):
+async def get_manifest(doc_type: str, current: OaStaff, db: DbConn):
     """Get the effective manifest for a specific doc_type (tenant override or platform default)."""
-    tenant_id, _ = _require_oa_admin(request)
+    tenant_id = UUID(current.tenant_id)
     dt = _validate_doc_type(doc_type)
-    svc = _get_svc(request)
+    svc = _get_svc(db)
     try:
         manifest = await svc.resolve(tenant_id, dt)
     except ValueError as e:
@@ -145,19 +128,15 @@ async def get_manifest(doc_type: str, request: Request):
 
 
 @router.put("/v1/manifests/{doc_type}")
-async def upsert_manifest(doc_type: str, body: ManifestUpsertRequest, request: Request):
+async def upsert_manifest(doc_type: str, body: ManifestUpsertRequest, current: OaAdmin, db: DbConn):
     """
     Create or update a tenant-level manifest override for the given doc_type.
     This shadows the platform default for this tenant only.
     """
-    tenant_id, oa_user_id = _require_oa_admin(request)
-
-    claims = getattr(request.state, "jwt_claims", {})
-    if claims.get("role") != "oa_admin":
-        raise HTTPException(status_code=403, detail=PranaError.OA_ADMIN_ROLE_REQUIRED)
-
+    tenant_id = UUID(current.tenant_id)
+    oa_user_id = UUID(current.user_id)
     dt = _validate_doc_type(doc_type)
-    svc = _get_svc(request)
+    svc = _get_svc(db)
 
     result = await svc.upsert(
         tenant_id=tenant_id,
@@ -170,20 +149,16 @@ async def upsert_manifest(doc_type: str, body: ManifestUpsertRequest, request: R
 
 
 @router.delete("/v1/manifests/{doc_type}")
-async def delete_manifest_override(doc_type: str, request: Request):
+async def delete_manifest_override(doc_type: str, current: OaAdmin, db: DbConn):
     """
     Remove the tenant override for this doc_type.
     Pipeline falls back to the platform default after deletion.
     Returns 404 if no tenant override exists (platform default cannot be deleted here).
     """
-    tenant_id, oa_user_id = _require_oa_admin(request)
-
-    claims = getattr(request.state, "jwt_claims", {})
-    if claims.get("role") != "oa_admin":
-        raise HTTPException(status_code=403, detail=PranaError.OA_ADMIN_ROLE_REQUIRED)
-
+    tenant_id = UUID(current.tenant_id)
+    oa_user_id = UUID(current.user_id)
     dt = _validate_doc_type(doc_type)
-    svc = _get_svc(request)
+    svc = _get_svc(db)
     deleted = await svc.delete_tenant_override(tenant_id, dt)
 
     if not deleted:
@@ -199,13 +174,13 @@ async def delete_manifest_override(doc_type: str, request: Request):
 
 @router.get("/v1/unclassified")
 async def list_unclassified(
+    current: OaStaff,
+    db: DbConn,
     status: Optional[str] = "PENDING",
     limit: int = 50,
-    request: Request = None,
 ):
     """List unclassified documents for this tenant. OA-Admin reviews and resolves."""
-    tenant_id, _ = _require_oa_admin(request)
-    db = request.app.state.db
+    tenant_id = UUID(current.tenant_id)
 
     rows = await db.fetch(
         """
@@ -250,6 +225,8 @@ class ResolveUnclassifiedRequest(BaseModel):
 async def resolve_unclassified(
     document_id: str,
     body: ResolveUnclassifiedRequest,
+    current: OaStaff,
+    db: DbConn,
     request: Request,
 ):
     """
@@ -257,9 +234,9 @@ async def resolve_unclassified(
     Sets unclassified_queue.status = RESOLVED and publishes DOC_RECLASSIFIED to Kafka.
     WorkflowConsumer restarts DocumentPipelineWorkflow with the resolved doc_type.
     """
-    tenant_id, oa_user_id = _require_oa_admin(request)
+    tenant_id = UUID(current.tenant_id)
+    oa_user_id = UUID(current.user_id)
     dt = _validate_doc_type(body.resolved_doc_type)
-    db = request.app.state.db
 
     row = await db.fetchrow(
         "SELECT document_id FROM unclassified_queue WHERE document_id=$1 AND tenant_id=$2",
@@ -295,13 +272,13 @@ async def resolve_unclassified(
 # These are NOT exposed via Kong — internal VPC only, authenticated by service token.
 
 @router.get("/internal/manifests/{tenant_id}/{doc_type}")
-async def internal_get_manifest(tenant_id: str, doc_type: str, request: Request):
+async def internal_get_manifest(tenant_id: str, doc_type: str, request: Request, db: DbConn):
     """
     prana-ai calls this to fetch the resolved manifest before Stage 04 extraction.
     Authenticated by X-Internal-Token header (shared secret, not JWT).
     """
     _require_internal_token(request)
-    svc = _get_svc(request)
+    svc = _get_svc(db)
     try:
         manifest = await svc.resolve(UUID(tenant_id), doc_type.upper())
     except ValueError as e:
@@ -324,10 +301,10 @@ async def internal_get_manifest(tenant_id: str, doc_type: str, request: Request)
 
 
 @router.get("/internal/manifests/{tenant_id}")
-async def internal_list_manifests(tenant_id: str, request: Request):
+async def internal_list_manifests(tenant_id: str, request: Request, db: DbConn):
     """prana-ai calls this to load all manifests for AUTO_DETECT scoring."""
     _require_internal_token(request)
-    svc = _get_svc(request)
+    svc = _get_svc(db)
     items = await svc.list_for_tenant(UUID(tenant_id))
     return {"items": items}
 
@@ -343,10 +320,9 @@ def _require_internal_token(request: Request) -> None:
 # ── PA routes — platform defaults ─────────────────────────────────────────────
 
 @router.get("/admin/manifests")
-async def pa_list_platform_manifests(request: Request):
+async def pa_list_platform_manifests(current: PortalAdmin, db: DbConn):
     """PA only — list all platform-default manifests."""
-    _require_portal_admin(request)
-    svc = _get_svc(request)
+    svc = _get_svc(db)
     items = await svc.list_all_platform()
     return {"items": items, "total": len(items)}
 
@@ -355,12 +331,12 @@ async def pa_list_platform_manifests(request: Request):
 async def pa_upsert_platform_manifest(
     doc_type: str,
     body: ManifestUpsertRequest,
-    request: Request,
+    current: PortalAdmin,
+    db: DbConn,
 ):
     """PA only — create or update a platform-default manifest (tenant_id = NULL)."""
-    pa_id = _require_portal_admin(request)
+    pa_id = UUID(current.user_id)
     dt = _validate_doc_type(doc_type)
-    db = request.app.state.db
 
     import json
     row = await db.fetchrow(

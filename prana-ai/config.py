@@ -24,6 +24,9 @@ class Settings:
     llm_api_key:           str = field(default_factory=lambda: os.getenv("LLM_API_KEY", ""))
     llm_timeout:           int = field(default_factory=lambda: int(os.getenv("LLM_TIMEOUT", "120")))
 
+    # ── LLM — insights/RAG (Llama 3.1 8B) ────────────────────────────────────
+    insight_llm_model:     str = field(default_factory=lambda: os.getenv("INSIGHT_LLM_MODEL", "meta-llama/Llama-3.1-8B-Instruct"))
+
     # ── Embeddings (bge-m3) ───────────────────────────────────────────────────
     embedding_base_url:  str = field(default_factory=lambda: os.getenv("EMBEDDING_BASE_URL", "http://localhost:11434/v1"))
     embedding_model:     str = field(default_factory=lambda: os.getenv("EMBEDDING_MODEL", "BAAI/bge-m3"))

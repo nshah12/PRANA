@@ -115,3 +115,39 @@ async def test_concurrent_doc_ingested_respects_semaphore():
         f"but semaphore limit is {LIMIT}. "
         "Semaphore is not being acquired in _handle_doc_ingested."
     )
+
+
+# ── DOMAIN_VERIFICATION_REQUESTED — tenant onboarding never actually started ──
+# tenants.py's create_tenant already published this event, but nothing ever
+# consumed it, so DomainVerificationWorkflow never actually ran for a new tenant.
+
+@pytest.mark.asyncio
+async def test_domain_verification_requested_starts_workflow():
+    consumer, temporal = _make_consumer()
+    event = {
+        "event_type": "DOMAIN_VERIFICATION_REQUESTED",
+        "tenant_id": "tenant-xyz",
+        "domain": "acme.com",
+        "workflow_id": "domain-verify-tenant-xyz",
+    }
+
+    await consumer._handle_domain_verification_requested(event)
+
+    temporal.start_workflow.assert_called_once()
+    call = temporal.start_workflow.call_args
+    assert call.kwargs["id"] == "domain-verify-tenant-xyz"
+    args_payload = call.args[1]
+    assert args_payload["tenant_id"] == "tenant-xyz"
+    assert args_payload["domain"] == "acme.com"
+
+
+@pytest.mark.asyncio
+async def test_domain_verification_requested_is_idempotent_on_already_started():
+    consumer, temporal = _make_consumer()
+    temporal.start_workflow = AsyncMock(side_effect=Exception("Workflow already started"))
+    event = {
+        "tenant_id": "tenant-xyz", "domain": "acme.com",
+        "workflow_id": "domain-verify-tenant-xyz",
+    }
+
+    await consumer._handle_domain_verification_requested(event)  # must not raise

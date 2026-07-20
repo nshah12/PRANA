@@ -5,6 +5,8 @@ Covers:
   - TenantProvisioningWorkflow is a thin shell calling 'provision_tenant' activity
   - DomainVerificationWorkflow reads poll interval + max hours from config activity
     (never hardcoded); uses elapsed loop, not asyncio.sleep
+  - DomainVerificationWorkflow gates auto-provisioning on the tenant's onboarding
+    tier — Standard auto-provisions, BFSI/Large and Enterprise wait for PA review
 """
 import inspect
 
@@ -94,3 +96,22 @@ def test_domain_verification_marks_failed_on_timeout():
         "Timeout path must mark tenant as VERIFICATION_FAILED via activity"
     assert "VERIFICATION_FAILED" in workflow_src, \
         "Expected outcome constant 'VERIFICATION_FAILED' in workflow"
+
+
+def test_domain_verification_checks_onboarding_tier_before_auto_provisioning():
+    """DomainVerificationWorkflow must NOT unconditionally auto-provision every
+    verified tenant. Standard-tier (auto-approve) tenants provision immediately;
+    BFSI/Large and Enterprise tenants must wait for PA (and PA+Sales) manual
+    review instead — see services/onboarding_service.classify_onboarding_tier.
+    This logic lives in _finalize() (called from run()) — check the class source.
+    """
+    from workflows.tenant import DomainVerificationWorkflow
+
+    workflow_src = inspect.getsource(DomainVerificationWorkflow)
+
+    assert "get_tenant_onboarding_tier" in workflow_src, \
+        "Must classify the tenant's onboarding tier via activity before provisioning"
+    assert "AUTO_APPROVE" in workflow_src, \
+        "Must gate provision_tenant on tier == AUTO_APPROVE"
+    assert "AWAITING_PA_REVIEW" in workflow_src, \
+        "Non-auto-approve tenants must return an AWAITING_PA_REVIEW outcome, not silently provision"

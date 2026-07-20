@@ -26,6 +26,63 @@ async def meta_dashboard(request: Request, db: DbConn, current=PA):
     total_employees = await db.fetchval("SELECT COUNT(*) FROM employee_master WHERE status='ACTIVE'")
     open_exceptions = await db.fetchval("SELECT COUNT(*) FROM exception_queue WHERE status='OPEN'")
 
+    pending_approval_count = await db.fetchval(
+        "SELECT COUNT(*) FROM tenant WHERE status IN ('PENDING','PENDING_VERIFICATION')"
+    )
+
+    # SLA breach: open exceptions older than each tenant's effective exception_sla_p95_hours
+    # (tenant_config override falls back to platform_config — never hardcoded).
+    sla_breach_count = await db.fetchval(
+        """
+        SELECT COUNT(*) FROM exception_queue eq
+        WHERE eq.status = 'OPEN'
+          AND eq.raised_at < NOW() - make_interval(hours => COALESCE(
+                (SELECT config_value::int FROM tenant_config tc
+                 WHERE tc.tenant_id = eq.tenant_id AND tc.config_key='exception_sla_p95_hours'),
+                (SELECT config_value::int FROM platform_config
+                 WHERE config_key='exception_sla_p95_hours'),
+                24
+              ))
+        """
+    )
+
+    failed_logins_24h = await db.fetchval(
+        """
+        SELECT COUNT(*) FROM login_attempt_log
+        WHERE outcome IN ('FAILED','BLOCKED')
+          AND attempted_at >= NOW() - INTERVAL '24 hours'
+        """
+    )
+    quarantined_files = await db.fetchval(
+        "SELECT COUNT(*) FROM document WHERE pipeline_status = 'QUARANTINED'"
+    )
+    csam_events = await db.fetchval(
+        "SELECT COUNT(*) FROM document WHERE csam_detected = TRUE"
+    )
+    rate_limit_hits_24h = 0
+    redis = getattr(request.app.state, "redis", None)
+    if redis:
+        try:
+            rate_limit_hits_24h = int(await redis.get("ratelimit:hits:24h") or 0)
+        except Exception:
+            rate_limit_hits_24h = 0
+
+    top_tenants = await db.fetch(
+        """
+        SELECT t.tenant_id, t.tenant_name, t.status,
+               COUNT(d.document_id) FILTER (
+                 WHERE d.pushed_at >= CURRENT_DATE
+               ) AS docs_today,
+               COUNT(eq.exception_id) FILTER (WHERE eq.status = 'OPEN') AS open_exceptions
+        FROM tenant t
+        LEFT JOIN document d ON d.tenant_id = t.tenant_id AND d.is_deleted = FALSE
+        LEFT JOIN exception_queue eq ON eq.tenant_id = t.tenant_id
+        GROUP BY t.tenant_id, t.tenant_name, t.status
+        ORDER BY docs_today DESC
+        LIMIT 10
+        """
+    )
+
     stage_counts = await db.fetch(
         """
         SELECT pipeline_status, COUNT(*) AS cnt
@@ -35,6 +92,21 @@ async def meta_dashboard(request: Request, db: DbConn, current=PA):
         GROUP BY pipeline_status
         """
     )
+
+    extraction_calls_today = await db.fetchval(
+        "SELECT COUNT(*) FROM llm_usage_log WHERE occurred_at >= CURRENT_DATE"
+    )
+    tokens_consumed_today = await db.fetchval(
+        "SELECT COALESCE(SUM(total_tokens), 0) FROM llm_usage_log WHERE occurred_at >= CURRENT_DATE"
+    )
+    avg_confidence = await db.fetchval(
+        "SELECT AVG(resolution_confidence) FROM document WHERE pushed_at >= CURRENT_DATE"
+    )
+    cost_rate_row = await db.fetchval(
+        "SELECT config_value FROM platform_config WHERE config_key='llm_cost_per_1k_tokens_inr'"
+    )
+    cost_rate = float(cost_rate_row) if cost_rate_row else 0.0
+    estimated_cost_inr = round((int(tokens_consumed_today or 0) / 1000) * cost_rate, 2)
 
     # Recent tenant status changes (account_status_event covers TOTP_LOCKOUT + ADMIN_DISABLED events)
     # For tenant-level activity use tenant table directly (created_at ordering)
@@ -87,6 +159,30 @@ async def meta_dashboard(request: Request, db: DbConn, current=PA):
         "total_employees":        int(total_employees or 0),
         "storage_used_label":     storage_used_label,
         "open_exceptions":        int(open_exceptions or 0),
+        "pending_approval_count": int(pending_approval_count or 0),
+        "sla_breach_count":       int(sla_breach_count or 0),
+        "security_alerts": {
+            "failed_logins_24h":   int(failed_logins_24h or 0),
+            "quarantined_files":   int(quarantined_files or 0),
+            "csam_events":         int(csam_events or 0),
+            "rate_limit_hits_24h": rate_limit_hits_24h,
+        },
+        "top_tenants": [
+            {
+                "tenant_id":       str(r["tenant_id"]),
+                "tenant_name":     r["tenant_name"],
+                "status":          r["status"],
+                "docs_today":      int(r["docs_today"] or 0),
+                "open_exceptions": int(r["open_exceptions"] or 0),
+            }
+            for r in top_tenants
+        ],
+        "llm_usage_today": {
+            "extraction_calls":  int(extraction_calls_today or 0),
+            "tokens_consumed":   int(tokens_consumed_today or 0),
+            "avg_confidence":    round(float(avg_confidence), 2) if avg_confidence is not None else None,
+            "estimated_cost_inr": estimated_cost_inr,
+        },
         "pipeline_counts":        {r["pipeline_status"]: int(r["cnt"]) for r in stage_counts},
         "recent_tenant_activity": [
             {
@@ -100,117 +196,48 @@ async def meta_dashboard(request: Request, db: DbConn, current=PA):
 
 
 # ── Tenant management ─────────────────────────────────────────────────────────
-
-@router.get("/tenants")
-async def list_tenants(
-    db: DbConn,
-    status: Optional[str] = None,
-    q: Optional[str] = None,
-    offset: int = 0,
-    limit: int = 50,
-    current=PA,
-):
-    conditions = []
-    params: list = []
-    i = 1
-
-    if status:
-        conditions.append(f"t.status = ${i}"); params.append(status); i += 1
-    if q:
-        conditions.append(f"(t.tenant_name ILIKE ${i} OR t.domain ILIKE ${i})"); params.append(f"%{q}%"); i += 1
-
-    where = ("WHERE " + " AND ".join(conditions)) if conditions else ""
-    rows = await db.fetch(
-        f"""
-        SELECT t.tenant_id, t.tenant_name, t.domain,
-               t.status, t.home_region, t.primary_state,
-               t.created_at, t.cin, t.gstin, t.storage_quota_gb
-        FROM tenant t
-        {where}
-        ORDER BY t.created_at DESC
-        LIMIT {limit} OFFSET {offset}
-        """,
-        *params,
-    )
-    return {"tenants": [
-        {
-            "tenant_id": str(r["tenant_id"]),
-            "tenant_name": r["tenant_name"],
-            "domain": r["domain"],
-            "status": r["status"],
-            "home_region": r["home_region"],
-            "primary_state": r["primary_state"],
-            "created_at": r["created_at"].isoformat() if r["created_at"] else None,
-            "cin": r["cin"],
-            "gstin": r["gstin"],
-            "storage_quota_gb": r["storage_quota_gb"],
-        }
-        for r in rows
-    ]}
-
-
-class ActivateTenantIn(BaseModel):
-    home_region_override: Optional[str] = None
-    override_reason: Optional[str] = None
-
-
-@router.post("/tenants/{tenant_id}/activate")
-async def activate_tenant(
-    tenant_id: str,
-    body: ActivateTenantIn,
-    request: Request,
-    db: DbConn,
-    current=PA,
-):
-    row = await db.fetchrow(
-        "SELECT tenant_id, status FROM tenant WHERE tenant_id=$1", tenant_id
-    )
-    if not row:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=PranaError.TENANT_NOT_FOUND)
-    if row["status"] not in ("PENDING", "PENDING_VERIFICATION"):
-        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=PranaError.ALREADY_ACTIVATED)
-
-    if body.home_region_override and not body.override_reason:
-        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=PranaError.OVERRIDE_REASON_REQUIRED)
-
-    # Parameterized — never interpolate body values into SQL (DB-01 / SQL injection).
-    if body.home_region_override:
-        await db.execute(
-            "UPDATE tenant SET status='ACTIVE', home_region=$2 WHERE tenant_id=$1",
-            tenant_id, body.home_region_override,
-        )
-    else:
-        await db.execute(
-            "UPDATE tenant SET status='ACTIVE' WHERE tenant_id=$1", tenant_id
-        )
-    kafka = getattr(request.app.state, "kafka_producer", None)
-    if kafka:
-        await kafka.tenant_event({
-            "event_type": "TENANT_ACTIVATED",
-            "event_id": str(uuid.uuid4()),
-            "occurred_at": datetime.datetime.now(datetime.timezone.utc).isoformat(),
-            "tenant_id": tenant_id,
-            "actor_id": str(current.user_id),
-            "actor_type": "PORTAL_ADMIN",
-            "override_region": body.home_region_override,
-            "reason": body.override_reason,
-        })
-    return {"message": SuccessCode.TENANT_ACTIVATED, "tenant_id": tenant_id}
-
+# NOTE: list_tenants (GET /tenants), activate_tenant (POST /tenants/{id}/activate),
+# and suspend_tenant (POST /tenants/{id}/suspend) are intentionally NOT defined
+# here — they live in routers/tenants.py, which has the correct account_status_event
+# + Kafka audit trail. Duplicate dead-code routes here were previously shadowed by
+# tenants.py's registration and never actually served traffic; they're removed
+# rather than re-added to avoid silently regressing to the un-audited behavior.
 
 @router.post("/tenants/{tenant_id}/reject")
 async def reject_tenant(tenant_id: str, db: DbConn, current=PA):
     await db.execute(
-        "UPDATE tenant SET status='REJECTED' WHERE tenant_id=$1 AND status IN ('PENDING','PENDING_VERIFICATION')",
+        "UPDATE tenant SET status='REJECTED' WHERE tenant_id=$1 "
+        "AND status IN ('PENDING','PENDING_VERIFICATION','VERIFICATION_FAILED')",
         tenant_id,
     )
     return {"message": SuccessCode.TENANT_REJECTED}
 
 
-@router.post("/tenants/{tenant_id}/suspend")
-async def suspend_tenant(tenant_id: str, db: DbConn, current=PA):
-    await db.execute("UPDATE tenant SET status='SUSPENDED' WHERE tenant_id=$1", tenant_id)
-    return {"message": SuccessCode.TENANT_SUSPENDED}
+@router.post("/tenants/{tenant_id}/retry-verification")
+async def retry_verification(tenant_id: str, request: Request, db: DbConn, current=PA):
+    """Re-run domain verification for a tenant stuck in VERIFICATION_FAILED —
+    republishes DOMAIN_VERIFICATION_REQUESTED with a fresh workflow_id
+    (WorkflowConsumer starts a new DomainVerificationWorkflow; the original
+    run's ID stays reserved as a completed/failed history entry in Temporal).
+    """
+    row = await db.fetchrow("SELECT status, domain FROM tenant WHERE tenant_id=$1", tenant_id)
+    if not row or row["status"] != "VERIFICATION_FAILED":
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=PranaError.NOT_VERIFICATION_FAILED)
+
+    await db.execute("UPDATE tenant SET status='PENDING' WHERE tenant_id=$1", tenant_id)
+
+    kafka = getattr(request.app.state, "kafka_producer", None)
+    if kafka:
+        retry_id = str(uuid.uuid4())[:8]
+        await kafka.domain_verification_requested({
+            "event_type": "DOMAIN_VERIFICATION_REQUESTED",
+            "event_id": str(uuid.uuid4()),
+            "occurred_at": datetime.datetime.now(datetime.timezone.utc).isoformat(),
+            "tenant_id": tenant_id,
+            "domain": row["domain"],
+            "workflow_id": f"domain-verify-{tenant_id}-retry-{retry_id}",
+        })
+    return success_response(SuccessCode.VERIFICATION_RETRIED)
 
 
 # ── OA Emergency Override ─────────────────────────────────────────────────────
@@ -943,7 +970,7 @@ async def revoke_api_key(key_id: str, db: DbConn, current=PA):
 
 
 @router.get("/rate-limits")
-async def rate_limits(db: DbConn, current=PA):
+async def rate_limits(request: Request, db: DbConn, current=PA):
     # Default rate limit from platform_config
     default_rpm_row = await db.fetchrow(
         "SELECT config_value FROM platform_config WHERE config_key='api_key_default_rate_limit_rpm'"
@@ -989,9 +1016,18 @@ async def rate_limits(db: DbConn, current=PA):
 
     total = len(key_rows)
     avg_rpm = round(sum(r["rate_limit_rpm"] for r in key_rows) / total) if total else default_rpm
+
+    throttled_1h = 0
+    redis = getattr(request.app.state, "redis", None)
+    if redis:
+        try:
+            throttled_1h = int(await redis.get("ratelimit:hits:1h") or 0)
+        except Exception:
+            throttled_1h = 0
+
     return {
         "total_keys":       total,
-        "throttled_1h":     0,   # live from Redis token-bucket scan in production
+        "throttled_1h":     throttled_1h,
         "avg_rpm":          avg_rpm,
         "platform_default_rpm": default_rpm,
         "keys": [

@@ -9,7 +9,11 @@ Micro-batch fix: commit every BATCH_SIZE messages (default 500) or FLUSH_SECS
 seconds (default 5), whichever comes first. Under failure, flush pending offsets
 then skip the failed message so the consumer doesn't stall.
 
-RED: All tests fail until the batch-commit pattern is implemented.
+Also covers _parse_occurred_at(): every kafka.publish() call in this codebase
+sends occurred_at as an ISO string, but asyncpg's binary protocol encodes bound
+parameters per the prepared statement's inferred type — a ::timestamptz
+parameter rejects a plain str regardless of the SQL-side cast. This was
+actively crashing in production logs until fixed.
 """
 import asyncio
 import json
@@ -216,3 +220,61 @@ async def test_write_audit_skips_immudb_when_db_row_not_returned():
     await consumer._write_audit({"event_type": "DOC_INGESTED", "tenant_id": "t-1"})
 
     mock_immudb.verified_set.assert_not_called()
+
+
+# ── occurred_at parsing — asyncpg needs a real datetime, not an ISO str ─────
+
+@pytest.mark.asyncio
+async def test_write_audit_parses_naive_iso_occurred_at():
+    import datetime
+    consumer, mock_conn = _make_consumer_with_fetchrow({"event_id": "evt-1"})
+
+    await consumer._write_audit({
+        "event_type": "DOC_INGESTED", "tenant_id": "tenant-xyz",
+        "occurred_at": "2026-07-18T17:08:13.124071",
+    })
+
+    occurred_arg = mock_conn.fetchrow.call_args.args[-1]
+    assert isinstance(occurred_arg, datetime.datetime)
+    assert occurred_arg.year == 2026 and occurred_arg.month == 7 and occurred_arg.day == 18
+
+
+@pytest.mark.asyncio
+async def test_write_audit_parses_timezone_aware_iso_occurred_at():
+    """The exact format seen crashing in production: an offset-aware ISO string."""
+    import datetime
+    consumer, mock_conn = _make_consumer_with_fetchrow({"event_id": "evt-1"})
+
+    await consumer._write_audit({
+        "event_type": "TENANT_SUSPENDED", "tenant_id": "tenant-xyz",
+        "occurred_at": "2026-07-18T17:08:13.124071+00:00",
+    })
+
+    occurred_arg = mock_conn.fetchrow.call_args.args[-1]
+    assert isinstance(occurred_arg, datetime.datetime)
+    assert occurred_arg.tzinfo is not None
+
+
+@pytest.mark.asyncio
+async def test_write_audit_falls_back_to_none_when_occurred_at_missing():
+    """Missing occurred_at must bind None so SQL's COALESCE(..., NOW()) applies —
+    never crash on absence."""
+    consumer, mock_conn = _make_consumer_with_fetchrow({"event_id": "evt-1"})
+
+    await consumer._write_audit({"event_type": "DOC_INGESTED", "tenant_id": "tenant-xyz"})
+
+    occurred_arg = mock_conn.fetchrow.call_args.args[-1]
+    assert occurred_arg is None
+
+
+@pytest.mark.asyncio
+async def test_write_audit_falls_back_to_none_when_occurred_at_unparseable():
+    """A malformed timestamp must not crash the consumer — degrade to NOW()."""
+    consumer, mock_conn = _make_consumer_with_fetchrow({"event_id": "evt-1"})
+
+    await consumer._write_audit({
+        "event_type": "DOC_INGESTED", "tenant_id": "tenant-xyz", "occurred_at": "not-a-date",
+    })
+
+    occurred_arg = mock_conn.fetchrow.call_args.args[-1]
+    assert occurred_arg is None

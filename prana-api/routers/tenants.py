@@ -12,7 +12,7 @@ import json
 from messages import SuccessCode, success_response
 from datetime import datetime, timezone
 from typing import Optional, List
-from fastapi import APIRouter, HTTPException, Request, status
+from fastapi import APIRouter, HTTPException, Query, Request, status
 from pydantic import BaseModel, EmailStr
 
 from dependencies import PortalAdmin, DbConn
@@ -136,7 +136,7 @@ class UpdateConfigIn(BaseModel):
 async def list_tenants(
     current: PortalAdmin,
     db: DbConn,
-    status_filter: Optional[str] = None,
+    status_filter: Optional[str] = Query(None, alias="status"),
     q: Optional[str] = None,
 ):
     # Only cache the unfiltered full list; filtered results skip cache
@@ -211,10 +211,11 @@ async def create_tenant(body: CreateTenantIn, current: PortalAdmin, request: Req
     if tenant_id:
         kafka = getattr(request.app.state, "kafka_producer", None)
         if kafka:
-            await kafka.tenant_event({
+            await kafka.domain_verification_requested({
                 "event_type": "DOMAIN_VERIFICATION_REQUESTED",
                 "tenant_id": tenant_id,
                 "domain": body.domain,
+                "workflow_id": f"domain-verify-{tenant_id}",
             })
     return result
 
@@ -273,7 +274,7 @@ async def activate_tenant(tenant_id: str, current: PortalAdmin, request: Request
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=PranaError.MISSING_OA_ADMIN_EMAIL)
 
     svc = TenantService(db, request.app.state.kms_service)
-    result = await svc.activate(tenant_id, email)
+    result = await svc.activate(tenant_id, email, current.user_id)
     await invalidate_tenants()
     kafka = getattr(request.app.state, "kafka_producer", None)
     if kafka:
@@ -288,8 +289,39 @@ async def suspend_tenant(tenant_id: str, body: SuspendIn, current: PortalAdmin, 
     await invalidate_tenants()
     kafka = getattr(request.app.state, "kafka_producer", None)
     if kafka:
-        await kafka.tenant_event({"event_type": "TENANT_SUSPENDED", "tenant_id": tenant_id, "reason": body.reason})
+        import uuid, datetime
+        await kafka.tenant_event({
+            "event_type": "TENANT_SUSPENDED",
+            "event_id": str(uuid.uuid4()),
+            "occurred_at": datetime.datetime.now(datetime.timezone.utc).isoformat(),
+            "tenant_id": tenant_id,
+            "reason": body.reason,
+            "actor_type": "PORTAL_ADMIN",
+            "actor_id": current.user_id,
+        })
     return {"message": SuccessCode.TENANT_SUSPENDED}
+
+
+@router.post("/{tenant_id}/reinstate", status_code=status.HTTP_200_OK)
+async def reinstate_tenant(tenant_id: str, current: PortalAdmin, request: Request, db: DbConn):
+    svc = TenantService(db, None)
+    try:
+        await svc.reinstate(tenant_id, current.user_id)
+    except ValueError as e:
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=str(e))
+    await invalidate_tenants()
+    kafka = getattr(request.app.state, "kafka_producer", None)
+    if kafka:
+        import uuid, datetime
+        await kafka.tenant_event({
+            "event_type": "TENANT_REINSTATED",
+            "event_id": str(uuid.uuid4()),
+            "occurred_at": datetime.datetime.now(datetime.timezone.utc).isoformat(),
+            "tenant_id": tenant_id,
+            "actor_type": "PORTAL_ADMIN",
+            "actor_id": current.user_id,
+        })
+    return {"message": SuccessCode.TENANT_REINSTATED}
 
 
 @router.put("/{tenant_id}/config/{key}", status_code=status.HTTP_200_OK)

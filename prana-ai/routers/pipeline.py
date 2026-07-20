@@ -326,7 +326,7 @@ async def refresh_insight(body: RefreshInsightRequest, request: Request):
     async with pool.acquire() as db:
         svc = CareerInsightService(
             db=db,
-            llm_client=request.app.state.llm_client,
+            llm_client=request.app.state.insight_llm_client,
             embedding_client=request.app.state.embedding_client,
             qdrant_client=request.app.state.qdrant_client,
         )

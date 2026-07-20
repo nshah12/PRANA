@@ -509,6 +509,34 @@ async def test_ciso_notification_log_shape(client, mock_db):
     assert data["items"][0]["channel"] == "EMAIL"
 
 
+# ── Account lock management — schema.sql uses user_type/user_id, not ------
+# ── account_type/account_id (which don't exist on account_status_event) ---
+
+@pytest.mark.asyncio
+async def test_list_account_locks_queries_real_columns(client, mock_db):
+    """GET /account-locks must query user_type/user_id (the real
+    account_status_event columns per schema.sql:374-397) — not
+    account_type/account_id, which don't exist and would 500 in production.
+    """
+    _set_auth(client)
+    mock_db.fetch.return_value = [{
+        "event_id": "event-uuid-001", "user_type": "employee", "user_id": "emp-uuid-001",
+        "lock_reason": "POLICY_LOCK", "locked_at": datetime.datetime(2026, 6, 19, tzinfo=datetime.timezone.utc),
+        "scheduled_unlock_at": None, "failed_attempt_count": 5, "last_failed_ip": None,
+        "identifier": "+919000000001",
+    }]
+
+    resp = await client.get("/v1/ciso/account-locks", headers=AUTH_HEADER)
+
+    assert resp.status_code == 200
+    sql = mock_db.fetch.call_args.args[0].lower()
+    assert "ase.account_type" not in sql
+    assert "ase.account_id" not in sql
+    assert "ase.user_type" in sql
+    assert "ase.user_id" in sql
+    assert resp.json()["items"][0]["account_type"] == "employee"
+
+
 # ── Manual account unlock ────────────────────────────────────────────────────
 # Regression: manual_unlock previously read lock_row["account_type"]/["account_id"],
 # but the SELECT only fetches user_type/user_id — a real DB row raises KeyError

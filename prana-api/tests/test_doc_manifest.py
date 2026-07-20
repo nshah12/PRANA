@@ -11,6 +11,45 @@ from uuid import uuid4
 
 from services.manifest_service import ManifestService, ManifestRecord, AUTO_DETECT_MIN_SCORE
 
+AUTH_HEADER = {"Authorization": "Bearer test.mock.token"}
+TENANT_ID = "11111111-1111-1111-1111-111111111111"
+
+
+def _set_oa_admin_auth(client, tenant_id: str = TENANT_ID) -> None:
+    jwt = client.app.state.jwt_service
+    jwt.decode = MagicMock(return_value={
+        "sub": "22222222-2222-2222-2222-222222222222",
+        "user_type": "oa_user",
+        "role": "oa_admin",
+        "tenant_id": tenant_id,
+        "jti": "oa-admin-session-001",
+    })
+    jwt.is_revoked = AsyncMock(return_value=False)
+
+
+def _set_oa_operator_auth(client, tenant_id: str = TENANT_ID) -> None:
+    jwt = client.app.state.jwt_service
+    jwt.decode = MagicMock(return_value={
+        "sub": "33333333-3333-3333-3333-333333333333",
+        "user_type": "oa_user",
+        "role": "oa_operator",
+        "tenant_id": tenant_id,
+        "jti": "oa-operator-session-001",
+    })
+    jwt.is_revoked = AsyncMock(return_value=False)
+
+
+def _set_pa_auth(client) -> None:
+    jwt = client.app.state.jwt_service
+    jwt.decode = MagicMock(return_value={
+        "sub": "44444444-4444-4444-4444-444444444444",
+        "user_type": "portal_admin",
+        "role": "portal_admin",
+        "tenant_id": None,
+        "jti": "pa-session-001",
+    })
+    jwt.is_revoked = AsyncMock(return_value=False)
+
 
 # ── Fixtures ───────────────────────────────────────────────────────────────────
 
@@ -379,25 +418,51 @@ async def test_get_manifest_requires_auth(client):
 
 
 @pytest.mark.asyncio
-async def test_upsert_manifest_requires_oa_admin_role(client):
+async def test_upsert_manifest_requires_oa_admin_role(client, mock_db):
     """OA-Operator cannot modify manifests — only OA-Admin."""
-    headers = {"Authorization": "Bearer operator_token"}
-    with patch("routers.doc_manifest._require_oa_admin") as mock_auth:
-        mock_auth.return_value = (uuid4(), uuid4())
-        # Simulate operator role check
-        response = await client.put(
-            "/v1/manifests/SALARY_SLIP",
-            json={"required_fields": [], "identity_fields": [], "optional_fields": []},
-            headers=headers,
-        )
-    # 401 or 403 — auth not set up in test client
-    assert response.status_code in (401, 403)
+    _set_oa_operator_auth(client)
+
+    response = await client.put(
+        "/v1/manifests/SALARY_SLIP",
+        json={"required_fields": [], "identity_fields": [], "optional_fields": []},
+        headers=AUTH_HEADER,
+    )
+    assert response.status_code == 403
+
+
+@pytest.mark.asyncio
+async def test_upsert_manifest_succeeds_for_oa_admin(client, mock_db):
+    """OA-Admin can create/update a tenant manifest override."""
+    _set_oa_admin_auth(client)
+    mock_db.fetchrow.side_effect = [
+        None,  # no existing override
+        _manifest_row(doc_type="SALARY_SLIP", tenant_id=TENANT_ID),  # INSERT result
+    ]
+
+    response = await client.put(
+        "/v1/manifests/SALARY_SLIP",
+        json={"required_fields": ["employee_name"], "identity_fields": [], "optional_fields": []},
+        headers=AUTH_HEADER,
+    )
+    assert response.status_code == 200
+    assert response.json()["manifest"]["doc_type"] == "SALARY_SLIP"
 
 
 @pytest.mark.asyncio
 async def test_pa_manifests_requires_portal_admin(client):
     response = await client.get("/admin/manifests")
     assert response.status_code in (401, 403)
+
+
+@pytest.mark.asyncio
+async def test_pa_manifests_works_for_portal_admin(client, mock_db):
+    """PA can list platform-default manifests once authenticated."""
+    _set_pa_auth(client)
+    mock_db.fetch.return_value = []
+
+    response = await client.get("/admin/manifests", headers=AUTH_HEADER)
+    assert response.status_code == 200
+    assert response.json() == {"items": [], "total": 0}
 
 
 # ── Router: tenant isolation ───────────────────────────────────────────────────
@@ -430,15 +495,15 @@ async def test_resolve_unclassified_requires_auth(client):
 
 
 @pytest.mark.asyncio
-async def test_resolve_unclassified_validates_doc_type(client):
+async def test_resolve_unclassified_validates_doc_type(client, mock_db):
     """Unknown doc_type must be rejected with 422."""
-    with patch("routers.doc_manifest._require_oa_admin") as mock_auth:
-        mock_auth.return_value = (uuid4(), uuid4())
-        response = await client.post(
-            f"/v1/unclassified/{uuid4()}/resolve",
-            json={"resolved_doc_type": "TOTALLY_MADE_UP"},
-        )
-    assert response.status_code in (401, 403, 422)
+    _set_oa_admin_auth(client)
+    response = await client.post(
+        f"/v1/unclassified/{uuid4()}/resolve",
+        json={"resolved_doc_type": "TOTALLY_MADE_UP"},
+        headers=AUTH_HEADER,
+    )
+    assert response.status_code == 422
 
 
 def test_unclassified_list_query_uses_document_id_pk():

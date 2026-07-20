@@ -30,7 +30,7 @@ from fastapi import APIRouter, Depends, File, Form, HTTPException, Request, Uplo
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 
-from dependencies import DbConn, require_oa
+from dependencies import ApiKeyAuth, DbConn, require_oa
 from kafka.producer import TOPIC_INGEST
 from errors import PranaError
 from services.statutory_hold_service import compute_hold_until
@@ -544,6 +544,43 @@ async def dismiss_exception(
     })
 
     return {"message": SuccessCode.EXCEPTION_DISMISSED}
+
+
+# ── HRMS API-key push (X-PRANA-Key-ID + X-PRANA-Signature) ────────────────────
+# integrations.md "HRMS push endpoint behaviour":
+#   validate signature → validate payload → S3 put → INSERT document
+#   → kafka.doc_ingested() → 202. Idempotent: dedup handled by
+#   _ingest_one()'s file_hash check (reused from the OA-Operator path).
+#
+# The request body IS the raw file (Content-Type: application/pdf), not
+# multipart — ApiKeyAuth verifies HMAC-SHA256 over the raw body, and
+# multipart/Form parsing would consume the same stream before the signature
+# can be checked. Metadata travels as query params instead.
+
+@router.post("/hrms/upload", status_code=status.HTTP_202_ACCEPTED)
+async def hrms_upload(
+    request: Request,
+    db: DbConn,
+    api_key: ApiKeyAuth,
+    doc_type: str,
+    filename: str,
+    doc_period: Optional[str] = None,
+):
+    """Single-file HRMS partner push. Auth + rate limiting handled by ApiKeyAuth."""
+    file_bytes = await request.body()  # cached by ApiKeyAuth's earlier read
+    _validate_file(filename, file_bytes)
+
+    kafka = request.app.state.kafka_producer
+    doc_id, event = await _ingest_one(
+        request=request, db=db,
+        file_bytes=file_bytes, filename=filename,
+        doc_type=doc_type, doc_period=doc_period,
+        tenant_id=api_key.tenant_id, actor_id=None,
+        actor_type="HRMS_API", batch_id=None, comment=None,
+        ip_address=_client_ip(request), user_agent=request.headers.get("user-agent", ""),
+    )
+    await kafka.doc_ingested(event)
+    return {"document_id": doc_id, "pipeline_status": "QUEUED"}
 
 
 # ── Helpers ───────────────────────────────────────────────────────────────────

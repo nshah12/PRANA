@@ -122,6 +122,7 @@ from workflows.activities import (
     get_tenant_onboarding_config as get_tenant_onboarding_config_impl,
     check_dns_txt_record as check_dns_txt_record_impl,
     mark_tenant_verification_failed as mark_tenant_verification_failed_impl,
+    get_tenant_onboarding_tier as get_tenant_onboarding_tier_impl,
     provision_tenant as provision_tenant_impl,
     # ACTIVITY-01 fix (2026-07-17): these 9 + get_config_value were previously
     # imported from workflows.compliance below, which registered that module's
@@ -230,7 +231,8 @@ WORKERS: dict[str, dict] = {
         "activities": [
             activate_elevation_impl, finalize_elevation_impl, expire_elevation_impl,
             get_tenant_onboarding_config_impl, check_dns_txt_record_impl,
-            mark_tenant_verification_failed_impl, provision_tenant_impl,
+            mark_tenant_verification_failed_impl, get_tenant_onboarding_tier_impl,
+            provision_tenant_impl,
             freeze_employee_vault, notify_exit_employee, start_retention_workflow,
             close_push_window, provision_vault, send_vault_welcome,
             reconcile_rejoining_employee, flag_dormant_account, get_lifecycle_config,

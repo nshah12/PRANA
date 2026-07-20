@@ -104,14 +104,123 @@ async def test_domain_verification_publishes_to_kafka_not_direct_workflow(
 
     assert resp.status_code == 201
 
-    # Kafka must have been called with DOMAIN_VERIFICATION_REQUESTED
-    mock_kafka.tenant_event.assert_called_once()
-    payload = mock_kafka.tenant_event.call_args[0][0]
+    # Kafka must have been called with DOMAIN_VERIFICATION_REQUESTED — via the
+    # domain_verification_requested() helper (publishes to TOPIC_INGEST so
+    # WorkflowConsumer actually picks it up; tenant_event() alone would not).
+    mock_kafka.domain_verification_requested.assert_called_once()
+    payload = mock_kafka.domain_verification_requested.call_args[0][0]
     assert payload["event_type"] == "DOMAIN_VERIFICATION_REQUESTED"
     assert "tenant_id" in payload
 
 
+# -- Suspend publishes audit event, never writes audit_event directly ------
+
+@pytest.mark.asyncio
+async def test_suspend_tenant_publishes_audit_event_to_kafka(client, mock_db, mock_kafka):
+    """POST /admin/tenants/{id}/suspend must publish TENANT_SUSPENDED to Kafka.
+    AuditConsumer (not the HTTP handler/service) writes the audit_event row.
+    """
+    _set_pa_auth(client)
+
+    with patch(
+        "routers.tenants.TenantService.suspend",
+        new_callable=AsyncMock,
+        return_value=None,
+    ):
+        resp = await client.post(
+            "/admin/tenants/tenant-xyz/suspend",
+            headers=AUTH_HEADER,
+            json={"reason": "Non-payment"},
+        )
+
+    assert resp.status_code == 200
+
+    mock_kafka.tenant_event.assert_called_once()
+    payload = mock_kafka.tenant_event.call_args[0][0]
+    assert payload["event_type"] == "TENANT_SUSPENDED"
+    assert payload["tenant_id"] == "tenant-xyz"
+
+
+# -- Reinstate publishes audit event, never writes audit_event directly ----
+
+@pytest.mark.asyncio
+async def test_reinstate_tenant_publishes_audit_event_to_kafka(client, mock_db, mock_kafka):
+    """POST /admin/tenants/{id}/reinstate must publish TENANT_REINSTATED to Kafka."""
+    _set_pa_auth(client)
+
+    with patch(
+        "routers.tenants.TenantService.reinstate",
+        new_callable=AsyncMock,
+        return_value=None,
+    ):
+        resp = await client.post(
+            "/admin/tenants/tenant-xyz/reinstate",
+            headers=AUTH_HEADER,
+        )
+
+    assert resp.status_code == 200
+
+    mock_kafka.tenant_event.assert_called_once()
+    payload = mock_kafka.tenant_event.call_args[0][0]
+    assert payload["event_type"] == "TENANT_REINSTATED"
+    assert payload["tenant_id"] == "tenant-xyz"
+
+
+@pytest.mark.asyncio
+async def test_reinstate_requires_portal_admin(client, mock_db):
+    """OA-Admin must not be able to reinstate tenants — PA route only."""
+    _set_oa_auth(client)
+
+    resp = await client.post(
+        "/admin/tenants/tenant-xyz/reinstate",
+        headers=AUTH_HEADER,
+    )
+
+    assert resp.status_code == 403
+
+
+@pytest.mark.asyncio
+async def test_reinstate_rejects_non_suspended_tenant_with_409(client, mock_db, mock_kafka):
+    """reinstate() raising ValueError must translate to a 409, not a 500."""
+    _set_pa_auth(client)
+
+    with patch(
+        "routers.tenants.TenantService.reinstate",
+        new_callable=AsyncMock,
+        side_effect=ValueError("TENANT_NOT_SUSPENDED"),
+    ):
+        resp = await client.post(
+            "/admin/tenants/tenant-xyz/reinstate",
+            headers=AUTH_HEADER,
+        )
+
+    assert resp.status_code == 409
+    assert resp.json()["detail"] == "TENANT_NOT_SUSPENDED"
+
+
 # -- Response shape --------------------------------------------------------
+
+@pytest.mark.asyncio
+async def test_list_tenants_status_query_param_actually_filters(client, mock_db):
+    """GET /admin/tenants?status=PENDING must filter by status.
+
+    The query param must bind to the wire name the frontend actually sends
+    (`status`) — not an internal-only Python parameter name like
+    `status_filter` that FastAPI would silently leave unbound, causing the
+    filter to be dropped entirely (OnboardingQueue.tsx has been requesting
+    ?status=PENDING and silently getting ALL tenants back).
+    """
+    _set_pa_auth(client)
+    with patch(
+        "routers.tenants.TenantService.list_all",
+        new_callable=AsyncMock,
+        return_value=[],
+    ) as mock_list_all:
+        resp = await client.get("/admin/tenants?status=PENDING", headers=AUTH_HEADER)
+
+    assert resp.status_code == 200
+    mock_list_all.assert_called_once_with("PENDING")
+
 
 @pytest.mark.asyncio
 async def test_tenant_list_returns_wrapped_items_not_bare_array(client, mock_db):

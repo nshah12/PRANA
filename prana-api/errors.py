@@ -62,6 +62,7 @@ class PranaError(StrEnum):
     # ── TENANT — provisioning, config, onboarding ─────────────────────────────
     TENANT_NOT_FOUND              = "TENANT_NOT_FOUND"
     ALREADY_ACTIVATED             = "ALREADY_ACTIVATED"
+    NOT_VERIFICATION_FAILED       = "NOT_VERIFICATION_FAILED"
     OVERRIDE_REASON_REQUIRED      = "OVERRIDE_REASON_REQUIRED"
     MISSING_OA_ADMIN_EMAIL        = "MISSING_OA_ADMIN_EMAIL"
     TENANT_KEK_NOT_FOUND          = "TENANT_KEK_NOT_FOUND"

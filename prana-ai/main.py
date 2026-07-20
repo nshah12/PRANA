@@ -12,6 +12,7 @@ Authentication: shared secret in X-Prana-AI-Secret header (internal traffic only
 not exposed outside the VPC — no mTLS needed on the internal load balancer path).
 """
 
+import logging
 import asyncpg
 from contextlib import asynccontextmanager
 
@@ -28,17 +29,50 @@ from pipeline.stage05_resolve import Stage05Resolve
 from pipeline.stage06_route import Stage06Route
 from insights.benchmark_service import BenchmarkService
 
+log = logging.getLogger(__name__)
+
+
+async def _log_llm_usage(app: FastAPI, usage: dict) -> None:
+    """Best-effort write to llm_usage_log for the PA Meta Dashboard's LLM
+    Usage tile. app.state.db_pool is read lazily (not captured at LLMClient
+    construction time) since it's created later in this same lifespan.
+    """
+    pool = getattr(app.state, "db_pool", None)
+    if not pool:
+        return
+    async with pool.acquire() as conn:
+        await conn.execute(
+            """
+            INSERT INTO llm_usage_log
+              (model, prompt_tokens, completion_tokens, total_tokens, occurred_at)
+            VALUES ($1,$2,$3,$4,NOW())
+            """,
+            usage["model"], usage["prompt_tokens"], usage["completion_tokens"], usage["total_tokens"],
+        )
+
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     s = get_settings()
 
-    # Shared LLM clients — one httpx session per worker process
+    # Shared LLM clients — one httpx session per worker process.
+    # Two separate clients: extraction (Qwen, Stage 04) and insight/RAG
+    # (Llama, career_insight_service.py) use different models. They
+    # previously shared one client hardcoded to the extraction model, so
+    # every insight-generation call silently ran against the wrong model.
     app.state.llm_client = LLMClient(
         base_url=s.llm_base_url,
         model=s.extraction_llm_model,
         api_key=s.llm_api_key or None,
         timeout=s.llm_timeout,
+        usage_logger=lambda usage: _log_llm_usage(app, usage),
+    )
+    app.state.insight_llm_client = LLMClient(
+        base_url=s.llm_base_url,
+        model=s.insight_llm_model,
+        api_key=s.llm_api_key or None,
+        timeout=s.llm_timeout,
+        usage_logger=lambda usage: _log_llm_usage(app, usage),
     )
     app.state.embedding_client = EmbeddingClient(
         base_url=s.embedding_base_url,

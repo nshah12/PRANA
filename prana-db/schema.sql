@@ -1023,6 +1023,7 @@ INSERT INTO platform_config (config_key, config_value, value_type, description, 
   ('password_protected_session_ttl',    '10',          'DURATION_MINUTES', 'In-memory session for password-protected doc (wiped on expiry)', '5', '30'),
   ('jwt_ttl_minutes',                   '60',          'DURATION_MINUTES', 'JWT access token TTL', '15', '240'),
   ('refresh_token_ttl_days',            '7',           'DURATION_DAYS',    'JWT refresh token TTL', '1', '30'),
+  ('llm_cost_per_1k_tokens_inr',        '0.85',        'STRING',           'Estimated cost (INR) per 1,000 LLM tokens, for the PA Meta Dashboard LLM Usage tile', NULL, NULL),
   ('audit_integrity_check_interval_minutes', '60',     'DURATION_MINUTES', 'AuditIntegrityVerificationWorkflow schedule cadence', '15', '1440'),
   ('off_hours_start_hour',               '22',          'INTEGER',           'OFF_HOURS_ACCESS: start of after-hours window, IST 24h clock', '0', '23'),
   ('off_hours_end_hour',                 '6',           'INTEGER',           'OFF_HOURS_ACCESS: end of after-hours window, IST 24h clock', '0', '23'),
@@ -1258,7 +1259,26 @@ ALTER TABLE tenant
   ADD COLUMN IF NOT EXISTS sla_tier                   VARCHAR(20) DEFAULT 'STANDARD',
   ADD COLUMN IF NOT EXISTS onboarding_tier            VARCHAR(20) DEFAULT 'ASSISTED',
   ADD COLUMN IF NOT EXISTS contract_type              VARCHAR(20) DEFAULT 'ANNUAL',
-  ADD COLUMN IF NOT EXISTS account_manager            VARCHAR(100);
+  ADD COLUMN IF NOT EXISTS account_manager            VARCHAR(100),
+  -- DomainVerificationWorkflow's check_dns_txt_record activity writes this on
+  -- successful DNS TXT verification (migration 019); needed for the PA
+  -- Onboarding Queue's "awaiting domain verification" elapsed/remaining display.
+  ADD COLUMN IF NOT EXISTS domain_verified_at         TIMESTAMPTZ;
+
+-- ── llm_usage_log — token/cost tracking for the PA Meta Dashboard's LLM Usage
+-- tile (migration 048). prana-ai writes directly via its own asyncpg pool
+-- (same YugabyteDB cluster, no cross-service Python import — see
+-- .claude/rules/deployment.md, which only forbids Python imports, not shared
+-- DB access).
+CREATE TABLE IF NOT EXISTS llm_usage_log (
+  usage_id           UUID         PRIMARY KEY DEFAULT gen_random_uuid(),
+  model              VARCHAR(100) NOT NULL,
+  prompt_tokens      INTEGER      NOT NULL DEFAULT 0,
+  completion_tokens  INTEGER      NOT NULL DEFAULT 0,
+  total_tokens       INTEGER      NOT NULL DEFAULT 0,
+  occurred_at        TIMESTAMPTZ  NOT NULL DEFAULT NOW()
+);
+CREATE INDEX IF NOT EXISTS idx_llm_usage_occurred ON llm_usage_log(occurred_at DESC);
 
 -- ── career_event insight metadata (migration 004) ──────────────────────────
 ALTER TABLE career_event
