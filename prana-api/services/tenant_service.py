@@ -249,7 +249,7 @@ class TenantService:
                    pf_registration, esic_registration,
                    logo_url, brand_colour, support_email,
                    sla_tier, onboarding_tier, contract_type, account_manager,
-                   created_at
+                   domain_verified_at, created_at
             FROM tenant WHERE tenant_id=$1
             """,
             tenant_id,

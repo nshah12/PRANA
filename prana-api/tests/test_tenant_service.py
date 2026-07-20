@@ -333,6 +333,22 @@ async def test_list_all_verification_remaining_hours_none_once_verified():
     assert result[0]["verification_remaining_hours"] is None
 
 
+@pytest.mark.asyncio
+async def test_get_tenant_includes_domain_verified_at():
+    """TenantService.get() must select domain_verified_at — the Tenant Detail
+    page needs it to show verification status alongside lifecycle actions.
+    """
+    db = _make_db()
+    db.fetch = AsyncMock(return_value=[])
+    db.fetchrow = AsyncMock(return_value=None)
+    svc = TenantService(db, None)
+
+    await svc.get("tenant-xyz")
+
+    sql = db.fetchrow.call_args.args[0]
+    assert "domain_verified_at" in sql
+
+
 # -- tenant_id never from request body -------------------------------------
 
 @pytest.mark.asyncio

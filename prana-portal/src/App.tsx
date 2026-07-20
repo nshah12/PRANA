@@ -105,6 +105,7 @@ import { useEmpAuthStore } from '@/store/empAuth'
 import { MetaDashboard }     from '@/pages/pa/MetaDashboard'
 import { OnboardingQueue }   from '@/pages/pa/OnboardingQueue'
 import { TenantDirectory }      from '@/pages/pa/TenantDirectory'
+import { TenantDetail }         from '@/pages/pa/TenantDetail'
 import { CreateTenantWizard }  from '@/pages/pa/CreateTenantWizard'
 import { OaEmergency }       from '@/pages/pa/OaEmergency'
 import { StorageRequests }   from '@/pages/pa/StorageRequests'
@@ -266,6 +267,7 @@ export default function App() {
       <Route path="/admin/onboarding" element={<RequireAuth><PortalLayout><OnboardingQueue /></PortalLayout></RequireAuth>} />
       <Route path="/admin/tenants"     element={<RequireAuth><PortalLayout><TenantDirectory /></PortalLayout></RequireAuth>} />
       <Route path="/admin/tenants/new" element={<RequireAuth><PortalLayout><CreateTenantWizard /></PortalLayout></RequireAuth>} />
+      <Route path="/admin/tenants/:id" element={<RequireAuth><PortalLayout><TenantDetail /></PortalLayout></RequireAuth>} />
       <Route path="/admin/oa-override"element={<RequireAuth><PortalLayout><OaEmergency /></PortalLayout></RequireAuth>} />
       <Route path="/admin/storage"    element={<RequireAuth><PortalLayout><StorageRequests /></PortalLayout></RequireAuth>} />
       <Route path="/admin/pipeline"   element={<RequireAuth><PortalLayout><PipelineHealth /></PortalLayout></RequireAuth>} />
