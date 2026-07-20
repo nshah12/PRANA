@@ -1,12 +1,14 @@
 """
 WorkflowConsumer — prana.ingest.events
 
-Listens for DOC_INGESTED, BATCH_UPLOADED, and DOC_RECLASSIFIED events.
-Starts Temporal workflows so the HTTP handler never has to.
+Listens for DOC_INGESTED, BATCH_UPLOADED, DOC_RECLASSIFIED, and
+DOMAIN_VERIFICATION_REQUESTED events. Starts Temporal workflows so the HTTP
+handler never has to.
 
-DOC_INGESTED     → DocumentPipelineWorkflow + BatchTimeoutMonitorWorkflow (per file)
-BATCH_UPLOADED   → BatchProgressWorkflow (parent tracker, only when batch_id present)
-DOC_RECLASSIFIED → DocumentPipelineWorkflow restart with OA-Admin resolved doc_type
+DOC_INGESTED                  → DocumentPipelineWorkflow + BatchTimeoutMonitorWorkflow (per file)
+BATCH_UPLOADED                → BatchProgressWorkflow (parent tracker, only when batch_id present)
+DOC_RECLASSIFIED              → DocumentPipelineWorkflow restart with OA-Admin resolved doc_type
+DOMAIN_VERIFICATION_REQUESTED → DomainVerificationWorkflow (tenant onboarding)
 """
 import asyncio
 import logging
@@ -16,6 +18,7 @@ from aiokafka import AIOKafkaConsumer
 from config import Settings
 from workflows.document_pipeline import DocumentPipelineWorkflow, TASK_QUEUE
 from workflows.batch_progress import BatchProgressWorkflow, BatchTimeoutMonitorWorkflow, BATCH_TASK_QUEUE
+from workflows.tenant import DomainVerificationWorkflow, TASK_QUEUE as TENANT_TASK_QUEUE
 
 log = logging.getLogger(__name__)
 
@@ -49,6 +52,8 @@ class WorkflowConsumer:
                         await self._handle_batch_uploaded(event)
                     elif etype == "DOC_RECLASSIFIED":
                         await self._handle_doc_reclassified(event)
+                    elif etype == "DOMAIN_VERIFICATION_REQUESTED":
+                        await self._handle_domain_verification_requested(event)
                 except Exception:
                     log.exception("WorkflowConsumer error event_type=%s document_id=%s",
                                   etype, event.get("document_id"))
@@ -136,6 +141,26 @@ class WorkflowConsumer:
                 task_queue=TASK_QUEUE,
             )
             log.info("Restarted pipeline for reclassified doc=%s doc_type=%s", doc_id, doc_type)
+        except Exception as exc:
+            if "already" not in str(exc).lower():
+                raise
+
+    async def _handle_domain_verification_requested(self, event: dict) -> None:
+        tenant_id = event["tenant_id"]
+        domain    = event["domain"]
+        workflow_id = event.get("workflow_id", f"domain-verify-{tenant_id}")
+
+        # Idempotent: a retry re-publishes with a distinct workflow_id suffix
+        # (see routers/tenants.py's retry_domain_verification); the original
+        # workflow_id is reused for the first attempt so duplicate
+        # DOMAIN_VERIFICATION_REQUESTED deliveries don't start two runs.
+        try:
+            await self._temporal.start_workflow(
+                DomainVerificationWorkflow.run,
+                {"tenant_id": tenant_id, "domain": domain},
+                id=workflow_id,
+                task_queue=TENANT_TASK_QUEUE,
+            )
         except Exception as exc:
             if "already" not in str(exc).lower():
                 raise

@@ -91,7 +91,17 @@ class DomainVerificationWorkflow:
             )
             return {"tenant_id": tenant_id, "outcome": "VERIFICATION_FAILED"}
 
-        # Kick off provisioning
+        # Standard tenants auto-provision; BFSI/Large and Enterprise wait for
+        # PA (and PA+Sales) manual review — see onboarding_service.classify_onboarding_tier.
+        tier_result = await workflow.execute_activity(
+            "get_tenant_onboarding_tier",
+            {"tenant_id": tenant_id},
+            start_to_close_timeout=timedelta(seconds=30),
+            retry_policy=_RETRY,
+        )
+        if tier_result["tier"] != "AUTO_APPROVE":
+            return {"tenant_id": tenant_id, "outcome": "AWAITING_PA_REVIEW", "tier": tier_result["tier"]}
+
         await workflow.execute_activity(
             "provision_tenant",
             {"tenant_id": tenant_id},

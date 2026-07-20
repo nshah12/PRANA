@@ -175,6 +175,11 @@ class TenantService:
         }
 
     async def suspend(self, tenant_id: str, reason: str, pa_id: str) -> None:
+        existing = await self._db.fetchrow(
+            "SELECT status FROM tenant WHERE tenant_id=$1", tenant_id,
+        )
+        from_status = existing["status"] if existing else "ACTIVE"
+
         await self._db.execute(
             "UPDATE tenant SET status='SUSPENDED' WHERE tenant_id=$1", tenant_id,
         )
@@ -183,9 +188,50 @@ class TenantService:
             INSERT INTO account_status_event
               (user_type, user_id, tenant_id, event_type, from_status, to_status,
                reason_code, reason_note, actor_type, actor_id, occurred_at)
-            VALUES ('tenant',$1,$1,'TENANT_SUSPENDED','ACTIVE','SUSPENDED','PA_SUSPEND',$2,'PORTAL_ADMIN',$3,NOW())
+            VALUES ('tenant',$1,$1,'TENANT_SUSPENDED',$2,'SUSPENDED','PA_SUSPEND',$3,'PORTAL_ADMIN',$4,NOW())
             """,
-            tenant_id, reason, pa_id,
+            tenant_id, from_status, reason, pa_id,
+        )
+
+    async def reinstate(self, tenant_id: str, pa_id: str) -> None:
+        """Reverse a tenant suspension — mirrors ciso.py's manual_unlock pattern:
+        insert a new TENANT_REINSTATED row, link it back to the original
+        TENANT_SUSPENDED row via reversed_by_event_id, flip status to ACTIVE.
+        """
+        existing = await self._db.fetchrow(
+            "SELECT status FROM tenant WHERE tenant_id=$1", tenant_id,
+        )
+        if not existing or existing["status"] != "SUSPENDED":
+            raise ValueError("TENANT_NOT_SUSPENDED")
+
+        suspend_event = await self._db.fetchrow(
+            """
+            SELECT event_id FROM account_status_event
+            WHERE tenant_id=$1 AND user_type='tenant' AND event_type='TENANT_SUSPENDED'
+              AND reversed_by_event_id IS NULL
+            ORDER BY occurred_at DESC LIMIT 1
+            """,
+            tenant_id,
+        )
+        if not suspend_event:
+            raise ValueError("NO_ACTIVE_SUSPENSION")
+
+        new_event_id = str(uuid.uuid4())
+        await self._db.execute(
+            "UPDATE tenant SET status='ACTIVE' WHERE tenant_id=$1", tenant_id,
+        )
+        await self._db.execute(
+            """
+            INSERT INTO account_status_event
+              (event_id, user_type, user_id, tenant_id, event_type, from_status, to_status,
+               reason_code, actor_type, actor_id, occurred_at)
+            VALUES ($1,'tenant',$2,$2,'TENANT_REINSTATED','SUSPENDED','ACTIVE','PA_REINSTATE','PORTAL_ADMIN',$3,NOW())
+            """,
+            new_event_id, tenant_id, pa_id,
+        )
+        await self._db.execute(
+            "UPDATE account_status_event SET reversed_by_event_id=$1 WHERE event_id=$2",
+            new_event_id, suspend_event["event_id"],
         )
 
     async def get(self, tenant_id: str) -> Optional[dict]:
@@ -271,7 +317,8 @@ class TenantService:
             rows = await self._db.fetch(
                 """
                 SELECT tenant_id, tenant_name, domain, status, home_region, primary_state,
-                       cin, gstin, industry, employee_headcount_band, sla_tier, created_at
+                       cin, gstin, industry, employee_headcount_band, sla_tier,
+                       onboarding_tier, domain_verified_at, created_at
                 FROM tenant WHERE status=$1 ORDER BY created_at DESC
                 """,
                 status_filter,
@@ -280,11 +327,35 @@ class TenantService:
             rows = await self._db.fetch(
                 """
                 SELECT tenant_id, tenant_name, domain, status, home_region, primary_state,
-                       cin, gstin, industry, employee_headcount_band, sla_tier, created_at
+                       cin, gstin, industry, employee_headcount_band, sla_tier,
+                       onboarding_tier, domain_verified_at, created_at
                 FROM tenant ORDER BY created_at DESC
                 """
             )
-        return [dict(r) for r in rows]
+
+        from services.onboarding_service import classify_onboarding_tier
+
+        max_hours_row = await self._db.fetchrow(
+            "SELECT config_value FROM platform_config WHERE config_key='domain_verification_max_hours'"
+        )
+        max_hours = int(max_hours_row["config_value"]) if max_hours_row else 48
+
+        result = []
+        for r in rows:
+            d = dict(r)
+            d["approval_tier"] = classify_onboarding_tier(
+                industry=d.get("industry") or "",
+                employee_headcount_band=d.get("employee_headcount_band") or "",
+            )
+            if d.get("domain_verified_at") or d.get("status") not in ("PENDING", "PENDING_VERIFICATION"):
+                d["verification_elapsed_hours"] = None
+                d["verification_remaining_hours"] = None
+            else:
+                elapsed = (datetime.now(timezone.utc) - d["created_at"]).total_seconds() / 3600
+                d["verification_elapsed_hours"] = round(elapsed, 1)
+                d["verification_remaining_hours"] = round(max(0.0, max_hours - elapsed), 1)
+            result.append(d)
+        return result
 
     async def update_config(
         self,

@@ -11,7 +11,7 @@ PATCH /admin/tenants/{id}     — update tenant profile fields
 import json
 from datetime import datetime, timezone
 from typing import Optional, List
-from fastapi import APIRouter, HTTPException, Request, status
+from fastapi import APIRouter, HTTPException, Query, Request, status
 from pydantic import BaseModel, EmailStr
 
 from dependencies import PortalAdmin, DbConn
@@ -134,7 +134,7 @@ class UpdateConfigIn(BaseModel):
 async def list_tenants(
     current: PortalAdmin,
     db: DbConn,
-    status_filter: Optional[str] = None,
+    status_filter: Optional[str] = Query(None, alias="status"),
     q: Optional[str] = None,
 ):
     # Only cache the unfiltered full list; filtered results skip cache
@@ -299,6 +299,28 @@ async def suspend_tenant(tenant_id: str, body: SuspendIn, current: PortalAdmin, 
             "actor_id": current.user_id,
         }, key=tenant_id)
     return {"message": "Tenant suspended"}
+
+
+@router.post("/{tenant_id}/reinstate", status_code=status.HTTP_200_OK)
+async def reinstate_tenant(tenant_id: str, current: PortalAdmin, request: Request, db: DbConn):
+    svc = TenantService(db, None)
+    try:
+        await svc.reinstate(tenant_id, current.user_id)
+    except ValueError as e:
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=str(e))
+    await invalidate_tenants()
+    kafka = getattr(request.app.state, "kafka_producer", None)
+    if kafka:
+        import uuid, datetime
+        await kafka.publish("prana.audit.events", {
+            "event_type": "TENANT_REINSTATED",
+            "event_id": str(uuid.uuid4()),
+            "occurred_at": datetime.datetime.utcnow().isoformat(),
+            "tenant_id": tenant_id,
+            "actor_type": "PORTAL_ADMIN",
+            "actor_id": current.user_id,
+        }, key=tenant_id)
+    return {"message": "Tenant reinstated"}
 
 
 @router.put("/{tenant_id}/config/{key}", status_code=status.HTTP_200_OK)

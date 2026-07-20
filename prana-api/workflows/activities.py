@@ -749,6 +749,29 @@ async def mark_tenant_verification_failed(params: dict) -> None:
         await db.close()
 
 
+@activity.defn(name="get_tenant_onboarding_tier")
+async def get_tenant_onboarding_tier(params: dict) -> dict:
+    """Classify a verified tenant's approval tier so DomainVerificationWorkflow
+    knows whether to auto-provision or wait for PA (and PA+Sales) manual review.
+    """
+    import asyncpg
+    from services.onboarding_service import classify_onboarding_tier
+    settings = get_settings()
+    db = await asyncpg.connect(settings.db_dsn)
+    try:
+        row = await db.fetchrow(
+            "SELECT industry, employee_headcount_band FROM tenant WHERE tenant_id=$1",
+            params["tenant_id"],
+        )
+        tier = classify_onboarding_tier(
+            industry=(row["industry"] if row else "") or "",
+            employee_headcount_band=(row["employee_headcount_band"] if row else "") or "",
+        )
+        return {"tier": tier}
+    finally:
+        await db.close()
+
+
 @activity.defn(name="provision_tenant")
 async def provision_tenant(params: dict) -> dict:
     """
