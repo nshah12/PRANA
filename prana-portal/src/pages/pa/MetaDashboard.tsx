@@ -1,6 +1,6 @@
 import { useQuery } from '@tanstack/react-query'
 import { api } from '@/lib/api'
-import { Building2, Users, HardDrive, AlertTriangle, ShieldAlert, FileWarning, ShieldOff, Gauge } from 'lucide-react'
+import { Building2, Users, HardDrive, AlertTriangle, ShieldAlert, FileWarning, ShieldOff, Gauge, Cpu } from 'lucide-react'
 
 export function MetaDashboard() {
   const { data, isLoading, isError, refetch } = useQuery({
@@ -55,7 +55,7 @@ export function MetaDashboard() {
         ))}
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+      <div className="grid grid-cols-1 lg:grid-cols-4 gap-4">
         <div className="bg-white rounded-xl border border-slate-100 shadow-sm p-5 space-y-3">
           <h2 className="font-medium text-slate-800">Pipeline health</h2>
           {['QUEUED','ENCRYPTING','SCANNING','EXTRACTING','RESOLVING'].map(stage => {
@@ -88,6 +88,21 @@ export function MetaDashboard() {
               <span className={`badge ${row.value ? 'badge-amber' : 'badge-muted'}`}>
                 {row.value ?? '—'}
               </span>
+            </div>
+          ))}
+        </div>
+
+        <div className="bg-white rounded-xl border border-slate-100 shadow-sm p-5 space-y-3">
+          <h2 className="font-medium text-slate-800 flex items-center gap-2"><Cpu size={14}/> LLM usage (today)</h2>
+          {[
+            { label: 'Extraction calls', value: data?.llm_usage_today?.extraction_calls?.toLocaleString() },
+            { label: 'Tokens consumed',  value: data?.llm_usage_today?.tokens_consumed?.toLocaleString() },
+            { label: 'Avg confidence',   value: data?.llm_usage_today?.avg_confidence },
+            { label: 'Est. cost today',  value: data?.llm_usage_today?.estimated_cost_inr != null ? `₹${data.llm_usage_today.estimated_cost_inr.toLocaleString()}` : undefined },
+          ].map(row => (
+            <div key={row.label} className="flex items-center justify-between text-sm">
+              <span className="text-slate-500">{row.label}</span>
+              <span className="font-mono text-slate-700">{row.value ?? '—'}</span>
             </div>
           ))}
         </div>

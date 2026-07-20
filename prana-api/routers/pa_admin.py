@@ -89,6 +89,21 @@ async def meta_dashboard(request: Request, db: DbConn, current=PA):
         """
     )
 
+    extraction_calls_today = await db.fetchval(
+        "SELECT COUNT(*) FROM llm_usage_log WHERE occurred_at >= CURRENT_DATE"
+    )
+    tokens_consumed_today = await db.fetchval(
+        "SELECT COALESCE(SUM(total_tokens), 0) FROM llm_usage_log WHERE occurred_at >= CURRENT_DATE"
+    )
+    avg_confidence = await db.fetchval(
+        "SELECT AVG(resolution_confidence) FROM document WHERE pushed_at >= CURRENT_DATE"
+    )
+    cost_rate_row = await db.fetchval(
+        "SELECT config_value FROM platform_config WHERE config_key='llm_cost_per_1k_tokens_inr'"
+    )
+    cost_rate = float(cost_rate_row) if cost_rate_row else 0.0
+    estimated_cost_inr = round((int(tokens_consumed_today or 0) / 1000) * cost_rate, 2)
+
     # Recent tenant status changes (account_status_event covers TOTP_LOCKOUT + ADMIN_DISABLED events)
     # For tenant-level activity use tenant table directly (created_at ordering)
     recent_tenants = await db.fetch(
@@ -152,6 +167,12 @@ async def meta_dashboard(request: Request, db: DbConn, current=PA):
             }
             for r in top_tenants
         ],
+        "llm_usage_today": {
+            "extraction_calls":  int(extraction_calls_today or 0),
+            "tokens_consumed":   int(tokens_consumed_today or 0),
+            "avg_confidence":    round(float(avg_confidence), 2) if avg_confidence is not None else None,
+            "estimated_cost_inr": estimated_cost_inr,
+        },
         "pipeline_counts":        {r["pipeline_status"]: int(r["cnt"]) for r in stage_counts},
         "recent_tenant_activity": [
             {

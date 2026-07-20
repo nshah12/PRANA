@@ -813,7 +813,8 @@ INSERT INTO platform_config (config_key, config_value, value_type, description, 
   ('oa_totp_lock_threshold',            '5',           'INTEGER',          'OA/Employee failed TOTP count before lock', '3', '10'),
   ('password_protected_session_ttl',    '10',          'DURATION_MINUTES', 'In-memory session for password-protected doc (wiped on expiry)', '5', '30'),
   ('jwt_ttl_minutes',                   '60',          'DURATION_MINUTES', 'JWT access token TTL', '15', '240'),
-  ('refresh_token_ttl_days',            '7',           'DURATION_DAYS',    'JWT refresh token TTL', '1', '30');
+  ('refresh_token_ttl_days',            '7',           'DURATION_DAYS',    'JWT refresh token TTL', '1', '30'),
+  ('llm_cost_per_1k_tokens_inr',        '0.85',        'STRING',           'Estimated cost (INR) per 1,000 LLM tokens, for the PA Meta Dashboard LLM Usage tile', NULL, NULL);
 
 CREATE TABLE tenant_config (
   tenant_id     UUID         NOT NULL REFERENCES tenant(tenant_id),

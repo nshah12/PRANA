@@ -40,6 +40,12 @@ const MOCK = {
   top_tenants: [
     { tenant_id: 't-1', tenant_name: 'NPCI', status: 'ACTIVE', docs_today: 1843, open_exceptions: 0 },
   ],
+  llm_usage_today: {
+    extraction_calls: 5104,
+    tokens_consumed: 12400000,
+    avg_confidence: 0.91,
+    estimated_cost_inr: 10540.0,
+  },
   pipeline_counts: {},
   recent_tenant_activity: [],
 }
@@ -85,6 +91,16 @@ describe('MetaDashboard', () => {
     )
     expect(screen.getByText('34')).toBeInTheDocument()
     expect(screen.getByText(/failed logins/i)).toBeInTheDocument()
+  })
+
+  it('renders the LLM Usage panel with real counts', async () => {
+    mockGet.mockResolvedValue({ data: MOCK })
+    render(<MetaDashboard />, { wrapper })
+    await waitFor(() =>
+      expect(screen.getByText(/llm usage/i)).toBeInTheDocument()
+    )
+    expect(screen.getByText('5,104')).toBeInTheDocument()
+    expect(screen.getByText('₹10,540')).toBeInTheDocument()
   })
 
   it('renders the Top Tenants by Activity table', async () => {

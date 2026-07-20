@@ -260,6 +260,14 @@ def _dashboard_fetchval_side_effect(sql, *args):
         return 0
     if "count(*) from document where is_deleted=false" in s:
         return 0
+    if "count(*) from llm_usage_log" in s:
+        return 5104
+    if "sum(total_tokens)" in s:
+        return 12400000
+    if "avg(resolution_confidence)" in s:
+        return 0.91
+    if "llm_cost_per_1k_tokens_inr" in s:
+        return "0.85"
     return 0
 
 
@@ -328,6 +336,26 @@ async def test_meta_dashboard_top_tenants_by_activity(client, mock_db):
     assert len(top) == 1
     assert top[0]["tenant_name"] == "NPCI"
     assert top[0]["docs_today"] == 1843
+
+
+@pytest.mark.asyncio
+async def test_meta_dashboard_includes_llm_usage_today(client, mock_db):
+    """LLM Usage tile must reflect real llm_usage_log data + document.resolution_confidence,
+    not hardcoded/mock values — see prana-ai/llm_client.py's usage_logger.
+    """
+    _set_pa_auth(client)
+    mock_db.fetchval = AsyncMock(side_effect=_dashboard_fetchval_side_effect)
+    mock_db.fetch = AsyncMock(return_value=[])
+
+    resp = await client.get("/admin/meta-dashboard", headers=AUTH_HEADER)
+
+    assert resp.status_code == 200
+    llm_usage = resp.json()["llm_usage_today"]
+    assert llm_usage["extraction_calls"] == 5104
+    assert llm_usage["tokens_consumed"] == 12400000
+    assert llm_usage["avg_confidence"] == 0.91
+    # 12,400,000 tokens / 1000 * 0.85 INR = 10,540.0
+    assert llm_usage["estimated_cost_inr"] == 10540.0
 
 
 def test_pa_admin_has_no_duplicate_list_tenants_route():
