@@ -222,7 +222,7 @@ async def retry_verification(tenant_id: str, request: Request, db: DbConn, curre
     """
     row = await db.fetchrow("SELECT status, domain FROM tenant WHERE tenant_id=$1", tenant_id)
     if not row or row["status"] != "VERIFICATION_FAILED":
-        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="NOT_VERIFICATION_FAILED")
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=PranaError.NOT_VERIFICATION_FAILED)
 
     await db.execute("UPDATE tenant SET status='PENDING' WHERE tenant_id=$1", tenant_id)
 
@@ -237,7 +237,7 @@ async def retry_verification(tenant_id: str, request: Request, db: DbConn, curre
             "domain": row["domain"],
             "workflow_id": f"domain-verify-{tenant_id}-retry-{retry_id}",
         })
-    return {"message": "Verification retried"}
+    return success_response(SuccessCode.VERIFICATION_RETRIED)
 
 
 # ── OA Emergency Override ─────────────────────────────────────────────────────
