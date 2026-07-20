@@ -11,6 +11,7 @@ Subscribes to prana.audit.events which receives copies of:
 
 The event payload IS the audit metadata — no re-querying needed.
 """
+import datetime
 import json
 import logging
 
@@ -22,6 +23,27 @@ from config import Settings
 log = logging.getLogger(__name__)
 
 GROUP_ID = "prana-audit-consumer"
+
+
+def _parse_occurred_at(raw) -> "datetime.datetime | None":
+    """Kafka events carry occurred_at as an ISO string (every kafka.publish()
+    call in this codebase does `datetime.utcnow().isoformat()` or similar).
+    asyncpg's binary protocol encodes bound parameters per the prepared
+    statement's inferred type — for $8::timestamptz that means it expects an
+    actual datetime.datetime, and rejects a plain str even though the SQL
+    has an explicit cast (the cast never gets a chance to run; encoding
+    fails client-side first). Malformed/missing values fall back to None so
+    the query's COALESCE(..., NOW()) still applies.
+    """
+    if raw is None:
+        return None
+    if isinstance(raw, datetime.datetime):
+        return raw
+    try:
+        return datetime.datetime.fromisoformat(raw)
+    except (TypeError, ValueError):
+        log.warning("AuditConsumer: unparseable occurred_at %r — falling back to NOW()", raw)
+        return None
 
 
 class AuditConsumer:
@@ -61,7 +83,7 @@ class AuditConsumer:
         actor_id  = event.get("actor_id")
         actor_type = event.get("actor_type", "SYSTEM")
         ip        = event.get("ip_address")
-        occurred  = event.get("occurred_at")
+        occurred  = _parse_occurred_at(event.get("occurred_at"))
 
         # Strip routing keys from metadata — store the full payload as context
         metadata = {k: v for k, v in event.items()

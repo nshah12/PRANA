@@ -54,10 +54,21 @@ async def _log_llm_usage(app: FastAPI, usage: dict) -> None:
 async def lifespan(app: FastAPI):
     s = get_settings()
 
-    # Shared LLM clients — one httpx session per worker process
+    # Shared LLM clients — one httpx session per worker process.
+    # Two separate clients: extraction (Qwen, Stage 04) and insight/RAG
+    # (Llama, career_insight_service.py) use different models. They
+    # previously shared one client hardcoded to the extraction model, so
+    # every insight-generation call silently ran against the wrong model.
     app.state.llm_client = LLMClient(
         base_url=s.llm_base_url,
         model=s.extraction_llm_model,
+        api_key=s.llm_api_key or None,
+        timeout=s.llm_timeout,
+        usage_logger=lambda usage: _log_llm_usage(app, usage),
+    )
+    app.state.insight_llm_client = LLMClient(
+        base_url=s.llm_base_url,
+        model=s.insight_llm_model,
         api_key=s.llm_api_key or None,
         timeout=s.llm_timeout,
         usage_logger=lambda usage: _log_llm_usage(app, usage),

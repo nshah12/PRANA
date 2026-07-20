@@ -439,3 +439,79 @@ async def test_ciso_notification_log_shape(client, mock_db):
     data = resp.json()
     assert "items" in data
     assert data["items"][0]["channel"] == "EMAIL"
+
+
+# ── Account lock management — schema.sql uses user_type/user_id, not ------
+# ── account_type/account_id (which don't exist on account_status_event) ---
+
+@pytest.mark.asyncio
+async def test_list_account_locks_queries_real_columns(client, mock_db):
+    """GET /account-locks must query user_type/user_id (the real
+    account_status_event columns per schema.sql:374-397) — not
+    account_type/account_id, which don't exist and would 500 in production.
+    """
+    _set_auth(client)
+    mock_db.fetch.return_value = [{
+        "event_id": "event-uuid-001", "account_type": "employee", "account_id": "emp-uuid-001",
+        "lock_reason": "POLICY_LOCK", "locked_at": datetime.datetime(2026, 6, 19, tzinfo=datetime.timezone.utc),
+        "scheduled_unlock_at": None, "failed_attempt_count": 5, "last_failed_ip": None,
+        "identifier": "+919000000001",
+    }]
+
+    resp = await client.get("/v1/ciso/account-locks", headers=AUTH_HEADER)
+
+    assert resp.status_code == 200
+    sql = mock_db.fetch.call_args.args[0].lower()
+    assert "ase.account_type" not in sql
+    assert "ase.account_id" not in sql
+    assert "ase.user_type" in sql
+    assert "ase.user_id" in sql
+    assert resp.json()["items"][0]["account_type"] == "employee"
+
+
+@pytest.mark.asyncio
+async def test_manual_unlock_inserts_using_real_columns(client, mock_db):
+    """POST /account-locks/{id}/unlock must INSERT/SELECT user_type/user_id —
+    the current account_type/account_id INSERT would raise UndefinedColumnError.
+    """
+    _set_auth(client)
+    mock_db.fetchrow.return_value = {
+        "event_id": "event-uuid-001", "account_type": "employee", "account_id": "emp-uuid-001",
+        "reversed_by_event_id": None,
+    }
+    mock_db.execute = AsyncMock()
+
+    resp = await client.post(
+        "/v1/ciso/account-locks/event-uuid-001/unlock",
+        headers=AUTH_HEADER,
+    )
+
+    assert resp.status_code == 200
+    select_sql = mock_db.fetchrow.call_args.args[0].lower()
+    # "AS account_type" aliasing is fine (preserves the response shape) —
+    # what matters is the real column being selected is user_type, not a
+    # bare "account_type" column reference (which doesn't exist).
+    assert "user_type as account_type" in select_sql
+    assert "user_id as account_id" in select_sql
+
+    insert_calls = [c for c in mock_db.execute.call_args_list
+                    if "insert into account_status_event" in c.args[0].lower()]
+    assert len(insert_calls) == 1
+    insert_sql = insert_calls[0].args[0].lower()
+    assert "account_type" not in insert_sql
+    assert "account_id" not in insert_sql
+    assert "user_type" in insert_sql
+    assert "user_id" in insert_sql
+
+
+@pytest.mark.asyncio
+async def test_manual_unlock_not_found_returns_404(client, mock_db):
+    _set_auth(client)
+    mock_db.fetchrow.return_value = None
+
+    resp = await client.post(
+        "/v1/ciso/account-locks/does-not-exist/unlock",
+        headers=AUTH_HEADER,
+    )
+
+    assert resp.status_code == 404

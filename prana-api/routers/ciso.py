@@ -464,18 +464,18 @@ async def update_access_flag(access_id: str, body: FlagBody, db: DbConn, current
 async def list_account_locks(db: DbConn, current=CISO):
     rows = await db.fetch(
         """
-        SELECT ase.event_id, ase.account_type, ase.account_id,
+        SELECT ase.event_id, ase.user_type AS account_type, ase.user_id AS account_id,
                ase.event_type AS lock_reason, ase.occurred_at AS locked_at,
                ase.scheduled_unlock_at, ase.failed_attempt_count, ase.last_failed_ip,
-               CASE ase.account_type
+               CASE ase.user_type
                  WHEN 'employee' THEN eu.mobile
                  WHEN 'oa_user'  THEN ou.email
                END AS identifier
         FROM account_status_event ase
-        LEFT JOIN employee_user eu ON eu.employee_user_id = ase.account_id
-                                   AND ase.account_type = 'employee'
-        LEFT JOIN oa_user ou ON ou.oa_user_id = ase.account_id
-                             AND ase.account_type = 'oa_user'
+        LEFT JOIN employee_user eu ON eu.employee_user_id = ase.user_id
+                                   AND ase.user_type = 'employee'
+        LEFT JOIN oa_user ou ON ou.oa_user_id = ase.user_id
+                             AND ase.user_type = 'oa_user'
         WHERE ase.tenant_id = $1
           AND ase.event_type = 'POLICY_LOCK'
           AND ase.reversed_by_event_id IS NULL
@@ -506,7 +506,7 @@ async def list_account_locks(db: DbConn, current=CISO):
 async def manual_unlock(event_id: str, request: Request, db: DbConn, current=CISO):
     lock_row = await db.fetchrow(
         """
-        SELECT event_id, account_type, account_id, reversed_by_event_id
+        SELECT event_id, user_type AS account_type, user_id AS account_id, reversed_by_event_id
         FROM account_status_event
         WHERE event_id=$1 AND tenant_id=$2 AND event_type='POLICY_LOCK'
         """,
@@ -522,7 +522,7 @@ async def manual_unlock(event_id: str, request: Request, db: DbConn, current=CIS
         await db.execute(
             """
             INSERT INTO account_status_event
-              (event_id, event_type, account_type, account_id, tenant_id, actor_type, actor_id, occurred_at)
+              (event_id, event_type, user_type, user_id, tenant_id, actor_type, actor_id, occurred_at)
             VALUES ($1, 'MANUAL_UNLOCK', $2, $3, $4, 'CISO', $5, NOW())
             """,
             new_event_id,
