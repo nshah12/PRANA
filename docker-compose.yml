@@ -220,7 +220,13 @@ services:
       SERVICES: kms
       DEBUG: "0"
     healthcheck:
-      test: ["CMD-SHELL", "curl -sf http://localhost:4566/_localstack/health | grep -q '\"kms\": \"available\"'"]
+      # LocalStack 3.4's per-service state machine reports "available" right after
+      # startup and flips to "running" once a service has actually been invoked —
+      # the old check only matched "available", so it started failing (permanently
+      # "unhealthy", even though KMS itself was answering requests fine) the moment
+      # anything made a real KMS call, which blocked `docker compose up` from ever
+      # recreating dependent containers (e.g. prana-api) via service_healthy.
+      test: ["CMD-SHELL", "curl -sf http://localhost:4566/_localstack/health | grep -Eq '\"kms\": \"(available|running)\"'"]
       interval: 5s
       timeout: 5s
       retries: 20
@@ -335,6 +341,10 @@ services:
       SMS_PROVIDER: dev
       JWT_PUBLIC_KEY_PATH: /keys/jwt_public.pem
       JWT_PRIVATE_KEY_PATH: /keys/jwt_private.pem
+      # Provisioned once via scripts/bootstrap_platform_auth_kek.py against LocalStack KMS.
+      # LocalStack KMS keys are in-memory and don't survive a localstack container
+      # recreate — re-run the bootstrap script and update this value if that happens.
+      PLATFORM_AUTH_KEK_ARN: arn:aws:kms:ap-south-1:000000000000:key/03ad5b3e-53f4-4248-9776-f0cbe170a115
     volumes:
       - ./prana-api:/app
       - ./keys:/keys:ro
