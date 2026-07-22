@@ -452,13 +452,13 @@ for i,(label,col) in enumerate(enc):
 for i,note in enumerate(["Passwords  —  Argon2id  ·  time=2  ·  memory=65,536  ·  parallelism=2","PAN  —  FF3-1 Format-Preserving Encryption per employee DEK","TOTP  —  AES-256-GCM  ·  Never stored in plaintext","Cache  —  pan_token (HMAC-SHA256) only  ·  No plaintext PAN ever cached"]):
     txt(s13, "·  " + note, 0.35, 3.02+i*0.38, 6.2, 0.3, size=9.5, color=SLATE)
 txt(s13, "Built for India's Workforce — All of It", 6.85, 1.75, 6, 0.3, size=11, bold=True, color=SLATE)
-for i,(v,l) in enumerate([("1L+","organisations"),("1 Cr+","employees"),("125 PB","document storage"),("53","durable workflows")]):
+for i,(v,l) in enumerate([("1L+","organisations"),("1 Cr+","employees"),("125 PB","document storage"),("59","durable workflows")]):
     row,col = divmod(i,2)
     x = 6.85 + col*2.85; y = 2.1 + row*1.05
     rect(s13, x, y, 2.65, 0.9, fill=WHITE)
     txt(s13, v, x+0.12, y+0.05, 2.4, 0.45, size=20, bold=True, color=INDIGO)
     txt(s13, l, x+0.12, y+0.52, 2.4, 0.28, size=9, color=GRAY)
-for i,(t,b) in enumerate([("YugabyteDB","Dual-region Mumbai + Hyderabad  ·  256 tablets  ·  99.99% uptime SLA  ·  PostgreSQL-compatible"),("Apache Kafka","5 topics  ·  12 partitions  ·  AWS MSK KRaft mode  ·  MirrorMaker 2 bidirectional cross-region sync"),("Redis CRDT","ElastiCache Global Datastore  ·  Active-active  ·  Sub-10ms cross-region sync  ·  JWT revocation namespace")]):
+for i,(t,b) in enumerate([("YugabyteDB","Dual-region Mumbai + Hyderabad  ·  256 tablets  ·  99.99% uptime SLA  ·  PostgreSQL-compatible"),("Apache Kafka","21 topics  ·  12 partitions  ·  AWS MSK KRaft mode  ·  MirrorMaker 2 bidirectional cross-region sync"),("Redis CRDT","ElastiCache Global Datastore  ·  Active-active  ·  Sub-10ms cross-region sync  ·  JWT revocation namespace")]):
     y = 4.5 + i*0.82
     rect(s13, 0.35, y, 12.6, 0.7, fill=WHITE)
     txt(s13, t, 0.55, y+0.08, 3.5, 0.3, size=10, bold=True, color=INDIGO)

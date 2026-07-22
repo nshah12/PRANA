@@ -307,7 +307,7 @@ guarantees = [
     ("⚡ 202 in <50ms","HTTP handler exits immediately. No synchronous pipeline blocking. HRMS never waits."),
     ("🔑 Envelope Encryption","Employee DEK → Tenant KEK → AWS KMS ap-south-1. Zero plaintext in DB or cache."),
     ("🌐 Dual-Region","YugabyteDB: Mumbai + Hyderabad. Active-active. Sub-10ms sync. 99.99% SLA."),
-    ("🔄 53 Temporal Workflows","Durable, retryable, auditable. Zero cron jobs. Zero Celery. Zero polling."),
+    ("🔄 59 Temporal Workflows","Durable, retryable, auditable. Zero cron jobs. Zero Celery. Zero polling."),
 ]
 for i,(t,b) in enumerate(guarantees):
     x = 0.35 + i*3.25
@@ -856,7 +856,7 @@ for i,(label,detail) in enumerate(enc_details):
 R(s14, 6.75, BY, 6.35, 2.65, fill=DK)
 R(s14, 6.75, BY, 6.35, 0.025, fill=LA)
 T(s14, "BUILT FOR INDIA'S ENTIRE WORKFORCE", 6.9, BY+0.1, 5.9, 0.24, sz=9, bold=True, color=LA)
-scale_m = [("1 Lakh+","Organisations"),("1 Crore+","Employees"),("125 PB","Document storage"),("53","Temporal workflows"),("5","Kafka topics (12 partitions each)"),("7","Year audit retention")]
+scale_m = [("1 Lakh+","Organisations"),("1 Crore+","Employees"),("125 PB","Document storage"),("59","Temporal workflows"),("21","Kafka topics (12 partitions each)"),("7","Year audit retention")]
 for i,(v,l) in enumerate(scale_m):
     row,col = divmod(i,3)
     x = 6.9+col*2.1; y = BY+0.5+row*1.0
@@ -869,9 +869,9 @@ R(s14, 0.22, BY+2.82, 12.88, 0.025, fill=IL)
 T(s14, "INFRASTRUCTURE STACK", 0.38, BY+2.92, 5, 0.22, sz=8, bold=True, color=G5)
 infra = [
     ("YugabyteDB","Dual-region: Mumbai + Hyderabad  ·  256 tablets  ·  CRDT active-active\n99.99% uptime SLA  ·  PostgreSQL-compatible  ·  RLS enforced","Database"),
-    ("Apache Kafka","AWS MSK  ·  KRaft mode  ·  5 topics, 12 partitions each\nMirrorMaker 2 bidirectional cross-region sync  ·  5 typed consumers","Event Stream"),
+    ("Apache Kafka","AWS MSK  ·  KRaft mode  ·  21 topics, 12 partitions each\nMirrorMaker 2 bidirectional cross-region sync  ·  20 consumers","Event Stream"),
     ("Redis CRDT","ElastiCache Global Datastore  ·  Active-active both regions\nSub-10ms cross-region sync  ·  4 namespaces: identity, share, vault, JWT","Cache"),
-    ("Temporal","Python SDK v1.x  ·  53 named workflows  ·  5 task queues\nZero cron, zero Celery  ·  Thin workflow shell + rich service class pattern","Workflow"),
+    ("Temporal","Python SDK v1.x  ·  59 named workflows  ·  11 task queues\nZero cron, zero Celery  ·  Thin workflow shell + rich service class pattern","Workflow"),
     ("AWS KMS","ap-south-1 (primary)  ·  Customer-managed keys\nTenant KEK wraps employee DEK  ·  Platform secret for HMAC pan_token","Key Mgmt"),
     ("AWS S3 / MinIO","Document storage  ·  Server-side encryption  ·  Lifecycle policies\nDual-region replication  ·  125 PB capacity design","Storage"),
 ]

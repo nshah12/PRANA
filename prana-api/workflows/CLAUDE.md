@@ -236,6 +236,6 @@ The core pipeline (owner: IngestService, queue: `ingestsvc-queue`):
 1. **Batch Ingestion** — Write `document` row, generate staging S3 key
 2. **Encryption Boundary** — OCR if needed → extract NIK → `pan_token = HMAC-SHA256(NIK, platform_secret)` → `enc_pan = FF3-1(NIK, emp_DEK)` → zero NIK from memory → redact NIK in text
 3. **Safety Scan** — ClamAV virus + NSFW + CSAM PhotoDNA. CSAM → `CSAMReportingWorkflow` + legal_hold
-4. **LLM Extraction** — Bedrock Claude Sonnet (ap-south-1) with schema-specific prompt → `extracted_fields` JSONB. Confidence < 0.60 → exception
+4. **LLM Extraction** — `Qwen/Qwen2.5-14B-Instruct` (via `prana-ai/llm_client.py`'s OpenAI-compatible `LLMClient`) with schema-specific prompt → `extracted_fields` JSONB. Confidence < 0.60 → exception
 5. **Identity Resolution** — 4-level ladder: pan_token exact → employee_id exact → name+DOJ fuzzy → embedding cosine. Unresolved → wait up to 7 days for `exception_resolved` signal from OA-Admin
 6. **Tag & Route** — Write immutable metadata tag, move S3 staging→permanent, `pipeline_status=ROUTED`, trigger VaultHealthWorkflow, publish DOC_ROUTED to Kafka

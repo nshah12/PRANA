@@ -20,12 +20,15 @@ CREATE TABLE employee_user (
   mobile_token        VARCHAR(64)  UNIQUE,              -- HMAC-SHA256(mobile, platform_secret).
                        -- Deterministic lookup key for login-by-mobile — same role as
                        -- pan_token. Mobile itself is never stored in plaintext (2026-07-18).
-  enc_mobile          VARCHAR(100),                     -- AES-256-GCM(mobile, emp_DEK). Reversible —
-                       -- decrypted only for display (own profile, consented CHRO alumni
-                       -- export) or to actually place an SMS/WhatsApp send.
+  enc_mobile          VARCHAR(100),                     -- KMSService.encrypt_value(mobile), ONE
+                       -- platform-wide auth CMK (not a per-tenant KEK — mobile is a
+                       -- tenant-agnostic login credential; see .claude/rules/security.md's
+                       -- Encryption stack section). Decrypted only for display (own profile,
+                       -- consented CHRO alumni export) or to actually place an SMS/WhatsApp send.
   email               VARCHAR(254) UNIQUE,              -- Optional secondary login handle.
   password_hash       TEXT,                             -- Argon2id (time=2, mem=65536, p=2)
-  totp_secret_enc     TEXT,                             -- AES-256-GCM encrypted base32 seed
+  totp_secret_enc     TEXT,                             -- KMSService.encrypt_value(base32 seed),
+                       -- same platform auth CMK as enc_mobile above
   totp_configured_at  TIMESTAMPTZ,                      -- NULL = vault inaccessible until TOTP set
   preferred_language  VARCHAR(5)   DEFAULT 'en',
   consent_status      VARCHAR(20)  NOT NULL DEFAULT 'PENDING',

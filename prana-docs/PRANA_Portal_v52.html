@@ -26450,7 +26450,7 @@
                               </strong>
                             </td>
                             <td>
-                              CShareAutoExpiryWorkflow · ShareOTPWorkflow · DPDPErasureWorkflow · DPDPExportWorkflow · DPDPCorrectionWorkflow · DPDPGrievanceWorkflow · RetentionWorkflow · NomineeAccessWorkflow · DocumentRequestWorkflow · ConsentWithdrawalWorkflow · VaultHealthWorkflow
+                              DocumentShareWorkflow · ShareExpiryWorkflow · ShareRevocationWorkflow · ErasureConfirmationWorkflow · DataExportWorkflow · DPDPCorrectionWorkflow · DPDPGrievanceWorkflow · RetentionWorkflow · NomineeAccessWorkflow · DocumentRequestWorkflow · VaultHealthWorkflow
                             </td>
                             <td>
                               Per-token timers. DPDP SLA enforcement. 7-year retention clocks. Signal propagation.
@@ -29149,7 +29149,11 @@
                                                                                                               <td>
                                                                                                                 VaultService generates UUID token, computes token_hash (SHA-256), writes share_token row, sends URL to recipient via email/WhatsApp. Starts
                                                                                                                 <strong>
-                                                                                                                  CShareAutoExpiryWorkflow
+                                                                                                                  DocumentShareWorkflow
+                                                                                                                </strong>
+                                                                                                                , which schedules
+                                                                                                                <strong>
+                                                                                                                  ShareExpiryWorkflow
                                                                                                                 </strong>
                                                                                                                 with timer = expires_at. Audit: SHARE_CREATED.
                                                                                                               </td>
@@ -29161,7 +29165,7 @@
                                                                                                               <td>
                                                                                                                 Extract token from URL → SHA-256 → lookup by token_hash. Validate: ACTIVE, not expired, under usage limit. OTP challenge via
                                                                                                                 <strong>
-                                                                                                                  ShareOTPWorkflow
+                                                                                                                  DocumentShareWorkflow
                                                                                                                 </strong>
                                                                                                                 if otp_required=TRUE. Serve watermarked doc. Increment usage_count. Audit: SHARE_ACCESSED. Notify employee.
                                                                                                               </td>
@@ -29172,7 +29176,7 @@
                                                                                                               </td>
                                                                                                               <td>
                                                                                                                 <strong>
-                                                                                                                  CShareAutoExpiryWorkflow
+                                                                                                                  ShareExpiryWorkflow
                                                                                                                 </strong>
                                                                                                                 durable timer fires at expires_at. SET status=EXPIRED, DEL Redis cache, write SHARE_EXPIRED audit event. No cron — per-token Temporal timer. Exact timing guaranteed regardless of server restarts.
                                                                                                               </td>
@@ -29182,7 +29186,7 @@
                                                                                                                 Revocation
                                                                                                               </td>
                                                                                                               <td>
-                                                                                                                Employee revokes → signals CShareAutoExpiryWorkflow for immediate expiry. SET status=REVOKED, revoked_at=NOW(). Redis DEL immediately. Audit: SHARE_REVOKED. Same code path as auto-expiry — different trigger.
+                                                                                                                Employee revokes → signals ShareRevocationWorkflow for immediate expiry. SET status=REVOKED, revoked_at=NOW(). Redis DEL immediately. Audit: SHARE_REVOKED. Same code path as auto-expiry — different trigger.
                                                                                                               </td>
                                                                                                             </tr>
                                                                                                           </tbody>
@@ -29271,7 +29275,7 @@
                                                                                                         15.5 Temporal Workflow Catalogue
                                                                                                       </div>
                                                                                                       <p class="spec-p">
-                                                                                                        53 named Temporal workflows replace all cron jobs, Celery tasks, and scheduled polling in PRANA.
+                                                                                                        59 named Temporal workflows replace all cron jobs, Celery tasks, and scheduled polling in PRANA.
                                                                                                         <strong>
                                                                                                           Zero cron anywhere in the system.
                                                                                                         </strong>
@@ -29786,7 +29790,7 @@
                                                                                                             </tr>
                                                                                                             <tr>
                                                                                                               <td class="mono">
-                                                                                                                DPDPErasureWorkflow
+                                                                                                                ErasureConfirmationWorkflow
                                                                                                               </td>
                                                                                                               <td>
                                                                                                                 VaultService
@@ -29808,7 +29812,7 @@
                                                                                                             </tr>
                                                                                                             <tr>
                                                                                                               <td class="mono">
-                                                                                                                DPDPExportWorkflow
+                                                                                                                DataExportWorkflow
                                                                                                               </td>
                                                                                                               <td>
                                                                                                                 VaultService
@@ -30087,28 +30091,6 @@
                                                                                                               </td>
                                                                                                               <td>
                                                                                                                 None — parallel fan-out
-                                                                                                              </td>
-                                                                                                              <td>
-                                                                                                                —
-                                                                                                              </td>
-                                                                                                              <td>
-                                                                                                                <span class="badge-spec gap">
-                                                                                                                  Gap
-                                                                                                                </span>
-                                                                                                              </td>
-                                                                                                            </tr>
-                                                                                                            <tr>
-                                                                                                              <td class="mono">
-                                                                                                                ConsentWithdrawalWorkflow
-                                                                                                              </td>
-                                                                                                              <td>
-                                                                                                                VaultService
-                                                                                                              </td>
-                                                                                                              <td>
-                                                                                                                Employee PATCH /vault/dpdp/consent (opt out)
-                                                                                                              </td>
-                                                                                                              <td>
-                                                                                                                None — signal propagation
                                                                                                               </td>
                                                                                                               <td>
                                                                                                                 —
@@ -30466,7 +30448,7 @@
                                                                                                             </tr>
                                                                                                             <tr>
                                                                                                               <td class="mono">
-                                                                                                                CShareAutoExpiryWorkflow
+                                                                                                                ShareExpiryWorkflow
                                                                                                               </td>
                                                                                                               <td>
                                                                                                                 VaultService
@@ -30488,7 +30470,7 @@
                                                                                                             </tr>
                                                                                                             <tr>
                                                                                                               <td class="mono">
-                                                                                                                ShareOTPWorkflow
+                                                                                                                DocumentShareWorkflow
                                                                                                               </td>
                                                                                                               <td>
                                                                                                                 VaultService
@@ -32378,7 +32360,7 @@
                                                                                                     <strong>
                                                                                                       Replaces all cron jobs and scheduled polling entirely — zero cron anywhere in the system.
                                                                                                     </strong>
-                                                                                                    Active-active worker pools across both regions. YugabyteDB as persistence backend (same cluster). 53 named workflows across 9 service owners. Schedules and timer durations configurable at runtime via platform_config / tenant_config — zero redeployment. See S15 for full Workflow Catalogue.
+                                                                                                    Active-active worker pools across both regions. YugabyteDB as persistence backend (same cluster). 59 named workflows across 9 service owners. Schedules and timer durations configurable at runtime via platform_config / tenant_config — zero redeployment. See S15 for full Workflow Catalogue.
                                                                                                   </td>
                                                                                                 </tr>
                                                                                                 <tr>
