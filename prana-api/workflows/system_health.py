@@ -49,31 +49,32 @@ async def ensure_health_schedule(client, interval_minutes: int = 2) -> None:
     Called at prana-api startup to register the Temporal Schedule (idempotent).
     interval_minutes read from platform_config at startup.
     """
-    from temporalio.client import ScheduleHandle
+    import dataclasses
+
+    from temporalio.client import (
+        ScheduleHandle, Schedule, ScheduleSpec, ScheduleIntervalSpec,
+        ScheduleActionStartWorkflow, ScheduleUpdate,
+    )
     from temporalio.service import RPCError
-    from temporalio.common import Schedule, ScheduleSpec, ScheduleIntervalSpec, ScheduleAction
-    from temporalio.common import ScheduleActionStartWorkflow
 
     schedule_id = "system-health-check"
+    new_spec = ScheduleSpec(intervals=[ScheduleIntervalSpec(every=timedelta(minutes=interval_minutes))])
     try:
         handle: ScheduleHandle = client.get_schedule_handle(schedule_id)
         await handle.describe()
         # Already exists — update interval in case config changed
-        await handle.update(
-            lambda s: s.with_spec(
-                ScheduleSpec(intervals=[ScheduleIntervalSpec(every=timedelta(minutes=interval_minutes))])
-            )
-        )
+        async def _updater(inp):
+            return ScheduleUpdate(schedule=dataclasses.replace(inp.description.schedule, spec=new_spec))
+        await handle.update(_updater)
     except RPCError:
         await client.create_schedule(
             schedule_id,
             Schedule(
                 action=ScheduleActionStartWorkflow(
                     SystemHealthWorkflow.run,
+                    id=f"{schedule_id}-run",
                     task_queue="secops-queue",
                 ),
-                spec=ScheduleSpec(
-                    intervals=[ScheduleIntervalSpec(every=timedelta(minutes=interval_minutes))]
-                ),
+                spec=new_spec,
             ),
         )

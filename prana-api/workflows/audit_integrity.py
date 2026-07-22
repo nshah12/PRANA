@@ -61,32 +61,32 @@ class AuditIntegrityVerificationWorkflow:
 
 async def ensure_audit_integrity_schedule(client, interval_minutes: int = 60) -> None:
     """Called at prana-api startup to register the Temporal Schedule (idempotent)."""
-    from temporalio.client import ScheduleHandle
-    from temporalio.service import RPCError
-    from temporalio.common import (
-        Schedule, ScheduleSpec, ScheduleIntervalSpec, ScheduleActionStartWorkflow,
+    import dataclasses
+
+    from temporalio.client import (
+        ScheduleHandle, Schedule, ScheduleSpec, ScheduleIntervalSpec,
+        ScheduleActionStartWorkflow, ScheduleUpdate,
     )
+    from temporalio.service import RPCError
 
     schedule_id = "audit-integrity-verification"
+    new_spec = ScheduleSpec(intervals=[ScheduleIntervalSpec(every=timedelta(minutes=interval_minutes))])
     try:
         handle: ScheduleHandle = client.get_schedule_handle(schedule_id)
         await handle.describe()
         # Already exists — update interval in case config changed
-        await handle.update(
-            lambda s: s.with_spec(
-                ScheduleSpec(intervals=[ScheduleIntervalSpec(every=timedelta(minutes=interval_minutes))])
-            )
-        )
+        async def _updater(inp):
+            return ScheduleUpdate(schedule=dataclasses.replace(inp.description.schedule, spec=new_spec))
+        await handle.update(_updater)
     except RPCError:
         await client.create_schedule(
             schedule_id,
             Schedule(
                 action=ScheduleActionStartWorkflow(
                     AuditIntegrityVerificationWorkflow.run,
+                    id=f"{schedule_id}-run",
                     task_queue="secops-queue",
                 ),
-                spec=ScheduleSpec(
-                    intervals=[ScheduleIntervalSpec(every=timedelta(minutes=interval_minutes))]
-                ),
+                spec=new_spec,
             ),
         )
