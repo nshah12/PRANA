@@ -4,7 +4,7 @@ and _handle_anomaly's severity resolution.
 Scoped to touched handlers only; NotifConsumer's pre-existing handlers predate
 TDD enforcement and kafka/ is exempt from TDD-01 (see .claude/rules/tdd.md).
 """
-from unittest.mock import AsyncMock, patch
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
@@ -66,6 +66,104 @@ async def test_audit_integrity_mismatch_no_pa_admins_does_not_crash():
     await consumer._handle_audit_integrity_mismatch({"event_type": "AUDIT_INTEGRITY_MISMATCH"}, svc, conn)
 
     svc.notify.assert_not_awaited()
+
+
+# ── STORAGE_EXPANSION_REQUESTED / ONBOARDING_REVIEW_SLA_BREACH ────────────────
+# Regression coverage: these platform_event()s used to only reach PlatformConsumer
+# (ops-alert path, no handler for either type — silently logged and nothing else).
+# No PA was ever actually notified despite workflows/platform_ops.py's docstrings
+# claiming a human-in-the-loop signal / auto-escalation to senior PA team.
+
+@pytest.mark.asyncio
+async def test_storage_expansion_requested_dispatches_to_handler():
+    consumer = NotifConsumer.__new__(NotifConsumer)
+    svc = AsyncMock()
+    isvc = AsyncMock()
+    conn = AsyncMock()
+    conn.fetch = AsyncMock(return_value=[])
+
+    event = {"event_type": "STORAGE_EXPANSION_REQUESTED", "tenant_id": "t-1", "request_id": "req-1"}
+    await consumer._dispatch(event, "STORAGE_EXPANSION_REQUESTED", svc, isvc, conn)
+
+    conn.fetch.assert_awaited_once()
+    assert "portal_admin" in conn.fetch.call_args.args[0]
+    assert "ACTIVE" in conn.fetch.call_args.args[0]
+
+
+@pytest.mark.asyncio
+async def test_storage_expansion_requested_notifies_every_active_pa_admin():
+    consumer = NotifConsumer.__new__(NotifConsumer)
+    svc = AsyncMock()
+    conn = AsyncMock()
+    conn.fetch = AsyncMock(return_value=[
+        {"pa_id": "pa-1", "email": "pa1@prana.in"},
+        {"pa_id": "pa-2", "email": "pa2@prana.in"},
+    ])
+
+    event = {"event_type": "STORAGE_EXPANSION_REQUESTED", "tenant_id": "t-1", "request_id": "req-1"}
+    await consumer._handle_storage_expansion_requested(event, svc, conn)
+
+    assert svc.notify.await_count == 2
+    first_call = svc.notify.call_args_list[0].kwargs
+    assert first_call["tenant_id"] == "t-1"
+    assert first_call["event_type"] == "STORAGE_EXPANSION_REQUESTED"
+    assert first_call["recipient_id"] == "pa-1"
+    assert first_call["recipient_email"] == "pa1@prana.in"
+    assert first_call["recipient_type"] == RecipientType.OA_USER
+    assert first_call["channel"] == Channel.EMAIL
+    assert first_call["template_id"] == "STORAGE_EXPANSION_REQUESTED"
+    assert first_call["template_data"]["request_id"] == "req-1"
+
+
+@pytest.mark.asyncio
+async def test_storage_expansion_requested_no_pa_admins_does_not_crash():
+    consumer = NotifConsumer.__new__(NotifConsumer)
+    svc = AsyncMock()
+    conn = AsyncMock()
+    conn.fetch = AsyncMock(return_value=[])
+
+    await consumer._handle_storage_expansion_requested(
+        {"event_type": "STORAGE_EXPANSION_REQUESTED", "tenant_id": "t-1"}, svc, conn,
+    )
+
+    svc.notify.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+async def test_onboarding_review_sla_breach_dispatches_to_handler():
+    consumer = NotifConsumer.__new__(NotifConsumer)
+    svc = AsyncMock()
+    isvc = AsyncMock()
+    conn = AsyncMock()
+    conn.fetch = AsyncMock(return_value=[])
+
+    event = {"event_type": "ONBOARDING_REVIEW_SLA_BREACH", "tenant_id": "t-2"}
+    await consumer._dispatch(event, "ONBOARDING_REVIEW_SLA_BREACH", svc, isvc, conn)
+
+    conn.fetch.assert_awaited_once()
+    assert "portal_admin" in conn.fetch.call_args.args[0]
+    assert "ACTIVE" in conn.fetch.call_args.args[0]
+
+
+@pytest.mark.asyncio
+async def test_onboarding_review_sla_breach_notifies_every_active_pa_admin():
+    consumer = NotifConsumer.__new__(NotifConsumer)
+    svc = AsyncMock()
+    conn = AsyncMock()
+    conn.fetch = AsyncMock(return_value=[
+        {"pa_id": "pa-1", "email": "pa1@prana.in"},
+    ])
+
+    event = {"event_type": "ONBOARDING_REVIEW_SLA_BREACH", "tenant_id": "t-2"}
+    await consumer._handle_onboarding_review_sla_breach(event, svc, conn)
+
+    svc.notify.assert_awaited_once()
+    call = svc.notify.call_args.kwargs
+    assert call["tenant_id"] == "t-2"
+    assert call["event_type"] == "ONBOARDING_REVIEW_SLA_BREACH"
+    assert call["recipient_id"] == "pa-1"
+    assert call["channel"] == Channel.EMAIL
+    assert call["template_id"] == "ONBOARDING_REVIEW_SLA_BREACH"
 
 
 # ── _handle_anomaly — shared severity resolution (fixes the P3/P2 disagreement) ──
@@ -149,26 +247,51 @@ async def test_share_accessed_no_employee_email_does_not_crash():
     svc.notify.assert_not_awaited()
 
 
-# ── DOC_ROUTED — mobile column bug ───────────────────────────────────────────
+# ── DOC_ROUTED — employee_user.mobile column drift ──────────────────────────
+# Regression coverage: employee_user has no plaintext 'mobile' column at all —
+# it was replaced with mobile_token (HMAC lookup key) + enc_mobile (KMS
+# ciphertext) when mobile moved to encrypted-at-rest storage. This query still
+# referenced the dead 'mobile' column and would throw UndefinedColumnError on
+# every real DOC_ROUTED event. The old test here mocked fetchrow to return
+# {"mobile": ...} directly — matching the bug, not the schema — which is why it
+# gave false confidence instead of catching this.
 
 @pytest.mark.asyncio
-async def test_doc_routed_queries_mobile_column_not_phone():
-    """employee_user has no 'phone' column (schema.sql: it's 'mobile') — the old
-    query crashed with UndefinedColumnError on every real invocation."""
+async def test_doc_routed_queries_enc_mobile_and_decrypts_via_kms():
     consumer = NotifConsumer.__new__(NotifConsumer)
+    consumer._settings = MagicMock()
+    consumer._kms = MagicMock()
+    consumer._kms.decrypt_value = MagicMock(return_value="+919876543210")
     svc = AsyncMock()
     conn = AsyncMock()
-    conn.fetchrow = AsyncMock(return_value={"email": "emp@example.com", "mobile": "+919876543210"})
+    conn.fetchrow = AsyncMock(return_value={"email": "emp@example.com", "enc_mobile": "kms-ciphertext-blob"})
 
     event = {"employee_user_id": "emp-1", "doc_type": "SALARY_SLIP", "tenant_id": "t-1"}
     await consumer._handle_doc_routed(event, svc, conn)
 
     query = conn.fetchrow.call_args.args[0]
-    assert "mobile" in query
-    assert "phone" not in query
+    assert "enc_mobile" in query
+    assert "SELECT email, mobile " not in query
 
     whatsapp_call = next(c for c in svc.notify.call_args_list if c.kwargs["channel"] == Channel.WHATSAPP)
     assert whatsapp_call.kwargs["recipient_phone"] == "+919876543210"
+
+
+@pytest.mark.asyncio
+async def test_doc_routed_no_enc_mobile_skips_phone_gracefully():
+    consumer = NotifConsumer.__new__(NotifConsumer)
+    consumer._settings = MagicMock()
+    consumer._kms = MagicMock()
+    svc = AsyncMock()
+    conn = AsyncMock()
+    conn.fetchrow = AsyncMock(return_value={"email": "emp@example.com", "enc_mobile": None})
+
+    event = {"employee_user_id": "emp-1", "doc_type": "SALARY_SLIP", "tenant_id": "t-1"}
+    await consumer._handle_doc_routed(event, svc, conn)  # must not raise
+
+    consumer._kms.decrypt_value.assert_not_called()
+    whatsapp_call = next(c for c in svc.notify.call_args_list if c.kwargs["channel"] == Channel.WHATSAPP)
+    assert whatsapp_call.kwargs["recipient_phone"] is None
 
 
 # ── VAULT_WELCOME / VAULT_WELCOME_REJOIN / EMPLOYEE_CREDENTIALS_ISSUED ───────
@@ -189,12 +312,74 @@ async def test_dispatch_routes_vault_welcome_to_handler():
     conn.fetchrow.assert_awaited_once()
 
 
+# ── TENANT_PROVISIONED welcome email ──────────────────────────────────────────
+# Regression coverage: this used to be dead code — kafka.tenant_event() never
+# reached TOPIC_NOTIF, so this correct, already-implemented handler could never
+# actually fire. Fixed by dual-publishing TENANT_PROVISIONED to TOPIC_NOTIF
+# (kafka/producer.py's tenant_event()). OA_USER_CREATED's welcome email is a
+# SEPARATE, already-working path owned entirely by OAUserConsumer's own direct
+# notify_email() call — it must NOT also route through here (would double-send).
+
+@pytest.mark.asyncio
+async def test_tenant_provisioned_dispatches_to_welcome_handler():
+    consumer = NotifConsumer.__new__(NotifConsumer)
+    svc = AsyncMock()
+    isvc = AsyncMock()
+    conn = AsyncMock()
+
+    event = {"event_type": "TENANT_PROVISIONED", "tenant_id": "t-1",
+             "admin_email": "admin@acme.example", "login_url": "https://prana.in/org/login"}
+    await consumer._dispatch(event, "TENANT_PROVISIONED", svc, isvc, conn)
+
+    svc.notify.assert_awaited_once()
+    call = svc.notify.call_args.kwargs
+    assert call["recipient_email"] == "admin@acme.example"
+    assert call["event_type"] == "TENANT_PROVISIONED"
+    assert call["template_id"] == "OA_WELCOME"
+
+
+@pytest.mark.asyncio
+async def test_oa_user_created_no_longer_dispatched_here():
+    """OA_USER_CREATED's welcome email is owned by OAUserConsumer — NotifConsumer
+    must not also act on it (that path was always dead anyway, since
+    oa_user_event() never reaches TOPIC_NOTIF for this event type)."""
+    consumer = NotifConsumer.__new__(NotifConsumer)
+    svc = AsyncMock()
+    isvc = AsyncMock()
+    conn = AsyncMock()
+
+    event = {"event_type": "OA_USER_CREATED", "tenant_id": "t-1", "email": "new@acme.example"}
+    await consumer._dispatch(event, "OA_USER_CREATED", svc, isvc, conn)
+
+    svc.notify.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+async def test_digest_ready_no_longer_dispatched_here():
+    """DIGEST_READY was never published anywhere in the codebase — the real digest
+    path is AnalyticsService.send_digest_email publishing DIGEST_{TYPE} directly
+    to TOPIC_NOTIF_EMAIL. This handler was permanently unreachable dead code."""
+    consumer = NotifConsumer.__new__(NotifConsumer)
+    svc = AsyncMock()
+    isvc = AsyncMock()
+    conn = AsyncMock()
+
+    event = {"event_type": "DIGEST_READY", "tenant_id": "t-1", "role": "chro"}
+    await consumer._dispatch(event, "DIGEST_READY", svc, isvc, conn)
+
+    svc.notify.assert_not_awaited()
+    conn.fetch.assert_not_awaited()
+
+
 @pytest.mark.asyncio
 async def test_employee_welcome_notifies_via_sms_when_mobile_present():
     consumer = NotifConsumer.__new__(NotifConsumer)
+    consumer._settings = MagicMock()
+    consumer._kms = MagicMock()
+    consumer._kms.decrypt_value = MagicMock(return_value="+919876543210")
     svc = AsyncMock()
     conn = AsyncMock()
-    conn.fetchrow = AsyncMock(return_value={"mobile": "+919876543210", "email": None})
+    conn.fetchrow = AsyncMock(return_value={"enc_mobile": "kms-ciphertext-blob", "email": None})
 
     event = {"event_type": "VAULT_WELCOME", "recipient_id": "eu-1", "tenant_id": "t-1"}
     await consumer._handle_employee_welcome(event, "VAULT_WELCOME", svc, conn)
@@ -210,9 +395,11 @@ async def test_employee_welcome_notifies_via_sms_when_mobile_present():
 @pytest.mark.asyncio
 async def test_employee_welcome_notifies_via_email_when_only_email_present():
     consumer = NotifConsumer.__new__(NotifConsumer)
+    consumer._settings = MagicMock()
+    consumer._kms = MagicMock()
     svc = AsyncMock()
     conn = AsyncMock()
-    conn.fetchrow = AsyncMock(return_value={"mobile": None, "email": "emp@example.com"})
+    conn.fetchrow = AsyncMock(return_value={"enc_mobile": None, "email": "emp@example.com"})
 
     event = {"event_type": "EMPLOYEE_CREDENTIALS_ISSUED", "recipient_id": "eu-1", "tenant_id": "t-1"}
     await consumer._handle_employee_welcome(event, "EMPLOYEE_CREDENTIALS_ISSUED", svc, conn)
@@ -226,9 +413,12 @@ async def test_employee_welcome_notifies_via_email_when_only_email_present():
 @pytest.mark.asyncio
 async def test_employee_welcome_dispatches_to_both_channels_when_both_present():
     consumer = NotifConsumer.__new__(NotifConsumer)
+    consumer._settings = MagicMock()
+    consumer._kms = MagicMock()
+    consumer._kms.decrypt_value = MagicMock(return_value="+919876543210")
     svc = AsyncMock()
     conn = AsyncMock()
-    conn.fetchrow = AsyncMock(return_value={"mobile": "+919876543210", "email": "emp@example.com"})
+    conn.fetchrow = AsyncMock(return_value={"enc_mobile": "kms-ciphertext-blob", "email": "emp@example.com"})
 
     event = {"event_type": "VAULT_WELCOME_REJOIN", "recipient_id": "eu-1", "tenant_id": "t-1"}
     await consumer._handle_employee_welcome(event, "VAULT_WELCOME_REJOIN", svc, conn)
@@ -241,9 +431,11 @@ async def test_employee_welcome_dispatches_to_both_channels_when_both_present():
 @pytest.mark.asyncio
 async def test_employee_welcome_no_delivery_channel_does_not_crash():
     consumer = NotifConsumer.__new__(NotifConsumer)
+    consumer._settings = MagicMock()
+    consumer._kms = MagicMock()
     svc = AsyncMock()
     conn = AsyncMock()
-    conn.fetchrow = AsyncMock(return_value={"mobile": None, "email": None})
+    conn.fetchrow = AsyncMock(return_value={"enc_mobile": None, "email": None})
 
     event = {"event_type": "VAULT_WELCOME", "recipient_id": "eu-1", "tenant_id": "t-1"}
     await consumer._handle_employee_welcome(event, "VAULT_WELCOME", svc, conn)

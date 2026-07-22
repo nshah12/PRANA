@@ -9,17 +9,21 @@ Events handled:
                         auto-create incident for P0/P1
   DOC_ROUTED          → notify employee (push/WhatsApp/SMS cascade)
   EXCEPTION_RAISED    → notify OA-Admin (email + bell)
-  ELEVATION_APPROVED  → notify OA-Operator (email)
-  ELEVATION_DENIED    → notify OA-Operator (email)
-  OA_USER_CREATED     → welcome email with temp password
-  TENANT_PROVISIONED  → welcome email for first OA-Admin
+  ELEVATION_APPROVED  → notify OA-Operator (email; kafka.oa_user_event() dual-
+                        publishes this one to TOPIC_NOTIF too — ELEVATION_EXPIRED
+                        stays bell-only, handled directly by OAUserConsumer)
+  ELEVATION_DENIED    → notify OA-Operator (email; same dual-publish as above)
+  TENANT_PROVISIONED  → welcome email for first OA-Admin (kafka.tenant_event()
+                        dual-publishes this one event_type to TOPIC_NOTIF).
+                        OA_USER_CREATED's welcome email is a SEPARATE path —
+                        OAUserConsumer._notify_welcome publishes notify_email()
+                        directly; it never reaches this consumer at all.
   ACCOUNT_LOCKED      → notify CISO + OA-Admin (email + bell)
   CROSS_TENANT_UPLOAD → notify Tenant CISO (email + bell) + PA Admin (email)
   DPDP_ERASURE_DONE   → notify employee (email)
   DPDP_EXPORT_READY   → notify employee (email)
   SHARE_ACCESSED      → notify employee/share-owner (email) — published by
                         workflows/vault_shares.py's notify_share_accessed activity
-  DIGEST_READY        → notify role recipients (email)
   AUDIT_INTEGRITY_MISMATCH → notify all active PA Admins (email) — platform-level,
                         raised by AuditIntegrityVerificationWorkflow when a
                         recent audit_event row no longer matches its Immudb
@@ -30,6 +34,13 @@ Events handled:
   EMPLOYEE_CREDENTIALS_ISSUED → notify employee an account now exists (SMS + email) —
                         published by routers/employees.py when create/import supplied
                         a mobile or email, so a temp password was actually generated
+  STORAGE_EXPANSION_REQUESTED → notify all active PA Admins (email) — platform-level,
+                        raised by PlatformOpsService.notify_storage_expansion_request;
+                        this is the human-in-the-loop signal StorageExpansionWorkflow
+                        (Pattern 5) is waiting on
+  ONBOARDING_REVIEW_SLA_BREACH → notify all active PA Admins (email) — platform-level,
+                        raised by PlatformOpsService.escalate_onboarding_review when
+                        OnboardingReviewSLAWorkflow's SLA timer expires with no decision
 """
 import json
 import logging
@@ -39,6 +50,7 @@ import asyncpg
 from aiokafka import AIOKafkaConsumer
 
 from config import Settings
+from services.encryption_service import resolve_platform_auth_kek_arn
 from services.notification_service import NotificationService, Channel, RecipientType
 from services.incident_service import IncidentService
 
@@ -48,9 +60,10 @@ GROUP_ID = "prana-notif-consumer"
 
 
 class NotifConsumer:
-    def __init__(self, settings: Settings, db_pool: Optional[asyncpg.Pool] = None) -> None:
+    def __init__(self, settings: Settings, db_pool: Optional[asyncpg.Pool] = None, kms_service=None) -> None:
         self._settings = settings
         self._db_pool = db_pool
+        self._kms = kms_service
         self._consumer = AIOKafkaConsumer(
             "prana.notifications",
             bootstrap_servers=settings.kafka_bootstrap_servers,
@@ -99,8 +112,8 @@ class NotifConsumer:
             await self._handle_elevation(event, svc, conn, approved=True)
         elif etype == "ELEVATION_DENIED":
             await self._handle_elevation(event, svc, conn, approved=False)
-        elif etype in ("OA_USER_CREATED", "TENANT_PROVISIONED"):
-            await self._handle_welcome(event, svc)
+        elif etype == "TENANT_PROVISIONED":
+            await self._handle_welcome(event, etype, svc)
         elif etype == "ACCOUNT_LOCKED":
             await self._handle_account_locked(event, svc, conn)
         elif etype == "CROSS_TENANT_UPLOAD":
@@ -111,12 +124,14 @@ class NotifConsumer:
             await self._handle_dpdp_employee(event, svc, conn, template_id="EXPORT_READY")
         elif etype == "SHARE_ACCESSED":
             await self._handle_dpdp_employee(event, svc, conn, template_id="SHARE_ACCESSED")
-        elif etype == "DIGEST_READY":
-            await self._handle_digest_ready(event, svc, conn)
         elif etype == "AUDIT_INTEGRITY_MISMATCH":
             await self._handle_audit_integrity_mismatch(event, svc, conn)
         elif etype in ("VAULT_WELCOME", "VAULT_WELCOME_REJOIN", "EMPLOYEE_CREDENTIALS_ISSUED"):
             await self._handle_employee_welcome(event, etype, svc, conn)
+        elif etype == "STORAGE_EXPANSION_REQUESTED":
+            await self._handle_storage_expansion_requested(event, svc, conn)
+        elif etype == "ONBOARDING_REVIEW_SLA_BREACH":
+            await self._handle_onboarding_review_sla_breach(event, svc, conn)
         else:
             log.debug("NotifConsumer: unhandled event_type=%s", etype)
 
@@ -164,6 +179,14 @@ class NotifConsumer:
             assigned_ciso_id=str(ciso["oa_user_id"]) if ciso else None,
         )
 
+    def _decrypt_mobile(self, enc_mobile: Optional[str]) -> Optional[str]:
+        """Decrypts enc_mobile via the platform auth CMK — same model as
+        totp_secret_enc (see .claude/rules/security.md's Encryption stack section)."""
+        if not enc_mobile or not self._kms:
+            return None
+        kek_arn = resolve_platform_auth_kek_arn(self._settings)
+        return self._kms.decrypt_value(enc_mobile, kek_arn)
+
     async def _handle_doc_routed(
         self, event: dict, svc: NotificationService, conn: asyncpg.Connection
     ) -> None:
@@ -174,7 +197,7 @@ class NotifConsumer:
             return
 
         row = await conn.fetchrow(
-            "SELECT email, mobile FROM employee_user WHERE employee_user_id = $1", emp_id
+            "SELECT email, enc_mobile FROM employee_user WHERE employee_user_id = $1", emp_id
         )
         if not row:
             log.warning("DOC_ROUTED: employee not found employee_user_id=%s", emp_id)
@@ -196,7 +219,7 @@ class NotifConsumer:
             event_type="DOC_ROUTED",
             recipient_id=emp_id,
             recipient_type=RecipientType.EMPLOYEE,
-            recipient_phone=row["mobile"],
+            recipient_phone=self._decrypt_mobile(row["enc_mobile"]),
             channel=Channel.WHATSAPP,
             template_id="DOC_ROUTED",
             template_data={"doc_type": doc_type},
@@ -265,7 +288,10 @@ class NotifConsumer:
             template_data=template_data,
         )
 
-    async def _handle_welcome(self, event: dict, svc: NotificationService) -> None:
+    async def _handle_welcome(self, event: dict, etype: str, svc: NotificationService) -> None:
+        """TENANT_PROVISIONED only — the first OA-Admin's welcome email. (OA_USER_CREATED's
+        welcome email is a separate, already-working path owned by OAUserConsumer's own
+        direct notify_email() call; it never reaches this handler.)"""
         recipient = event.get("admin_email") or event.get("email")
         login_url = event.get("login_url", "https://prana.in/org/login")
         recipient_id = event.get("oa_user_id") or event.get("admin_id") or "unknown"
@@ -277,7 +303,7 @@ class NotifConsumer:
         # but we log the notification without it to preserve privacy
         await svc.notify(
             tenant_id=tenant_id,
-            event_type="OA_USER_CREATED",
+            event_type=etype,
             recipient_id=str(recipient_id),
             recipient_type=RecipientType.OA_USER,
             recipient_email=recipient,
@@ -296,7 +322,8 @@ class NotifConsumer:
         previously unhandled here — this method used to not exist at all, so every
         one of these events silently fell through to the `unhandled event_type`
         debug log with no notification ever sent. mobile is the employee's primary
-        login handle (schema.sql comment on employee_user.mobile), so SMS is tried
+        login handle (encrypted at rest as enc_mobile — decrypted here via the
+        platform auth CMK, see .claude/rules/security.md), so SMS is tried
         first; email is a secondary/fallback channel sent in addition when present.
         Same as OA's _handle_welcome, the temp password itself is never put in
         template_data/notification_log — only that credentials now exist."""
@@ -306,19 +333,20 @@ class NotifConsumer:
             return
 
         row = await conn.fetchrow(
-            "SELECT mobile, email FROM employee_user WHERE employee_user_id = $1", emp_id
+            "SELECT enc_mobile, email FROM employee_user WHERE employee_user_id = $1", emp_id
         )
-        if not row or (not row["mobile"] and not row["email"]):
+        mobile = self._decrypt_mobile(row["enc_mobile"]) if row else None
+        if not row or (not mobile and not row["email"]):
             log.warning("%s: no delivery channel for employee_user_id=%s", etype, emp_id)
             return
 
-        if row["mobile"]:
+        if mobile:
             await svc.notify(
                 tenant_id=tenant_id,
                 event_type=etype,
                 recipient_id=emp_id,
                 recipient_type=RecipientType.EMPLOYEE,
-                recipient_phone=row["mobile"],
+                recipient_phone=mobile,
                 channel=Channel.SMS,
                 template_id=etype,
                 template_data={},
@@ -442,6 +470,53 @@ class NotifConsumer:
                 template_data=template_data,
             )
 
+    async def _handle_storage_expansion_requested(
+        self, event: dict, svc: NotificationService, conn: asyncpg.Connection
+    ) -> None:
+        """Human-in-the-loop signal StorageExpansionWorkflow (Pattern 5) waits on —
+        every active PA Admin is notified so any of them can approve/reject."""
+        template_data = {
+            "tenant_id":    event.get("tenant_id"),
+            "request_id":   event.get("request_id"),
+            "current_gb":   event.get("current_gb"),
+            "requested_gb": event.get("requested_gb"),
+        }
+        pa_admins = await conn.fetch(
+            "SELECT pa_id, email FROM portal_admin WHERE status='ACTIVE'",
+        )
+        for pa in pa_admins:
+            await svc.notify(
+                tenant_id=event.get("tenant_id"),
+                event_type="STORAGE_EXPANSION_REQUESTED",
+                recipient_id=str(pa["pa_id"]),
+                recipient_type=RecipientType.OA_USER,
+                recipient_email=pa["email"],
+                channel=Channel.EMAIL,
+                template_id="STORAGE_EXPANSION_REQUESTED",
+                template_data=template_data,
+            )
+
+    async def _handle_onboarding_review_sla_breach(
+        self, event: dict, svc: NotificationService, conn: asyncpg.Connection
+    ) -> None:
+        """OnboardingReviewSLAWorkflow's SLA timer expired with no PA decision —
+        escalate to every active PA Admin, not just whoever was originally assigned."""
+        template_data = {"tenant_id": event.get("tenant_id")}
+        pa_admins = await conn.fetch(
+            "SELECT pa_id, email FROM portal_admin WHERE status='ACTIVE'",
+        )
+        for pa in pa_admins:
+            await svc.notify(
+                tenant_id=event.get("tenant_id"),
+                event_type="ONBOARDING_REVIEW_SLA_BREACH",
+                recipient_id=str(pa["pa_id"]),
+                recipient_type=RecipientType.OA_USER,
+                recipient_email=pa["email"],
+                channel=Channel.EMAIL,
+                template_id="ONBOARDING_REVIEW_SLA_BREACH",
+                template_data=template_data,
+            )
+
     async def _handle_dpdp_employee(
         self, event: dict, svc: NotificationService, conn: asyncpg.Connection, *, template_id: str
     ) -> None:
@@ -466,33 +541,6 @@ class NotifConsumer:
             template_id=template_id,
             template_data={},
         )
-
-    async def _handle_digest_ready(
-        self, event: dict, svc: NotificationService, conn: asyncpg.Connection
-    ) -> None:
-        tenant_id = event.get("tenant_id")
-        role      = event.get("role")            # chro / cfo / ciso
-        period    = event.get("period", "weekly")
-
-        if not role or not tenant_id:
-            return
-
-        rows = await conn.fetch(
-            "SELECT oa_user_id, email FROM oa_user "
-            "WHERE tenant_id=$1 AND role=$2 AND status='ACTIVE'",
-            tenant_id, role,
-        )
-        for row in rows:
-            await svc.notify(
-                tenant_id=tenant_id,
-                event_type="DIGEST_READY",
-                recipient_id=str(row["oa_user_id"]),
-                recipient_type=RecipientType.OA_USER,
-                recipient_email=row["email"],
-                channel=Channel.EMAIL,
-                template_id="DIGEST_WEEKLY",
-                template_data={"period": period},
-            )
 
     # -----------------------------------------------------------------------
     # DB helpers

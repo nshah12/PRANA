@@ -16,12 +16,10 @@ seconds (whichever comes first). This reduces Kafka round-trips from O(N) to
 O(N/BATCH_SIZE) under high-ingest bursts, while keeping redelivery blast radius
 bounded to at most BATCH_SIZE messages.
 """
-import asyncio
 import datetime
 import json
 import logging
 import time
-from typing import AsyncIterable, Iterable
 
 import anyio.to_thread
 import asyncpg

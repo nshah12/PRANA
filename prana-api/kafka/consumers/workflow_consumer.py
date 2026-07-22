@@ -1,13 +1,14 @@
 """
 WorkflowConsumer — prana.ingest.events
 
-Listens for DOC_INGESTED, BATCH_UPLOADED, DOC_RECLASSIFIED, and
+Listens for DOC_INGESTED, BATCH_UPLOADED, DOC_RECLASSIFIED, DOC_ROUTED, and
 DOMAIN_VERIFICATION_REQUESTED events. Starts Temporal workflows so the HTTP
 handler never has to.
 
 DOC_INGESTED                  → DocumentPipelineWorkflow + BatchTimeoutMonitorWorkflow (per file)
 BATCH_UPLOADED                → BatchProgressWorkflow (parent tracker, only when batch_id present)
 DOC_RECLASSIFIED              → DocumentPipelineWorkflow restart with OA-Admin resolved doc_type
+DOC_ROUTED                    → GamificationRefreshWorkflow (badge/score refresh for the employee)
 DOMAIN_VERIFICATION_REQUESTED → DomainVerificationWorkflow (tenant onboarding)
 """
 import asyncio
@@ -18,12 +19,6 @@ from aiokafka import AIOKafkaConsumer
 from config import Settings
 from workflows.document_pipeline import DocumentPipelineWorkflow, TASK_QUEUE
 from workflows.batch_progress import BatchProgressWorkflow, BatchTimeoutMonitorWorkflow, BATCH_TASK_QUEUE
-from workflows.compliance import (
-    ErasureConfirmationWorkflow,
-    DataExportWorkflow,
-    GrievanceWorkflow,
-    DataCorrectionWorkflow,
-)
 from workflows.gamification import GamificationRefreshWorkflow
 from workflows.tenant import DomainVerificationWorkflow, TASK_QUEUE as TENANT_TASK_QUEUE
 
@@ -34,7 +29,6 @@ GAMIFICATION_TASK_QUEUE = "insight-queue"
 log = logging.getLogger(__name__)
 
 GROUP_ID = "prana-workflow-consumer"
-COMPLIANCE_TASK_QUEUE = "compliance-queue"
 
 
 class WorkflowConsumer:
@@ -68,14 +62,6 @@ class WorkflowConsumer:
                         await self._handle_batch_uploaded(event)
                     elif etype == "DOC_RECLASSIFIED":
                         await self._handle_doc_reclassified(event)
-                    elif etype == "ERASURE_REQUESTED":
-                        await self._handle_erasure_requested(event)
-                    elif etype == "DATA_EXPORT_REQUESTED":
-                        await self._handle_data_export_requested(event)
-                    elif etype == "GRIEVANCE_FILED":
-                        await self._handle_grievance_filed(event)
-                    elif etype == "DATA_CORRECTION_REQUESTED":
-                        await self._handle_data_correction_requested(event)
                     elif etype == "DOC_ROUTED":
                         await self._handle_doc_routed(event)
                     elif etype == "DOMAIN_VERIFICATION_REQUESTED":
@@ -179,61 +165,6 @@ class WorkflowConsumer:
         except Exception as exc:
             if "already" not in str(exc).lower():
                 raise
-
-    async def _handle_erasure_requested(self, event: dict) -> None:
-        employee_user_id = event.get("employee_user_id", "")
-        wf_id = event.get("workflow_id") or f"erasure-{employee_user_id}"
-        payload = {k: v for k, v in event.items() if k != "event_type"}
-        try:
-            await self._temporal.start_workflow(
-                ErasureConfirmationWorkflow.run,
-                payload,
-                id=wf_id,
-                task_queue=COMPLIANCE_TASK_QUEUE,
-            )
-        except Exception:
-            log.exception("WorkflowConsumer: ErasureConfirmationWorkflow start failed wf_id=%s", wf_id)
-
-    async def _handle_data_export_requested(self, event: dict) -> None:
-        wf_id = event.get("workflow_id") or f"export-{event.get('employee_user_id')}-{event.get('export_id')}"
-        payload = {k: v for k, v in event.items() if k != "event_type"}
-        try:
-            await self._temporal.start_workflow(
-                DataExportWorkflow.run,
-                payload,
-                id=wf_id,
-                task_queue=COMPLIANCE_TASK_QUEUE,
-            )
-        except Exception:
-            log.exception("WorkflowConsumer: DataExportWorkflow start failed wf_id=%s", wf_id)
-
-    async def _handle_grievance_filed(self, event: dict) -> None:
-        grievance_id = event.get("grievance_id", "")
-        wf_id = event.get("workflow_id") or f"grievance-{grievance_id}"
-        payload = {k: v for k, v in event.items() if k != "event_type"}
-        try:
-            await self._temporal.start_workflow(
-                GrievanceWorkflow.run,
-                payload,
-                id=wf_id,
-                task_queue=COMPLIANCE_TASK_QUEUE,
-            )
-        except Exception:
-            log.exception("WorkflowConsumer: GrievanceWorkflow start failed wf_id=%s", wf_id)
-
-    async def _handle_data_correction_requested(self, event: dict) -> None:
-        correction_id = event.get("correction_id", "")
-        wf_id = f"correction-{correction_id}"
-        payload = {k: v for k, v in event.items() if k != "event_type"}
-        try:
-            await self._temporal.start_workflow(
-                DataCorrectionWorkflow.run,
-                payload,
-                id=wf_id,
-                task_queue=COMPLIANCE_TASK_QUEUE,
-            )
-        except Exception:
-            log.exception("WorkflowConsumer: DataCorrectionWorkflow start failed wf_id=%s", wf_id)
 
     async def _handle_doc_routed(self, event: dict) -> None:
         """DOC_ROUTED → refresh gamification score + award new badges for this employee."""

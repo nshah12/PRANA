@@ -413,7 +413,6 @@ class AuditArchivalWorkflow:
             {"key": "audit_archival_batch_size", "tenant_id": params.get("tenant_id"), "default": "5000"},
             start_to_close_timeout=timedelta(minutes=2),
         )
-        # Log result (rows archived, bytes written) — activity handles the write
         await workflow.execute_activity(
             archive_audit_events_batch,
             {**params, "cutoff_days": cutoff_str, "batch_size": batch_str},

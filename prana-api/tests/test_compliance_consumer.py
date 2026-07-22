@@ -11,11 +11,33 @@ def temporal():
 
 
 @pytest.fixture
-def consumer(temporal):
+def db_pool():
+    """DPDP-mandated notifications (erasure, grievance, consent withdrawal) need
+    a real recipient_email/recipient_phone looked up from employee_user — this
+    consumer used to have no db_pool at all, so it never could."""
+    pool = MagicMock()
+    conn = AsyncMock()
+    conn.fetchval = AsyncMock(return_value="emp@example.com")
+    conn.fetchrow = AsyncMock(return_value={"enc_mobile": "kms-ciphertext-blob"})
+    pool.acquire.return_value.__aenter__ = AsyncMock(return_value=conn)
+    pool.acquire.return_value.__aexit__ = AsyncMock(return_value=False)
+    return pool, conn
+
+
+@pytest.fixture
+def kms():
+    k = MagicMock()
+    k.decrypt_value = MagicMock(return_value="+919000000001")
+    return k
+
+
+@pytest.fixture
+def consumer(temporal, db_pool, kms):
     from kafka.consumers.compliance_consumer import ComplianceConsumer
     settings = MagicMock()
     settings.kafka_bootstrap_servers = "localhost:9092"
-    c = ComplianceConsumer(settings, temporal_client=temporal)
+    pool, _ = db_pool
+    c = ComplianceConsumer(settings, temporal_client=temporal, db_pool=pool, kms_service=kms)
     return c
 
 
@@ -63,6 +85,11 @@ async def test_consent_withdrawn_notifies_whatsapp(consumer, temporal):
     mock_kafka.notify_whatsapp.assert_awaited_once()
     notif = mock_kafka.notify_whatsapp.call_args[0][0]
     assert notif["event_type"] == "CONSENT_WITHDRAWN"
+    # Regression: WhatsAppConsumer requires recipient_phone or it silently skips —
+    # this consumer used to never resolve it (no db_pool/kms at all).
+    assert notif["recipient_phone"] == "+919000000001"
+    assert notif["template_data"]["purpose"] == "notifications"
+    assert "payload" not in notif
 
 
 @pytest.mark.asyncio
@@ -98,6 +125,56 @@ async def test_erasure_notifies_email_and_sms(consumer, temporal):
         await consumer._dispatch("ERASURE_REQUESTED", event)
     mock_kafka.notify_email.assert_awaited_once()
     mock_kafka.notify_sms.assert_awaited_once()
+    # Regression: DPDP mandates this erasure confirmation actually reach the
+    # employee — EmailConsumer/SMSConsumer silently skip without
+    # recipient_email/recipient_phone, and this consumer used to never resolve
+    # either (no db_pool at all, and content was under a dead "payload" key).
+    email_notif = mock_kafka.notify_email.call_args[0][0]
+    sms_notif = mock_kafka.notify_sms.call_args[0][0]
+    assert email_notif["recipient_email"] == "emp@example.com"
+    assert email_notif["template_data"]["cancel_before_days"] == 30
+    assert sms_notif["recipient_phone"] == "+919000000001"
+    assert sms_notif["template_data"]["cancel_before_days"] == 30
+
+
+@pytest.mark.asyncio
+async def test_grievance_filed_notifies_email_with_recipient(consumer, temporal):
+    event = {"event_type": "GRIEVANCE_FILED", "employee_user_id": "eu-9",
+             "grievance_id": "g-2", "tenant_id": "t-1", "subject": "Wrong designation"}
+    mock_kafka = AsyncMock()
+    with patch("kafka.consumers.compliance_consumer.get_kafka_producer", new=AsyncMock(return_value=mock_kafka)):
+        await consumer._dispatch("GRIEVANCE_FILED", event)
+    mock_kafka.notify_email.assert_awaited_once()
+    notif = mock_kafka.notify_email.call_args[0][0]
+    assert notif["recipient_email"] == "emp@example.com"
+    assert notif["template_data"]["subject"] == "Wrong designation"
+
+
+@pytest.mark.asyncio
+async def test_notify_email_skips_recipient_lookup_gracefully_when_employee_not_found(consumer, temporal, db_pool):
+    """If the employee_user row is gone (e.g. already erased), the notify call
+    must still go out — just without recipient_email — rather than crash. The
+    channel consumer's own missing-recipient warning/skip is the correct place
+    for this to end, matching every other consumer's best-effort pattern."""
+    _, conn = db_pool
+    conn.fetchval = AsyncMock(return_value=None)
+    event = {"event_type": "ERASURE_REQUESTED", "employee_user_id": "eu-gone", "tenant_id": "t-1"}
+    mock_kafka = AsyncMock()
+    with patch("kafka.consumers.compliance_consumer.get_kafka_producer", new=AsyncMock(return_value=mock_kafka)):
+        await consumer._dispatch("ERASURE_REQUESTED", event)  # must not raise
+    mock_kafka.notify_email.assert_awaited_once()
+    assert "recipient_email" not in mock_kafka.notify_email.call_args[0][0]
+
+
+@pytest.mark.asyncio
+async def test_data_correction_requested_starts_workflow(consumer, temporal):
+    event = {"event_type": "DATA_CORRECTION_REQUESTED", "employee_user_id": "eu-8",
+             "correction_id": "cor-1", "tenant_id": "t-1", "field": "designation"}
+    with patch("kafka.consumers.compliance_consumer.get_kafka_producer", new=AsyncMock(return_value=AsyncMock())):
+        await consumer._dispatch("DATA_CORRECTION_REQUESTED", event)
+    temporal.start_workflow.assert_awaited_once()
+    assert temporal.start_workflow.call_args[1]["id"] == "correction-cor-1"
+    assert temporal.start_workflow.call_args[1]["task_queue"] == "compliance-queue"
 
 
 @pytest.mark.asyncio

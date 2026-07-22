@@ -148,7 +148,7 @@ async def request_export(request: Request, db: DbConn, current=Employee):
     Trigger DataExportWorkflow — packages all documents + insights as encrypted ZIP.
     DPDP mandates delivery within 30 days; PRANA targets <24 hours.
 
-    HTTP contract: validate → DB write → Kafka publish (WorkflowConsumer starts workflow) → 202.
+    HTTP contract: validate → DB write → Kafka publish (ComplianceConsumer starts workflow) → 202.
     """
     job_id = str(uuid.uuid4())
 
@@ -374,7 +374,7 @@ async def file_grievance(
 ):
     """
     File a DPDP grievance. PRANA Grievance Officer must respond within 30 days.
-    GrievanceWorkflow starts via WorkflowConsumer from Kafka event.
+    GrievanceWorkflow starts via ComplianceConsumer from Kafka event.
     """
     grievance_id = str(uuid.uuid4())
 

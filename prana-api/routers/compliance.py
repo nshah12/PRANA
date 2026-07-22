@@ -39,7 +39,7 @@ async def request_erasure(request: Request, db: DbConn, current=Employee):
     """
     workflow_id = f"erasure-{current.user_id}"
 
-    # WorkflowConsumer starts ErasureConfirmationWorkflow on seeing ERASURE_REQUESTED
+    # ComplianceConsumer starts ErasureConfirmationWorkflow on seeing ERASURE_REQUESTED
     kafka = getattr(request.app.state, "kafka_producer", None)
     if kafka:
         await kafka.compliance_event({
@@ -88,7 +88,7 @@ async def request_export(request: Request, db: DbConn, current=Employee):
     """
     workflow_id = f"export-{current.user_id}-{uuid.uuid4().hex[:8]}"
 
-    # WorkflowConsumer starts DataExportWorkflow on seeing DATA_EXPORT_REQUESTED
+    # ComplianceConsumer starts DataExportWorkflow on seeing DATA_EXPORT_REQUESTED
     kafka = getattr(request.app.state, "kafka_producer", None)
     if kafka:
         await kafka.compliance_event({
@@ -234,7 +234,7 @@ async def file_grievance(
         body.category, body.description,
     )
 
-    # WorkflowConsumer starts GrievanceWorkflow on seeing GRIEVANCE_FILED
+    # ComplianceConsumer starts GrievanceWorkflow on seeing GRIEVANCE_FILED
     kafka = getattr(request.app.state, "kafka_producer", None)
     if kafka:
         await kafka.compliance_event({

@@ -17,22 +17,28 @@ Events handled:
   LEGAL_HOLD_RELEASED       → (same)
 """
 import json
-from messages import SuccessCode, success_response
+from messages import SuccessCode
 import logging
 from typing import Optional
 
+import asyncpg
 from aiokafka import AIOKafkaConsumer
 
 from config import Settings
 from kafka.producer import get_kafka_producer
+from services.encryption_service import resolve_platform_auth_kek_arn
 
 log = logging.getLogger(__name__)
 GROUP_ID = "prana-compliance-consumer"
 
 
 class ComplianceConsumer:
-    def __init__(self, settings: Settings, temporal_client=None) -> None:
+    def __init__(self, settings: Settings, temporal_client=None,
+                 db_pool: Optional[asyncpg.Pool] = None, kms_service=None) -> None:
+        self._settings = settings
         self._temporal = temporal_client
+        self._pool = db_pool
+        self._kms = kms_service
         self._consumer = AIOKafkaConsumer(
             "prana.compliance.events",
             bootstrap_servers=settings.kafka_bootstrap_servers,
@@ -129,12 +135,20 @@ class ComplianceConsumer:
         try:
             kafka = await get_kafka_producer()
             notif = {
-                "event_type":   event_type,
-                "recipient_id": recipient_id,
-                "template_id":  event_type,
-                "tenant_id":    tenant_id,
-                "payload":      payload,
+                "event_type":    event_type,
+                "recipient_id":  recipient_id,
+                "template_id":   event_type,
+                "tenant_id":     tenant_id,
+                "template_data": payload,
             }
+            if channel == "email":
+                email = await self._resolve_email(recipient_id)
+                if email:
+                    notif["recipient_email"] = email
+            elif channel in ("sms", "whatsapp"):
+                phone = await self._resolve_phone(recipient_id)
+                if phone:
+                    notif["recipient_phone"] = phone
             dispatch = {
                 "email":     kafka.notify_email,
                 "sms":       kafka.notify_sms,
@@ -146,6 +160,29 @@ class ComplianceConsumer:
                 await dispatch(notif)
         except Exception:
             log.exception("ComplianceConsumer: failed to publish %s notification channel=%s", event_type, channel)
+
+    async def _resolve_email(self, employee_user_id: Optional[str]) -> Optional[str]:
+        """employee_user.email is plaintext (unlike mobile) — a direct lookup, no KMS."""
+        if not self._pool or not employee_user_id:
+            return None
+        async with self._pool.acquire() as conn:
+            return await conn.fetchval(
+                "SELECT email FROM employee_user WHERE employee_user_id=$1", employee_user_id,
+            )
+
+    async def _resolve_phone(self, employee_user_id: Optional[str]) -> Optional[str]:
+        """Decrypts enc_mobile via the platform auth CMK — same model as
+        totp_secret_enc (see .claude/rules/security.md's Encryption stack section)."""
+        if not self._pool or not employee_user_id or not self._kms:
+            return None
+        async with self._pool.acquire() as conn:
+            row = await conn.fetchrow(
+                "SELECT enc_mobile FROM employee_user WHERE employee_user_id=$1", employee_user_id,
+            )
+        if not row or not row["enc_mobile"]:
+            return None
+        kek_arn = resolve_platform_auth_kek_arn(self._settings)
+        return self._kms.decrypt_value(row["enc_mobile"], kek_arn)
 
     async def _start(self, *, workflow: str, wf_id: str, args: list, task_queue: str) -> None:
         try:
