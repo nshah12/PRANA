@@ -211,7 +211,8 @@ async def route(body: RouteRequest, request: Request):
     """Mark document ROUTED, write career_event, update vault_completeness."""
     pool = _db(request)
     async with pool.acquire() as db:
-        stage = Stage06Route(db=db, benchmark_svc=BenchmarkService(db))
+        stage = Stage06Route(db=db, benchmark_svc=BenchmarkService(db),
+                              manifest_client=request.app.state.manifest_client)
         await stage.route(
             document_id=body.document_id,
             tenant_id=body.tenant_id,
@@ -234,6 +235,7 @@ class ExceptionRequest(BaseModel):
     exception_type:   str     # NO_MATCH | MULTIPLE_CANDIDATES | LOW_CONFIDENCE
     extracted_fields: dict
     candidates:       list
+    doc_type:         Optional[str] = None
 
 
 @router.post("/exception", status_code=status.HTTP_204_NO_CONTENT)
@@ -241,13 +243,15 @@ async def raise_exception(body: ExceptionRequest, request: Request):
     """Write EXCEPTION status + exception_queue row (identity resolution failure)."""
     pool = _db(request)
     async with pool.acquire() as db:
-        stage = Stage06Route(db=db, benchmark_svc=BenchmarkService(db))
+        stage = Stage06Route(db=db, benchmark_svc=BenchmarkService(db),
+                              manifest_client=request.app.state.manifest_client)
         await stage.raise_exception(
             document_id=body.document_id,
             tenant_id=body.tenant_id,
             exception_type=body.exception_type,
             extracted_fields=body.extracted_fields,
             candidates=body.candidates,
+            doc_type=body.doc_type,
         )
 
 

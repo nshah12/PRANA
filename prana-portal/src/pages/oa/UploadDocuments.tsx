@@ -1,5 +1,7 @@
 import { useState, useRef, useCallback } from 'react'
-import { Upload, X, FileText, CheckCircle2, AlertCircle, Loader2, ChevronDown, Lock, Sparkles } from 'lucide-react'
+import { useQuery } from '@tanstack/react-query'
+import { Link } from 'react-router-dom'
+import { Upload, X, FileText, CheckCircle2, AlertCircle, Loader2, ChevronDown, Lock, Sparkles, CheckSquare } from 'lucide-react'
 import { api } from '@/lib/api'
 import { tUi } from '@/i18n'
 
@@ -110,6 +112,17 @@ export function UploadDocuments() {
   const esRefs    = useRef<Record<string, EventSource>>({})
   const fileInput = useRef<HTMLInputElement>(null)
 
+  // Go-Live Checklist gate — mirrors ingest.py's 403 SETUP_CHECKLIST_INCOMPLETE
+  // so the UI never lets someone attempt an upload that's just going to fail.
+  const { data: checklistData } = useQuery({
+    queryKey: ['setup-checklist-gate'],
+    queryFn: () => api.get('/v1/org/setup-checklist').then(r => r.data).catch(() => null),
+  })
+  const missingRequiredCount = (checklistData?.items ?? []).filter(
+    (i: any) => i.is_required && !i.completed,
+  ).length
+  const checklistIncomplete = missingRequiredCount > 0
+
   // ── File management ──────────────────────────────────────────────────────
 
   const addFiles = useCallback((incoming: File[]) => {
@@ -201,7 +214,7 @@ export function UploadDocuments() {
     }
   }
 
-  const canUpload = !!docType && !!docPeriod && files.length > 0 && !overLimit && !uploading
+  const canUpload = !!docType && !!docPeriod && files.length > 0 && !overLimit && !uploading && !checklistIncomplete
 
   // ── Render ───────────────────────────────────────────────────────────────
 
@@ -347,6 +360,19 @@ export function UploadDocuments() {
                 </div>
               )}
             </div>
+
+            {/* Checklist gate — mirrors the backend's 403 SETUP_CHECKLIST_INCOMPLETE */}
+            {checklistIncomplete && (
+              <div className="flex items-start gap-2 bg-rose-50 border border-rose-200 rounded-xl px-3 py-2.5">
+                <CheckSquare size={13} className="text-rose-500 mt-0.5 shrink-0" />
+                <p className="text-xs text-rose-700">
+                  {tUi('OA_UPLOAD_CHECKLIST_BLOCKED', { n: missingRequiredCount })}{' '}
+                  <Link to="/org/setup-checklist" className="font-semibold underline">
+                    {tUi('OA_UPLOAD_CHECKLIST_BLOCKED_LINK')}
+                  </Link>
+                </p>
+              </div>
+            )}
 
             {/* CTA */}
             <button onClick={handleUpload} disabled={!canUpload}

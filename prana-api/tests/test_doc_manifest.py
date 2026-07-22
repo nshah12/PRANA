@@ -63,6 +63,7 @@ def _manifest_row(doc_type="SALARY_SLIP", tenant_id=None, **overrides):
         "optional_fields":         json.dumps(["designation", "uan_number"]),
         "classification_signals":  json.dumps([["net_pay", "pay_period_month"]]),
         "signal_weights":          json.dumps([]),
+        "safe_fields":             json.dumps([]),
         "confidence_threshold":    0.75,
         "supported_formats":       json.dumps(["pdf", "docx", "jpeg", "jpg", "png", "tiff"]),
         "is_active":               True,
@@ -452,6 +453,97 @@ async def test_upsert_manifest_succeeds_for_oa_admin(client, mock_db):
 async def test_pa_manifests_requires_portal_admin(client):
     response = await client.get("/admin/manifests")
     assert response.status_code in (401, 403)
+
+
+# ── safe_fields validation ─────────────────────────────────────────────────────
+# Root cause this guards: a tenant-configured custom field name is never on
+# prana-ai's static _SAFE_METADATA_FIELDS allowlist, so it's stripped by
+# default (fail-closed) unless explicitly declared safe here. safe_fields must
+# be a subset of the fields the manifest actually declares — otherwise an
+# admin could "mark safe" a field that was never being extracted in the first
+# place, silently no-op'ing their intent.
+
+@pytest.mark.asyncio
+async def test_upsert_rejects_safe_field_not_in_declared_fields(client, mock_db):
+    """safe_fields entries must already appear in required/identity/optional_fields."""
+    _set_oa_admin_auth(client)
+
+    response = await client.put(
+        "/v1/manifests/SALARY_SLIP",
+        json={
+            "required_fields": ["employee_name"],
+            "identity_fields": [],
+            "optional_fields": [],
+            "safe_fields": ["leave_balance_days"],  # never declared above
+        },
+        headers=AUTH_HEADER,
+    )
+    assert response.status_code == 422
+
+
+@pytest.mark.asyncio
+async def test_upsert_accepts_safe_field_that_is_declared(client, mock_db):
+    """safe_fields entries that ARE in required/identity/optional_fields are accepted."""
+    _set_oa_admin_auth(client)
+    mock_db.fetchrow.side_effect = [
+        None,  # no existing override
+        _manifest_row(
+            doc_type="SALARY_SLIP", tenant_id=TENANT_ID,
+            required_fields=json.dumps(["employee_name", "leave_balance_days"]),
+            safe_fields=json.dumps(["leave_balance_days"]),
+        ),
+    ]
+
+    response = await client.put(
+        "/v1/manifests/SALARY_SLIP",
+        json={
+            "required_fields": ["employee_name", "leave_balance_days"],
+            "identity_fields": [],
+            "optional_fields": [],
+            "safe_fields": ["leave_balance_days"],
+        },
+        headers=AUTH_HEADER,
+    )
+    assert response.status_code == 200
+    assert response.json()["manifest"]["safe_fields"] == ["leave_balance_days"]
+
+
+@pytest.mark.asyncio
+async def test_get_manifest_returns_safe_fields(client, mock_db):
+    _set_oa_admin_auth(client)
+    mock_db.fetchrow.return_value = _manifest_row(
+        doc_type="SALARY_SLIP", tenant_id=None,
+        safe_fields=json.dumps(["leave_balance_days"]),
+    )
+
+    response = await client.get("/v1/manifests/SALARY_SLIP", headers=AUTH_HEADER)
+    assert response.status_code == 200
+    assert response.json()["manifest"]["safe_fields"] == ["leave_balance_days"]
+
+
+@pytest.mark.asyncio
+async def test_pa_upsert_platform_manifest_persists_safe_fields(client, mock_db):
+    """PA's platform-default upsert path (raw SQL, not ManifestService) must
+    also persist safe_fields — this is a separate code path from the OA-Admin
+    tenant-override upsert and easy to miss when adding a new column."""
+    _set_pa_auth(client)
+    mock_db.fetchrow.return_value = _manifest_row(
+        doc_type="SALARY_SLIP", tenant_id=None,
+        safe_fields=json.dumps(["leave_balance_days"]),
+    )
+
+    response = await client.put(
+        "/admin/manifests/SALARY_SLIP",
+        json={
+            "required_fields": ["employee_name", "leave_balance_days"],
+            "identity_fields": [],
+            "optional_fields": [],
+            "safe_fields": ["leave_balance_days"],
+        },
+        headers=AUTH_HEADER,
+    )
+    assert response.status_code == 200
+    assert response.json()["manifest"]["safe_fields"] == ["leave_balance_days"]
 
 
 @pytest.mark.asyncio

@@ -1536,7 +1536,12 @@ CREATE TABLE IF NOT EXISTS doc_type_field_manifest (
   updated_at             TIMESTAMPTZ  NOT NULL DEFAULT NOW(),
   updated_by             UUID         REFERENCES oa_user(oa_user_id),
   usage_count            INTEGER      NOT NULL DEFAULT 0,
-  signal_weights         JSONB        NOT NULL DEFAULT '[]'  -- migration 037: per-signal scoring weights
+  signal_weights         JSONB        NOT NULL DEFAULT '[]',  -- migration 037: per-signal scoring weights
+  -- Subset of required_fields ∪ identity_fields ∪ optional_fields explicitly
+  -- confirmed non-monetary metadata. Anything NOT in this list is sensitive
+  -- by default (fail-closed) — see prana-ai/pipeline/stage06_route.py's
+  -- _SAFE_METADATA_FIELDS, which this list is unioned into per-tenant/doc_type.
+  safe_fields            JSONB        NOT NULL DEFAULT '[]'
 );
 CREATE UNIQUE INDEX IF NOT EXISTS uidx_manifest_platform_doctype ON doc_type_field_manifest(doc_type) WHERE tenant_id IS NULL;
 CREATE UNIQUE INDEX IF NOT EXISTS uidx_manifest_tenant_doctype   ON doc_type_field_manifest(tenant_id, doc_type) WHERE tenant_id IS NOT NULL;
@@ -1788,6 +1793,67 @@ CREATE TABLE IF NOT EXISTS service_incident (
 CREATE INDEX IF NOT EXISTS idx_service_incident_status   ON service_incident(status);
 CREATE INDEX IF NOT EXISTS idx_service_incident_service  ON service_incident(service_name, status);
 CREATE INDEX IF NOT EXISTS idx_service_incident_detected ON service_incident(detected_at DESC);
+
+-- ============================================================
+-- LAYER 16: SETUP / GO-LIVE CHECKLIST
+-- ============================================================
+-- A blocking pre-upload readiness gate, distinct from the existing PA-side
+-- tenant-approval "onboarding" concept (onboarding_tier, classify_onboarding_tier
+-- in services/onboarding_service.py) — that's whether a tenant is approved to
+-- exist at all; this is whether an already-active tenant has completed the
+-- checklist items required before its OA-Admin can push real documents.
+--
+-- tenant_id IS NULL = platform baseline (PA-owned, applies to every tenant).
+-- tenant_id = X = that tenant's own additional item (OA-Admin-owned, applies
+-- only to them). Effective checklist for a tenant = baseline ∪ their own
+-- items, both filtered is_active = TRUE — additive, never an override: a
+-- tenant can add on top of the baseline but never remove or replace it.
+CREATE TABLE IF NOT EXISTS setup_checklist_item (
+  item_id        UUID         PRIMARY KEY DEFAULT gen_random_uuid(),
+  tenant_id      UUID         REFERENCES tenant(tenant_id) ON DELETE CASCADE,  -- NULL = platform baseline
+  item_key       VARCHAR(100) NOT NULL,
+  title          VARCHAR(200) NOT NULL,
+  description    TEXT,
+  display_order  INTEGER      NOT NULL DEFAULT 0,
+  is_active      BOOLEAN      NOT NULL DEFAULT TRUE,
+  is_required    BOOLEAN      NOT NULL DEFAULT TRUE,   -- FALSE = informational, doesn't block upload
+  -- Two nullable creator columns rather than one ambiguous FK — avoids
+  -- repeating doc_type_field_manifest.created_by's exact FK-type mismatch
+  -- (declared oa_user but sometimes fed a portal_admin_id).
+  created_by_pa  UUID         REFERENCES portal_admin(pa_id),
+  created_by_oa  UUID         REFERENCES oa_user(oa_user_id),
+  created_at     TIMESTAMPTZ  NOT NULL DEFAULT NOW(),
+  updated_at     TIMESTAMPTZ  NOT NULL DEFAULT NOW()
+);
+CREATE UNIQUE INDEX IF NOT EXISTS uidx_checklist_platform_key ON setup_checklist_item(item_key) WHERE tenant_id IS NULL;
+CREATE UNIQUE INDEX IF NOT EXISTS uidx_checklist_tenant_key   ON setup_checklist_item(tenant_id, item_key) WHERE tenant_id IS NOT NULL;
+CREATE INDEX IF NOT EXISTS idx_checklist_active ON setup_checklist_item(tenant_id, is_active);
+
+-- Completion is a manual OA-Admin confirmation click in V1 — no auto-detection
+-- against tenant.grievance_officer_name / tenant.dpa_accepted_at etc. Absence
+-- of a row here = incomplete; when PA adds a new baseline item later, every
+-- existing tenant is simply incomplete on it until an OA-Admin checks it off
+-- (no backfill needed).
+CREATE TABLE IF NOT EXISTS tenant_checklist_completion (
+  tenant_id     UUID         NOT NULL REFERENCES tenant(tenant_id) ON DELETE CASCADE,
+  item_id       UUID         NOT NULL REFERENCES setup_checklist_item(item_id) ON DELETE CASCADE,
+  completed_at  TIMESTAMPTZ  NOT NULL DEFAULT NOW(),
+  completed_by  UUID         REFERENCES oa_user(oa_user_id),
+  notes         TEXT,
+  PRIMARY KEY (tenant_id, item_id)
+);
+CREATE INDEX IF NOT EXISTS idx_checklist_completion_tenant ON tenant_checklist_completion(tenant_id);
+
+-- Seed platform-baseline items — every tenant starts incomplete on all three
+-- until an OA-Admin manually confirms each one.
+INSERT INTO setup_checklist_item (tenant_id, item_key, title, description, display_order, is_required) VALUES
+  (NULL, 'GRIEVANCE_OFFICER_CONFIGURED', 'Grievance Officer configured',
+   'Confirm a DPDP Act 2023 Grievance Officer (name + email) has been set for this organisation.', 10, TRUE),
+  (NULL, 'DOC_FIELD_MANIFESTS_REVIEWED', 'Document field manifests reviewed',
+   'Confirm each document type''s field manifest has been reviewed and any tenant-custom fields tagged safe/unsafe.', 20, TRUE),
+  (NULL, 'DPA_ACCEPTED', 'Data Processing Agreement accepted',
+   'Confirm the organisation has accepted PRANA''s current Data Processing Agreement.', 30, TRUE)
+ON CONFLICT DO NOTHING;
 
 -- ============================================================
 -- LAYER 14: SECURITY — LEAST-PRIVILEGE APPLICATION ROLE

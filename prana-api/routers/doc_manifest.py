@@ -14,7 +14,7 @@ from typing import Annotated, Optional
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, Request
-from pydantic import BaseModel, Field, field_validator
+from pydantic import BaseModel, Field, field_validator, model_validator
 
 from dependencies import CurrentUser, DbConn, PortalAdmin, require_oa
 from services.manifest_service import ManifestService
@@ -54,6 +54,11 @@ class ManifestUpsertRequest(BaseModel):
         default=["pdf", "docx", "jpeg", "jpg", "png", "tiff"]
     )
     is_active:              bool             = True
+    # Subset of required_fields/identity_fields/optional_fields explicitly
+    # confirmed non-monetary metadata. Anything NOT here is stripped before DB
+    # storage by default (fail-closed) — see prana-ai/pipeline/stage06_route.py's
+    # _SAFE_METADATA_FIELDS, which this is unioned into per-tenant/doc_type.
+    safe_fields:            list[str]        = Field(default_factory=list)
 
     @field_validator("required_fields", "identity_fields", "optional_fields")
     @classmethod
@@ -68,6 +73,17 @@ class ManifestUpsertRequest(BaseModel):
         if bad:
             raise ValueError(f"Unknown formats: {bad}. Allowed: {sorted(KNOWN_FORMATS)}")
         return v
+
+    @model_validator(mode="after")
+    def safe_fields_must_be_declared_fields(self) -> "ManifestUpsertRequest":
+        all_fields = set(self.required_fields) | set(self.identity_fields) | set(self.optional_fields)
+        unknown = [f for f in self.safe_fields if f not in all_fields]
+        if unknown:
+            raise ValueError(
+                f"safe_fields entries must be declared in required_fields/identity_fields/"
+                f"optional_fields first: {unknown}"
+            )
+        return self
 
 
 # ── Helpers ────────────────────────────────────────────────────────────────────
@@ -119,6 +135,7 @@ async def get_manifest(doc_type: str, current: OaStaff, db: DbConn):
             "optional_fields":         manifest.optional_fields,
             "classification_signals":  manifest.classification_signals,
             "signal_weights":          manifest.signal_weights,
+            "safe_fields":             manifest.safe_fields,
             "confidence_threshold":    manifest.confidence_threshold,
             "supported_formats":       manifest.supported_formats,
             "usage_count":             manifest.usage_count,
@@ -292,6 +309,7 @@ async def internal_get_manifest(tenant_id: str, doc_type: str, request: Request,
             "optional_fields":         manifest.optional_fields,
             "classification_signals":  manifest.classification_signals,
             "signal_weights":          manifest.signal_weights,
+            "safe_fields":             manifest.safe_fields,
             "confidence_threshold":    manifest.confidence_threshold,
             "supported_formats":       manifest.supported_formats,
             "usage_count":             manifest.usage_count,
@@ -344,8 +362,8 @@ async def pa_upsert_platform_manifest(
         INSERT INTO doc_type_field_manifest
           (tenant_id, doc_type, required_fields, identity_fields, optional_fields,
            classification_signals, signal_weights, confidence_threshold, supported_formats,
-           is_active, created_by, updated_by)
-        VALUES (NULL,$1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$10)
+           is_active, created_by, updated_by, safe_fields)
+        VALUES (NULL,$1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$10,$11)
         ON CONFLICT (doc_type) WHERE tenant_id IS NULL DO UPDATE SET
           required_fields        = EXCLUDED.required_fields,
           identity_fields        = EXCLUDED.identity_fields,
@@ -356,11 +374,12 @@ async def pa_upsert_platform_manifest(
           supported_formats      = EXCLUDED.supported_formats,
           is_active              = EXCLUDED.is_active,
           updated_by             = EXCLUDED.updated_by,
-          updated_at             = NOW()
+          updated_at             = NOW(),
+          safe_fields            = EXCLUDED.safe_fields
         RETURNING manifest_id, tenant_id, doc_type, required_fields, identity_fields,
                   optional_fields, classification_signals, signal_weights,
                   confidence_threshold, supported_formats, usage_count,
-                  is_active, created_at, updated_at
+                  is_active, created_at, updated_at, safe_fields
         """,
         dt,
         json.dumps(body.required_fields),
@@ -372,6 +391,7 @@ async def pa_upsert_platform_manifest(
         json.dumps(body.supported_formats),
         body.is_active,
         pa_id,
+        json.dumps(body.safe_fields),
     )
     log.info("platform manifest upserted: doc_type=%s by PA=%s", dt, pa_id)
     from services.manifest_service import _serialize_manifest_row

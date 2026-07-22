@@ -330,6 +330,7 @@ async def stage06_raise_exception(params: dict) -> dict:
         exception_type=params["exception_type"],
         extracted_fields=params["extracted_fields"],
         candidates=params.get("candidates", []),
+        doc_type=params.get("doc_type"),
     )
     return {"status": "EXCEPTION"}
 

@@ -52,10 +52,10 @@ class BenchmarkService:
             )
 
         # Increment context — growth rate, not amounts
-        ctc_old = _numeric(extracted_fields, "ctc_old")
-        ctc_new = _numeric(extracted_fields, "ctc_new")
-        if ctc_old and ctc_new and ctc_old > 0:
-            pct = round((ctc_new - ctc_old) / ctc_old * 100, 1)
+        ctc_before = _numeric(extracted_fields, "ctc_before")
+        ctc_after = _numeric(extracted_fields, "ctc_after")
+        if ctc_before and ctc_after and ctc_before > 0:
+            pct = round((ctc_after - ctc_before) / ctc_before * 100, 1)
             context["increment"] = {
                 "growth_percent": pct,
                 "direction": "increase" if pct > 0 else "decrease",

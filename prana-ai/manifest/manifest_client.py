@@ -35,6 +35,11 @@ class ManifestData:
     is_tenant_override:      bool = False
     signal_weights:          list[float] = field(default_factory=list)
     usage_count:             int = 0
+    # Subset of required/identity/optional fields explicitly confirmed
+    # non-monetary metadata by the tenant's OA-Admin or PA. Anything NOT here
+    # is sensitive by default — see pipeline/stage06_route.py's
+    # _SAFE_METADATA_FIELDS, which this is unioned into.
+    safe_fields:             list[str] = field(default_factory=list)
 
     def all_fields(self) -> list[str]:
         seen = set()
@@ -176,4 +181,5 @@ def _parse_manifest(data: dict) -> ManifestData:
         is_tenant_override=data.get("is_tenant_override", False),
         signal_weights=data.get("signal_weights", []),
         usage_count=data.get("usage_count", 0),
+        safe_fields=data.get("safe_fields", []),
     )

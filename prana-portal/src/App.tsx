@@ -5,6 +5,7 @@ import { useAuthStore } from '@/store/auth'
 import { Topbar } from '@/components/shell/Topbar'
 import { Sidebar } from '@/components/shell/Sidebar'
 import { ElevationBanner } from '@/components/shell/ElevationBanner'
+import { SetupChecklistBanner } from '@/components/shell/SetupChecklistBanner'
 import { api } from '@/lib/api'
 
 // Public pages
@@ -35,6 +36,8 @@ import { ExceptionQueue }  from '@/pages/oa/ExceptionQueue'
 import { UserManagement }  from '@/pages/oa/UserManagement'
 import { ElevationPage }   from '@/pages/oa/ElevationPage'
 import { OrgSettings }     from '@/pages/oa/OrgSettings'
+import { DocumentFields }  from '@/pages/oa/DocumentFields'
+import { SetupChecklist }  from '@/pages/oa/SetupChecklist'
 import { OrgProfile }      from '@/pages/oa/OrgProfile'
 import { ResetTotp }       from '@/pages/oa/ResetTotp'
 import { EmployeePasswordReset as OaEmployeePasswordReset } from '@/pages/oa/EmployeePasswordReset'
@@ -82,6 +85,8 @@ import { AnomalyDetection }  from '@/pages/pa/AnomalyDetection'
 import { IncidentRegister }         from '@/pages/pa/IncidentRegister'
 import { SecurityIncidentRegister } from '@/pages/pa/SecurityIncidentRegister'
 import { IncidentPolicyConfig }     from '@/pages/pa/IncidentPolicyConfig'
+import { PlatformDocumentFields }   from '@/pages/pa/PlatformDocumentFields'
+import { SetupChecklistTemplate }   from '@/pages/pa/SetupChecklistTemplate'
 import { PaNotificationLog }        from '@/pages/pa/PaNotificationLog'
 import { CryptoHealth }             from '@/pages/pa/CryptoHealth'
 import { ApiKeys }           from '@/pages/pa/ApiKeys'
@@ -233,6 +238,23 @@ function PortalLayout({ children }: { children: React.ReactNode }) {
 
   const hasElevation = !elevationLoading && !!activeElevation?.ends_at && new Date(activeElevation.ends_at) > new Date()
 
+  // Go-Live Checklist gate — only relevant to the roles that actually upload
+  // documents. Errors caught in queryFn (returns null) — same non-blocking
+  // pattern as the elevation query above.
+  const checklistEnabled = user?.role === 'oa_operator' || user?.role === 'oa_admin'
+  const { data: checklistData } = useQuery({
+    queryKey: ['setup-checklist-gate'],
+    queryFn: () => api.get('/v1/org/setup-checklist').then(r => r.data).catch(() => null),
+    refetchInterval: 60_000,
+    enabled: checklistEnabled,
+  })
+  const missingRequiredCount = (checklistData?.items ?? []).filter(
+    (i: any) => i.is_required && !i.completed,
+  ).length
+  const hasIncompleteChecklist = checklistEnabled && missingRequiredCount > 0
+
+  const bannerCount = (hasElevation ? 1 : 0) + (hasIncompleteChecklist ? 1 : 0)
+
   return (
     <div className="min-h-screen bg-canvas">
       <Topbar />
@@ -243,7 +265,13 @@ function PortalLayout({ children }: { children: React.ReactNode }) {
           onEndEarly={() => endEarlyMutation.mutate(activeElevation!.elevation_id)}
         />
       )}
-      <main className="ml-[220px] min-h-screen" style={{ paddingTop: hasElevation ? 92 : 52 }}>
+      {hasIncompleteChecklist && (
+        <SetupChecklistBanner
+          missingCount={missingRequiredCount}
+          top={hasElevation ? 92 : 52}
+        />
+      )}
+      <main className="ml-[220px] min-h-screen" style={{ paddingTop: 52 + bannerCount * 40 }}>
         <div className="p-6">{children}</div>
       </main>
     </div>
@@ -285,6 +313,8 @@ export default function App() {
       <Route path="/org/elevations" element={<RequireAuth><PortalLayout><ElevationPage /></PortalLayout></RequireAuth>} />
       <Route path="/org/elevation"  element={<RequireAuth><PortalLayout><ElevationPage /></PortalLayout></RequireAuth>} />
       <Route path="/org/settings"   element={<RequireAuth><PortalLayout><OrgSettings /></PortalLayout></RequireAuth>} />
+      <Route path="/org/document-fields" element={<RequireAuth><PortalLayout><DocumentFields /></PortalLayout></RequireAuth>} />
+      <Route path="/org/setup-checklist" element={<RequireAuth><PortalLayout><SetupChecklist /></PortalLayout></RequireAuth>} />
       <Route path="/org/reset-totp" element={<RequireAuth><PortalLayout><ResetTotp /></PortalLayout></RequireAuth>} />
       <Route path="/org/reset-password" element={<RequireAuth><PortalLayout><OaEmployeePasswordReset /></PortalLayout></RequireAuth>} />
       <Route path="/org/hrms"       element={<RequireAuth><PortalLayout><HRMSSettings /></PortalLayout></RequireAuth>} />
@@ -348,6 +378,8 @@ export default function App() {
       <Route path="/admin/incidents"           element={<RequireAuth><PortalLayout><IncidentRegister /></PortalLayout></RequireAuth>} />
       <Route path="/admin/security-incidents" element={<RequireAuth><PortalLayout><SecurityIncidentRegister /></PortalLayout></RequireAuth>} />
       <Route path="/admin/incident-policy"    element={<RequireAuth><PortalLayout><IncidentPolicyConfig /></PortalLayout></RequireAuth>} />
+      <Route path="/admin/document-fields"    element={<RequireAuth><PortalLayout><PlatformDocumentFields /></PortalLayout></RequireAuth>} />
+      <Route path="/admin/setup-checklist"    element={<RequireAuth><PortalLayout><SetupChecklistTemplate /></PortalLayout></RequireAuth>} />
       <Route path="/admin/notifications"      element={<RequireAuth><PortalLayout><PaNotificationLog /></PortalLayout></RequireAuth>} />
       <Route path="/admin/crypto"     element={<RequireAuth><PortalLayout><CryptoHealth /></PortalLayout></RequireAuth>} />
       <Route path="/admin/audit"      element={<RequireAuth><PortalLayout><AuditTrail /></PortalLayout></RequireAuth>} />

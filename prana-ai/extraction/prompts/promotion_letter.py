@@ -12,8 +12,8 @@ DOCUMENT TEXT:
 EXTRACT THESE FIELDS:
 employee_name        — Employee full name
 employee_id          — Employee code / ID
-designation_old      — Previous designation / title
-designation_new      — New / promoted designation
+previous_designation — Previous designation / title
+new_designation      — New / promoted designation
 department           — Department
 employer_name        — Company name
 effective_date       — Date from which promotion is effective (YYYY-MM-DD)
@@ -22,14 +22,14 @@ ctc_new              — Revised CTC post-promotion (numeric, INR annual) if sta
 
 RETURN FORMAT (JSON only):
 {{
-  "employee_name":    {{"value": null, "confidence": 0.0}},
-  "employee_id":      {{"value": null, "confidence": 0.0}},
-  "designation_old":  {{"value": null, "confidence": 0.0}},
-  "designation_new":  {{"value": null, "confidence": 0.0}},
-  "department":       {{"value": null, "confidence": 0.0}},
-  "employer_name":    {{"value": null, "confidence": 0.0}},
-  "effective_date":   {{"value": null, "confidence": 0.0}},
-  "letter_date":      {{"value": null, "confidence": 0.0}},
-  "ctc_new":          {{"value": null, "confidence": 0.0}},
+  "employee_name":        {{"value": null, "confidence": 0.0}},
+  "employee_id":          {{"value": null, "confidence": 0.0}},
+  "previous_designation": {{"value": null, "confidence": 0.0}},
+  "new_designation":      {{"value": null, "confidence": 0.0}},
+  "department":           {{"value": null, "confidence": 0.0}},
+  "employer_name":        {{"value": null, "confidence": 0.0}},
+  "effective_date":       {{"value": null, "confidence": 0.0}},
+  "letter_date":          {{"value": null, "confidence": 0.0}},
+  "ctc_new":              {{"value": null, "confidence": 0.0}},
   "overall_confidence": 0.0
 }}"""
