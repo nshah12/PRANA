@@ -281,9 +281,22 @@ async def stage05_handle_cross_tenant_violation(params: dict) -> dict:
                 "severity":            "CRITICAL",
             }, key=uploading_tenant_id)
 
-            # Alert Tenant CISO + PA Admin
+            # Alert Tenant CISO + PA Admin (email + bell, via NotifConsumer)
             await kafka.publish("prana.notifications", {
                 "event_type":          "CROSS_TENANT_UPLOAD",
+                "document_id":         document_id,
+                "tenant_id":           uploading_tenant_id,
+                "owner_tenant_id":     owner_tenant_id,
+                "anomaly_id":          anomaly_id,
+                "actor_id":            actor_id,
+            }, key=uploading_tenant_id)
+
+            # Real-time CISO dashboard SSE push, via SecurityConsumer — this is a
+            # SEPARATE topic from the notification above; SecurityConsumer only
+            # subscribes to prana.security.events, so this event never reached it
+            # before, leaving its CROSS_TENANT_UPLOAD_DETECTED branch unreachable.
+            await kafka.publish("prana.security.events", {
+                "event_type":          "CROSS_TENANT_UPLOAD_DETECTED",
                 "document_id":         document_id,
                 "tenant_id":           uploading_tenant_id,
                 "owner_tenant_id":     owner_tenant_id,

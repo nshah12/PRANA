@@ -72,4 +72,7 @@ async def test_bell_notification_has_correct_payload(consumer, db_pool):
         await consumer._dispatch("OBLIGATION_DUE", event)
     notif = mock_kafka.notify_bell.call_args[0][0]
     assert notif["template_id"] == "OBLIGATION_DUE"
-    assert notif["payload"]["act"] == "ESIC_ACT"
+    # Regression: this used to put the content under a "payload" key that
+    # BellConsumer/NotificationService never read — the bell fired with empty content.
+    assert notif["template_data"]["act"] == "ESIC_ACT"
+    assert "payload" not in notif

@@ -33,6 +33,11 @@ async def test_oa_user_created_publishes_welcome_email(consumer):
     notif = mock_kafka.notify_email.call_args[0][0]
     assert notif["template_id"] == "OA_WELCOME"
     assert notif["recipient_id"] == "u-1"
+    # Regression: this used to put the login_url payload under a "payload" key,
+    # but EmailConsumer/NotificationService only ever read "template_data" — the
+    # email would send with an empty body.
+    assert notif["template_data"] == {"login_url": event.get("login_url", "https://prana.in/org/login")}
+    assert "payload" not in notif
 
 
 @pytest.mark.asyncio
@@ -67,13 +72,28 @@ async def test_oa_user_locked_starts_policy_lock_workflow(consumer):
 
 
 @pytest.mark.asyncio
-async def test_elevation_approved_sends_email(consumer):
+async def test_elevation_approved_no_longer_sends_email_directly(consumer):
+    """ELEVATION_APPROVED/DENIED emails are now owned by NotifConsumer's
+    _handle_elevation (already correct: looks up oa_user.email, uses
+    template_data) — reachable because kafka.oa_user_event() dual-publishes
+    these two event types to TOPIC_NOTIF. OAUserConsumer must not also send its
+    own email, or the requestor gets duplicate notifications."""
     event = {"event_type": "ELEVATION_APPROVED", "oa_user_id": "u-3",
              "requestor_id": "u-3", "elevation_id": "e-1", "tenant_id": "t-1"}
     mock_kafka = AsyncMock()
     with patch("kafka.consumers.oa_user_consumer.get_kafka_producer", new=AsyncMock(return_value=mock_kafka)):
         await consumer._dispatch("ELEVATION_APPROVED", event)
-    mock_kafka.notify_email.assert_awaited_once()
+    mock_kafka.notify_email.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+async def test_elevation_denied_no_longer_sends_email_directly(consumer):
+    event = {"event_type": "ELEVATION_DENIED", "oa_user_id": "u-3",
+             "requestor_id": "u-3", "elevation_id": "e-1", "tenant_id": "t-1"}
+    mock_kafka = AsyncMock()
+    with patch("kafka.consumers.oa_user_consumer.get_kafka_producer", new=AsyncMock(return_value=mock_kafka)):
+        await consumer._dispatch("ELEVATION_DENIED", event)
+    mock_kafka.notify_email.assert_not_awaited()
 
 
 @pytest.mark.asyncio
@@ -85,6 +105,11 @@ async def test_elevation_expired_sends_bell_not_email(consumer):
         await consumer._dispatch("ELEVATION_EXPIRED", event)
     mock_kafka.notify_bell.assert_awaited_once()
     mock_kafka.notify_email.assert_not_awaited()
+    notif = mock_kafka.notify_bell.call_args[0][0]
+    # Regression: this used to put duration_hours under a "payload" key that
+    # BellConsumer/NotificationService never read.
+    assert notif["template_data"] == {"elevation_id": "e-2", "duration_hours": None}
+    assert "payload" not in notif
 
 
 # ── ROLE_CHANGED — PRIVILEGE_ESCALATION detection ───────────────────────────

@@ -24,6 +24,7 @@ import logging
 from aiokafka import AIOKafkaConsumer
 
 from config import Settings
+from kafka.producer import TOPIC_CACHE_INVAL
 from services.cache_service import CacheService
 
 log = logging.getLogger(__name__)
@@ -35,7 +36,7 @@ class CacheInvalidationConsumer:
     def __init__(self, settings: Settings, redis, pod_id: str = "default") -> None:
         self._cache = CacheService(redis)
         self._consumer = AIOKafkaConsumer(
-            "prana.cache.events",
+            TOPIC_CACHE_INVAL,
             bootstrap_servers=settings.kafka_bootstrap_servers,
             group_id=GROUP_ID,
             auto_offset_reset="earliest",

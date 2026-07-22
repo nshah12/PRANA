@@ -9,9 +9,13 @@ Events handled:
   TENANT_ACTIVATED   → no workflow ("TenantOnboardingWorkflow" was never @workflow.defn'd;
                         the welcome-email/provisioning it would have done is already
                         covered by TenantProvisioningWorkflow off TENANT_CREATED)
-  TENANT_SUSPENDED   → no workflow (never published — routers/pa_admin.py's suspend_tenant
-                        writes the DB status directly without publishing this event; no
-                        "TenantSuspensionWorkflow" exists either)
+  TENANT_SUSPENDED   → no workflow (IS published — routers/tenants.py's suspend_tenant
+                        publishes it after writing the DB status — but no durable
+                        process is needed for it: AuditConsumer's dual-publish to
+                        prana.audit.events already gives CISO/PA audit visibility, and
+                        no "TenantSuspensionWorkflow" exists. routers/pa_admin.py has a
+                        separate, older suspend endpoint that does NOT publish this event —
+                        that gap is real but out of scope here.)
   TENANT_OFFBOARDED  → start TenantOffboardingWorkflow (full data cleanup)
   KEK_ROTATED        → no workflow (never published; no "KekRotationWorkflow" exists —
                         real KEK rotation is KMSKeyRotationWorkflow, workflows/security.py,
@@ -81,10 +85,12 @@ class TenantConsumer:
                       "— provisioning already ran off TENANT_CREATED")
 
         elif etype == "TENANT_SUSPENDED":
-            # No workflow: never published (routers/pa_admin.py's suspend_tenant writes
-            # the DB status directly, no Kafka event) and "TenantSuspensionWorkflow" was
-            # never @workflow.defn'd.
-            log.debug("TenantConsumer: TENANT_SUSPENDED has no event-driven handler")
+            # No workflow needed: routers/tenants.py's suspend_tenant DOES publish this
+            # event, but there's no durable process to trigger — AuditConsumer's
+            # dual-publish to prana.audit.events already gives CISO/PA audit visibility,
+            # and "TenantSuspensionWorkflow" was never @workflow.defn'd (nothing to start).
+            log.debug("TenantConsumer: TENANT_SUSPENDED has no event-driven handler "
+                      "— audit visibility already covered by AuditConsumer")
 
         elif etype == "TENANT_OFFBOARDED":
             await self._start_workflow("TenantOffboardingWorkflow",

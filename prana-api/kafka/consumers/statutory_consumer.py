@@ -99,11 +99,11 @@ class StatutoryConsumer:
             kafka = await get_kafka_producer()
             for row in rows:
                 await kafka.notify_bell({
-                    "event_type":   "OBLIGATION_DUE",
-                    "recipient_id": str(row["oa_user_id"]),
-                    "template_id":  "OBLIGATION_DUE",
-                    "tenant_id":    tenant_id,
-                    "payload":      payload,
+                    "event_type":    "OBLIGATION_DUE",
+                    "recipient_id":  str(row["oa_user_id"]),
+                    "template_id":   "OBLIGATION_DUE",
+                    "tenant_id":     tenant_id,
+                    "template_data": payload,
                 })
             log.info("StatutoryConsumer: published OBLIGATION_DUE bell notifications tenant_id=%s count=%d",
                      tenant_id, len(rows))

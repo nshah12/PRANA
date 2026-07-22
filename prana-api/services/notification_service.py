@@ -41,6 +41,8 @@ _SUBJECT_MAP: dict[str, str] = {
     "VAULT_WELCOME":         "Your PRANA vault is ready",
     "VAULT_WELCOME_REJOIN":  "Welcome back to PRANA",
     "EMPLOYEE_CREDENTIALS_ISSUED": "Your PRANA account is ready — set up your login",
+    "STORAGE_EXPANSION_REQUESTED": "PRANA: Tenant storage expansion request awaiting review",
+    "ONBOARDING_REVIEW_SLA_BREACH": "PRANA: Onboarding review SLA breached — action required",
 }
 
 

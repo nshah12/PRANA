@@ -46,8 +46,9 @@ async def test_tenant_activated_starts_no_workflow(consumer):
 @pytest.mark.asyncio
 async def test_tenant_suspended_starts_no_workflow(consumer):
     """Regression guard: this used to start "TenantSuspensionWorkflow" — never
-    @workflow.defn'd anywhere, and TENANT_SUSPENDED is never published
-    (routers/pa_admin.py's suspend_tenant writes the DB status directly)."""
+    @workflow.defn'd anywhere. TENANT_SUSPENDED IS published (routers/tenants.py's
+    suspend_tenant), but no durable process is needed for it — AuditConsumer's
+    dual-publish to prana.audit.events already gives CISO/PA audit visibility."""
     event = {"event_type": "TENANT_SUSPENDED", "tenant_id": "t-2", "reason": "nonpayment"}
     await consumer._dispatch("TENANT_SUSPENDED", event)
     consumer._temporal.start_workflow.assert_not_awaited()

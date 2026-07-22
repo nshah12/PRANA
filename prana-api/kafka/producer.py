@@ -148,10 +148,16 @@ class KafkaPub:
 
     # ── Tenant events ─────────────────────────────────────────────────────────
 
+    # TENANT_PROVISIONED needs the first OA-Admin notified by email (welcome + temp
+    # password) — dual-published to TOPIC_NOTIF so NotifConsumer's _handle_welcome fires.
+    _TENANT_EVENTS_NEEDING_NOTIFY = {"TENANT_PROVISIONED"}
+
     async def tenant_event(self, event: dict) -> None:
         """TENANT_CREATED, CONFIG_UPDATED, API_KEY_CREATED/REVOKED, KEK_ROTATED, etc."""
         await self.publish(TOPIC_TENANT,    event, key=event.get("tenant_id"))
         await self.publish(TOPIC_AUDIT,     event, key=event.get("tenant_id"))
+        if event.get("event_type") in self._TENANT_EVENTS_NEEDING_NOTIFY:
+            await self.publish(TOPIC_NOTIF, event, key=event.get("tenant_id"))
         # Trigger cache invalidation for config/apikey changes
         etype = event.get("event_type", "")
         if etype in ("TENANT_CONFIG_UPDATED",):
@@ -163,10 +169,19 @@ class KafkaPub:
 
     # ── OA user events ────────────────────────────────────────────────────────
 
+    # ELEVATION_APPROVED/DENIED need a real human (the requestor) notified by email —
+    # dual-published to TOPIC_NOTIF so NotifConsumer's _handle_elevation fires.
+    # ELEVATION_EXPIRED (bell, handled directly by OAUserConsumer) and OA_USER_CREATED
+    # (welcome email, also sent directly by OAUserConsumer) are deliberately excluded —
+    # dual-publishing either would double-send.
+    _OA_USER_EVENTS_NEEDING_NOTIFY = {"ELEVATION_APPROVED", "ELEVATION_DENIED"}
+
     async def oa_user_event(self, event: dict) -> None:
         """OA_USER_CREATED, LOCKED, ELEVATION_APPROVED/DENIED/EXPIRED, etc."""
         await self.publish(TOPIC_OA_USERS, event, key=event.get("tenant_id"))
         await self.publish(TOPIC_AUDIT,    event, key=event.get("tenant_id"))
+        if event.get("event_type") in self._OA_USER_EVENTS_NEEDING_NOTIFY:
+            await self.publish(TOPIC_NOTIF, event, key=event.get("tenant_id"))
         # Invalidate OA permissions cache on role/elevation changes
         oa_user_id = event.get("oa_user_id")
         if oa_user_id:
@@ -204,9 +219,16 @@ class KafkaPub:
 
     # ── Platform / ops events ─────────────────────────────────────────────────
 
+    # Platform events that need a real human (PA) notified, not just ops/PagerDuty
+    # alerting — dual-published to TOPIC_NOTIF so NotifConsumer's "fan out to every
+    # active PA Admin" handlers (mirroring _handle_audit_integrity_mismatch) fire.
+    _PLATFORM_EVENTS_NEEDING_PA_NOTIFY = {"STORAGE_EXPANSION_REQUESTED", "ONBOARDING_REVIEW_SLA_BREACH"}
+
     async def platform_event(self, event: dict) -> None:
         """WORKER_STARTED/CRASHED, HEALTH_CHECK_FAILED, DEPLOYMENT_*, etc."""
         await self.publish(TOPIC_PLATFORM, event, key=event.get("service", "platform"))
+        if event.get("event_type") in self._PLATFORM_EVENTS_NEEDING_PA_NOTIFY:
+            await self.publish(TOPIC_NOTIF, event, key=event.get("tenant_id", "platform"))
 
     # ── Cache invalidation ────────────────────────────────────────────────────
 

@@ -102,13 +102,21 @@ class AnalyticsService:
             return
         for role, payload in data.items():
             for recipient_id in payload.get("recipients", []):
-                await self._kafka.notify_email({
+                # EmailConsumer requires recipient_email or it silently skips —
+                # recipient_id here is an oa_user_id, not an email address.
+                email = await self._db.fetchval(
+                    "SELECT email FROM oa_user WHERE oa_user_id=$1", recipient_id,
+                )
+                notif = {
                     "event_type": f"DIGEST_{digest_type.upper()}",
                     "recipient_id": recipient_id,
                     "template_id": f"DIGEST_{digest_type.upper()}",
                     "tenant_id": tenant_id,
-                    "payload": payload.get("content", {}),
-                })
+                    "template_data": payload.get("content", {}),
+                }
+                if email:
+                    notif["recipient_email"] = email
+                await self._kafka.notify_email(notif)
 
     # ── PeerBenchmarkWorkflow ─────────────────────────────────────────────────
 

@@ -11,9 +11,12 @@ Events handled:
   OA_USER_CREATED          → trigger welcome email notification
   OA_USER_LOCKED           → start PolicyLockWorkflow
   ELEVATION_REQUESTED      → audit (workflow already started in HTTP handler)
-  ELEVATION_APPROVED       → notify requestor (email)
-  ELEVATION_DENIED         → notify requestor (email)
-  ELEVATION_EXPIRED        → notify requestor (bell)
+  ELEVATION_APPROVED       → no action here — kafka.oa_user_event() dual-publishes
+                              this to TOPIC_NOTIF, where NotifConsumer._handle_elevation
+                              (resolves oa_user.email) sends the email
+  ELEVATION_DENIED         → same as above
+  ELEVATION_EXPIRED        → notify requestor (bell) — the one elevation outcome
+                              NotifConsumer doesn't handle, so this consumer owns it
   ROLE_CHANGED             → audit (fanned out to prana.audit.events by
                               kafka.oa_user_event() already — nothing to do here for
                               that part) + PRIVILEGE_ESCALATION detection: publishes
@@ -100,8 +103,15 @@ class OAUserConsumer:
                     if "already exists" not in str(exc).lower():
                         log.exception("OAUserConsumer: failed to start PolicyLockWorkflow")
 
-        elif etype in ("ELEVATION_APPROVED", "ELEVATION_DENIED", "ELEVATION_EXPIRED"):
-            await self._notify_elevation_result(etype, event)
+        elif etype == "ELEVATION_EXPIRED":
+            await self._notify_elevation_expired(event)
+
+        elif etype in ("ELEVATION_APPROVED", "ELEVATION_DENIED"):
+            # No email here — kafka.oa_user_event() dual-publishes these two event
+            # types to TOPIC_NOTIF, where NotifConsumer._handle_elevation (already
+            # correct: resolves oa_user.email, uses template_data) owns the send.
+            # Sending from both places would double-notify the requestor.
+            log.debug("OAUserConsumer: %s email handled by NotifConsumer via TOPIC_NOTIF dual-publish", etype)
 
         elif etype == "ROLE_CHANGED":
             await self._detect_privilege_escalation(event)
@@ -118,7 +128,7 @@ class OAUserConsumer:
                 "recipient_email": event.get("email"),
                 "template_id":   "OA_WELCOME",
                 "tenant_id":     event.get("tenant_id"),
-                "payload":       {"login_url": event.get("login_url", "https://prana.in/org/login")},
+                "template_data": {"login_url": event.get("login_url", "https://prana.in/org/login")},
             })
             log.info("OAUserConsumer: published OA_WELCOME email oa_user_id=%s", event.get("oa_user_id"))
         except Exception:
@@ -157,27 +167,18 @@ class OAUserConsumer:
         except Exception:
             log.exception("OAUserConsumer: failed to publish PRIVILEGE_ESCALATION anomaly")
 
-    async def _notify_elevation_result(self, etype: str, event: dict) -> None:
+    async def _notify_elevation_expired(self, event: dict) -> None:
         recipient_id = event.get("requestor_id") or event.get("oa_user_id")
-        payload = {"elevation_id": event.get("elevation_id"), "duration_hours": event.get("duration_hours")}
+        template_data = {"elevation_id": event.get("elevation_id"), "duration_hours": event.get("duration_hours")}
         try:
             kafka = await get_kafka_producer()
-            if etype == "ELEVATION_EXPIRED":
-                await kafka.notify_bell({
-                    "event_type":   etype,
-                    "recipient_id": recipient_id,
-                    "template_id":  etype,
-                    "tenant_id":    event.get("tenant_id"),
-                    "payload":      payload,
-                })
-            else:
-                await kafka.notify_email({
-                    "event_type":   etype,
-                    "recipient_id": recipient_id,
-                    "template_id":  etype,
-                    "tenant_id":    event.get("tenant_id"),
-                    "payload":      payload,
-                })
-            log.info("OAUserConsumer: published %s notification recipient=%s", etype, recipient_id)
+            await kafka.notify_bell({
+                "event_type":    "ELEVATION_EXPIRED",
+                "recipient_id":  recipient_id,
+                "template_id":   "ELEVATION_EXPIRED",
+                "tenant_id":     event.get("tenant_id"),
+                "template_data": template_data,
+            })
+            log.info("OAUserConsumer: published ELEVATION_EXPIRED notification recipient=%s", recipient_id)
         except Exception:
-            log.exception("OAUserConsumer: failed to publish %s notification", etype)
+            log.exception("OAUserConsumer: failed to publish ELEVATION_EXPIRED notification")
