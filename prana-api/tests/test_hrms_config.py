@@ -196,6 +196,31 @@ async def test_create_config_happy_path(client):
     assert "secret" not in r.text
 
 
+@pytest.mark.asyncio
+async def test_create_config_publishes_connector_status_changed(client):
+    """Regression: nothing ever published an event on connector create, so
+    HRMSSyncScheduleWorkflow (which ensures a Temporal Schedule exists for the
+    tenant's connectors) never got triggered for a newly-created connector."""
+    new_id = str(uuid4())
+    db = client.app.state.db_pool.acquire().__aenter__.return_value
+    db.fetchval = AsyncMock(side_effect=["arn:aws:kms:ap-south-1:123:key/test", new_id])
+    client.app.state.kms_service.encrypt = MagicMock(return_value=b"encrypted")
+
+    payload = {
+        "connector_definition_id": CONN_DEF_ID,
+        "display_name": "Darwinbox – NPCI",
+        "integration_mode": "PULL",
+        "credentials": {"client_id": "abc", "client_secret": "secret"},
+    }
+    await client.post("/v1/hrms/config", json=payload, headers=_oa_admin_headers(client))
+
+    client.app.state.kafka_producer.integration_event.assert_awaited_once()
+    event = client.app.state.kafka_producer.integration_event.await_args.args[0]
+    assert event["event_type"] == "HRMS_CONNECTOR_STATUS_CHANGED"
+    assert event["tenant_id"] == TENANT_ID
+    assert event["status"] == "ACTIVE"
+
+
 # ── Field mapping ─────────────────────────────────────────────────────────────
 
 @pytest.mark.asyncio
@@ -228,6 +253,20 @@ async def test_pause_connector(client):
 
 
 @pytest.mark.asyncio
+async def test_pause_connector_publishes_connector_status_changed(client):
+    db = client.app.state.db_pool.acquire().__aenter__.return_value
+    db.execute = AsyncMock()
+
+    await client.patch(f"/v1/hrms/config/{CONNECTOR_ID}/pause", headers=_oa_admin_headers(client))
+
+    client.app.state.kafka_producer.integration_event.assert_awaited_once()
+    event = client.app.state.kafka_producer.integration_event.await_args.args[0]
+    assert event["event_type"] == "HRMS_CONNECTOR_STATUS_CHANGED"
+    assert event["tenant_id"] == TENANT_ID
+    assert event["status"] == "PAUSED"
+
+
+@pytest.mark.asyncio
 async def test_resume_connector(client):
     db = client.app.state.db_pool.acquire().__aenter__.return_value
     db.execute = AsyncMock()
@@ -238,6 +277,20 @@ async def test_resume_connector(client):
     )
     assert r.status_code == 200
     assert r.json()["status"] == "active"
+
+
+@pytest.mark.asyncio
+async def test_resume_connector_publishes_connector_status_changed(client):
+    db = client.app.state.db_pool.acquire().__aenter__.return_value
+    db.execute = AsyncMock()
+
+    await client.patch(f"/v1/hrms/config/{CONNECTOR_ID}/resume", headers=_oa_admin_headers(client))
+
+    client.app.state.kafka_producer.integration_event.assert_awaited_once()
+    event = client.app.state.kafka_producer.integration_event.await_args.args[0]
+    assert event["event_type"] == "HRMS_CONNECTOR_STATUS_CHANGED"
+    assert event["tenant_id"] == TENANT_ID
+    assert event["status"] == "ACTIVE"
 
 
 # ── Tenant isolation ──────────────────────────────────────────────────────────

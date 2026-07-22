@@ -224,7 +224,7 @@ async def lifespan(app: FastAPI):
             WhatsAppConsumer(settings, app.state.db_pool),
             BellConsumer(settings, app.state.db_pool, app.state.redis),
             # Integration & platform consumers
-            IntegrationConsumer(settings, app.state.db_pool, kafka),
+            IntegrationConsumer(settings, app.state.db_pool, kafka, temporal_client=app.state.temporal_client),
             PlatformConsumer(settings),
         ]
         for c in consumers:

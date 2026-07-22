@@ -105,6 +105,16 @@ async def create_config(body: CreateConfigRequest, request: Request, db: DbConn,
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=PranaError.CONFIG_CREATE_FAILED)
 
     log.info("Created HRMS connector config connector_id=%s tenant=%s", connector_id, tenant_id)
+
+    kafka = getattr(request.app.state, "kafka_producer", None)
+    if kafka:
+        await kafka.integration_event({
+            "event_type":   "HRMS_CONNECTOR_STATUS_CHANGED",
+            "tenant_id":    str(tenant_id),
+            "connector_id": str(connector_id),
+            "status":       "ACTIVE",
+        })
+
     return {"connector_id": str(connector_id)}
 
 
@@ -126,19 +136,32 @@ async def update_field_mapping(
     return {"connector_id": str(connector_id), "status": "updated"}
 
 
+async def _publish_connector_status_changed(request: Request, tenant_id: UUID, connector_id: UUID, status_value: str) -> None:
+    kafka = getattr(request.app.state, "kafka_producer", None)
+    if kafka:
+        await kafka.integration_event({
+            "event_type":   "HRMS_CONNECTOR_STATUS_CHANGED",
+            "tenant_id":    str(tenant_id),
+            "connector_id": str(connector_id),
+            "status":       status_value,
+        })
+
+
 @router.patch("/{connector_id}/pause")
-async def pause_connector(connector_id: UUID, db: DbConn, current: OAUser):
+async def pause_connector(connector_id: UUID, request: Request, db: DbConn, current: OAUser):
     """Pause syncing for this connector."""
     tenant_id = UUID(current.tenant_id)
     await _svc.set_status(connector_id=connector_id, tenant_id=tenant_id, status="PAUSED", db=db)
+    await _publish_connector_status_changed(request, tenant_id, connector_id, "PAUSED")
     return {"connector_id": str(connector_id), "status": "paused"}
 
 
 @router.patch("/{connector_id}/resume")
-async def resume_connector(connector_id: UUID, db: DbConn, current: OAUser):
+async def resume_connector(connector_id: UUID, request: Request, db: DbConn, current: OAUser):
     """Resume syncing for a paused connector."""
     tenant_id = UUID(current.tenant_id)
     await _svc.set_status(connector_id=connector_id, tenant_id=tenant_id, status="ACTIVE", db=db)
+    await _publish_connector_status_changed(request, tenant_id, connector_id, "ACTIVE")
     return {"connector_id": str(connector_id), "status": "active"}
 
 
@@ -197,7 +220,7 @@ async def trigger_sync(connector_id: UUID, request: Request, db: DbConn, current
         HRMSSyncWorkflow,
         HRMSSyncInput(connector_id=str(connector_id), tenant_id=str(tenant_id)),
         id=wf_id,
-        task_queue="prana-analytics",
+        task_queue="hrms-queue",
     )
 
     log.info("Manual sync triggered connector_id=%s workflow_id=%s", connector_id, wf_id)

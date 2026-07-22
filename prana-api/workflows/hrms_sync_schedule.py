@@ -37,6 +37,19 @@ async def ensure_hrms_schedules(
     PAUSED / REVOKED connectors are skipped — their schedules are paused separately
     by the status-change flow.
     """
+    import dataclasses
+
+    from temporalio.client import (
+        Schedule, ScheduleSpec, ScheduleActionStartWorkflow, ScheduleUpdate,
+    )
+    from temporalio.service import RPCError
+
+    # Imported lazily: this module also defines HRMSSyncScheduleWorkflow, and
+    # Temporal's workflow sandbox re-imports every module containing a
+    # @workflow.defn class in a restricted environment (see workflows/hrms_sync.py's
+    # comment on the same constraint for HRMSSyncService).
+    from workflows.hrms_sync import HRMSSyncWorkflow, HRMSSyncInput
+
     rows = await db.fetch(
         """
         SELECT c.connector_id, c.tenant_id, c.pull_schedule, c.status,
@@ -57,25 +70,31 @@ async def ensure_hrms_schedules(
         cid      = row["connector_id"]
         schedule = row.get("pull_schedule") or "0 */6 * * *"  # default every 6h
         sid      = _schedule_id(cid)
+        new_spec = ScheduleSpec(cron_expressions=[schedule])
 
         try:
             handle = temporal_client.get_schedule_handle(sid)
             await handle.describe()
-            # Exists — update interval to stay in sync with config changes
-            await handle.update(lambda s: s)  # no-op update; cadence already set
+            # Exists — update cron to stay in sync with config changes
+            async def _updater(inp, _spec=new_spec):
+                return ScheduleUpdate(schedule=dataclasses.replace(inp.description.schedule, spec=_spec))
+            await handle.update(_updater)
             updated += 1
             log.debug("ensure_hrms_schedules: updated schedule %s", sid)
-        except Exception:
+        except RPCError:
             # Does not exist — create
             try:
                 await temporal_client.create_schedule(
                     sid,
-                    {
-                        "workflow":     "HRMSSyncWorkflow",
-                        "connector_id": str(cid),
-                        "tenant_id":    str(tenant_id),
-                        "cron_spec":    schedule,
-                    },
+                    Schedule(
+                        action=ScheduleActionStartWorkflow(
+                            HRMSSyncWorkflow.run,
+                            HRMSSyncInput(connector_id=str(cid), tenant_id=str(tenant_id)),
+                            id=f"{sid}-run",
+                            task_queue="hrms-queue",
+                        ),
+                        spec=new_spec,
+                    ),
                 )
                 created += 1
                 log.info("ensure_hrms_schedules: created schedule %s cron=%s", sid, schedule)

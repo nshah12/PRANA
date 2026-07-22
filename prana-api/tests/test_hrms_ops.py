@@ -139,6 +139,25 @@ async def test_sync_trigger_starts_temporal_workflow(client):
 
 
 @pytest.mark.asyncio
+async def test_sync_trigger_uses_hrms_queue(client):
+    """Regression: HRMSSyncWorkflow is registered on "hrms-queue" (workflows/worker.py),
+    but trigger_sync was starting it on "prana-analytics" — a queue no worker for this
+    workflow polls, so the manual sync silently never ran despite returning 202."""
+    client.app.state.temporal_client = AsyncMock()
+    with patch("routers.hrms_config.HRMSSyncService") as MockSvc:
+        mock_svc = MockSvc.return_value
+        mock_svc.load_connector_config = AsyncMock(return_value=MOCK_CONFIG)
+
+        await client.post(
+            f"/v1/hrms/config/{CONNECTOR_ID}/sync",
+            headers=_oa_admin_headers(client),
+        )
+
+    _, kwargs = client.app.state.temporal_client.start_workflow.call_args
+    assert kwargs["task_queue"] == "hrms-queue"
+
+
+@pytest.mark.asyncio
 async def test_sync_trigger_paused_returns_409(client):
     """Cannot trigger sync on a PAUSED connector."""
     paused_config = {**MOCK_CONFIG, "status": "PAUSED"}

@@ -5,10 +5,12 @@ Handles retry logic for HRMS webhook failures, EPFO verification failures,
 and KMS health tracking. Dead-letter path for integration errors.
 
 Events handled:
-  HRMS_WEBHOOK_FAILED       → enqueue retry with exponential backoff (max 3x)
-  EPFO_VERIFICATION_FAILED  → mark document stage for manual review
-  KMS_HEALTH_FAILED         → alert platform ops (publish to prana.platform.events)
-  TEXTRACT_FALLBACK_USED    → analytics counter
+  HRMS_WEBHOOK_FAILED         → enqueue retry with exponential backoff (max 3x)
+  EPFO_VERIFICATION_FAILED    → mark document stage for manual review
+  KMS_HEALTH_FAILED           → alert platform ops (publish to prana.platform.events)
+  TEXTRACT_FALLBACK_USED      → analytics counter
+  HRMS_CONNECTOR_STATUS_CHANGED → start HRMSSyncScheduleWorkflow (ensures a Temporal
+                                   Schedule exists per the tenant's ACTIVE connectors)
 """
 import json
 import logging
@@ -25,9 +27,10 @@ GROUP_ID = "prana-integration-consumer"
 
 class IntegrationConsumer:
     def __init__(self, settings: Settings, db_pool: Optional[asyncpg.Pool] = None,
-                 kafka_producer=None) -> None:
+                 kafka_producer=None, temporal_client=None) -> None:
         self._pool = db_pool
         self._kafka = kafka_producer
+        self._temporal = temporal_client
         self._consumer = AIOKafkaConsumer(
             "prana.integrations.events",
             bootstrap_servers=settings.kafka_bootstrap_servers,
@@ -78,8 +81,32 @@ class IntegrationConsumer:
                 except Exception:
                     log.exception("IntegrationConsumer: failed to escalate KMS failure to platform topic")
 
+        elif etype == "HRMS_CONNECTOR_STATUS_CHANGED":
+            await self._ensure_hrms_sync_schedule(event)
+
         else:
             log.debug("IntegrationConsumer: no action for event_type=%s", etype)
+
+    async def _ensure_hrms_sync_schedule(self, event: dict) -> None:
+        if not self._temporal:
+            log.debug("IntegrationConsumer: no temporal_client wired — skipping HRMS schedule ensure")
+            return
+
+        tenant_id = event.get("tenant_id")
+        if not tenant_id:
+            return
+
+        from workflows.hrms_sync_schedule import HRMSSyncScheduleWorkflow, HRMSSyncScheduleInput
+
+        try:
+            await self._temporal.start_workflow(
+                HRMSSyncScheduleWorkflow.run,
+                HRMSSyncScheduleInput(tenant_id=tenant_id),
+                id=f"hrms-sync-schedule-{tenant_id}",
+                task_queue="hrms-queue",
+            )
+        except Exception:
+            log.exception("IntegrationConsumer: failed to start HRMSSyncScheduleWorkflow tenant_id=%s", tenant_id)
 
     async def _handle_hrms_failure(self, event: dict) -> None:
         if not self._pool:
