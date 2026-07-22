@@ -50,19 +50,19 @@ export default function SettingsScreen() {
   }
 
   return (
-    <PageScreen title="Settings" sub="Account & preferences" icon="⚙">
-      <SectionLabel label="Security" />
+    <PageScreen title={tUi('SETTINGS_TITLE')} sub={tUi('SETTINGS_SUB')} icon="⚙">
+      <SectionLabel label={tUi('SETTINGS_SECTION_SECURITY')} />
       <View style={styles.group}>
-        <SettingRow icon="👤" iconBg="rgba(99,102,241,0.15)" title="Biometric unlock" sub="Face ID / fingerprint" right={<Switch value={biometric} onValueChange={setBiometric} trackColor={{ true: colors.indigo }} />} />
-        <SettingRow icon="📱" iconBg="rgba(52,211,153,0.15)" title="Push approval" sub="Login on new devices" right={<Switch value={pushNotif} onValueChange={setPushNotif} trackColor={{ true: colors.indigo }} />} />
+        <SettingRow icon="👤" iconBg="rgba(99,102,241,0.15)" title={tUi('SETTINGS_BIOMETRIC_TITLE')} sub={tUi('SETTINGS_BIOMETRIC_SUB')} right={<Switch value={biometric} onValueChange={setBiometric} trackColor={{ true: colors.indigo }} />} />
+        <SettingRow icon="📱" iconBg="rgba(52,211,153,0.15)" title={tUi('SETTINGS_PUSH_APPROVAL_TITLE')} sub={tUi('SETTINGS_PUSH_APPROVAL_SUB')} right={<Switch value={pushNotif} onValueChange={setPushNotif} trackColor={{ true: colors.indigo }} />} />
       </View>
 
-      <SectionLabel label="Notifications" />
+      <SectionLabel label={tUi('SETTINGS_SECTION_NOTIFICATIONS')} />
       <View style={styles.group}>
-        <SettingRow icon="🔔" iconBg="rgba(251,191,36,0.15)" title="New documents" sub="When employer pushes a doc" right={<Switch value={docNotif} onValueChange={setDocNotif} trackColor={{ true: colors.indigo }} />} />
+        <SettingRow icon="🔔" iconBg="rgba(251,191,36,0.15)" title={tUi('SETTINGS_NEW_DOCS_TITLE')} sub={tUi('SETTINGS_NEW_DOCS_SUB')} right={<Switch value={docNotif} onValueChange={setDocNotif} trackColor={{ true: colors.indigo }} />} />
       </View>
 
-      <SectionLabel label="Trusted devices" />
+      <SectionLabel label={tUi('SETTINGS_SECTION_TRUSTED_DEVICES')} />
       <View style={styles.group}>
         {devices.length === 0 ? (
           <Text style={[styles.rowSub, { padding: 12 }]}>{tUi('NO_TRUSTED_DEVICES')}</Text>
@@ -72,21 +72,21 @@ export default function SettingsScreen() {
             icon={d.platform === 'android' ? '📱' : d.platform === 'ios' ? '📱' : '💻'}
             iconBg={colors.surface3}
             title={d.name}
-            sub={d.is_current ? 'This device' : `Trusted ${new Date(d.trusted_at).toLocaleDateString('en-IN', { month: 'short', year: 'numeric' })}`}
+            sub={d.is_current ? tUi('SETTINGS_THIS_DEVICE') : tUi('SETTINGS_TRUSTED_ON', { date: new Date(d.trusted_at).toLocaleDateString('en-IN', { month: 'short', year: 'numeric' }) })}
             right={
               !d.is_current ? (
                 <Pressable style={styles.removeBtn} onPress={() => removeDevice(d.id)}>
-                  <Text style={styles.removeText}>Remove</Text>
+                  <Text style={styles.removeText}>{tUi('SETTINGS_REMOVE_DEVICE')}</Text>
                 </Pressable>
               ) : (
-                <View style={styles.currentBadge}><Text style={styles.currentText}>Current</Text></View>
+                <View style={styles.currentBadge}><Text style={styles.currentText}>{tUi('SETTINGS_CURRENT_DEVICE')}</Text></View>
               )
             }
           />
         ))}
       </View>
 
-      <SectionLabel label="Privacy & data" />
+      <SectionLabel label={tUi('SETTINGS_SECTION_PRIVACY_DATA')} />
       <View style={styles.group}>
         <Pressable style={styles.row} onPress={() => router.push('/(vault)/data-rights')}>
           <View style={[styles.rowIcon, { backgroundColor: 'rgba(99,102,241,0.12)' }]}>
@@ -100,7 +100,7 @@ export default function SettingsScreen() {
         </Pressable>
       </View>
 
-      <SectionLabel label="Account" />
+      <SectionLabel label={tUi('SETTINGS_SECTION_ACCOUNT')} />
       <View style={styles.group}>
         <Pressable style={[styles.row, styles.dangerRow]} onPress={() => { signOut(); router.replace('/(auth)/sign-in'); }}>
           <View style={[styles.rowIcon, { backgroundColor: 'rgba(251,113,133,0.15)' }]}>

@@ -282,10 +282,10 @@ export function AlumniNetwork() {
             <table className="w-full text-sm">
               <thead>
                 <tr className="border-b border-slate-100 bg-slate-50">
-                  <th className="text-left px-5 py-3 font-medium text-slate-600">Recipient</th>
-                  <th className="text-left px-5 py-3 font-medium text-slate-600">Subject</th>
-                  <th className="text-left px-5 py-3 font-medium text-slate-600">Status</th>
-                  <th className="text-left px-5 py-3 font-medium text-slate-600">Sent</th>
+                  <th className="text-left px-5 py-3 font-medium text-slate-600">{tUi('CHRO_ALUMNI_COL_RECIPIENT')}</th>
+                  <th className="text-left px-5 py-3 font-medium text-slate-600">{tUi('CHRO_ALUMNI_COL_SUBJECT')}</th>
+                  <th className="text-left px-5 py-3 font-medium text-slate-600">{tUi('CHRO_ALUMNI_COL_STATUS')}</th>
+                  <th className="text-left px-5 py-3 font-medium text-slate-600">{tUi('CHRO_ALUMNI_COL_SENT')}</th>
                 </tr>
               </thead>
               <tbody>
@@ -341,23 +341,23 @@ export function AlumniNetwork() {
             ) : (
               <>
                 <div>
-                  <label className="text-xs text-slate-500 mb-1 block">Subject</label>
+                  <label className="text-xs text-slate-500 mb-1 block">{tUi('CHRO_ALUMNI_COMPOSE_SUBJECT_LABEL')}</label>
                   <input
                     value={subject}
                     onChange={e => setSubject(e.target.value)}
                     maxLength={200}
-                    placeholder="e.g. Exciting opportunity — let's reconnect"
+                    placeholder={tUi('CHRO_ALUMNI_SUBJECT_PLACEHOLDER')}
                     className="w-full px-3 py-2 text-sm border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-sky-500/30"
                   />
                 </div>
                 <div>
-                  <label className="text-xs text-slate-500 mb-1 block">Message</label>
+                  <label className="text-xs text-slate-500 mb-1 block">{tUi('CHRO_ALUMNI_COMPOSE_MESSAGE_LABEL')}</label>
                   <textarea
                     value={bodyText}
                     onChange={e => setBodyText(e.target.value)}
                     maxLength={2000}
                     rows={5}
-                    placeholder="Write a personalised message…"
+                    placeholder={tUi('CHRO_ALUMNI_MESSAGE_PLACEHOLDER')}
                     className="w-full px-3 py-2 text-sm border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-sky-500/30 resize-none"
                   />
                   <p className="text-right text-xs text-slate-400 mt-1">{bodyText.length}/2000</p>
@@ -365,7 +365,7 @@ export function AlumniNetwork() {
                 {composeError && <p className="text-sm text-red-500">{composeError}</p>}
                 <div className="flex gap-2 justify-end">
                   <button onClick={() => setCompose(null)} className="px-4 py-2 text-sm text-slate-500 hover:text-slate-700">
-                    Cancel
+                    {tUi('CHRO_ALUMNI_CANCEL')}
                   </button>
                   <button
                     onClick={sendOutreach}

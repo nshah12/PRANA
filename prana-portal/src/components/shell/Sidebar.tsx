@@ -275,7 +275,7 @@ export function Sidebar() {
       {/* Tenant name */}
       {user.tenantName && (
         <div className="px-4 mb-4">
-          <p className="text-[10px] font-mono text-slate-500 uppercase tracking-widest">Organisation</p>
+          <p className="text-[10px] font-mono text-slate-500 uppercase tracking-widest">{tUi('SIDEBAR_ORG_LABEL')}</p>
           <p className="text-sm text-white font-medium mt-0.5 truncate">{user.tenantName}</p>
         </div>
       )}

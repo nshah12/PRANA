@@ -42,14 +42,14 @@ function QrDisplay({ secretKey }: { uri: string; secretKey: string }) {
 
       <Text style={qr.title}>{tUi('TOTP_SETUP_ADD_AUTHENTICATOR')}</Text>
       <Text style={qr.hint}>
-        Open <Text style={qr.bold}>Google Authenticator</Text> or <Text style={qr.bold}>Authy</Text>{'\n'}
-        Tap  <Text style={qr.bold}>+  →  Enter a setup key</Text>{'\n'}
-        Account: <Text style={qr.bold}>PRANA</Text>  ·  Type: <Text style={qr.bold}>Time-based</Text>
+        {tUi('TOTP_SETUP_HINT_OPEN_PREFIX')} <Text style={qr.bold}>Google Authenticator</Text> {tUi('TOTP_SETUP_HINT_OPEN_OR')} <Text style={qr.bold}>Authy</Text>{'\n'}
+        {tUi('TOTP_SETUP_HINT_TAP_LABEL')}  <Text style={qr.bold}>{tUi('TOTP_SETUP_HINT_TAP_ACTION')}</Text>{'\n'}
+        {tUi('TOTP_SETUP_HINT_ACCOUNT_LABEL')} <Text style={qr.bold}>PRANA</Text>  ·  {tUi('TOTP_SETUP_HINT_TYPE_LABEL')} <Text style={qr.bold}>{tUi('TOTP_SETUP_HINT_TIME_BASED')}</Text>
       </Text>
 
       {/* Key display */}
       <View style={qr.keyBox}>
-        <Text style={qr.keyLabel}>YOUR SETUP KEY</Text>
+        <Text style={qr.keyLabel}>{tUi('TOTP_SETUP_KEY_LABEL')}</Text>
         <Text style={qr.keyValue} selectable>{formatted || '—'}</Text>
         <Pressable onPress={copyKey} style={qr.copyBtn}>
           <Text style={qr.copyText}>{copied ? `✓  ${tUi('TOTP_SETUP_COPIED')}` : tUi('TOTP_SETUP_COPY_KEY')}</Text>
@@ -297,7 +297,7 @@ export default function TotpSetupScreen() {
                     {!verifying && code.length === CODE_LEN && (
                       <Pressable onPress={handleVerify} style={s.confirmBtn}>
                         <LinearGradient colors={['#6366F1', '#22D3EE', '#34D399']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={s.confirmGrad}>
-                          <Text style={s.confirmText}>Confirm & activate 2FA →</Text>
+                          <Text style={s.confirmText}>{tUi('TOTP_SETUP_CONFIRM_ACTIVATE')}</Text>
                         </LinearGradient>
                       </Pressable>
                     )}
@@ -308,7 +308,7 @@ export default function TotpSetupScreen() {
 
             {/* Recommended apps */}
             <View style={s.appsNote}>
-              <Text style={s.appsLabel}>RECOMMENDED APPS</Text>
+              <Text style={s.appsLabel}>{tUi('TOTP_SETUP_RECOMMENDED_APPS')}</Text>
               <Text style={s.appsText}>Google Authenticator · Authy · Microsoft Authenticator · 1Password</Text>
             </View>
           </Animated.View>

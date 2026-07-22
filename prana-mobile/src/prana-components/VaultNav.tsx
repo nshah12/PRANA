@@ -12,13 +12,14 @@ import React from 'react';
 import { View, Text, Pressable, StyleSheet, Platform } from 'react-native';
 import { BlurView } from 'expo-blur';
 import { colors, fonts, radius } from '../prana-theme/tokens';
+import { tUi } from '@/i18n';
 
 const NAV_ITEMS = [
-  { key: 'vault', icon: '🗂', label: 'Vault' },
-  { key: 'activity', icon: '🕐', label: 'Activity' },
-  { key: 'career', icon: '💼', label: 'Career' },
-  { key: 'shares', icon: '↗', label: 'Shares' },
-  { key: 'settings', icon: '⚙', label: 'Settings' },
+  { key: 'vault', icon: '🗂', label: tUi('NAV_ITEM_VAULT') },
+  { key: 'activity', icon: '🕐', label: tUi('NAV_ITEM_ACTIVITY') },
+  { key: 'career', icon: '💼', label: tUi('NAV_ITEM_CAREER') },
+  { key: 'shares', icon: '↗', label: tUi('NAV_ITEM_SHARES') },
+  { key: 'settings', icon: '⚙', label: tUi('NAV_ITEM_SETTINGS') },
 ] as const;
 
 interface VaultNavProps {

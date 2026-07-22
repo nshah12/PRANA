@@ -48,9 +48,9 @@ export function RateLimits() {
         <table className="w-full text-sm">
           <thead>
             <tr className="border-b border-slate-100 text-xs text-slate-400 uppercase tracking-wide">
-              <th className="px-5 py-3 text-left font-medium">Tenant</th>
-              <th className="px-5 py-3 text-right font-medium">Default rpm</th>
-              <th className="px-5 py-3 text-right font-medium">Source</th>
+              <th className="px-5 py-3 text-left font-medium">{tUi('PA_RATE_LIMITS_COL_TENANT')}</th>
+              <th className="px-5 py-3 text-right font-medium">{tUi('PA_RATE_LIMITS_COL_DEFAULT_RPM')}</th>
+              <th className="px-5 py-3 text-right font-medium">{tUi('PA_RATE_LIMITS_COL_SOURCE')}</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-50">
@@ -82,10 +82,10 @@ export function RateLimits() {
           <table className="w-full text-sm">
             <thead>
               <tr className="border-b border-slate-100 text-xs text-slate-400 uppercase tracking-wide">
-                <th className="px-5 py-3 text-left font-medium">Tenant</th>
-                <th className="px-5 py-3 text-left font-medium">Label</th>
-                <th className="px-5 py-3 text-right font-medium">Key rpm</th>
-                <th className="px-5 py-3 text-right font-medium">Status</th>
+                <th className="px-5 py-3 text-left font-medium">{tUi('PA_RATE_LIMITS_COL_TENANT')}</th>
+                <th className="px-5 py-3 text-left font-medium">{tUi('PA_RATE_LIMITS_COL_LABEL')}</th>
+                <th className="px-5 py-3 text-right font-medium">{tUi('PA_RATE_LIMITS_COL_KEY_RPM')}</th>
+                <th className="px-5 py-3 text-right font-medium">{tUi('PA_RATE_LIMITS_COL_KEY_STATUS')}</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-50">

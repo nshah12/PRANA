@@ -23,7 +23,7 @@ export function useDownloadToast() {
       <View style={toastStyles.pill}>
         <Text style={toastStyles.icon}>⬇</Text>
         <View>
-          <Text style={toastStyles.title}>Downloading…</Text>
+          <Text style={toastStyles.title}>{tUi('DOWNLOAD_FEEDBACK_DOWNLOADING')}</Text>
           <Text style={toastStyles.sub} numberOfLines={1}>{toast}</Text>
         </View>
         <View style={toastStyles.spinner}>
@@ -80,7 +80,7 @@ export function ZipModal({ visible, count, onDone }: ZipModalProps) {
           {phase === 'packing' ? (
             <>
               <Text style={zip.emoji}>📦</Text>
-              <Text style={zip.title}>Packing {count} document{count !== 1 ? 's' : ''}…</Text>
+              <Text style={zip.title}>{tUi('DOWNLOAD_FEEDBACK_PACKING', { count })}</Text>
               <Text style={zip.sub}>{tUi('DOWNLOAD_FEEDBACK_ENCRYPTING')}</Text>
               <View style={zip.trackWrap}>
                 <Animated.View style={[zip.track]}>
@@ -103,7 +103,7 @@ export function ZipModal({ visible, count, onDone }: ZipModalProps) {
                 </LinearGradient>
               </Pressable>
               <Pressable style={zip.cancelBtn} onPress={onDone}>
-                <Text style={zip.cancelText}>Cancel</Text>
+                <Text style={zip.cancelText}>{tUi('CANCEL')}</Text>
               </Pressable>
             </>
           )}

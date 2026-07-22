@@ -127,18 +127,18 @@ export function AnomalyQueue() {
                   <button onClick={() => triageMut.mutate({ anomaly_id: row.anomaly_id, status: 'INVESTIGATING' })}
                           disabled={triageMut.isPending}
                           className="text-xs font-medium text-amber-700 border border-amber-200 px-3 py-1.5 rounded-lg hover:bg-amber-50">
-                    Investigate
+                    {tUi('CISO_ANOMALY_QUEUE_INVESTIGATE')}
                   </button>
                 )}
                 <button onClick={() => triageMut.mutate({ anomaly_id: row.anomaly_id, status: 'RESOLVED' })}
                         disabled={triageMut.isPending}
                         className="text-xs font-medium text-emerald-700 border border-emerald-200 px-3 py-1.5 rounded-lg hover:bg-emerald-50">
-                  Resolve
+                  {tUi('CISO_ANOMALY_QUEUE_RESOLVE')}
                 </button>
                 <button onClick={() => triageMut.mutate({ anomaly_id: row.anomaly_id, status: 'FALSE_POSITIVE' })}
                         disabled={triageMut.isPending}
                         className="text-xs font-medium text-slate-500 border border-slate-200 px-3 py-1.5 rounded-lg hover:bg-slate-50">
-                  False positive
+                  {tUi('CISO_ANOMALY_QUEUE_FALSE_POSITIVE')}
                 </button>
               </div>
             ) : (
@@ -152,7 +152,7 @@ export function AnomalyQueue() {
         <div className="flex justify-between items-center text-sm">
           <button onClick={() => setPage(p => Math.max(0, p - 1))} disabled={page === 0}
                   className="px-4 py-2 border border-slate-200 rounded-lg disabled:opacity-40 hover:bg-slate-50">
-            Previous
+            {tUi('CISO_ANOMALY_QUEUE_PREVIOUS')}
           </button>
           <span className="text-slate-400 text-xs">Page {page + 1} of {Math.ceil((data?.total ?? 0) / PAGE)}</span>
           <button onClick={() => setPage(p => p + 1)}

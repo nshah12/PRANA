@@ -218,12 +218,12 @@ export function OrgProfile() {
               <div className="col-span-2">
                 <Field label={tUi('OA_ORG_PROFILE_ADDR_LINE1')}>
                   <input className={inp} value={form.reg_address?.line1 ?? ''}
-                    onChange={nested('reg_address','line1')} placeholder="Building / Flat, Street" />
+                    onChange={nested('reg_address','line1')} placeholder={tUi('OA_ORG_PROFILE_ADDR_LINE1_PLACEHOLDER')} />
                 </Field>
               </div>
               <Field label={tUi('OA_ORG_PROFILE_ADDR_LINE2')}>
                 <input className={inp} value={form.reg_address?.line2 ?? ''}
-                  onChange={nested('reg_address','line2')} placeholder="Area / Locality" />
+                  onChange={nested('reg_address','line2')} placeholder={tUi('OA_ORG_PROFILE_ADDR_LINE2_PLACEHOLDER')} />
               </Field>
               <Field label={tUi('OA_ORG_PROFILE_CITY')}>
                 <input className={inp} value={form.reg_address?.city ?? ''}
@@ -251,7 +251,7 @@ export function OrgProfile() {
               <div className="col-span-2">
                 <Field label={tUi('OA_ORG_PROFILE_ADDR_LINE1')}>
                   <input className={inp} value={form.corp_address?.line1 ?? ''}
-                    onChange={nested('corp_address','line1')} placeholder="Building / Flat, Street" />
+                    onChange={nested('corp_address','line1')} placeholder={tUi('OA_ORG_PROFILE_ADDR_LINE1_PLACEHOLDER')} />
                 </Field>
               </div>
               <Field label={tUi('OA_ORG_PROFILE_CITY')}>

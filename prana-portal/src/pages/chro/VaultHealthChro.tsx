@@ -69,7 +69,7 @@ export function VaultHealthChro() {
                 <p className="text-xs text-slate-400 mt-0.5">{gap.affected_count} employees affected</p>
               </div>
               <button className="text-xs font-medium text-violet-600 hover:underline">
-                Alert OA-Operator
+                {tUi('CHRO_VAULT_HEALTH_ALERT_OA_OPERATOR')}
               </button>
             </div>
           ))}

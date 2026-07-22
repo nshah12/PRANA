@@ -49,12 +49,12 @@ export function ShareAnalytics() {
           <table className="w-full text-sm">
             <thead>
               <tr className="border-b border-slate-100 text-xs text-slate-400 uppercase tracking-wide">
-                <th className="px-5 py-3 text-left font-medium">Employee</th>
+                <th className="px-5 py-3 text-left font-medium">{tUi('CISO_SHARE_ANALYTICS_COL_EMPLOYEE')}</th>
                 <th className="px-5 py-3 text-left font-medium">{tUi('CISO_SHARE_ANALYTICS_DOC_TYPE')}</th>
-                <th className="px-5 py-3 text-left font-medium">Recipient</th>
-                <th className="px-5 py-3 text-right font-medium">Accesses</th>
-                <th className="px-5 py-3 text-right font-medium">Expires</th>
-                <th className="px-5 py-3 text-right font-medium">Action</th>
+                <th className="px-5 py-3 text-left font-medium">{tUi('CISO_SHARE_ANALYTICS_COL_RECIPIENT')}</th>
+                <th className="px-5 py-3 text-right font-medium">{tUi('CISO_SHARE_ANALYTICS_COL_ACCESSES')}</th>
+                <th className="px-5 py-3 text-right font-medium">{tUi('CISO_SHARE_ANALYTICS_COL_EXPIRES')}</th>
+                <th className="px-5 py-3 text-right font-medium">{tUi('CISO_SHARE_ANALYTICS_COL_ACTION')}</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-50">

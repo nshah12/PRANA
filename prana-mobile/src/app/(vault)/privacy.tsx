@@ -45,10 +45,10 @@ function AccessRow({ ev }: { ev: AccessEvent }) {
       <View style={{ flex: 1 }}>
         <View style={ar.top}>
           <Text style={ar.type}>{ev.access_type}</Text>
-          {ev.is_flagged && <View style={ar.flagBadge}><Text style={ar.flagText}>FLAGGED</Text></View>}
+          {ev.is_flagged && <View style={ar.flagBadge}><Text style={ar.flagText}>{tUi('PRIVACY_FLAGGED_BADGE')}</Text></View>}
           {ev.watermark_applied && <Text style={ar.wm}>🔏</Text>}
         </View>
-        <Text style={ar.channel}>{ev.access_channel} · {ev.ip_city ?? 'Location private'}</Text>
+        <Text style={ar.channel}>{ev.access_channel} · {ev.ip_city ?? tUi('PRIVACY_LOCATION_PRIVATE')}</Text>
         <Text style={ar.date}>{new Date(ev.accessed_at).toLocaleString('en-IN', { day:'2-digit', month:'short', hour:'2-digit', minute:'2-digit' })}</Text>
       </View>
     </View>
@@ -235,7 +235,7 @@ export default function PrivacyScreen() {
               style={gm.input}
               value={grievanceText}
               onChangeText={setGrievanceText}
-              placeholder="What happened? Which document or access event concerns you?"
+              placeholder={tUi('PRIVACY_GRIEVANCE_PLACEHOLDER')}
               placeholderTextColor={colors.ink3}
               multiline
               numberOfLines={5}

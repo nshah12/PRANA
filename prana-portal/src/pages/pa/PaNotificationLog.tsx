@@ -8,6 +8,7 @@ import { useQuery } from '@tanstack/react-query'
 import { Bell, Filter, CheckCircle, XCircle, Clock, Globe } from 'lucide-react'
 import { api } from '@/lib/api'
 import { tUi } from '@/i18n'
+import { TenantCombobox } from '@/components/TenantCombobox'
 
 const CHANNEL_STYLE: Record<string, string> = {
   EMAIL:       'bg-blue-50 text-blue-700',
@@ -88,11 +89,11 @@ export function PaNotificationLog() {
         <Filter size={14} className="text-slate-400" />
         <div className="flex items-center gap-1.5">
           <Globe size={12} className="text-slate-400" />
-          <input
-            value={tenantId}
-            onChange={e => setTenantId(e.target.value)}
+          <TenantCombobox
+            value={tenantId || null}
+            onChange={id => setTenantId(id ?? '')}
             placeholder={tUi('PA_NOTIF_LOG_TENANT_UUID_PLACEHOLDER')}
-            className="text-xs border border-slate-200 rounded-lg px-2 py-1.5 w-48 text-slate-600"
+            className="w-48 text-xs"
           />
         </div>
         <select value={channel} onChange={e => setChannel(e.target.value)}
@@ -139,14 +140,14 @@ export function PaNotificationLog() {
             <table className="w-full text-xs">
               <thead>
                 <tr className="bg-slate-50 border-b border-slate-100">
-                  <th className="text-left px-4 py-2.5 text-slate-500 font-medium whitespace-nowrap">When</th>
-                  <th className="text-left px-4 py-2.5 text-slate-500 font-medium">Tenant</th>
-                  <th className="text-left px-4 py-2.5 text-slate-500 font-medium">Event</th>
-                  <th className="text-left px-4 py-2.5 text-slate-500 font-medium">Channel</th>
-                  <th className="text-left px-4 py-2.5 text-slate-500 font-medium">Recipient</th>
-                  <th className="text-left px-4 py-2.5 text-slate-500 font-medium">Template</th>
-                  <th className="text-left px-4 py-2.5 text-slate-500 font-medium">Status</th>
-                  <th className="text-left px-4 py-2.5 text-slate-500 font-medium">Retries</th>
+                  <th className="text-left px-4 py-2.5 text-slate-500 font-medium whitespace-nowrap">{tUi('PA_NOTIF_LOG_COL_WHEN')}</th>
+                  <th className="text-left px-4 py-2.5 text-slate-500 font-medium">{tUi('PA_NOTIF_LOG_COL_TENANT')}</th>
+                  <th className="text-left px-4 py-2.5 text-slate-500 font-medium">{tUi('PA_NOTIF_LOG_COL_EVENT')}</th>
+                  <th className="text-left px-4 py-2.5 text-slate-500 font-medium">{tUi('PA_NOTIF_LOG_COL_CHANNEL')}</th>
+                  <th className="text-left px-4 py-2.5 text-slate-500 font-medium">{tUi('PA_NOTIF_LOG_COL_RECIPIENT')}</th>
+                  <th className="text-left px-4 py-2.5 text-slate-500 font-medium">{tUi('PA_NOTIF_LOG_COL_TEMPLATE')}</th>
+                  <th className="text-left px-4 py-2.5 text-slate-500 font-medium">{tUi('PA_NOTIF_LOG_COL_STATUS')}</th>
+                  <th className="text-left px-4 py-2.5 text-slate-500 font-medium">{tUi('PA_NOTIF_LOG_COL_RETRIES')}</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-50">

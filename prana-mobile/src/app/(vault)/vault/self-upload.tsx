@@ -35,19 +35,19 @@ import { tError, tUi } from '@/i18n';
 // ── Doc type options ──────────────────────────────────────────────────────────
 
 const DOC_TYPES = [
-  { value: 'SALARY_SLIP',       label: 'Salary Slip',        emoji: '💰' },
-  { value: 'FORM_16',           label: 'Form 16',            emoji: '🏛' },
-  { value: 'INVESTMENT_PROOF',  label: 'Investment Proof',   emoji: '📊' },
-  { value: 'IT_RETURN',         label: 'ITR',                emoji: '🇮🇳' },
-  { value: 'BANK_STATEMENT',    label: 'Bank Statement',     emoji: '🏦' },
-  { value: 'OFFER_LETTER',      label: 'Offer Letter',       emoji: '📄' },
-  { value: 'JOINING_LETTER',    label: 'Joining Letter',     emoji: '🤝' },
-  { value: 'APPRAISAL_LETTER',  label: 'Appraisal Letter',   emoji: '⭐' },
-  { value: 'BONUS_LETTER',      label: 'Bonus Letter',       emoji: '🎁' },
-  { value: 'PROMOTION_LETTER',  label: 'Promotion Letter',   emoji: '🚀' },
-  { value: 'RELIEVING_LETTER',  label: 'Relieving Letter',   emoji: '👋' },
-  { value: 'EXPERIENCE_LETTER', label: 'Experience Letter',  emoji: '📋' },
-  { value: 'OTHER',             label: 'Other',              emoji: '📎' },
+  { value: 'SALARY_SLIP',       label: tUi('SELF_UPLOAD_DOC_TYPE_SALARY_SLIP'),        emoji: '💰' },
+  { value: 'FORM_16',           label: tUi('SELF_UPLOAD_DOC_TYPE_FORM_16'),            emoji: '🏛' },
+  { value: 'INVESTMENT_PROOF',  label: tUi('SELF_UPLOAD_DOC_TYPE_INVESTMENT_PROOF'),   emoji: '📊' },
+  { value: 'IT_RETURN',         label: tUi('SELF_UPLOAD_DOC_TYPE_IT_RETURN'),                emoji: '🇮🇳' },
+  { value: 'BANK_STATEMENT',    label: tUi('SELF_UPLOAD_DOC_TYPE_BANK_STATEMENT'),     emoji: '🏦' },
+  { value: 'OFFER_LETTER',      label: tUi('SELF_UPLOAD_DOC_TYPE_OFFER_LETTER'),       emoji: '📄' },
+  { value: 'JOINING_LETTER',    label: tUi('SELF_UPLOAD_DOC_TYPE_JOINING_LETTER'),     emoji: '🤝' },
+  { value: 'APPRAISAL_LETTER',  label: tUi('SELF_UPLOAD_DOC_TYPE_APPRAISAL_LETTER'),   emoji: '⭐' },
+  { value: 'BONUS_LETTER',      label: tUi('SELF_UPLOAD_DOC_TYPE_BONUS_LETTER'),       emoji: '🎁' },
+  { value: 'PROMOTION_LETTER',  label: tUi('SELF_UPLOAD_DOC_TYPE_PROMOTION_LETTER'),   emoji: '🚀' },
+  { value: 'RELIEVING_LETTER',  label: tUi('SELF_UPLOAD_DOC_TYPE_RELIEVING_LETTER'),   emoji: '👋' },
+  { value: 'EXPERIENCE_LETTER', label: tUi('SELF_UPLOAD_DOC_TYPE_EXPERIENCE_LETTER'),  emoji: '📋' },
+  { value: 'OTHER',             label: tUi('SELF_UPLOAD_DOC_TYPE_OTHER'),              emoji: '📎' },
 ];
 
 // ── File picker area ──────────────────────────────────────────────────────────
@@ -70,7 +70,7 @@ function FilePickerArea({
               )}
             </View>
           </View>
-          <Text style={fp.changeText}>Change</Text>
+          <Text style={fp.changeText}>{tUi('SELF_UPLOAD_CHANGE_FILE')}</Text>
         </LinearGradient>
       </Pressable>
     );
@@ -109,7 +109,7 @@ function UploadProgress({ progress, done }: { progress: number; done: boolean })
   return (
     <View style={up.wrap}>
       <View style={up.header}>
-        <Text style={up.label}>{done ? '✓  Uploaded to your vault' : 'Uploading…'}</Text>
+        <Text style={up.label}>{done ? tUi('SELF_UPLOAD_PROGRESS_DONE') : tUi('SELF_UPLOAD_PROGRESS_UPLOADING')}</Text>
         <Text style={up.pct}>{Math.round(progress * 100)}%</Text>
       </View>
       <View style={up.bar}>
@@ -292,7 +292,7 @@ export default function SelfUploadScreen() {
           <TextInput
             value={docPassword}
             onChangeText={setDocPassword}
-            placeholder="PDF password…"
+            placeholder={tUi('SELF_UPLOAD_PDF_PASSWORD_PLACEHOLDER')}
             placeholderTextColor={colors.ink3}
             secureTextEntry
             style={[s.textInput, { marginTop: 8 }]}
@@ -301,7 +301,7 @@ export default function SelfUploadScreen() {
 
         {/* Privacy note */}
         <View style={s.privacyNote}>
-          <Text style={s.privacyText}>🔒  PRANA's AI pipeline extracts insights only — no salary figures are stored. Your document is encrypted with your personal key and stays in your vault.</Text>
+          <Text style={s.privacyText}>{tUi('SELF_UPLOAD_PRIVACY_NOTE')}</Text>
         </View>
 
         {error ? <Text style={s.error}>{error}</Text> : null}
@@ -318,9 +318,9 @@ export default function SelfUploadScreen() {
             {uploadState === 'uploading'
               ? <ActivityIndicator size="small" color="#04261C" />
               : <Text style={s.uploadBtnText}>
-                  {!file ? 'Pick a document first'
-                    : !docType ? 'Choose document type'
-                    : 'Add to vault →'}
+                  {!file ? tUi('SELF_UPLOAD_CTA_PICK_FILE')
+                    : !docType ? tUi('SELF_UPLOAD_CTA_CHOOSE_TYPE')
+                    : tUi('SELF_UPLOAD_CTA_ADD_TO_VAULT')}
                 </Text>
             }
           </LinearGradient>

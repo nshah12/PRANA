@@ -27,11 +27,11 @@ function useCountdown(seconds: number, running: boolean) {
 
 // ── Processing steps ──────────────────────────────────────────────
 const STEPS = [
-  'Decrypting document in memory…',
-  'Extracting text (no plaintext stored)…',
-  'Sending to LLM with PAN redacted…',
-  'Storing insights only · Discarding raw data…',
-  'Wiping session memory…',
+  tUi('UNLOCK_DOC_STEP_DECRYPTING'),
+  tUi('UNLOCK_DOC_STEP_EXTRACTING'),
+  tUi('UNLOCK_DOC_STEP_SENDING_LLM'),
+  tUi('UNLOCK_DOC_STEP_STORING_INSIGHTS'),
+  tUi('UNLOCK_DOC_STEP_WIPING'),
 ];
 
 // ── Step indicator ────────────────────────────────────────────────
@@ -73,7 +73,7 @@ function ProcessingView({ onDone }: { onDone: () => void }) {
       </View>
 
       <View style={styles.privacyChips}>
-        {['In-memory only', 'PAN redacted', 'Raw data discarded'].map(c => (
+        {[tUi('UNLOCK_DOC_CHIP_IN_MEMORY'), tUi('UNLOCK_DOC_CHIP_PAN_REDACTED'), tUi('UNLOCK_DOC_CHIP_DATA_DISCARDED')].map(c => (
           <View key={c} style={styles.chip}>
             <Text style={styles.chipText}>{c}</Text>
           </View>
@@ -100,19 +100,19 @@ function DoneView({ docTitle, employer }: { docTitle: string; employer: string }
       <LinearGradient colors={gradJourney.colors} locations={gradJourney.locations} start={gradJourney.start} end={gradJourney.end} style={styles.doneOrb}>
         <Text style={{ fontSize: 32 }}>✓</Text>
       </LinearGradient>
-      <Text style={styles.doneTitle}>Processed &amp; Routed</Text>
+      <Text style={styles.doneTitle}>{tUi('UNLOCK_DOC_PROCESSED_ROUTED')}</Text>
       <Text style={styles.doneSub}>
         <Text style={{ color: '#E2E8F0' }}>{docTitle}</Text>
-        {'\n'}from {employer} is now in your vault.
+        {'\n'}{tUi('UNLOCK_DOC_DONE_SUB', { employer })}
       </Text>
 
       <View style={styles.doneCard}>
         {[
-          ['Decrypted in-memory', '✓'],
-          ['PAN redacted before LLM', '✓'],
-          ['Raw salary data stored', '✗ Never'],
-          ['Insights stored', '✓'],
-          ['Session memory wiped', '✓'],
+          [tUi('UNLOCK_DOC_CHECK_DECRYPTED'), '✓'],
+          [tUi('UNLOCK_DOC_CHECK_PAN_REDACTED'), '✓'],
+          [tUi('UNLOCK_DOC_CHECK_RAW_SALARY'), tUi('UNLOCK_DOC_CHECK_NEVER')],
+          [tUi('UNLOCK_DOC_CHECK_INSIGHTS_STORED'), '✓'],
+          [tUi('UNLOCK_DOC_CHECK_SESSION_WIPED'), '✓'],
         ].map(([label, val]) => (
           <View key={label} style={styles.doneRow}>
             <Text style={styles.doneLabel}>{label}</Text>
@@ -123,7 +123,7 @@ function DoneView({ docTitle, employer }: { docTitle: string; employer: string }
 
       <Pressable onPress={() => router.back()} style={styles.doneBtnWrap}>
         <LinearGradient colors={gradJourney.colors} locations={gradJourney.locations} start={gradJourney.start} end={gradJourney.end} style={styles.doneBtn}>
-          <Text style={styles.doneBtnText}>Open in vault →</Text>
+          <Text style={styles.doneBtnText}>{tUi('UNLOCK_DOC_OPEN_IN_VAULT')}</Text>
         </LinearGradient>
       </Pressable>
     </Animated.View>
@@ -137,7 +137,7 @@ export default function UnlockDocumentScreen() {
   const params = useLocalSearchParams<{ docTitle?: string; employer?: string; hint?: string }>();
   const docTitle = params.docTitle ?? 'Salary Slip — May 2026';
   const employer = params.employer ?? 'NPCI';
-  const hint = params.hint ?? 'Usually your date of birth (DDMMYYYY) or PAN';
+  const hint = params.hint ?? tUi('UNLOCK_DOC_HINT_DEFAULT');
 
   const [phase, setPhase] = useState<Phase>('enter');
   const [password, setPassword] = useState('');
@@ -170,11 +170,11 @@ export default function UnlockDocumentScreen() {
             </Text>
             <Pressable onPress={() => router.replace('/(vault)/vault/unlock-document')} style={styles.doneBtnWrap}>
               <LinearGradient colors={gradJourney.colors} locations={gradJourney.locations} start={gradJourney.start} end={gradJourney.end} style={styles.doneBtn}>
-                <Text style={styles.doneBtnText}>Start new session →</Text>
+                <Text style={styles.doneBtnText}>{tUi('UNLOCK_DOC_START_NEW_SESSION')}</Text>
               </LinearGradient>
             </Pressable>
             <Pressable onPress={() => router.back()}>
-              <Text style={styles.cancelLink}>Cancel</Text>
+              <Text style={styles.cancelLink}>{tUi('CANCEL')}</Text>
             </Pressable>
           </View>
         </SafeAreaView>

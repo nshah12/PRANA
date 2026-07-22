@@ -84,7 +84,7 @@ function ExpiryBar({ expiresAt }: { expiresAt: string }) {
         <Animated.View style={[eb.gap, { flex: Animated.subtract(1, progress) as unknown as number }]} />
       </View>
       <Text style={[eb.label, { color: barColor }]}>
-        {secsLeft > 0 ? `Request expires in ${timeStr}` : 'Request has expired'}
+        {secsLeft > 0 ? tUi('PUSH_APPROVAL_EXPIRES_IN', { time: timeStr }) : tUi('PUSH_APPROVAL_EXPIRED_LABEL')}
       </Text>
     </View>
   );
@@ -230,7 +230,7 @@ export default function PushApprovalScreen() {
               </View>
 
               {/* Framing — empowerment, not alarm */}
-              <Text style={s.stepTag}>ACCESS REQUEST TO YOUR VAULT</Text>
+              <Text style={s.stepTag}>{tUi('PUSH_APPROVAL_STEP_TAG')}</Text>
               <Text style={s.title}>{tUi('PUSH_APPROVAL_TITLE')}</Text>
               <Text style={s.sub}>
                 {tUi('PUSH_APPROVAL_SUB')}
@@ -241,10 +241,10 @@ export default function PushApprovalScreen() {
 
               {/* Request details */}
               <View style={s.detailCard}>
-                <DetailRow label="Device / Browser" value={request.browser || request.device_name} highlight />
-                <DetailRow label="Location" value={request.location} />
-                <DetailRow label="IP Address" value={request.ip_masked} />
-                <DetailRow label="Requested at" value={new Date(request.requested_at).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', second: '2-digit' })} />
+                <DetailRow label={tUi('PUSH_APPROVAL_DETAIL_DEVICE')} value={request.browser || request.device_name} highlight />
+                <DetailRow label={tUi('PUSH_APPROVAL_DETAIL_LOCATION')} value={request.location} />
+                <DetailRow label={tUi('PUSH_APPROVAL_DETAIL_IP')} value={request.ip_masked} />
+                <DetailRow label={tUi('PUSH_APPROVAL_DETAIL_REQUESTED_AT')} value={new Date(request.requested_at).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', second: '2-digit' })} />
               </View>
 
               {/* Safety note */}
@@ -325,9 +325,9 @@ export default function PushApprovalScreen() {
                 <Text style={s.outcomeTick}>!</Text>
               </View>
               <Text style={s.outcomeTitle}>{tUi('PUSH_APPROVAL_ERROR_TITLE')}</Text>
-              <Text style={s.outcomeSub}>{error || 'Couldn\'t load the request. Try again.'}</Text>
+              <Text style={s.outcomeSub}>{error || tUi('PUSH_APPROVAL_LOAD_FAILED')}</Text>
               <Pressable onPress={() => router.replace('/(vault)/vault')} style={s.outcomeBack}>
-                <Text style={s.outcomeBackText}>Back to my vault →</Text>
+                <Text style={s.outcomeBackText}>{tUi('PUSH_APPROVAL_BACK_TO_VAULT')}</Text>
               </Pressable>
             </View>
           )}

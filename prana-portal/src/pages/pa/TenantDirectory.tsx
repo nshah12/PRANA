@@ -40,14 +40,14 @@ export function TenantDirectory() {
         <table className="w-full text-sm">
           <thead className="bg-canvas2 text-slate-500 text-xs uppercase tracking-wide">
             <tr>
-              <th className="text-left px-5 py-3 font-medium">Organisation</th>
-              <th className="text-left px-5 py-3 font-medium">Domain</th>
-              <th className="text-left px-5 py-3 font-medium">Industry</th>
-              <th className="text-left px-5 py-3 font-medium">Size</th>
-              <th className="text-left px-5 py-3 font-medium">State</th>
-              <th className="text-left px-5 py-3 font-medium">SLA</th>
-              <th className="text-left px-5 py-3 font-medium">Status</th>
-              <th className="text-left px-5 py-3 font-medium">Since</th>
+              <th className="text-left px-5 py-3 font-medium">{tUi('PA_TENANT_DIR_COL_ORG')}</th>
+              <th className="text-left px-5 py-3 font-medium">{tUi('PA_TENANT_DIR_COL_DOMAIN')}</th>
+              <th className="text-left px-5 py-3 font-medium">{tUi('PA_TENANT_DIR_COL_INDUSTRY')}</th>
+              <th className="text-left px-5 py-3 font-medium">{tUi('PA_TENANT_DIR_COL_SIZE')}</th>
+              <th className="text-left px-5 py-3 font-medium">{tUi('PA_TENANT_DIR_COL_STATE')}</th>
+              <th className="text-left px-5 py-3 font-medium">{tUi('PA_TENANT_DIR_COL_SLA')}</th>
+              <th className="text-left px-5 py-3 font-medium">{tUi('PA_TENANT_DIR_COL_STATUS')}</th>
+              <th className="text-left px-5 py-3 font-medium">{tUi('PA_TENANT_DIR_COL_SINCE')}</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-50">

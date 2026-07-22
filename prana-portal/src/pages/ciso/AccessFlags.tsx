@@ -51,10 +51,10 @@ export function AccessFlags() {
             <thead className="bg-slate-50 text-xs text-slate-500 uppercase tracking-wide">
               <tr>
                 <th className="text-left px-5 py-3 font-medium">{tUi('CISO_ACCESS_FLAGS_COL_DOC_PERIOD')}</th>
-                <th className="text-left px-5 py-3 font-medium">Channel</th>
+                <th className="text-left px-5 py-3 font-medium">{tUi('CISO_ACCESS_FLAGS_COL_CHANNEL')}</th>
                 <th className="text-left px-5 py-3 font-medium">{tUi('CISO_ACCESS_FLAGS_COL_IP')}</th>
                 <th className="text-left px-5 py-3 font-medium">{tUi('CISO_ACCESS_FLAGS_COL_REASON')}</th>
-                <th className="text-left px-5 py-3 font-medium">Accessed</th>
+                <th className="text-left px-5 py-3 font-medium">{tUi('CISO_ACCESS_FLAGS_COL_ACCESSED')}</th>
                 <th className="px-5 py-3 font-medium" />
               </tr>
             </thead>
@@ -101,7 +101,7 @@ export function AccessFlags() {
         <div className="flex justify-between items-center text-sm">
           <button onClick={() => setPage(p => Math.max(0, p - 1))} disabled={page === 0}
                   className="px-4 py-2 border border-slate-200 rounded-lg disabled:opacity-40 hover:bg-slate-50">
-            Previous
+            {tUi('CISO_ACCESS_FLAGS_PREVIOUS')}
           </button>
           <span className="text-slate-400 text-xs">Page {page + 1} of {Math.ceil((data?.total ?? 0) / PAGE)}</span>
           <button onClick={() => setPage(p => p + 1)}

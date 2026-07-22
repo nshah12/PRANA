@@ -118,7 +118,7 @@ export function TenantCombobox({ value, onChange, placeholder = 'Search tenantâ€
                 ref={inputRef}
                 value={q}
                 onChange={e => setQ(e.target.value)}
-                placeholder="Type to searchâ€¦"
+                placeholder={tUi('TENANT_COMBOBOX_SEARCH_PLACEHOLDER')}
                 className="w-full pl-7 pr-3 py-2 text-sm border border-slate-200 rounded-xl
                            focus:outline-none focus:ring-2 focus:ring-amber-300"
               />

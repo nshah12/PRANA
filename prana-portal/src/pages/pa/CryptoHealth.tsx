@@ -61,11 +61,11 @@ export function CryptoHealth() {
           <table className="w-full text-sm">
             <thead>
               <tr className="border-b border-slate-100 text-xs text-slate-400 uppercase tracking-wide">
-                <th className="px-5 py-3 text-left font-medium">Tenant</th>
-                <th className="px-5 py-3 text-left font-medium">KMS Key ID</th>
-                <th className="px-5 py-3 text-center font-medium">State</th>
-                <th className="px-5 py-3 text-right font-medium">DEKs</th>
-                <th className="px-5 py-3 text-right font-medium">Last rotation</th>
+                <th className="px-5 py-3 text-left font-medium">{tUi('PA_CRYPTO_HEALTH_COL_TENANT')}</th>
+                <th className="px-5 py-3 text-left font-medium">{tUi('PA_CRYPTO_HEALTH_COL_KMS_KEY_ID')}</th>
+                <th className="px-5 py-3 text-center font-medium">{tUi('PA_CRYPTO_HEALTH_COL_STATE')}</th>
+                <th className="px-5 py-3 text-right font-medium">{tUi('PA_CRYPTO_HEALTH_COL_DEKS')}</th>
+                <th className="px-5 py-3 text-right font-medium">{tUi('PA_CRYPTO_HEALTH_COL_LAST_ROTATION')}</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-50">

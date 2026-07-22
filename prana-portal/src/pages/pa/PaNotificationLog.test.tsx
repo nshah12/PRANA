@@ -61,11 +61,20 @@ describe('PaNotificationLog', () => {
 
   it('refetches with tenant filter applied', async () => {
     const user = userEvent.setup()
-    mockGet.mockResolvedValue({ data: MOCK })
+    mockGet.mockImplementation((url: string) => {
+      if (url.startsWith('/admin/tenants')) {
+        return Promise.resolve({ data: { tenants: [
+          { tenant_id: 'tenant-uuid-abcdefgh', tenant_name: 'Acme Corp', domain: 'acme.example', status: 'ACTIVE' },
+        ] } })
+      }
+      return Promise.resolve({ data: MOCK })
+    })
     render(<PaNotificationLog />, { wrapper })
     await waitFor(() => expect(screen.getByText('oa@acme.example')).toBeInTheDocument())
-    const input = screen.getByPlaceholderText('Tenant UUID…')
-    await user.type(input, 'tenant-uuid-abcdefgh')
+
+    await user.click(screen.getByRole('button', { name: /search tenant/i }))
+    await user.click(await screen.findByText('Acme Corp'))
+
     await waitFor(() => expect(mockGet).toHaveBeenLastCalledWith(expect.stringContaining('tenant_id=tenant-uuid-abcdefgh')))
   })
 })

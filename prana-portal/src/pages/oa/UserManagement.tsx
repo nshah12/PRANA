@@ -65,11 +65,11 @@ export function UserManagement() {
         <table className="w-full text-sm">
           <thead className="bg-canvas2 text-slate-500 text-xs uppercase tracking-wide">
             <tr>
-              <th className="text-left px-5 py-3 font-medium">Name / Email</th>
-              <th className="text-left px-5 py-3 font-medium">Role</th>
-              <th className="text-left px-5 py-3 font-medium">Status</th>
-              <th className="text-left px-5 py-3 font-medium">Created</th>
-              <th className="text-left px-5 py-3 font-medium">Actions</th>
+              <th className="text-left px-5 py-3 font-medium">{tUi('OA_USER_MGMT_COL_NAME_EMAIL')}</th>
+              <th className="text-left px-5 py-3 font-medium">{tUi('OA_USER_MGMT_COL_ROLE')}</th>
+              <th className="text-left px-5 py-3 font-medium">{tUi('OA_USER_MGMT_COL_STATUS')}</th>
+              <th className="text-left px-5 py-3 font-medium">{tUi('OA_USER_MGMT_COL_CREATED')}</th>
+              <th className="text-left px-5 py-3 font-medium">{tUi('OA_USER_MGMT_COL_ACTIONS')}</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-50">

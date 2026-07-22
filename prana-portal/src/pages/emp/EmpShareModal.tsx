@@ -1,4 +1,5 @@
 import { X } from 'lucide-react'
+import { tUi } from '@/i18n'
 
 interface Props {
   documentId: string
@@ -24,10 +25,10 @@ export function EmpShareModal({ documentId, onClose }: Props) {
         <div className="mt-6 flex justify-end gap-2">
           <button onClick={onClose}
             className="px-4 py-2 text-sm border border-slate-200 rounded-lg text-slate-600 hover:bg-slate-50">
-            Cancel
+            {tUi('EMP_SHARE_MODAL_CANCEL')}
           </button>
           <button className="px-4 py-2 text-sm bg-sky-600 text-white rounded-lg hover:bg-sky-700" onClick={onClose}>
-            Create Share Link
+            {tUi('EMP_SHARE_MODAL_CREATE_LINK')}
           </button>
         </div>
       </div>

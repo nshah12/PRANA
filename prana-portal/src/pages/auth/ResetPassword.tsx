@@ -162,8 +162,7 @@ export function ResetPassword() {
         </form>
 
         <p className="text-center text-xs text-slate-400 mt-4">
-          This password will replace your temporary credentials.
-          It is stored with Argon2id encryption.
+          {tUi('RESET_PASSWORD_ARGON_NOTE')}
         </p>
       </div>
     </div>

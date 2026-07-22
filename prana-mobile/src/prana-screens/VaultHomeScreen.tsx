@@ -44,18 +44,18 @@ import { mockCareer } from '../mocks/career';
 // ── Constants ─────────────────────────────────────────────────────────────────
 
 const DOC_TYPE_LABELS: Record<string, string> = {
-  SALARY_SLIP:       'Salary Slips',
-  FORM_16:           'Form 16',
-  INVESTMENT_PROOF:  'Investment Proofs',
-  IT_RETURN:         'IT Returns',
-  BANK_STATEMENT:    'Bank Statements',
-  OFFER_LETTER:      'Offer Letters',
-  JOINING_LETTER:    'Joining Letters',
-  APPRAISAL_LETTER:  'Appraisal Letters',
-  BONUS_LETTER:      'Bonus Letters',
-  PROMOTION_LETTER:  'Promotion Letters',
-  RELIEVING_LETTER:  'Relieving Letters',
-  EXPERIENCE_LETTER: 'Experience Letters',
+  SALARY_SLIP:       tUi('DOC_TYPE_SALARY_SLIP'),
+  FORM_16:           tUi('DOC_TYPE_FORM_16'),
+  INVESTMENT_PROOF:  tUi('DOC_TYPE_INVESTMENT_PROOF'),
+  IT_RETURN:         tUi('DOC_TYPE_IT_RETURN'),
+  BANK_STATEMENT:    tUi('DOC_TYPE_BANK_STATEMENT'),
+  OFFER_LETTER:      tUi('DOC_TYPE_OFFER_LETTER'),
+  JOINING_LETTER:    tUi('DOC_TYPE_JOINING_LETTER'),
+  APPRAISAL_LETTER:  tUi('DOC_TYPE_APPRAISAL_LETTER'),
+  BONUS_LETTER:      tUi('DOC_TYPE_BONUS_LETTER'),
+  PROMOTION_LETTER:  tUi('DOC_TYPE_PROMOTION_LETTER'),
+  RELIEVING_LETTER:  tUi('DOC_TYPE_RELIEVING_LETTER'),
+  EXPERIENCE_LETTER: tUi('DOC_TYPE_EXPERIENCE_LETTER'),
 };
 
 // ── Career Score Widget ───────────────────────────────────────────────────────
@@ -84,7 +84,7 @@ function CareerScoreWidget() {
   const { score, badges = [], streak } = data;
   const flame = (streak?.current_streak_days ?? 0) >= 7 ? '⚡' :
                 (streak?.current_streak_days ?? 0) >= 3 ? '🔥' : '🌱';
-  const label = score >= 80 ? 'Excellent' : score >= 60 ? 'Strong' : score >= 40 ? 'Growing' : 'Getting Started';
+  const label = score >= 80 ? tUi('CAREER_SCORE_EXCELLENT') : score >= 60 ? tUi('CAREER_SCORE_STRONG') : score >= 40 ? tUi('CAREER_SCORE_GROWING') : tUi('CAREER_SCORE_GETTING_STARTED');
 
   return (
     <Pressable
@@ -100,8 +100,8 @@ function CareerScoreWidget() {
       {/* Details */}
       <View style={ws.info}>
         <Text style={ws.title}>{tUi('GAMIFICATION_CAREER_SCORE_LABEL')}</Text>
-        <Text style={ws.sub}>{badges.length} badge{badges.length !== 1 ? 's' : ''} earned</Text>
-        <Text style={ws.streak}>{flame} {streak?.current_streak_days ?? 0}-day streak</Text>
+        <Text style={ws.sub}>{tUi('CAREER_SCORE_BADGES_EARNED', { count: badges.length })}</Text>
+        <Text style={ws.streak}>{flame} {tUi('CAREER_SCORE_DAY_STREAK', { days: streak?.current_streak_days ?? 0 })}</Text>
       </View>
 
       <Text style={ws.arrow}>›</Text>
@@ -126,8 +126,8 @@ const ws = StyleSheet.create({
 // ─────────────────────────────────────────────────────────────────────────────
 
 const NOTIFICATION = {
-  title: 'New document added',
-  subtitle: 'Salary Slip — May 2026 pushed by NPCI',
+  title: tUi('VAULT_HOME_NOTIF_TITLE'),
+  subtitle: tUi('VAULT_HOME_NOTIF_SUB'),
   documentId: 'n_sal_01',
 };
 
@@ -152,14 +152,14 @@ interface CompanyPickerProps {
 
 function CompanyPicker({ visible, selected, onSelect, onClose, totalDocs, emailCount, selfCount, employers }: CompanyPickerProps) {
   const options = [
-    { id: 'ALL',   name: 'All sources',     sub: `${totalDocs} documents total`,              period: '', count: totalDocs,   icon: '🗂' },
+    { id: 'ALL',   name: tUi('VAULT_HOME_SOURCE_ALL_NAME'),     sub: tUi('VAULT_HOME_SOURCE_ALL_SUB', { count: totalDocs }),              period: '', count: totalDocs,   icon: '🗂' },
     ...employers.map(e => ({
       id: e.id, name: e.name, sub: e.role ?? '',
-      period: `${new Date(e.from).getFullYear()} – ${e.to ? new Date(e.to).getFullYear() : 'Present'}`,
+      period: `${new Date(e.from).getFullYear()} – ${e.to ? new Date(e.to).getFullYear() : tUi('VAULT_HOME_SOURCE_PRESENT')}`,
       count: e.docCount, icon: '🏢',
     })),
-    { id: 'EMAIL', name: 'From email',       sub: 'Auto-captured from your inbox',            period: '', count: emailCount,  icon: '📧' },
-    { id: 'SELF',  name: 'Self-uploaded',    sub: 'Investment proofs, ITR, bank statements',  period: '', count: selfCount,   icon: '⬆' },
+    { id: 'EMAIL', name: tUi('VAULT_HOME_SOURCE_EMAIL_NAME'),       sub: tUi('VAULT_HOME_SOURCE_EMAIL_SUB'),            period: '', count: emailCount,  icon: '📧' },
+    { id: 'SELF',  name: tUi('VAULT_HOME_SOURCE_SELF_NAME'),    sub: tUi('VAULT_HOME_SOURCE_SELF_SUB'),  period: '', count: selfCount,   icon: '⬆' },
   ];
 
   return (
@@ -221,7 +221,7 @@ function DocTypePicker({ visible, selected, companyFilter, onSelect, onClose, do
 
   const total = Object.values(counts).reduce((a, b) => a + b, 0);
   const types = [
-    { key: 'ALL', label: 'All types', count: total },
+    { key: 'ALL', label: tUi('VAULT_HOME_ALL_TYPES'), count: total },
     ...Object.entries(DOC_TYPE_LABELS)
       .filter(([k]) => (counts[k] || 0) > 0)
       .map(([key, label]) => ({ key, label, count: counts[key] || 0 })),
@@ -291,11 +291,11 @@ function matchesCompanyFilter(doc: VaultDocument, filter: string): boolean {
 function MenuPanel({ visible, onClose }: { visible: boolean; onClose: () => void }) {
   const { profile, signOut } = useAuth();
   const items = [
-    { icon: '🗂', label: 'My Vault',    sub: 'Documents & history',  route: '/(vault)/vault'     as const },
-    { icon: '💼', label: 'Career',      sub: 'Employers & timeline', route: '/(vault)/career'    as const },
-    { icon: '↗',  label: 'Shares',     sub: 'Active share links',    route: '/(vault)/shares'    as const },
-    { icon: '⚙',  label: 'Settings',   sub: 'Account & devices',    route: '/(vault)/settings'  as const },
-    { icon: '⚖',  label: 'My Rights',  sub: 'DPDP · Data export',   route: '/(vault)/data-rights' as const },
+    { icon: '🗂', label: tUi('MENU_VAULT_LABEL'),    sub: tUi('MENU_VAULT_SUB'),  route: '/(vault)/vault'     as const },
+    { icon: '💼', label: tUi('MENU_CAREER_LABEL'),      sub: tUi('MENU_CAREER_SUB'), route: '/(vault)/career'    as const },
+    { icon: '↗',  label: tUi('MENU_SHARES_LABEL'),     sub: tUi('MENU_SHARES_SUB'),    route: '/(vault)/shares'    as const },
+    { icon: '⚙',  label: tUi('MENU_SETTINGS_LABEL'),   sub: tUi('MENU_SETTINGS_SUB'),    route: '/(vault)/settings'  as const },
+    { icon: '⚖',  label: tUi('MENU_MY_RIGHTS_LABEL'),  sub: tUi('MENU_MY_RIGHTS_SUB'),   route: '/(vault)/data-rights' as const },
   ];
   return (
     <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
@@ -421,7 +421,7 @@ function SectionHeader({ label, count, selectionMode, allSelected, onSelectAll }
       <Text style={sh.label}>{label}  ({count})</Text>
       {selectionMode && (
         <Pressable onPress={onSelectAll} style={sh.selectAll}>
-          <Text style={sh.selectAllText}>{allSelected ? 'Deselect all' : 'Select all'}</Text>
+          <Text style={sh.selectAllText}>{allSelected ? tUi('VAULT_HOME_DESELECT_ALL') : tUi('VAULT_HOME_SELECT_ALL')}</Text>
         </Pressable>
       )}
     </View>
@@ -438,9 +438,9 @@ const sh = StyleSheet.create({
 
 function SourceLegend() {
   const items: Array<[string, string, string]> = [
-    ['🛡', '#059669', 'Employer'],
-    ['📧', '#0891B2', 'Email'],
-    ['⬆',  '#B45309', 'Self'],
+    ['🛡', '#059669', tUi('SOURCE_LEGEND_EMPLOYER')],
+    ['📧', '#0891B2', tUi('SOURCE_LEGEND_EMAIL')],
+    ['⬆',  '#B45309', tUi('SOURCE_LEGEND_SELF')],
   ];
   return (
     <View style={sl.row}>
@@ -553,18 +553,18 @@ export function VaultHomeScreen() {
 
   // ── Labels ────────────────────────────────────────────────────────
   const companyLabel =
-    companyFilter === 'ALL'   ? 'All sources' :
-    companyFilter === 'SELF'  ? 'Self-uploaded' :
-    companyFilter === 'EMAIL' ? 'From email' :
-    employers.find((e: any) => e.id === companyFilter)?.name ?? 'All sources';
+    companyFilter === 'ALL'   ? tUi('VAULT_HOME_SOURCE_ALL_NAME') :
+    companyFilter === 'SELF'  ? tUi('VAULT_HOME_SOURCE_SELF_NAME') :
+    companyFilter === 'EMAIL' ? tUi('VAULT_HOME_SOURCE_EMAIL_NAME') :
+    employers.find((e: any) => e.id === companyFilter)?.name ?? tUi('VAULT_HOME_SOURCE_ALL_NAME');
 
   const docTypeLabel = docTypeFilter === 'ALL'
-    ? 'All types'
-    : (DOC_TYPE_LABELS[docTypeFilter] ?? 'All types');
+    ? tUi('VAULT_HOME_ALL_TYPES')
+    : (DOC_TYPE_LABELS[docTypeFilter] ?? tUi('VAULT_HOME_ALL_TYPES'));
 
   const sectionLabel =
     companyFilter === 'ALL'
-      ? 'ALL DOCUMENTS'
+      ? tUi('VAULT_HOME_ALL_DOCUMENTS')
       : companyLabel.toUpperCase() + (docTypeFilter !== 'ALL' ? `  ·  ${docTypeLabel.toUpperCase()}` : '');
 
   // ── Selection helpers ─────────────────────────────────────────────
@@ -671,10 +671,10 @@ export function VaultHomeScreen() {
           <View style={s.headerRow}>
             <View style={{ flex: 1 }}>
               <Text style={s.greeting}>
-                {profile?.name ? `${profile.name.split(' ')[0]}'s vault` : 'My vault'}
+                {profile?.name ? tUi('VAULT_HOME_GREETING_NAMED', { name: profile.name.split(' ')[0] }) : tUi('VAULT_HOME_GREETING_DEFAULT')}
               </Text>
               <Text style={s.vaultMeta}>
-                {docsLoading ? 'Loading…' : `${totalDocs} documents  ·  ${employers.length} employer${employers.length === 1 ? '' : 's'}`}
+                {docsLoading ? tUi('LOADING') : tUi('VAULT_HOME_META', { docs: totalDocs, employers: employers.length })}
               </Text>
             </View>
             <View style={s.headerActions}>
@@ -738,8 +738,8 @@ export function VaultHomeScreen() {
         >
           {/* Stat row */}
           <View style={s.statRow}>
-            <StatCard value={filteredDocs.length} label="Documents"    accent="indigo" />
-            <StatCard value={activeSharesCount}   label="Active shares" accent="emerald" />
+            <StatCard value={filteredDocs.length} label={tUi('VAULT_HOME_STAT_DOCUMENTS')}    accent="indigo" />
+            <StatCard value={activeSharesCount}   label={tUi('VAULT_HOME_STAT_ACTIVE_SHARES')} accent="emerald" />
           </View>
 
           {/* Career Score widget */}
@@ -758,7 +758,7 @@ export function VaultHomeScreen() {
                   style={s.benchNudgeBtn}
                   onPress={() => { dismissNudge(); router.push('/(vault)/benchmarking' as any); }}
                 >
-                  <Text style={s.benchNudgeBtnText}>Comp Benchmark →</Text>
+                  <Text style={s.benchNudgeBtnText}>{tUi('VAULT_HOME_BENCH_NUDGE_CTA')}</Text>
                 </Pressable>
               </View>
               <Pressable onPress={dismissNudge} style={s.benchNudgeClose}>
@@ -820,7 +820,7 @@ export function VaultHomeScreen() {
           <Pressable style={s.selectionCancel} onPress={cancelSelection}>
             <Text style={s.selectionCancelText}>✕</Text>
           </Pressable>
-          <Text style={s.selectionCount}>{selectedIds.size} selected</Text>
+          <Text style={s.selectionCount}>{tUi('VAULT_HOME_SELECTED_COUNT', { count: selectedIds.size })}</Text>
           <Pressable
             style={[s.zipBtn, selectedIds.size === 0 && s.zipBtnDim]}
             onPress={selectedIds.size > 0 ? () => setZipVisible(true) : undefined}
@@ -834,7 +834,7 @@ export function VaultHomeScreen() {
             >
               {zipLoading
                 ? <ActivityIndicator size="small" color="#04261C" />
-                : <Text style={s.zipText}>⬇  Download ZIP ({selectedIds.size})</Text>
+                : <Text style={s.zipText}>{tUi('VAULT_HOME_DOWNLOAD_ZIP', { count: selectedIds.size })}</Text>
               }
             </LinearGradient>
           </Pressable>

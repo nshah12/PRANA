@@ -205,14 +205,14 @@ export function CompBenchmarking() {
               <table className="w-full text-sm">
                 <thead>
                   <tr className="border-b border-slate-100 bg-slate-50">
-                    <th className="text-left px-5 py-3 font-medium text-slate-600">Grade</th>
-                    <th className="text-left px-5 py-3 font-medium text-slate-600">Department</th>
-                    <th className="text-left px-5 py-3 font-medium text-slate-600">Period</th>
-                    <th className="text-right px-5 py-3 font-medium text-slate-600">P25</th>
-                    <th className="text-right px-5 py-3 font-medium text-slate-600">Median</th>
-                    <th className="text-right px-5 py-3 font-medium text-slate-600">P75</th>
-                    <th className="text-right px-5 py-3 font-medium text-slate-600">Contributors</th>
-                    <th className="text-right px-5 py-3 font-medium text-slate-600">Updated</th>
+                    <th className="text-left px-5 py-3 font-medium text-slate-600">{tUi('CHRO_COMP_BENCH_COL_GRADE')}</th>
+                    <th className="text-left px-5 py-3 font-medium text-slate-600">{tUi('CHRO_COMP_BENCH_COL_DEPARTMENT')}</th>
+                    <th className="text-left px-5 py-3 font-medium text-slate-600">{tUi('CHRO_COMP_BENCH_COL_PERIOD')}</th>
+                    <th className="text-right px-5 py-3 font-medium text-slate-600">{tUi('CHRO_COMP_BENCH_COL_P25')}</th>
+                    <th className="text-right px-5 py-3 font-medium text-slate-600">{tUi('CHRO_COMP_BENCH_COL_MEDIAN')}</th>
+                    <th className="text-right px-5 py-3 font-medium text-slate-600">{tUi('CHRO_COMP_BENCH_COL_P75')}</th>
+                    <th className="text-right px-5 py-3 font-medium text-slate-600">{tUi('CHRO_COMP_BENCH_COL_CONTRIBUTORS')}</th>
+                    <th className="text-right px-5 py-3 font-medium text-slate-600">{tUi('CHRO_COMP_BENCH_COL_UPDATED')}</th>
                   </tr>
                 </thead>
                 <tbody>

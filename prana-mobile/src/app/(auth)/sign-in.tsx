@@ -197,7 +197,7 @@ export default function SignInScreen() {
 
               {/* Mobile field */}
               <View style={[s.fieldGroup, { marginBottom: 14 }]}>
-                <Text style={s.fieldLabel}>REGISTERED MOBILE</Text>
+                <Text style={s.fieldLabel}>{tUi('SIGN_IN_MOBILE_LABEL')}</Text>
                 <Pressable onPress={() => mobileRef.current?.focus()}>
                   <View style={[s.fieldRow, error && !password ? s.fieldRowError : digits.length === 10 ? s.fieldRowReady : {}]}>
                     <Text style={s.countryFlag}>🇮🇳</Text>
@@ -225,7 +225,7 @@ export default function SignInScreen() {
 
               {/* Password field */}
               <View style={s.fieldGroup}>
-                <Text style={s.fieldLabel}>PASSWORD</Text>
+                <Text style={s.fieldLabel}>{tUi('SIGN_IN_PASSWORD_LABEL')}</Text>
                 <View style={[s.fieldRow, error && !digits ? s.fieldRowError : password.length > 0 ? s.fieldRowReady : {}]}>
                   <Text style={s.countryFlag}>🔑</Text>
                   <View style={s.divider} />

@@ -64,7 +64,7 @@ export default function ProfileScreen() {
         <Pressable onPress={() => router.back()} hitSlop={12} style={styles.backBtn}>
           <Text style={styles.backChev}>‹</Text>
         </Pressable>
-        <Text style={styles.headerTitle}>Profile</Text>
+        <Text style={styles.headerTitle}>{tUi('PROFILE_HEADER_TITLE')}</Text>
         <View style={{ width: 36 }} />
       </View>
 

@@ -210,7 +210,7 @@ export default function DocRequestScreen() {
               style={[m.input, m.textarea]}
               value={note}
               onChangeText={setNote}
-              placeholder="Any context for your employer…"
+              placeholder={tUi('DOC_REQUEST_NOTE_PLACEHOLDER')}
               placeholderTextColor={colors.ink3}
               multiline
               numberOfLines={3}

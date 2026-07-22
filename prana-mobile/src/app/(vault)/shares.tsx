@@ -26,15 +26,15 @@ import { api } from '@/lib/api';
 // ── Expiry helpers ────────────────────────────────────────────────────────────
 
 function formatExpiry(expires_at: string | null): string {
-  if (!expires_at) return 'Never expires';
+  if (!expires_at) return tUi('SHARES_NEVER_EXPIRES');
   const d = new Date(expires_at);
   const now = new Date();
   const diffMs = d.getTime() - now.getTime();
-  if (diffMs < 0) return 'Expired';
+  if (diffMs < 0) return tUi('SHARES_EXPIRED_LABEL');
   const diffH = Math.floor(diffMs / (1000 * 60 * 60));
-  if (diffH < 24) return `Expires in ${diffH}h`;
+  if (diffH < 24) return tUi('SHARES_EXPIRES_IN_HOURS', { hours: diffH });
   const diffD = Math.floor(diffH / 24);
-  return `Expires ${d.toLocaleDateString('en-IN', { day: '2-digit', month: 'short' })}`;
+  return tUi('SHARES_EXPIRES_ON', { date: d.toLocaleDateString('en-IN', { day: '2-digit', month: 'short' }) });
 }
 
 function isExpired(expires_at: string | null): boolean {
@@ -62,8 +62,9 @@ function RevokeSheet({
           </Text>
           <View style={rs.usageRow}>
             <Text style={rs.usageText}>
-              Used {share.usage_count} time{share.usage_count === 1 ? '' : 's'}
-              {share.usage_limit ? ` of ${share.usage_limit}` : ''}
+              {share.usage_limit
+                ? tUi('SHARES_USED_TIMES_OF_LIMIT', { count: share.usage_count, limit: share.usage_limit })
+                : tUi('SHARES_USED_TIMES', { count: share.usage_count })}
             </Text>
           </View>
           <Pressable
@@ -308,13 +309,13 @@ export default function SharesScreen() {
             <View style={s.summaryDivider} />
             <View style={s.summaryItem}>
               <Text style={s.summaryValue}>{expired.length}</Text>
-              <Text style={s.summaryLabel}>Expired</Text>
+              <Text style={s.summaryLabel}>{tUi('SHARES_EXPIRED_LABEL')}</Text>
             </View>
           </View>
 
           {active.length > 0 && (
             <>
-              <Text style={s.sectionLabel}>ACTIVE  ({active.length})</Text>
+              <Text style={s.sectionLabel}>{tUi('SHARES_SECTION_ACTIVE', { count: active.length })}</Text>
               {active.map(share => (
                 <ShareCard key={share.token_id} share={share} onRevoke={setRevoking} />
               ))}
@@ -323,7 +324,7 @@ export default function SharesScreen() {
 
           {expired.length > 0 && (
             <>
-              <Text style={[s.sectionLabel, { marginTop: 14 }]}>EXPIRED  ({expired.length})</Text>
+              <Text style={[s.sectionLabel, { marginTop: 14 }]}>{tUi('SHARES_SECTION_EXPIRED', { count: expired.length })}</Text>
               {expired.map(share => (
                 <ShareCard key={share.token_id} share={share} onRevoke={setRevoking} />
               ))}

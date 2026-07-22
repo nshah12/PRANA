@@ -292,7 +292,7 @@ export default function AlumniScreen() {
                         <View style={styles.replyBox}>
                           <TextInput
                             style={styles.replyInput}
-                            placeholder="Write a reply…"
+                            placeholder={tUi('ALUMNI_REPLY_PLACEHOLDER')}
                             placeholderTextColor="#94A3B8"
                             multiline
                             value={replyText[msg.outreach_id] ?? ''}

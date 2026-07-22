@@ -90,11 +90,11 @@ function GrowthChart({ data, employers, mode }: { data: GrowthPoint[]; employers
         </View>
         <View style={chart.tooltipBadges}>
           <View style={[chart.badge, { backgroundColor: 'rgba(52,211,153,0.12)' }]}>
-            <Text style={[chart.badgeText, { color: '#059669' }]}>+{growthVsBaseline}% since start</Text>
+            <Text style={[chart.badgeText, { color: '#059669' }]}>{tUi('CAREER_GROWTH_SINCE_START', { pct: growthVsBaseline })}</Text>
           </View>
           {growthVsPrev > 0 && (
             <View style={[chart.badge, { backgroundColor: 'rgba(99,102,241,0.10)', marginTop: 3 }]}>
-              <Text style={[chart.badgeText, { color: colors.indigo }]}>+{growthVsPrev}pts this step</Text>
+              <Text style={[chart.badgeText, { color: colors.indigo }]}>{tUi('CAREER_GROWTH_THIS_STEP', { pts: growthVsPrev })}</Text>
             </View>
           )}
         </View>
@@ -156,7 +156,7 @@ function GrowthChart({ data, employers, mode }: { data: GrowthPoint[]; employers
             </View>
           ))}
         </View>
-        <Text style={chart.baselineNote}>Index 100 = first salary slip · figures private by default</Text>
+        <Text style={chart.baselineNote}>{tUi('CAREER_BASELINE_NOTE')}</Text>
       </View>
     </View>
   );
@@ -225,23 +225,23 @@ function Timeline({ employers, growthData }: { employers: Employer[]; growthData
                 </View>
                 <View style={[tl.pill, isActive ? tl.pillActive : tl.pillAlumni]}>
                   <Text style={[tl.pillText, isActive ? tl.pillActiveText : tl.pillAlumniText]}>
-                    {isActive ? 'CURRENT' : 'ALUMNI'}
+                    {isActive ? tUi('CAREER_PILL_CURRENT') : tUi('CAREER_PILL_ALUMNI')}
                   </Text>
                 </View>
               </View>
               <Text style={tl.dates}>
                 {emp.from ? new Date(emp.from).toLocaleDateString('en-IN', { month: 'short', year: 'numeric' }) : '—'}
                 {' → '}
-                {emp.to ? new Date(emp.to).toLocaleDateString('en-IN', { month: 'short', year: 'numeric' }) : 'Present'}
+                {emp.to ? new Date(emp.to).toLocaleDateString('en-IN', { month: 'short', year: 'numeric' }) : tUi('CAREER_PRESENT')}
               </Text>
               <View style={tl.statsRow}>
                 <View style={tl.stat}>
                   <Text style={[tl.statVal, { color: colors.emerald }]}>+{indexGrowth}pts</Text>
-                  <Text style={tl.statLabel}>salary growth</Text>
+                  <Text style={tl.statLabel}>{tUi('CAREER_STAT_SALARY_GROWTH')}</Text>
                 </View>
                 <View style={tl.stat}>
                   <Text style={tl.statVal}>{empPoints.length}</Text>
-                  <Text style={tl.statLabel}>payslips</Text>
+                  <Text style={tl.statLabel}>{tUi('CAREER_STAT_PAYSLIPS')}</Text>
                 </View>
               </View>
             </View>
@@ -300,11 +300,11 @@ export default function CareerScreen() {
     <View style={styles.screen}>
       <LinearGradient colors={gradTopBg.colors} locations={gradTopBg.locations} start={gradTopBg.start} end={gradTopBg.end} style={styles.header}>
         <SafeAreaView edges={['top']}>
-          <Text style={styles.headerTitle}>Career</Text>
+          <Text style={styles.headerTitle}>{tUi('CAREER_HEADER_TITLE')}</Text>
           <Text style={styles.headerSub}>
             {employers.length > 0
-              ? `${employers.length} employer${employers.length !== 1 ? 's' : ''}  ·  ${growthData.length} salary data points`
-              : 'No documents yet — upload salary slips to see your journey'}
+              ? tUi('CAREER_HEADER_SUB', { employers: employers.length, points: growthData.length })
+              : tUi('CAREER_HEADER_SUB_EMPTY')}
           </Text>
         </SafeAreaView>
       </LinearGradient>
@@ -325,22 +325,22 @@ export default function CareerScreen() {
             <View style={styles.summaryRow}>
               <View style={styles.summaryCard}>
                 <Text style={[styles.summaryVal, { color: colors.emerald }]}>+{maxGrowth}%</Text>
-                <Text style={styles.summaryLabel}>total growth</Text>
+                <Text style={styles.summaryLabel}>{tUi('CAREER_SUMMARY_TOTAL_GROWTH')}</Text>
               </View>
               <View style={styles.summaryCard}>
                 <Text style={styles.summaryVal}>{employers.length}</Text>
-                <Text style={styles.summaryLabel}>employers</Text>
+                <Text style={styles.summaryLabel}>{tUi('CAREER_SUMMARY_EMPLOYERS')}</Text>
               </View>
               <View style={styles.summaryCard}>
                 <Text style={styles.summaryVal}>{growthData.length}</Text>
-                <Text style={styles.summaryLabel}>data points</Text>
+                <Text style={styles.summaryLabel}>{tUi('CAREER_SUMMARY_DATA_POINTS')}</Text>
               </View>
             </View>
 
             {growthData.length > 0 ? (
               <>
                 <View style={styles.sectionHeader}>
-                  <Text style={styles.sectionLabel}>SALARY GROWTH INDEX</Text>
+                  <Text style={styles.sectionLabel}>{tUi('CAREER_SECTION_SALARY_GROWTH_INDEX')}</Text>
                 </View>
                 <GrowthChart data={growthData} employers={employers} mode={chartMode} />
               </>
@@ -352,14 +352,14 @@ export default function CareerScreen() {
 
             {employers.length > 0 && (
               <>
-                <Text style={[styles.sectionLabel, { marginTop: 20 }]}>EMPLOYERS</Text>
+                <Text style={[styles.sectionLabel, { marginTop: 20 }]}>{tUi('CAREER_SECTION_EMPLOYERS')}</Text>
                 <Timeline employers={employers} growthData={growthData} />
               </>
             )}
 
             {events.length > 0 && (
               <>
-                <Text style={[styles.sectionLabel, { marginTop: 20 }]}>CAREER EVENTS</Text>
+                <Text style={[styles.sectionLabel, { marginTop: 20 }]}>{tUi('CAREER_SECTION_CAREER_EVENTS')}</Text>
                 <View style={styles.eventsCard}>
                   {events.map((ev, i) => (
                     <View key={ev.id} style={[styles.eventRow, i === events.length - 1 && { borderBottomWidth: 0 }]}>
@@ -377,7 +377,7 @@ export default function CareerScreen() {
             )}
 
             <View style={styles.privacyNote}>
-              <Text style={styles.privacyText}>🔒  Salary figures processed by AI · Only growth indices stored · Raw data never persisted</Text>
+              <Text style={styles.privacyText}>{tUi('CAREER_PRIVACY_NOTE')}</Text>
             </View>
           </>
         )}

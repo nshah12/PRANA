@@ -8,15 +8,15 @@ import { colors, fonts, gradJourney, radius } from '@/prana-theme/tokens';
 import { tUi } from '@/i18n';
 
 const MENU_ITEMS = [
-  { icon: '🗂', label: 'My Vault',      sub: 'Documents & history',      onPress: () => router.push('/(vault)/vault') },
-  { icon: '💼', label: 'Career',         sub: 'Employers & timeline',      onPress: () => router.push('/(vault)/career') },
-  { icon: '❤️', label: 'Vault Health',   sub: 'Completeness & gaps',       onPress: () => router.push('/(vault)/vault-health' as any) },
-  { icon: '📩', label: 'Doc Requests',   sub: 'Request missing documents',  onPress: () => router.push('/(vault)/doc-request' as any) },
-  { icon: '↗', label: 'Shares',         sub: 'Active share links',         onPress: () => router.push('/(vault)/shares') },
-  { icon: '🤝', label: 'Alumni Connect',  sub: 'Stay in touch with employers', onPress: () => router.push('/(vault)/alumni' as any) },
-  { icon: '📈', label: 'Comp Benchmark',  sub: 'See your market position',     onPress: () => router.push('/(vault)/benchmarking' as any) },
-  { icon: '🔍', label: 'Privacy',        sub: 'Access log & grievances',    onPress: () => router.push('/(vault)/privacy' as any) },
-  { icon: '⚙', label: 'Settings',       sub: 'Account & devices',          onPress: () => router.push('/(vault)/settings') },
+  { icon: '🗂', label: tUi('MENU_VAULT_LABEL'),      sub: tUi('MENU_VAULT_SUB'),      onPress: () => router.push('/(vault)/vault') },
+  { icon: '💼', label: tUi('MENU_CAREER_LABEL'),         sub: tUi('MENU_CAREER_SUB'),      onPress: () => router.push('/(vault)/career') },
+  { icon: '❤️', label: tUi('MENU_VAULT_HEALTH_LABEL'),   sub: tUi('MENU_VAULT_HEALTH_SUB'),       onPress: () => router.push('/(vault)/vault-health' as any) },
+  { icon: '📩', label: tUi('MENU_DOC_REQUESTS_LABEL'),   sub: tUi('MENU_DOC_REQUESTS_SUB'),  onPress: () => router.push('/(vault)/doc-request' as any) },
+  { icon: '↗', label: tUi('MENU_SHARES_LABEL'),         sub: tUi('MENU_SHARES_SUB'),         onPress: () => router.push('/(vault)/shares') },
+  { icon: '🤝', label: tUi('MENU_ALUMNI_LABEL'),  sub: tUi('MENU_ALUMNI_SUB'), onPress: () => router.push('/(vault)/alumni' as any) },
+  { icon: '📈', label: tUi('MENU_BENCHMARK_LABEL'),  sub: tUi('MENU_BENCHMARK_SUB'),     onPress: () => router.push('/(vault)/benchmarking' as any) },
+  { icon: '🔍', label: tUi('MENU_PRIVACY_LABEL'),        sub: tUi('MENU_PRIVACY_SUB'),    onPress: () => router.push('/(vault)/privacy' as any) },
+  { icon: '⚙', label: tUi('MENU_SETTINGS_LABEL'),       sub: tUi('MENU_SETTINGS_SUB'),          onPress: () => router.push('/(vault)/settings') },
 ];
 
 export default function MenuModal() {
@@ -38,8 +38,11 @@ export default function MenuModal() {
             <Text style={styles.profileName}>{profile?.name ?? '—'}</Text>
             <Text style={styles.profileUrl}>
               {profile?.active_since
-                ? `Active since ${new Date(profile.active_since).toLocaleDateString('en-IN', { month: 'short', year: 'numeric' })} · ${profile.employer_count} employers`
-                : 'Loading…'}
+                ? tUi('MENU_PROFILE_ACTIVE_SINCE', {
+                    date: new Date(profile.active_since).toLocaleDateString('en-IN', { month: 'short', year: 'numeric' }),
+                    count: profile.employer_count,
+                  })
+                : tUi('LOADING')}
             </Text>
           </View>
           <Text style={{ fontSize: 18, color: 'rgba(139,147,167,0.7)', marginRight: 4 }}>›</Text>

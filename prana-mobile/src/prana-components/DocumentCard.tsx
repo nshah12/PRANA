@@ -17,6 +17,7 @@ import { View, Text, StyleSheet, Pressable } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { colors, fonts, radius, docIconGradients } from '../prana-theme/tokens';
 import type { DocSourceType } from '../hooks/useVault';
+import { tUi } from '@/i18n';
 
 export type DocIconType = keyof typeof docIconGradients;
 
@@ -33,28 +34,28 @@ export const SOURCE_META: Record<DocSourceType, {
 }> = {
   EMPLOYER_PUSH: {
     icon: '🛡',
-    label: 'Employer',
+    label: tUi('DOC_CARD_SOURCE_EMPLOYER'),
     color: '#059669',
     bg: 'rgba(52,211,153,0.12)',
     border: 'rgba(52,211,153,0.25)',
   },
   EMAIL_FETCH: {
     icon: '📧',
-    label: 'Email',
+    label: tUi('DOC_CARD_SOURCE_EMAIL'),
     color: '#0891B2',
     bg: 'rgba(34,211,238,0.10)',
     border: 'rgba(34,211,238,0.22)',
   },
   EMPLOYEE_SELF_UPLOAD: {
     icon: '⬆',
-    label: 'Self',
+    label: tUi('DOC_CARD_SOURCE_SELF'),
     color: '#B45309',
     bg: 'rgba(251,191,36,0.12)',
     border: 'rgba(251,191,36,0.25)',
   },
   THIRD_PARTY_VERIFIED: {
     icon: '✦',
-    label: '3rd party',
+    label: tUi('DOC_CARD_SOURCE_THIRD_PARTY'),
     color: '#4338CA',
     bg: 'rgba(99,102,241,0.12)',
     border: 'rgba(99,102,241,0.25)',
@@ -158,9 +159,9 @@ export function DocumentCard({
           {/* Action icons — hidden in selection mode */}
           {!selectionMode && (
             <View style={styles.actions}>
-              <ActionBtn icon="👁" onPress={onView}     label="View" />
-              <ActionBtn icon="⬇" onPress={onDownload} label="Download" />
-              <ActionBtn icon="↗" onPress={onShare}    label="Share" />
+              <ActionBtn icon="👁" onPress={onView}     label={tUi('DOC_CARD_ACTION_VIEW')} />
+              <ActionBtn icon="⬇" onPress={onDownload} label={tUi('DOC_CARD_ACTION_DOWNLOAD')} />
+              <ActionBtn icon="↗" onPress={onShare}    label={tUi('DOC_CARD_ACTION_SHARE')} />
             </View>
           )}
         </View>

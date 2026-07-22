@@ -170,7 +170,7 @@ export function EmpVault() {
         })}
         <div className="ml-auto">
           <input value={search} onChange={e => setSearch(e.target.value)}
-            placeholder="Search documents…"
+            placeholder={tUi('EMP_VAULT_SEARCH_PLACEHOLDER')}
             className="pl-3 pr-3 py-1.5 text-xs border border-slate-200 rounded-full outline-none focus:border-sky-400 w-48 transition-colors" />
         </div>
       </div>

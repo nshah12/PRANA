@@ -66,11 +66,11 @@ export function DocumentViewer() {
         <table className="w-full text-sm">
           <thead className="bg-canvas2 text-slate-500 text-xs uppercase tracking-wide">
             <tr>
-              <th className="text-left px-5 py-3 font-medium">Document</th>
-              <th className="text-left px-5 py-3 font-medium">Period</th>
-              <th className="text-left px-5 py-3 font-medium">Status</th>
-              <th className="text-left px-5 py-3 font-medium">Pushed</th>
-              <th className="text-left px-5 py-3 font-medium">Actions</th>
+              <th className="text-left px-5 py-3 font-medium">{tUi('OA_DOC_VIEWER_COL_DOCUMENT')}</th>
+              <th className="text-left px-5 py-3 font-medium">{tUi('OA_DOC_VIEWER_COL_PERIOD')}</th>
+              <th className="text-left px-5 py-3 font-medium">{tUi('OA_DOC_VIEWER_COL_STATUS')}</th>
+              <th className="text-left px-5 py-3 font-medium">{tUi('OA_DOC_VIEWER_COL_PUSHED')}</th>
+              <th className="text-left px-5 py-3 font-medium">{tUi('OA_DOC_VIEWER_COL_ACTIONS')}</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-50">

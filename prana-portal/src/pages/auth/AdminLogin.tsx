@@ -76,7 +76,7 @@ export function AdminLogin() {
           <h2 className="text-3xl font-extrabold text-white leading-tight mb-4">
             Platform Admin<br />
             <span style={{ background: 'linear-gradient(135deg, #F59E0B, #EF4444)', WebkitBackgroundClip: 'text', backgroundClip: 'text', color: 'transparent' }}>
-              Console
+              {tUi('PA_ADMIN_LOGIN_CONSOLE')}
             </span>
           </h2>
 
@@ -177,7 +177,7 @@ export function AdminLogin() {
               <p className="text-xs text-slate-400">
                 Organisation login?{' '}
                 <button onClick={() => navigate('/org/login')} className="text-violet-600 font-semibold hover:underline">
-                  Sign in here
+                  {tUi('PA_ADMIN_LOGIN_SIGN_IN_HERE')}
                 </button>
               </p>
             </div>

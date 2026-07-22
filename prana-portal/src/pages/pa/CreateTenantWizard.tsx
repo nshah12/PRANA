@@ -106,10 +106,10 @@ function AddressBlock({
     <div className="space-y-3">
       <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide">{label}</p>
       <Field label={tUi('OA_ORG_PROFILE_ADDR_LINE1')} required>
-        <input className={inp} value={value.line1} onChange={s('line1')} placeholder="Building / Flat No., Street" />
+        <input className={inp} value={value.line1} onChange={s('line1')} placeholder={tUi('PA_WIZARD_ADDR_LINE1_PLACEHOLDER')} />
       </Field>
       <Field label={tUi('OA_ORG_PROFILE_ADDR_LINE2')}>
-        <input className={inp} value={value.line2} onChange={s('line2')} placeholder="Area / Locality" />
+        <input className={inp} value={value.line2} onChange={s('line2')} placeholder={tUi('PA_WIZARD_ADDR_LINE2_PLACEHOLDER')} />
       </Field>
       <div className="grid grid-cols-2 gap-3">
         <Field label={tUi('OA_ORG_PROFILE_CITY')} required>

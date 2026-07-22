@@ -176,7 +176,7 @@ export function DigestSettings() {
         <div className="flex gap-2">
           <input
             type="email"
-            placeholder="add recipient email…"
+            placeholder={tUi('DIGEST_SETTINGS_RECIPIENT_PLACEHOLDER')}
             value={newEmail}
             onChange={e => setNewEmail(e.target.value)}
             onKeyDown={e => e.key === 'Enter' && addRecipient()}

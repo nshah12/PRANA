@@ -43,7 +43,7 @@ export function ComplianceCalendar() {
       {isError && (
         <div className="text-center py-16 text-slate-400">
           <p className="text-sm">{tUi('CHRO_COMPLIANCE_CAL_LOAD_FAILED')}</p>
-          <button onClick={() => refetch()} className="mt-2 text-xs text-red-600 hover:underline">Retry</button>
+          <button onClick={() => refetch()} className="mt-2 text-xs text-red-600 hover:underline">{tUi('CHRO_COMPLIANCE_CAL_RETRY')}</button>
         </div>
       )}
 
@@ -53,11 +53,11 @@ export function ComplianceCalendar() {
             <thead className="bg-slate-50 text-xs text-slate-500 uppercase tracking-wide">
               <tr>
                 <th className="text-left px-5 py-3 font-medium">{tUi('CHRO_COMPLIANCE_CAL_COL_OBLIGATION')}</th>
-                <th className="text-left px-5 py-3 font-medium">Period</th>
-                <th className="text-left px-5 py-3 font-medium">Deadline</th>
-                <th className="text-left px-5 py-3 font-medium">Days</th>
-                <th className="text-left px-5 py-3 font-medium">Coverage</th>
-                <th className="text-left px-5 py-3 font-medium">Status</th>
+                <th className="text-left px-5 py-3 font-medium">{tUi('CHRO_COMPLIANCE_CAL_COL_PERIOD')}</th>
+                <th className="text-left px-5 py-3 font-medium">{tUi('CHRO_COMPLIANCE_CAL_COL_DEADLINE')}</th>
+                <th className="text-left px-5 py-3 font-medium">{tUi('CHRO_COMPLIANCE_CAL_COL_DAYS')}</th>
+                <th className="text-left px-5 py-3 font-medium">{tUi('CHRO_COMPLIANCE_CAL_COL_COVERAGE')}</th>
+                <th className="text-left px-5 py-3 font-medium">{tUi('CHRO_COMPLIANCE_CAL_COL_STATUS')}</th>
                 <th className="px-5 py-3" />
               </tr>
             </thead>

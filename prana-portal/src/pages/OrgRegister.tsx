@@ -2,6 +2,7 @@ import { useState, useRef, useEffect } from 'react'
 import { useMutation } from '@tanstack/react-query'
 import { useNavigate } from 'react-router-dom'
 import { api } from '@/lib/api'
+import { tUi } from '@/i18n'
 
 const GRAD = 'linear-gradient(135deg, #6366F1 0%, #22D3EE 55%, #34D399 100%)'
 
@@ -108,7 +109,7 @@ function StepInit({ onNext }: {
 
       <div>
         <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1.5">
-          How did you hear about PRANA?
+          {tUi('ORG_REGISTER_HOW_HEARD_LABEL')}
         </label>
         <select className={inp} value={form.how_heard} onChange={sf('how_heard')}>
           <option value="">Select…</option>
@@ -178,7 +179,7 @@ function StepVerifyOtp({ sessionToken, email, orgName, onNext, onBack }: {
       <form onSubmit={e => { e.preventDefault(); mutation.mutate() }} className="space-y-4">
         <div>
           <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-2 text-center">
-            Enter 6-digit code
+            {tUi('ORG_REGISTER_OTP_LABEL')}
           </label>
           <input
             ref={inputRef}
@@ -354,7 +355,7 @@ function StepComplete({ verifiedToken, prefilled, email, onDone }: {
       {/* Message */}
       <div>
         <label className="block text-xs font-medium text-slate-600 mb-1">
-          Any specific requirements or questions?
+          {tUi('ORG_REGISTER_MESSAGE_LABEL')}
         </label>
         <textarea className={`${inp} resize-none h-20`} value={form.message} onChange={sf('message')}
           placeholder="Tell us about your HRMS, integration needs, or any questions…" />
@@ -446,7 +447,7 @@ export function OrgRegister() {
           <div className="inline-flex items-center gap-2 bg-indigo-50 border border-indigo-100
                           rounded-full px-4 py-1.5 mb-4">
             <span className="text-[10px] font-bold tracking-widest text-indigo-500 uppercase">
-              Organisation self-registration
+              {tUi('ORG_REGISTER_BADGE')}
             </span>
           </div>
           <h1 className="text-3xl font-extrabold text-slate-900">Register on PRANA</h1>
@@ -489,7 +490,7 @@ export function OrgRegister() {
           <p className="text-center text-xs text-slate-400 mt-6">
             Already onboarded?{' '}
             <button onClick={() => navigate('/org/login')} className="text-indigo-600 hover:underline">
-              Sign in to your portal
+              {tUi('ORG_REGISTER_SIGN_IN_LINK')}
             </button>
           </p>
         )}

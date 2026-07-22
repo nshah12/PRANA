@@ -123,12 +123,12 @@ export function ApiKeys() {
           <table className="w-full text-sm">
             <thead>
               <tr className="border-b border-slate-100 text-xs text-slate-400 uppercase tracking-wide">
-                <th className="px-5 py-3 text-left font-medium">Label</th>
-                <th className="px-5 py-3 text-left font-medium">Tenant</th>
-                <th className="px-5 py-3 text-left font-medium">Key ID (prefix)</th>
-                <th className="px-5 py-3 text-right font-medium">Rate limit</th>
-                <th className="px-5 py-3 text-right font-medium">Last used</th>
-                <th className="px-5 py-3 text-right font-medium">Action</th>
+                <th className="px-5 py-3 text-left font-medium">{tUi('PA_API_KEYS_COL_LABEL')}</th>
+                <th className="px-5 py-3 text-left font-medium">{tUi('PA_API_KEYS_COL_TENANT')}</th>
+                <th className="px-5 py-3 text-left font-medium">{tUi('PA_API_KEYS_COL_KEY_ID')}</th>
+                <th className="px-5 py-3 text-right font-medium">{tUi('PA_API_KEYS_COL_RATE_LIMIT')}</th>
+                <th className="px-5 py-3 text-right font-medium">{tUi('PA_API_KEYS_COL_LAST_USED')}</th>
+                <th className="px-5 py-3 text-right font-medium">{tUi('PA_API_KEYS_COL_ACTION')}</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-50">

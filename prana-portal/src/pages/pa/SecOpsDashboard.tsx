@@ -61,11 +61,11 @@ export function SecOpsDashboard() {
           <table className="w-full text-sm">
             <thead>
               <tr className="border-b border-slate-100 text-xs text-slate-400 uppercase tracking-wide">
-                <th className="px-5 py-3 text-left font-medium">Tenant</th>
-                <th className="px-5 py-3 text-center font-medium">Posture</th>
-                <th className="px-5 py-3 text-right font-medium">Locked</th>
-                <th className="px-5 py-3 text-right font-medium">Anomalies</th>
-                <th className="px-5 py-3 text-right font-medium">Last threat</th>
+                <th className="px-5 py-3 text-left font-medium">{tUi('PA_SECOPS_COL_TENANT')}</th>
+                <th className="px-5 py-3 text-center font-medium">{tUi('PA_SECOPS_COL_POSTURE')}</th>
+                <th className="px-5 py-3 text-right font-medium">{tUi('PA_SECOPS_COL_LOCKED')}</th>
+                <th className="px-5 py-3 text-right font-medium">{tUi('PA_SECOPS_COL_ANOMALIES')}</th>
+                <th className="px-5 py-3 text-right font-medium">{tUi('PA_SECOPS_COL_LAST_THREAT')}</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-50">

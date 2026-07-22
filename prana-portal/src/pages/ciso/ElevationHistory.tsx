@@ -60,12 +60,12 @@ export function ElevationHistory() {
           <table className="w-full text-sm">
             <thead className="bg-slate-50 text-xs text-slate-500 uppercase tracking-wide">
               <tr>
-                <th className="text-left px-5 py-3 font-medium">Requestor</th>
-                <th className="text-left px-5 py-3 font-medium">Approver</th>
-                <th className="text-left px-5 py-3 font-medium">Reason</th>
-                <th className="text-left px-5 py-3 font-medium">Duration</th>
-                <th className="text-left px-5 py-3 font-medium">Status</th>
-                <th className="text-left px-5 py-3 font-medium">Requested</th>
+                <th className="text-left px-5 py-3 font-medium">{tUi('CISO_ELEVATION_HIST_COL_REQUESTOR')}</th>
+                <th className="text-left px-5 py-3 font-medium">{tUi('CISO_ELEVATION_HIST_COL_APPROVER')}</th>
+                <th className="text-left px-5 py-3 font-medium">{tUi('CISO_ELEVATION_HIST_COL_REASON')}</th>
+                <th className="text-left px-5 py-3 font-medium">{tUi('CISO_ELEVATION_HIST_COL_DURATION')}</th>
+                <th className="text-left px-5 py-3 font-medium">{tUi('CISO_ELEVATION_HIST_COL_STATUS')}</th>
+                <th className="text-left px-5 py-3 font-medium">{tUi('CISO_ELEVATION_HIST_COL_REQUESTED')}</th>
                 <th className="text-left px-5 py-3 font-medium">{tUi('CISO_ELEVATION_HIST_COL_EXPIRES')}</th>
               </tr>
             </thead>
@@ -97,7 +97,7 @@ export function ElevationHistory() {
         <div className="flex justify-between items-center text-sm">
           <button onClick={() => setPage(p => Math.max(0, p - 1))} disabled={page === 0}
                   className="px-4 py-2 border border-slate-200 rounded-lg disabled:opacity-40 hover:bg-slate-50">
-            Previous
+            {tUi('CISO_ELEVATION_HIST_PREVIOUS')}
           </button>
           <span className="text-slate-400 text-xs">Page {page + 1} of {Math.ceil((data?.total ?? 0) / PAGE)}</span>
           <button onClick={() => setPage(p => p + 1)}

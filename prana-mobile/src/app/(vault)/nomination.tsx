@@ -62,11 +62,11 @@ export default function NominationScreen() {
             <Text style={s.backText}>‹</Text>
           </Pressable>
           <View style={{ flex: 1 }}>
-            <Text style={s.headerTitle}>Nominations</Text>
-            <Text style={s.headerSub}>DPDP §15 · Trusted guardian for your vault</Text>
+            <Text style={s.headerTitle}>{tUi('NOMINATION_HEADER_TITLE')}</Text>
+            <Text style={s.headerSub}>{tUi('NOMINATION_HEADER_SUB')}</Text>
           </View>
           <Pressable style={s.newBtn} onPress={() => setShowForm(true)}>
-            <Text style={s.newBtnText}>＋ Add</Text>
+            <Text style={s.newBtnText}>{tUi('NOMINATION_ADD_BTN')}</Text>
           </Pressable>
         </View>
       </SafeAreaView>
@@ -74,15 +74,15 @@ export default function NominationScreen() {
       <ScrollView style={s.body} contentContainerStyle={s.bodyContent} showsVerticalScrollIndicator={false}>
 
         <View style={s.infoCard}>
-          <Text style={s.infoTitle}>👨‍👩‍👧 What is a nominee?</Text>
+          <Text style={s.infoTitle}>{tUi('NOMINATION_INFO_TITLE')}</Text>
           <Text style={s.infoText}>
-            A nominee can manage your PRANA vault on your behalf — useful for minors, or to designate a trusted person in case of incapacitation. They cannot access your documents without your explicit approval.
+            {tUi('NOMINATION_INFO_TEXT')}
           </Text>
         </View>
 
         {done && (
           <View style={s.successBanner}>
-            <Text style={s.successText}>✓ Nominee added successfully.</Text>
+            <Text style={s.successText}>{tUi('NOMINATION_ADDED_SUCCESS')}</Text>
           </View>
         )}
 
@@ -103,7 +103,7 @@ export default function NominationScreen() {
               <View style={{ flex: 1 }}>
                 <Text style={s.nomineeName}>{n.name}</Text>
                 <Text style={s.nomineeRel}>{n.relationship} · {n.mobile}</Text>
-                <Text style={s.nomineeDate}>Added {new Date(n.created_at).toLocaleDateString('en-IN', { day:'2-digit', month:'short', year:'numeric' })}</Text>
+                <Text style={s.nomineeDate}>{tUi('NOMINATION_ADDED_ON', { date: new Date(n.created_at).toLocaleDateString('en-IN', { day:'2-digit', month:'short', year:'numeric' }) })}</Text>
               </View>
               <Pressable
                 style={s.removeBtn}
@@ -142,7 +142,7 @@ export default function NominationScreen() {
 
             <View style={{ flexDirection: 'row', gap: 10 }}>
               <Pressable style={[s.btn, s.btnCancel]} onPress={() => setShowForm(false)}>
-                <Text style={s.btnCancelText}>Cancel</Text>
+                <Text style={s.btnCancelText}>{tUi('CANCEL')}</Text>
               </Pressable>
               <Pressable
                 style={[s.btn, s.btnSubmit, (addMutation.isPending || !name || !mobile) && { opacity: 0.5 }]}

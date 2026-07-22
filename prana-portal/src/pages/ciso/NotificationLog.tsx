@@ -116,13 +116,13 @@ export function NotificationLog() {
           <table className="w-full text-xs">
             <thead>
               <tr className="bg-slate-50 border-b border-slate-100">
-                <th className="text-left px-4 py-2.5 text-slate-500 font-medium">When</th>
-                <th className="text-left px-4 py-2.5 text-slate-500 font-medium">Event</th>
-                <th className="text-left px-4 py-2.5 text-slate-500 font-medium">Channel</th>
-                <th className="text-left px-4 py-2.5 text-slate-500 font-medium">Recipient</th>
-                <th className="text-left px-4 py-2.5 text-slate-500 font-medium">Template</th>
-                <th className="text-left px-4 py-2.5 text-slate-500 font-medium">Status</th>
-                <th className="text-left px-4 py-2.5 text-slate-500 font-medium">Retries</th>
+                <th className="text-left px-4 py-2.5 text-slate-500 font-medium">{tUi('CISO_NOTIF_LOG_COL_WHEN')}</th>
+                <th className="text-left px-4 py-2.5 text-slate-500 font-medium">{tUi('CISO_NOTIF_LOG_COL_EVENT')}</th>
+                <th className="text-left px-4 py-2.5 text-slate-500 font-medium">{tUi('CISO_NOTIF_LOG_COL_CHANNEL')}</th>
+                <th className="text-left px-4 py-2.5 text-slate-500 font-medium">{tUi('CISO_NOTIF_LOG_COL_RECIPIENT')}</th>
+                <th className="text-left px-4 py-2.5 text-slate-500 font-medium">{tUi('CISO_NOTIF_LOG_COL_TEMPLATE')}</th>
+                <th className="text-left px-4 py-2.5 text-slate-500 font-medium">{tUi('CISO_NOTIF_LOG_COL_STATUS')}</th>
+                <th className="text-left px-4 py-2.5 text-slate-500 font-medium">{tUi('CISO_NOTIF_LOG_COL_RETRIES')}</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-50">

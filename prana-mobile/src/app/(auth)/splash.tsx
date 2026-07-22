@@ -20,6 +20,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { router } from 'expo-router';
 import { useAuth } from '@/context/AuthContext';
 import { colors, fonts, gradJourney } from '@/prana-theme/tokens';
+import { tUi } from '@/i18n';
 
 const { width: W } = Dimensions.get('window');
 const CX = W / 2;   // center x
@@ -203,7 +204,7 @@ export default function SplashScreen() {
 
           {/* "YOUR VAULT" label under vault */}
           <Animated.View style={[styles.vaultLabel, { top: CY + 46, opacity: vaultScale }]}>
-            <Text style={styles.vaultLabelText}>YOUR VAULT</Text>
+            <Text style={styles.vaultLabelText}>{tUi('SPLASH_YOUR_VAULT')}</Text>
           </Animated.View>
         </View>
 
@@ -213,12 +214,12 @@ export default function SplashScreen() {
             opacity: taglineOpacity,
             transform: [{ translateY: taglineY }],
           }]}>
-            Your career{'\n'}
-            <Text style={styles.taglineAccent}>follows you now.</Text>
+            {tUi('SPLASH_TAGLINE_LINE1')}{'\n'}
+            <Text style={styles.taglineAccent}>{tUi('SPLASH_TAGLINE_ACCENT')}</Text>
           </Animated.Text>
 
           <Animated.Text style={[styles.sub, { opacity: subOpacity }]}>
-            Every document from every employer — in one vault that belongs to you alone.
+            {tUi('SPLASH_SUB')}
           </Animated.Text>
 
           {/* Loading dots */}

@@ -57,11 +57,11 @@ export function OaActivityAudit() {
         <table className="w-full text-sm">
           <thead className="bg-canvas2 text-slate-500 text-xs uppercase tracking-wide">
             <tr>
-              <th className="text-left px-5 py-3 font-medium">Actor</th>
-              <th className="text-left px-5 py-3 font-medium">Action</th>
-              <th className="text-left px-5 py-3 font-medium">Resource</th>
-              <th className="text-left px-5 py-3 font-medium">IP</th>
-              <th className="text-left px-5 py-3 font-medium">Timestamp</th>
+              <th className="text-left px-5 py-3 font-medium">{tUi('CISO_OA_AUDIT_COL_ACTOR')}</th>
+              <th className="text-left px-5 py-3 font-medium">{tUi('CISO_OA_AUDIT_COL_ACTION')}</th>
+              <th className="text-left px-5 py-3 font-medium">{tUi('CISO_OA_AUDIT_COL_RESOURCE')}</th>
+              <th className="text-left px-5 py-3 font-medium">{tUi('CISO_OA_AUDIT_COL_IP')}</th>
+              <th className="text-left px-5 py-3 font-medium">{tUi('CISO_OA_AUDIT_COL_TIMESTAMP')}</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-50">

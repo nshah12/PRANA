@@ -54,9 +54,9 @@ function CareerPassportModal({
     if (!credential) return;
     try {
       await Share.share({
-        message: `Verify my ${docTitle} credential: ${credential.verify_url}`,
+        message: tUi('DOC_VIEWER_SHARE_VERIFY_MESSAGE', { docTitle, url: credential.verify_url }),
         url: credential.verify_url,
-        title: 'PRANA Career Passport',
+        title: tUi('DOC_VIEWER_SHARE_PASSPORT_TITLE'),
       });
     } catch { /* user cancelled */ }
   }
@@ -131,13 +131,13 @@ function CareerPassportModal({
 
                   {/* Privacy note */}
                   <View style={cp.privacyRow}>
-                    <Text style={cp.privacyText}>🔒  Verifier sees only document type, period, and employer name — no salary figures.</Text>
+                    <Text style={cp.privacyText}>{tUi('DOC_VIEWER_PASSPORT_PRIVACY_NOTE')}</Text>
                   </View>
 
                   {/* Actions */}
                   <View style={cp.actions}>
                     <Pressable style={[cp.copyBtn, copied && cp.copyBtnDone]} onPress={handleCopy}>
-                      <Text style={cp.copyText}>{copied ? '✓ Copied' : 'Copy link'}</Text>
+                      <Text style={cp.copyText}>{copied ? tUi('DOC_VIEWER_COPIED') : tUi('DOC_VIEWER_COPY_LINK')}</Text>
                     </Pressable>
                     <Pressable onPress={handleShare} style={cp.shareBtn}>
                       <LinearGradient
@@ -147,7 +147,7 @@ function CareerPassportModal({
                         end={gradJourney.end}
                         style={cp.shareBtnInner}
                       >
-                        <Text style={cp.shareBtnText}>↗  Share</Text>
+                        <Text style={cp.shareBtnText}>{tUi('DOC_VIEWER_SHARE_BTN')}</Text>
                       </LinearGradient>
                     </Pressable>
                   </View>
@@ -155,7 +155,7 @@ function CareerPassportModal({
               )}
 
               <Pressable style={cp.closeBtn} onPress={onClose}>
-                <Text style={cp.closeText}>Done</Text>
+                <Text style={cp.closeText}>{tUi('DONE')}</Text>
               </Pressable>
             </View>
           </TouchableWithoutFeedback>
@@ -198,9 +198,9 @@ const cp = StyleSheet.create({
 
 // ── Share bottom sheet ────────────────────────────────────────────────────────
 const EXPIRY_OPTIONS = [
-  { hours: 24,  label: '24 hours', sub: 'Quick access — same-day use' },
-  { hours: 168, label: '7 days',   sub: 'Standard — most requests' },
-  { hours: 720, label: '30 days',  sub: 'Extended — loan applications' },
+  { hours: 24,  label: tUi('DOC_VIEWER_EXPIRY_24H_LABEL'), sub: tUi('DOC_VIEWER_EXPIRY_24H_SUB') },
+  { hours: 168, label: tUi('DOC_VIEWER_EXPIRY_7D_LABEL'),   sub: tUi('DOC_VIEWER_EXPIRY_7D_SUB') },
+  { hours: 720, label: tUi('DOC_VIEWER_EXPIRY_30D_LABEL'),  sub: tUi('DOC_VIEWER_EXPIRY_30D_SUB') },
 ];
 
 function ShareSheet({
@@ -314,14 +314,14 @@ function ShareSheet({
               <View style={ss.linkBox}>
                 <Text style={ss.linkText} numberOfLines={1} selectable>{shareUrl}</Text>
                 <Pressable style={[ss.copyBtn, copied && ss.copyBtnDone]} onPress={handleCopy}>
-                  <Text style={ss.copyText}>{copied ? '✓ Copied' : 'Copy'}</Text>
+                  <Text style={ss.copyText}>{copied ? tUi('DOC_VIEWER_COPIED') : tUi('CREATE_SHARE_COPY')}</Text>
                 </Pressable>
               </View>
             </>
           )}
 
           <Pressable style={ss.cancelBtn} onPress={onClose}>
-            <Text style={ss.cancelText}>{shareUrl ? 'Done' : 'Cancel'}</Text>
+            <Text style={ss.cancelText}>{shareUrl ? tUi('DONE') : tUi('CANCEL')}</Text>
           </Pressable>
           </View>
         </View>
@@ -372,14 +372,14 @@ function ProvenanceChain({ sourceType, issuer, receivedAt, fileHash }: {
   const dateStr = new Date(receivedAt).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' });
 
   const steps = [
-    { icon: src.icon, label: `${src.label === 'Employer' ? `Issued by ${issuer}` : src.label === 'Email' ? `Captured from email (${issuer})` : 'Uploaded by you'}`, sub: dateStr, color: src.color },
-    { icon: '🔒', label: 'Encrypted & stored in PRANA vault', sub: fileHash ? `SHA-256: ${fileHash.slice(0, 16)}…` : 'Hash sealed at upload', color: colors.indigo },
-    { icon: '✦',  label: 'Tamper-proof vault record', sub: 'Verifiable on request', color: colors.cyan },
+    { icon: src.icon, label: `${src.label === tUi('DOC_CARD_SOURCE_EMPLOYER') ? tUi('DOC_VIEWER_PROVENANCE_ISSUED_BY', { issuer }) : src.label === tUi('DOC_CARD_SOURCE_EMAIL') ? tUi('DOC_VIEWER_PROVENANCE_CAPTURED_EMAIL', { issuer }) : tUi('DOC_VIEWER_PROVENANCE_UPLOADED_BY_YOU')}`, sub: dateStr, color: src.color },
+    { icon: '🔒', label: tUi('DOC_VIEWER_PROVENANCE_ENCRYPTED'), sub: fileHash ? tUi('DOC_VIEWER_PROVENANCE_HASH', { hash: fileHash.slice(0, 16) }) : tUi('DOC_VIEWER_PROVENANCE_HASH_SEALED'), color: colors.indigo },
+    { icon: '✦',  label: tUi('DOC_VIEWER_PROVENANCE_TAMPER_PROOF'), sub: tUi('DOC_VIEWER_PROVENANCE_VERIFIABLE'), color: colors.cyan },
   ];
 
   return (
     <View>
-      <Text style={pv.heading}>PROVENANCE CHAIN</Text>
+      <Text style={pv.heading}>{tUi('DOC_VIEWER_PROVENANCE_HEADING')}</Text>
       {steps.map((step, i) => (
         <View key={i} style={pv.row}>
           <View style={pv.left}>
@@ -422,7 +422,7 @@ export default function DocumentViewerScreen() {
   const insights: Record<string, string> =
     apiDoc?.insights
       ? Object.fromEntries(Object.entries(apiDoc.insights).map(([k, v]) => [k, v.value]))
-      : { Document: 'Content available after processing' };
+      : { [tUi('DOC_VIEWER_INSIGHT_DOCUMENT_KEY')]: tUi('DOC_VIEWER_INSIGHT_PROCESSING') };
 
   const iconGrad = docIconGradients[(apiDoc?.icon_type ?? '') as keyof typeof docIconGradients] ?? docIconGradients.salary;
   const src = SOURCE_META[(apiDoc?.source_type ?? '') as keyof typeof SOURCE_META] ?? SOURCE_META.EMPLOYER_PUSH;
@@ -462,7 +462,7 @@ export default function DocumentViewerScreen() {
         <Text style={s.errorEmoji}>⚠</Text>
         <Text style={s.errorTitle}>{tUi('DOC_LOAD_FAILED')}</Text>
         <Pressable onPress={() => router.back()} style={s.backPill}>
-          <Text style={s.backPillText}>← Go back</Text>
+          <Text style={s.backPillText}>{tUi('DOC_VIEWER_GO_BACK')}</Text>
         </Pressable>
       </View>
     );
@@ -474,7 +474,7 @@ export default function DocumentViewerScreen() {
         <Text style={s.errorEmoji}>📄</Text>
         <Text style={s.errorTitle}>{tUi('DOC_NOT_FOUND')}</Text>
         <Pressable onPress={() => router.back()} style={s.backPill}>
-          <Text style={s.backPillText}>← Go back</Text>
+          <Text style={s.backPillText}>{tUi('DOC_VIEWER_GO_BACK')}</Text>
         </Pressable>
       </View>
     );
@@ -515,11 +515,11 @@ export default function DocumentViewerScreen() {
               </Pressable>
               <Pressable style={s.passportBtn} onPress={() => setPassportVisible(true)}>
                 <Text style={s.passportBtnIcon}>◈</Text>
-                <Text style={s.passportBtnLabel}>Verify</Text>
+                <Text style={s.passportBtnLabel}>{tUi('DOC_CARD_ACTION_VERIFY')}</Text>
               </Pressable>
               <Pressable style={s.shareTopBtn} onPress={() => setShareVisible(true)}>
                 <Text style={s.shareTopIcon}>↗</Text>
-                <Text style={s.shareTopLabel}>Share</Text>
+                <Text style={s.shareTopLabel}>{tUi('DOC_CARD_ACTION_SHARE')}</Text>
               </Pressable>
             </View>
           </View>
@@ -558,16 +558,16 @@ export default function DocumentViewerScreen() {
           <View style={[s.sourceBadge, { backgroundColor: src.bg, borderColor: src.border }]}>
             <Text style={s.sourceBadgeIcon}>{src.icon}</Text>
             <Text style={[s.sourceBadgeText, { color: src.color }]}>
-              {doc.source_type === 'EMPLOYER_PUSH'        ? `Employer pushed by ${doc.issuer}` :
-               doc.source_type === 'EMAIL_FETCH'          ? `Auto-captured from email (${doc.issuer})` :
-               doc.source_type === 'EMPLOYEE_SELF_UPLOAD' ? 'Uploaded by you' :
-               'Third-party verified'}
+              {doc.source_type === 'EMPLOYER_PUSH'        ? tUi('DOC_VIEWER_SOURCE_EMPLOYER_PUSHED', { issuer: doc.issuer }) :
+               doc.source_type === 'EMAIL_FETCH'          ? tUi('DOC_VIEWER_SOURCE_EMAIL_CAPTURED', { issuer: doc.issuer }) :
+               doc.source_type === 'EMPLOYEE_SELF_UPLOAD' ? tUi('DOC_VIEWER_PROVENANCE_UPLOADED_BY_YOU') :
+               tUi('DOC_VIEWER_SOURCE_THIRD_PARTY')}
             </Text>
           </View>
 
           {/* Privacy note — inside the doc card */}
           <View style={s.privacyNote}>
-            <Text style={s.privacyText}>🔒  Salary figures are never stored or displayed. Only role, dates, and career details are shown.</Text>
+            <Text style={s.privacyText}>{tUi('DOC_VIEWER_DOC_CARD_PRIVACY_NOTE')}</Text>
           </View>
         </View>
 
@@ -590,7 +590,7 @@ export default function DocumentViewerScreen() {
             end={gradJourney.end}
             style={s.shareBtn}
           >
-            <Text style={s.shareBtnText}>↗  Share this document</Text>
+            <Text style={s.shareBtnText}>{tUi('DOC_VIEWER_SHARE_CTA')}</Text>
           </LinearGradient>
         </Pressable>
       </ScrollView>
@@ -598,7 +598,7 @@ export default function DocumentViewerScreen() {
       {/* Footer — vault identity */}
       <SafeAreaView edges={['bottom']} style={s.footer}>
         <Text style={s.footerText}>
-          🔐  {profile?.vault_url ?? 'prana.in/vault'}  ·  PRANA Verified
+          {tUi('DOC_VIEWER_FOOTER', { url: profile?.vault_url ?? 'prana.in/vault' })}
         </Text>
       </SafeAreaView>
     </View>

@@ -28,18 +28,18 @@ import { tUi } from '@/i18n';
 import { SOURCE_META } from '@/prana-components/DocumentCard';
 
 const DOC_TYPE_LABELS: Record<string, string> = {
-  SALARY_SLIP: 'Salary Slip', FORM_16: 'Form 16', INVESTMENT_PROOF: 'Investment Proof',
-  IT_RETURN: 'ITR', BANK_STATEMENT: 'Bank Statement', OFFER_LETTER: 'Offer Letter',
-  JOINING_LETTER: 'Joining Letter', APPRAISAL_LETTER: 'Appraisal Letter',
-  BONUS_LETTER: 'Bonus Letter', PROMOTION_LETTER: 'Promotion Letter',
-  RELIEVING_LETTER: 'Relieving Letter', EXPERIENCE_LETTER: 'Experience Letter',
+  SALARY_SLIP: tUi('CREATE_SHARE_DOC_TYPE_SALARY_SLIP'), FORM_16: tUi('CREATE_SHARE_DOC_TYPE_FORM_16'), INVESTMENT_PROOF: tUi('CREATE_SHARE_DOC_TYPE_INVESTMENT_PROOF'),
+  IT_RETURN: tUi('CREATE_SHARE_DOC_TYPE_IT_RETURN'), BANK_STATEMENT: tUi('CREATE_SHARE_DOC_TYPE_BANK_STATEMENT'), OFFER_LETTER: tUi('CREATE_SHARE_DOC_TYPE_OFFER_LETTER'),
+  JOINING_LETTER: tUi('CREATE_SHARE_DOC_TYPE_JOINING_LETTER'), APPRAISAL_LETTER: tUi('CREATE_SHARE_DOC_TYPE_APPRAISAL_LETTER'),
+  BONUS_LETTER: tUi('CREATE_SHARE_DOC_TYPE_BONUS_LETTER'), PROMOTION_LETTER: tUi('CREATE_SHARE_DOC_TYPE_PROMOTION_LETTER'),
+  RELIEVING_LETTER: tUi('CREATE_SHARE_DOC_TYPE_RELIEVING_LETTER'), EXPERIENCE_LETTER: tUi('CREATE_SHARE_DOC_TYPE_EXPERIENCE_LETTER'),
 };
 
 const EXPIRY_OPTIONS = [
-  { hours: 24,  label: '24 hours', sub: 'Same-day use',          tag: '24H' },
-  { hours: 168, label: '7 days',   sub: 'Standard',               tag: '7D' },
-  { hours: 720, label: '30 days',  sub: 'Loan / visa applications',tag: '30D' },
-  { hours: 2160,label: '90 days',  sub: 'Long-term access',       tag: '90D' },
+  { hours: 24,  label: tUi('CREATE_SHARE_EXPIRY_24H_LABEL'), sub: tUi('CREATE_SHARE_EXPIRY_24H_SUB'),          tag: '24H' },
+  { hours: 168, label: tUi('CREATE_SHARE_EXPIRY_7D_LABEL'),   sub: tUi('CREATE_SHARE_EXPIRY_7D_SUB'),               tag: '7D' },
+  { hours: 720, label: tUi('CREATE_SHARE_EXPIRY_30D_LABEL'),  sub: tUi('CREATE_SHARE_EXPIRY_30D_SUB'),tag: '30D' },
+  { hours: 2160,label: tUi('CREATE_SHARE_EXPIRY_90D_LABEL'),  sub: tUi('CREATE_SHARE_EXPIRY_90D_SUB'),       tag: '90D' },
 ];
 
 // ── Doc picker row ────────────────────────────────────────────────────────────
@@ -97,23 +97,23 @@ function CreatedLinkSheet({
           </View>
           <Text style={cl.title}>{tUi('CREATE_SHARE_LINK_CREATED')}</Text>
           <Text style={cl.sub}>
-            {count} document{count > 1 ? 's' : ''} · expires {new Date(expiresAt).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })}
+            {tUi('CREATE_SHARE_LINK_SUMMARY', { count, date: new Date(expiresAt).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' }) })}
           </Text>
           <Text style={cl.sub}>{tUi('CREATE_SHARE_REVOCABLE_NOTE')}</Text>
 
           <View style={cl.linkBox}>
             <Text style={cl.linkText} numberOfLines={1} selectable>{shareToken}</Text>
             <Pressable style={[cl.copyBtn, copied && cl.copyBtnDone]} onPress={handleCopy}>
-              <Text style={cl.copyText}>{copied ? '✓ Copied' : 'Copy'}</Text>
+              <Text style={cl.copyText}>{copied ? tUi('CREATE_SHARE_COPIED') : tUi('CREATE_SHARE_COPY')}</Text>
             </Pressable>
           </View>
 
           <View style={cl.privacyNote}>
-            <Text style={cl.privacyText}>🔒  Recipient sees document details only — no salary figures, no PAN. You can revoke at any time.</Text>
+            <Text style={cl.privacyText}>{tUi('CREATE_SHARE_LINK_PRIVACY_NOTE')}</Text>
           </View>
 
           <Pressable onPress={onDone} style={cl.doneBtn}>
-            <Text style={cl.doneBtnText}>Done</Text>
+            <Text style={cl.doneBtnText}>{tUi('DONE')}</Text>
           </Pressable>
         </View>
       </View>
@@ -258,7 +258,7 @@ export default function CreateShareScreen() {
         </View>
 
         {/* ── Expiry ── */}
-        <Text style={[s.sectionLabel, { marginTop: 20 }]}>LINK EXPIRES IN</Text>
+        <Text style={[s.sectionLabel, { marginTop: 20 }]}>{tUi('CREATE_SHARE_EXPIRY_SECTION_LABEL')}</Text>
         <View style={s.expiryGrid}>
           {EXPIRY_OPTIONS.map(opt => (
             <Pressable
@@ -274,11 +274,11 @@ export default function CreateShareScreen() {
         </View>
 
         {/* ── Label ── */}
-        <Text style={[s.sectionLabel, { marginTop: 20 }]}>LABEL  <Text style={s.optional}>(optional)</Text></Text>
+        <Text style={[s.sectionLabel, { marginTop: 20 }]}>{tUi('CREATE_SHARE_LABEL_SECTION_LABEL')}  <Text style={s.optional}>{tUi('CREATE_SHARE_LABEL_OPTIONAL')}</Text></Text>
         <TextInput
           value={label}
           onChangeText={setLabel}
-          placeholder="e.g. HDFC home loan, Visa application…"
+          placeholder={tUi('CREATE_SHARE_LABEL_PLACEHOLDER')}
           placeholderTextColor={colors.ink3}
           style={s.labelInput}
           maxLength={60}
@@ -286,7 +286,7 @@ export default function CreateShareScreen() {
 
         {/* ── Privacy note ── */}
         <View style={s.privacyNote}>
-          <Text style={s.privacyNoteText}>🔒  Recipients see document details only — no salary figures, no PAN, no account numbers. The link auto-expires and is revocable any time.</Text>
+          <Text style={s.privacyNoteText}>{tUi('CREATE_SHARE_FORM_PRIVACY_NOTE')}</Text>
         </View>
 
         {error ? <Text style={s.error}>{error}</Text> : null}
@@ -304,8 +304,8 @@ export default function CreateShareScreen() {
               ? <ActivityIndicator size="small" color="#04261C" />
               : <Text style={s.createBtnText}>
                   {selectedIds.size === 0
-                    ? 'Select documents to share'
-                    : `Create link for ${selectedIds.size} document${selectedIds.size > 1 ? 's' : ''} →`}
+                    ? tUi('CREATE_SHARE_SELECT_DOCS_CTA')
+                    : tUi('CREATE_SHARE_CREATE_LINK_CTA', { count: selectedIds.size, s: selectedIds.size > 1 ? 's' : '' })}
                 </Text>
             }
           </LinearGradient>

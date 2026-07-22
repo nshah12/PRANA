@@ -32,7 +32,7 @@ function ConfirmModal({
           <Text style={styles.modalBody}>{body}</Text>
           <View style={styles.modalBtns}>
             <Pressable style={styles.modalCancel} onPress={onCancel}>
-              <Text style={styles.modalCancelText}>Cancel</Text>
+              <Text style={styles.modalCancelText}>{tUi('CANCEL')}</Text>
             </Pressable>
             <Pressable
               style={[styles.modalConfirm, confirmDanger && styles.modalConfirmDanger]}
@@ -65,7 +65,7 @@ function SuccessModal({ visible, title, sub, onClose }: {
           <Text style={styles.modalTitle}>{title}</Text>
           <Text style={styles.modalBody}>{sub}</Text>
           <Pressable style={styles.successBtn} onPress={onClose}>
-            <Text style={styles.successBtnText}>Done</Text>
+            <Text style={styles.successBtnText}>{tUi('DONE')}</Text>
           </Pressable>
         </View>
       </View>
@@ -162,36 +162,36 @@ export default function DataRightsScreen() {
 
   const MODAL_CONTENT: Record<string, { title: string; body: string; label: string; danger?: boolean }> = {
     download: {
-      title: 'Download your data',
-      body: `We will prepare a ZIP containing your vault index, document metadata, career events, and activity log. Raw salary figures are not included — only the metadata we store.\n\nThe download link will be sent to your registered mobile number.`,
-      label: 'Request download',
+      title: tUi('DATA_RIGHTS_MODAL_DOWNLOAD_TITLE'),
+      body: tUi('DATA_RIGHTS_MODAL_DOWNLOAD_BODY'),
+      label: tUi('DATA_RIGHTS_MODAL_DOWNLOAD_LABEL'),
     },
     erasure: {
-      title: 'Request account deletion',
-      body: 'This will permanently delete your PRANA account, all stored metadata, embeddings, career insights, and activity logs. Your documents with employers are not affected — they remain with the employer.\n\nThis action cannot be undone.',
-      label: 'Delete my account',
+      title: tUi('DATA_RIGHTS_MODAL_ERASURE_TITLE'),
+      body: tUi('DATA_RIGHTS_MODAL_ERASURE_BODY'),
+      label: tUi('DATA_RIGHTS_MODAL_ERASURE_LABEL'),
       danger: true,
     },
     withdraw: {
-      title: 'Withdraw consent',
-      body: 'Withdrawing consent will stop PRANA from processing any new documents pushed by your employers. Existing documents in your vault will remain until you request erasure.\n\nYou can re-consent at any time from this screen.',
-      label: 'Withdraw consent',
+      title: tUi('DATA_RIGHTS_MODAL_WITHDRAW_TITLE'),
+      body: tUi('DATA_RIGHTS_MODAL_WITHDRAW_BODY'),
+      label: tUi('DATA_RIGHTS_MODAL_WITHDRAW_LABEL'),
       danger: true,
     },
   };
 
   const SUCCESS_CONTENT: Record<string, { title: string; sub: string }> = {
     download: {
-      title: 'Request submitted',
-      sub: 'Your data export will be ready within 24 hours. A download link will be sent to your registered mobile number.',
+      title: tUi('DATA_RIGHTS_SUCCESS_DOWNLOAD_TITLE'),
+      sub: tUi('DATA_RIGHTS_SUCCESS_DOWNLOAD_SUB'),
     },
     erasure: {
-      title: 'Deletion requested',
-      sub: 'Your account deletion request has been logged. All data will be permanently erased within 30 days as required by DPDP Act 2023.',
+      title: tUi('DATA_RIGHTS_SUCCESS_ERASURE_TITLE'),
+      sub: tUi('DATA_RIGHTS_SUCCESS_ERASURE_SUB'),
     },
     withdraw: {
-      title: 'Consent withdrawn',
-      sub: 'PRANA will no longer process new documents from your employers. You can re-consent at any time from this screen.',
+      title: tUi('DATA_RIGHTS_SUCCESS_WITHDRAW_TITLE'),
+      sub: tUi('DATA_RIGHTS_SUCCESS_WITHDRAW_SUB'),
     },
   };
 
@@ -219,10 +219,10 @@ export default function DataRightsScreen() {
           <Text style={styles.snapshotTitle}>{tUi('DATA_RIGHTS_SNAPSHOT_TITLE')}</Text>
           <View style={styles.snapshotGrid}>
             {[
-              ['Documents', `${docCount}`],
-              ['Metadata only', 'No raw ₹'],
-              ['PAN stored', 'Encrypted'],
-              ['Insights', 'Indices only'],
+              [tUi('DATA_RIGHTS_SNAPSHOT_DOCUMENTS'), `${docCount}`],
+              [tUi('DATA_RIGHTS_SNAPSHOT_METADATA_ONLY'), tUi('DATA_RIGHTS_SNAPSHOT_NO_RAW_RUPEE')],
+              [tUi('DATA_RIGHTS_SNAPSHOT_PAN_STORED'), tUi('DATA_RIGHTS_SNAPSHOT_ENCRYPTED')],
+              [tUi('DATA_RIGHTS_SNAPSHOT_INSIGHTS'), tUi('DATA_RIGHTS_SNAPSHOT_INDICES_ONLY')],
             ].map(([label, val]) => (
               <View key={label} style={styles.snapshotCell}>
                 <Text style={styles.snapshotVal}>{val}</Text>
@@ -231,7 +231,7 @@ export default function DataRightsScreen() {
             ))}
           </View>
           <Text style={styles.snapshotNote}>
-            Raw salary figures are processed in-memory and discarded. Only growth indices and consistency verdicts are stored.
+            {tUi('DATA_RIGHTS_SNAPSHOT_NOTE')}
           </Text>
         </View>
 
@@ -239,11 +239,11 @@ export default function DataRightsScreen() {
         <View style={[styles.consentBanner, !isConsented && styles.consentBannerWithdrawn]}>
           <View style={[styles.consentDot, !isConsented && styles.consentDotWithdrawn]} />
           <View style={{ flex: 1 }}>
-            <Text style={styles.consentTitle}>{isConsented ? 'Consent active' : 'Consent withdrawn'}</Text>
+            <Text style={styles.consentTitle}>{isConsented ? tUi('DATA_RIGHTS_CONSENT_ACTIVE') : tUi('DATA_RIGHTS_CONSENT_WITHDRAWN')}</Text>
             <Text style={styles.consentSub}>
               {isConsented
-                ? `Granted · DPDP v1 · ${consentData?.granted_at ? new Date(consentData.granted_at).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' }) : '—'}`
-                : 'Re-grant consent to allow document processing'}
+                ? tUi('DATA_RIGHTS_CONSENT_GRANTED_ON', { date: consentData?.granted_at ? new Date(consentData.granted_at).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' }) : '—' })
+                : tUi('DATA_RIGHTS_CONSENT_REGRANT_PROMPT')}
             </Text>
           </View>
           {isConsented
@@ -253,21 +253,21 @@ export default function DataRightsScreen() {
                 onPress={() => api.post('/v1/vault/compliance/consent/grant').then(() => queryClient.invalidateQueries({ queryKey: ['compliance', 'consent'] }))}
                 style={{ paddingHorizontal: 10, paddingVertical: 6, backgroundColor: 'rgba(52,211,153,0.15)', borderRadius: 10 }}
               >
-                <Text style={{ fontFamily: fonts.mono, fontSize: 10, color: colors.emerald }}>Re-grant</Text>
+                <Text style={{ fontFamily: fonts.mono, fontSize: 10, color: colors.emerald }}>{tUi('DATA_RIGHTS_REGRANT_BTN')}</Text>
               </Pressable>
             )
           }
         </View>
 
         {/* Rights */}
-        <Text style={styles.sectionLabel}>YOUR RIGHTS</Text>
+        <Text style={styles.sectionLabel}>{tUi('DATA_RIGHTS_YOUR_RIGHTS_HEADER')}</Text>
 
         <RightCard
           icon="📥"
           iconBg="rgba(99,102,241,0.12)"
-          title="Right to access"
-          sub="Download all data PRANA holds about you — document index, career events, activity log, stored metadata. Delivered as a ZIP to your registered number."
-          actionLabel="Request data download"
+          title={tUi('DATA_RIGHTS_ACCESS_TITLE')}
+          sub={tUi('DATA_RIGHTS_ACCESS_SUB')}
+          actionLabel={tUi('DATA_RIGHTS_ACCESS_ACTION')}
           onAction={() => setConfirmModal('download')}
           tag="DPDP §11"
         />
@@ -275,9 +275,9 @@ export default function DataRightsScreen() {
         <RightCard
           icon="✏️"
           iconBg="rgba(34,211,238,0.12)"
-          title="Right to correction"
-          sub="Dispute a document that was wrongly attributed to your vault. Flag it from the document viewer and an OA will review within 24 hours."
-          actionLabel="Go to vault to flag a document →"
+          title={tUi('DATA_RIGHTS_CORRECTION_TITLE')}
+          sub={tUi('DATA_RIGHTS_CORRECTION_SUB')}
+          actionLabel={tUi('DATA_RIGHTS_CORRECTION_ACTION')}
           onAction={() => router.push('/(vault)/vault')}
           tag="DPDP §12"
         />
@@ -285,9 +285,9 @@ export default function DataRightsScreen() {
         <RightCard
           icon="🗑"
           iconBg="rgba(251,113,133,0.10)"
-          title="Right to erasure"
-          sub="Permanently delete your PRANA account, all metadata, embeddings, and activity logs. Your employer documents are unaffected."
-          actionLabel="Request account deletion"
+          title={tUi('DATA_RIGHTS_ERASURE_TITLE')}
+          sub={tUi('DATA_RIGHTS_ERASURE_SUB')}
+          actionLabel={tUi('DATA_RIGHTS_ERASURE_ACTION')}
           actionColor="danger"
           onAction={() => setConfirmModal('erasure')}
           tag="DPDP §13"
@@ -296,9 +296,9 @@ export default function DataRightsScreen() {
         <RightCard
           icon="🚫"
           iconBg="rgba(251,191,36,0.10)"
-          title="Right to withdraw consent"
-          sub="Stop PRANA from processing any future documents. Existing vault data is retained until you request erasure."
-          actionLabel="Withdraw consent"
+          title={tUi('DATA_RIGHTS_WITHDRAW_TITLE')}
+          sub={tUi('DATA_RIGHTS_WITHDRAW_SUB')}
+          actionLabel={tUi('DATA_RIGHTS_WITHDRAW_ACTION')}
           actionColor="danger"
           onAction={() => setConfirmModal('withdraw')}
           tag="DPDP §6"
@@ -307,9 +307,9 @@ export default function DataRightsScreen() {
         <RightCard
           icon="📋"
           iconBg="rgba(99,102,241,0.10)"
-          title="Right to grievance redressal"
-          sub="Raise a concern about unauthorised access, data misuse, or delayed response. Our DPDP officer responds within 7 business days."
-          actionLabel="Go to Privacy Cockpit →"
+          title={tUi('DATA_RIGHTS_GRIEVANCE_TITLE')}
+          sub={tUi('DATA_RIGHTS_GRIEVANCE_SUB')}
+          actionLabel={tUi('DATA_RIGHTS_GRIEVANCE_ACTION')}
           onAction={() => router.push('/(vault)/privacy' as any)}
           tag="DPDP §14"
         />
@@ -317,19 +317,19 @@ export default function DataRightsScreen() {
         <RightCard
           icon="👨‍👩‍👧"
           iconBg="rgba(52,211,153,0.10)"
-          title="Nominate a guardian"
-          sub="Designate a trusted person to manage your vault on your behalf — for minors or in case of incapacitation."
-          actionLabel="Manage nominations →"
+          title={tUi('DATA_RIGHTS_NOMINATE_TITLE')}
+          sub={tUi('DATA_RIGHTS_NOMINATE_SUB')}
+          actionLabel={tUi('DATA_RIGHTS_NOMINATE_ACTION')}
           onAction={() => router.push('/(vault)/nomination' as any)}
           tag="DPDP §15"
         />
 
         {/* Privacy cockpit link */}
         <View style={styles.grievanceCard}>
-          <Text style={styles.grievanceTitle}>🔍 Privacy Cockpit</Text>
+          <Text style={styles.grievanceTitle}>{tUi('DATA_RIGHTS_PRIVACY_COCKPIT_TITLE')}</Text>
           <Text style={styles.grievanceText}>
-            See exactly who accessed your documents, AI processing logs, and file a formal grievance.{' '}
-            <Text style={styles.grievanceEmail} onPress={() => router.push('/(vault)/privacy' as any)}>Open Privacy Cockpit →</Text>
+            {tUi('DATA_RIGHTS_PRIVACY_COCKPIT_TEXT')}{' '}
+            <Text style={styles.grievanceEmail} onPress={() => router.push('/(vault)/privacy' as any)}>{tUi('DATA_RIGHTS_PRIVACY_COCKPIT_LINK')}</Text>
           </Text>
         </View>
 

@@ -43,17 +43,17 @@ function relativeDate(iso: string) {
   const d = new Date(iso);
   const now = new Date();
   const diffDays = Math.floor((now.getTime() - d.getTime()) / (1000 * 60 * 60 * 24));
-  if (diffDays === 0) return 'Today';
-  if (diffDays === 1) return 'Yesterday';
-  if (diffDays < 7) return `${diffDays} days ago`;
+  if (diffDays === 0) return tUi('ACTIVITY_RELATIVE_TODAY');
+  if (diffDays === 1) return tUi('ACTIVITY_RELATIVE_YESTERDAY');
+  if (diffDays < 7) return tUi('ACTIVITY_RELATIVE_DAYS_AGO', { days: diffDays });
   return d.toLocaleDateString('en-IN', { day: '2-digit', month: 'short' });
 }
 
 const RESOLUTION_LABEL: Record<string, string> = {
-  PAN_TOKEN_EXACT: 'Matched via PAN token',
-  EMP_ID: 'Matched via Employee ID',
-  FUZZY: 'Matched via name + DOJ',
-  EMBEDDING: 'Matched via embedding',
+  PAN_TOKEN_EXACT: tUi('ACTIVITY_RESOLUTION_PAN_TOKEN'),
+  EMP_ID: tUi('ACTIVITY_RESOLUTION_EMP_ID'),
+  FUZZY: tUi('ACTIVITY_RESOLUTION_FUZZY'),
+  EMBEDDING: tUi('ACTIVITY_RESOLUTION_EMBEDDING'),
 };
 
 const STATUS_COLOR: Record<string, string> = {
@@ -64,10 +64,10 @@ const STATUS_COLOR: Record<string, string> = {
 };
 
 const STATUS_LABEL: Record<string, string> = {
-  routed: '✓ Routed to vault',
-  pending_password: '🔐 Awaiting password',
-  exception: '⚠ Needs attention',
-  processing: '⟳ Processing',
+  routed: tUi('ACTIVITY_STATUS_ROUTED'),
+  pending_password: tUi('ACTIVITY_STATUS_PENDING_PASSWORD'),
+  exception: tUi('ACTIVITY_STATUS_EXCEPTION'),
+  processing: tUi('ACTIVITY_STATUS_PROCESSING'),
 };
 
 // ── Doc detail bottom sheet ───────────────────────────────────────
@@ -94,14 +94,14 @@ function DocDetailSheet({
           </View>
 
           {/* Pipeline stages */}
-          <Text style={styles.sheetSection}>PIPELINE TRACE</Text>
+          <Text style={styles.sheetSection}>{tUi('ACTIVITY_PIPELINE_TRACE_HEADER')}</Text>
           <View style={styles.pipelineTrace}>
             {[
-              { label: 'Received from employer', done: true, note: fmt(doc.pushed_at) },
-              { label: 'PAN encrypted at boundary', done: doc.status !== 'pending_password', note: 'HMAC token + FF3-1 FPE · Plaintext discarded' },
-              { label: 'Processed by LLM', done: doc.status === 'routed', note: 'NIK-redacted document · Insights extracted' },
-              { label: 'Identity resolved', done: doc.status === 'routed', note: doc.resolution_method ? RESOLUTION_LABEL[doc.resolution_method] : '—' },
-              { label: 'Routed to your vault', done: doc.status === 'routed', note: doc.routed_at ? fmt(doc.routed_at) : '—' },
+              { label: tUi('ACTIVITY_TRACE_RECEIVED'), done: true, note: fmt(doc.pushed_at) },
+              { label: tUi('ACTIVITY_TRACE_PAN_ENCRYPTED'), done: doc.status !== 'pending_password', note: tUi('ACTIVITY_TRACE_PAN_ENCRYPTED_NOTE') },
+              { label: tUi('ACTIVITY_TRACE_PROCESSED_LLM'), done: doc.status === 'routed', note: tUi('ACTIVITY_TRACE_PROCESSED_LLM_NOTE') },
+              { label: tUi('ACTIVITY_TRACE_IDENTITY_RESOLVED'), done: doc.status === 'routed', note: doc.resolution_method ? RESOLUTION_LABEL[doc.resolution_method] : '—' },
+              { label: tUi('ACTIVITY_TRACE_ROUTED'), done: doc.status === 'routed', note: doc.routed_at ? fmt(doc.routed_at) : '—' },
             ].map((step, i) => (
               <View key={i} style={styles.traceRow}>
                 <View style={styles.traceLeft}>
@@ -134,13 +134,13 @@ function DocDetailSheet({
               }}
             >
               <LinearGradient colors={gradJourney.colors} locations={gradJourney.locations} start={gradJourney.start} end={gradJourney.end} style={styles.unlockCtaGrad}>
-                <Text style={styles.unlockCtaText}>🔐 Unlock &amp; Process →</Text>
+                <Text style={styles.unlockCtaText}>{tUi('ACTIVITY_UNLOCK_CTA')}</Text>
               </LinearGradient>
             </Pressable>
           )}
 
           <Pressable style={styles.closeBtn} onPress={onClose}>
-            <Text style={styles.closeBtnText}>Close</Text>
+            <Text style={styles.closeBtnText}>{tUi('CLOSE')}</Text>
           </Pressable>
         </View>
       </View>
@@ -171,17 +171,17 @@ function PushCard({ push }: { push: PipelinePush }) {
             {push.unread && <View style={styles.unreadDot} />}
             {pendingCount > 0 && (
               <View style={styles.pendingBadge}>
-                <Text style={styles.pendingBadgeText}>🔐 {pendingCount} awaiting</Text>
+                <Text style={styles.pendingBadgeText}>{tUi('ACTIVITY_PENDING_BADGE', { count: pendingCount })}</Text>
               </View>
             )}
           </View>
           <Text style={styles.pushSub}>
-            Pushed {push.doc_count} document{push.doc_count > 1 ? 's' : ''} · {relativeDate(push.pushed_at)}
+            {tUi('ACTIVITY_PUSH_SUB', { count: push.doc_count, relative: relativeDate(push.pushed_at) })}
           </Text>
           <Text style={styles.pushStats}>
             {routedCount === push.doc_count
-              ? `✓ All ${push.doc_count} routed to vault`
-              : `${routedCount}/${push.doc_count} routed · ${pendingCount} pending`}
+              ? tUi('ACTIVITY_PUSH_ALL_ROUTED', { count: push.doc_count })
+              : tUi('ACTIVITY_PUSH_PARTIAL_ROUTED', { routed: routedCount, total: push.doc_count, pending: pendingCount })}
           </Text>
         </View>
         <Text style={[styles.chevron, expanded && styles.chevronOpen]}>›</Text>
@@ -209,7 +209,7 @@ function PushCard({ push }: { push: PipelinePush }) {
 
           <View style={styles.pipelineFooter}>
             <Text style={styles.pipelineFooterText}>
-              🔒 Processed in-memory · PAN encrypted · Raw data discarded
+              {tUi('ACTIVITY_PIPELINE_FOOTER')}
             </Text>
           </View>
         </View>
@@ -241,12 +241,12 @@ export default function ActivityScreen() {
       <SafeAreaView edges={['top']} style={styles.safeArea}>
         <View style={styles.header}>
           <View>
-            <Text style={styles.headerTitle}>Activity</Text>
-            <Text style={styles.headerSub}>Documents, pipeline &amp; login history</Text>
+            <Text style={styles.headerTitle}>{tUi('ACTIVITY_HEADER_TITLE')}</Text>
+            <Text style={styles.headerSub}>{tUi('ACTIVITY_HEADER_SUB')}</Text>
           </View>
           {unreadCount > 0 && (
             <View style={styles.unreadBadge}>
-              <Text style={styles.unreadBadgeText}>{unreadCount} new</Text>
+              <Text style={styles.unreadBadgeText}>{tUi('ACTIVITY_UNREAD_BADGE', { count: unreadCount })}</Text>
             </View>
           )}
         </View>
@@ -267,9 +267,9 @@ export default function ActivityScreen() {
         <ScrollView style={styles.body} contentContainerStyle={styles.bodyContent} showsVerticalScrollIndicator={false}>
 
           {/* ── PIPELINE INBOX ── */}
-          <Text style={styles.sectionLabel}>PIPELINE INBOX</Text>
+          <Text style={styles.sectionLabel}>{tUi('ACTIVITY_PIPELINE_INBOX_HEADER')}</Text>
           <Text style={styles.sectionNote}>
-            Every document your employer pushes passes through PRANA's 6-stage pipeline. Track what happened to each one.
+            {tUi('ACTIVITY_PIPELINE_INBOX_NOTE')}
           </Text>
           {pushes.length === 0 ? (
             <View style={[styles.listCard, { padding: 20, alignItems: 'center' }]}>
@@ -282,7 +282,7 @@ export default function ActivityScreen() {
           {/* ── DOCUMENT ACCESS ── */}
           {accessLog.length > 0 && (
             <>
-              <Text style={[styles.sectionLabel, { marginTop: 8 }]}>DOCUMENT ACCESS</Text>
+              <Text style={[styles.sectionLabel, { marginTop: 8 }]}>{tUi('ACTIVITY_DOCUMENT_ACCESS_HEADER')}</Text>
               <View style={styles.listCard}>
                 {accessLog.map((a, i) => (
                   <View key={a.id} style={[styles.listRow, i === accessLog.length - 1 && styles.listRowLast]}>
