@@ -34,6 +34,10 @@ class ManifestRecord:
         self.optional_fields: list[str]    = _load_json(row["optional_fields"])
         self.classification_signals: list  = _load_json(row["classification_signals"])
         self.signal_weights: list[float]   = _load_json(row.get("signal_weights"))
+        # Subset of required/identity/optional fields explicitly confirmed
+        # non-monetary. Anything NOT here is sensitive by default (fail-closed)
+        # — unioned into prana-ai's static _SAFE_METADATA_FIELDS allowlist.
+        self.safe_fields: list[str]        = _load_json(row.get("safe_fields"))
         self.confidence_threshold: float   = row["confidence_threshold"]
         self.supported_formats: list[str]  = _load_json(row["supported_formats"])
         self.is_tenant_override: bool      = row["tenant_id"] is not None
@@ -101,7 +105,7 @@ class ManifestService:
             SELECT manifest_id, tenant_id, doc_type,
                    required_fields, identity_fields, optional_fields,
                    classification_signals, signal_weights, confidence_threshold,
-                   supported_formats, usage_count
+                   supported_formats, usage_count, safe_fields
             FROM doc_type_field_manifest
             WHERE tenant_id = $1 AND doc_type = $2 AND is_active = TRUE
             """,
@@ -115,7 +119,7 @@ class ManifestService:
                 SELECT manifest_id, tenant_id, doc_type,
                        required_fields, identity_fields, optional_fields,
                        classification_signals, signal_weights, confidence_threshold,
-                       supported_formats, usage_count
+                       supported_formats, usage_count, safe_fields
                 FROM doc_type_field_manifest
                 WHERE tenant_id IS NULL AND doc_type = $1 AND is_active = TRUE
                 """,
@@ -241,7 +245,7 @@ class ManifestService:
                    required_fields, identity_fields, optional_fields,
                    classification_signals, signal_weights, confidence_threshold,
                    supported_formats, usage_count,
-                   is_active, created_at, updated_at
+                   is_active, created_at, updated_at, safe_fields
             FROM doc_type_field_manifest
             WHERE (tenant_id = $1 OR tenant_id IS NULL) AND is_active = TRUE
             ORDER BY doc_type, tenant_id NULLS LAST
@@ -276,12 +280,13 @@ class ManifestService:
                   supported_formats      = $9,
                   is_active              = $10,
                   updated_by             = $11,
-                  updated_at             = NOW()
+                  updated_at             = NOW(),
+                  safe_fields            = $12
                 WHERE tenant_id = $1 AND doc_type = $2
                 RETURNING manifest_id, tenant_id, doc_type, required_fields,
                           identity_fields, optional_fields, classification_signals,
                           signal_weights, confidence_threshold, supported_formats,
-                          usage_count, is_active, created_at, updated_at
+                          usage_count, is_active, created_at, updated_at, safe_fields
                 """,
                 tenant_id, doc_type,
                 json.dumps(payload.get("required_fields", [])),
@@ -293,6 +298,7 @@ class ManifestService:
                 json.dumps(payload.get("supported_formats", ["pdf", "docx", "jpeg", "jpg", "png", "tiff"])),
                 payload.get("is_active", True),
                 updated_by,
+                json.dumps(payload.get("safe_fields", [])),
             )
         else:
             row = await self._db.fetchrow(
@@ -301,12 +307,12 @@ class ManifestService:
                   (tenant_id, doc_type, required_fields, identity_fields,
                    optional_fields, classification_signals, signal_weights,
                    confidence_threshold, supported_formats, is_active,
-                   created_by, updated_by)
-                VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$11)
+                   created_by, updated_by, safe_fields)
+                VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$11,$12)
                 RETURNING manifest_id, tenant_id, doc_type, required_fields,
                           identity_fields, optional_fields, classification_signals,
                           signal_weights, confidence_threshold, supported_formats,
-                          usage_count, is_active, created_at, updated_at
+                          usage_count, is_active, created_at, updated_at, safe_fields
                 """,
                 tenant_id, doc_type,
                 json.dumps(payload.get("required_fields", [])),
@@ -318,6 +324,7 @@ class ManifestService:
                 json.dumps(payload.get("supported_formats", ["pdf", "docx", "jpeg", "jpg", "png", "tiff"])),
                 payload.get("is_active", True),
                 updated_by,
+                json.dumps(payload.get("safe_fields", [])),
             )
 
         return _serialize_manifest_row(dict(row))
@@ -340,7 +347,7 @@ class ManifestService:
             SELECT manifest_id, tenant_id, doc_type, required_fields, identity_fields,
                    optional_fields, classification_signals, signal_weights,
                    confidence_threshold, supported_formats, usage_count,
-                   is_active, created_at, updated_at
+                   is_active, created_at, updated_at, safe_fields
             FROM doc_type_field_manifest
             WHERE tenant_id IS NULL
             ORDER BY doc_type
@@ -359,6 +366,7 @@ def _serialize_manifest_row(row: dict) -> dict:
         "optional_fields":         _load_json(row["optional_fields"]),
         "classification_signals":  _load_json(row["classification_signals"]),
         "signal_weights":          _load_json(row.get("signal_weights")),
+        "safe_fields":             _load_json(row.get("safe_fields")),
         "confidence_threshold":    row["confidence_threshold"],
         "supported_formats":       _load_json(row["supported_formats"]),
         "usage_count":             row.get("usage_count") or 0,

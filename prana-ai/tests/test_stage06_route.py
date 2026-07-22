@@ -164,3 +164,143 @@ async def test_stage06_unknown_field_is_stripped_by_default():
     assert stored == {"designation": "Engineer"}, (
         f"Unrecognized fields must be stripped by default (fail-closed). Got: {stored}"
     )
+
+
+# ── Manifest-aware allowlist (tenant-custom fields via doc_type_field_manifest) ──
+
+def _make_manifest_client(safe_fields=None, raises=False):
+    from manifest.manifest_client import ManifestData
+    client = AsyncMock()
+    if raises:
+        client.resolve = AsyncMock(side_effect=ValueError("no manifest"))
+    else:
+        client.resolve = AsyncMock(return_value=ManifestData(
+            manifest_id="m-1", doc_type="SALARY_SLIP",
+            required_fields=[], identity_fields=[], optional_fields=[],
+            classification_signals=[], confidence_threshold=0.75,
+            supported_formats=["pdf"], safe_fields=safe_fields or [],
+        ))
+    return client
+
+
+@pytest.mark.asyncio
+async def test_manifest_declared_safe_field_survives_strip():
+    """A tenant-custom field the OA-Admin has explicitly marked safe in their
+    manifest must survive, even though it's not in the static allowlist."""
+    mock_db = AsyncMock()
+    mock_db.fetchval.return_value = "emp-user-001"
+    mock_tx = MagicMock()
+    mock_tx.__aenter__ = AsyncMock(return_value=mock_tx)
+    mock_tx.__aexit__ = AsyncMock(return_value=False)
+    mock_db.transaction = MagicMock(return_value=mock_tx)
+
+    mock_benchmark = AsyncMock()
+    mock_benchmark.build_career_context = AsyncMock(return_value={})
+    manifest_client = _make_manifest_client(safe_fields=["leave_balance_days"])
+
+    svc = Stage06Route(db=mock_db, benchmark_svc=mock_benchmark, manifest_client=manifest_client)
+    await svc.route(
+        document_id="doc-010", tenant_id="aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee",
+        employee_uuid="12345678-1234-5678-1234-567812345678",
+        pan_token="pan-1", doc_type="SALARY_SLIP", doc_period="2025-05",
+        extracted_fields={
+            "designation": "Engineer",
+            "leave_balance_days": {"value": 12},  # tenant-custom, manifest-approved safe
+            "some_other_custom_field": {"value": "x"},  # tenant-custom, NOT approved
+        },
+        resolution_method="PAN_TOKEN_EXACT", resolution_confidence=0.99,
+        s3_key="t/e/SALARY_SLIP/2025-05_doc-010.pdf",
+    )
+
+    import json
+    update_calls = [c for c in mock_db.execute.call_args_list if "UPDATE document" in str(c)]
+    stored = json.loads(update_calls[0][0][4])
+    assert stored == {"designation": "Engineer", "leave_balance_days": {"value": 12}}
+
+
+@pytest.mark.asyncio
+async def test_manifest_fetch_failure_falls_back_to_static_allowlist():
+    """If the manifest fetch itself fails, fall back to the static allowlist
+    only — never fail open to 'keep everything'."""
+    mock_db = AsyncMock()
+    mock_db.fetchval.return_value = "emp-user-001"
+    mock_tx = MagicMock()
+    mock_tx.__aenter__ = AsyncMock(return_value=mock_tx)
+    mock_tx.__aexit__ = AsyncMock(return_value=False)
+    mock_db.transaction = MagicMock(return_value=mock_tx)
+
+    mock_benchmark = AsyncMock()
+    mock_benchmark.build_career_context = AsyncMock(return_value={})
+    manifest_client = _make_manifest_client(raises=True)
+
+    svc = Stage06Route(db=mock_db, benchmark_svc=mock_benchmark, manifest_client=manifest_client)
+    await svc.route(
+        document_id="doc-011", tenant_id="aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee",
+        employee_uuid="12345678-1234-5678-1234-567812345678",
+        pan_token="pan-1", doc_type="SALARY_SLIP", doc_period="2025-05",
+        extracted_fields={
+            "designation": "Engineer",       # static-allowlist safe
+            "leave_balance_days": {"value": 12},  # would need manifest approval — fetch failed
+        },
+        resolution_method="PAN_TOKEN_EXACT", resolution_confidence=0.99,
+        s3_key="t/e/SALARY_SLIP/2025-05_doc-011.pdf",
+    )
+
+    import json
+    update_calls = [c for c in mock_db.execute.call_args_list if "UPDATE document" in str(c)]
+    stored = json.loads(update_calls[0][0][4])
+    assert stored == {"designation": "Engineer"}
+
+
+@pytest.mark.asyncio
+async def test_no_manifest_client_falls_back_to_static_allowlist():
+    """Backward compat: Stage06Route constructed without a manifest_client
+    (e.g. older callers) behaves exactly as before — static allowlist only."""
+    mock_db = AsyncMock()
+    mock_db.fetchval.return_value = "emp-user-001"
+    mock_tx = MagicMock()
+    mock_tx.__aenter__ = AsyncMock(return_value=mock_tx)
+    mock_tx.__aexit__ = AsyncMock(return_value=False)
+    mock_db.transaction = MagicMock(return_value=mock_tx)
+
+    mock_benchmark = AsyncMock()
+    mock_benchmark.build_career_context = AsyncMock(return_value={})
+
+    svc = Stage06Route(db=mock_db, benchmark_svc=mock_benchmark)  # no manifest_client
+    await svc.route(
+        document_id="doc-012", tenant_id="aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee",
+        employee_uuid="12345678-1234-5678-1234-567812345678",
+        pan_token="pan-1", doc_type="SALARY_SLIP", doc_period="2025-05",
+        extracted_fields={"designation": "Engineer", "leave_balance_days": {"value": 12}},
+        resolution_method="PAN_TOKEN_EXACT", resolution_confidence=0.99,
+        s3_key="t/e/SALARY_SLIP/2025-05_doc-012.pdf",
+    )
+
+    import json
+    update_calls = [c for c in mock_db.execute.call_args_list if "UPDATE document" in str(c)]
+    stored = json.loads(update_calls[0][0][4])
+    assert stored == {"designation": "Engineer"}
+
+
+@pytest.mark.asyncio
+async def test_raise_exception_also_consults_manifest_when_doc_type_given():
+    mock_db = AsyncMock()
+    mock_tx = MagicMock()
+    mock_tx.__aenter__ = AsyncMock(return_value=mock_tx)
+    mock_tx.__aexit__ = AsyncMock(return_value=False)
+    mock_db.transaction = MagicMock(return_value=mock_tx)
+    mock_db.execute = AsyncMock()
+
+    manifest_client = _make_manifest_client(safe_fields=["leave_balance_days"])
+    svc = Stage06Route(db=mock_db, benchmark_svc=AsyncMock(), manifest_client=manifest_client)
+
+    await svc.raise_exception(
+        document_id="doc-013", tenant_id="tenant-1", exception_type="LOW_CONFIDENCE",
+        extracted_fields={"designation": "Engineer", "leave_balance_days": {"value": 12}},
+        candidates=[], doc_type="SALARY_SLIP",
+    )
+
+    import json
+    insert_calls = [c for c in mock_db.execute.call_args_list if "INSERT INTO exception_queue" in str(c)]
+    stored = json.loads(insert_calls[0][0][4])
+    assert stored == {"designation": "Engineer", "leave_balance_days": {"value": 12}}

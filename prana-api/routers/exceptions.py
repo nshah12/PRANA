@@ -24,6 +24,7 @@ from pydantic import BaseModel
 
 from dependencies import DbConn, require_oa
 from errors import PranaError
+from services.manifest_service import ManifestService
 
 router = APIRouter()
 
@@ -94,7 +95,27 @@ def _client_ip(request: Request) -> str:
     return str(request.client.host) if request.client else "unknown"
 
 
-def _safe_extracted_fields(raw: Optional[str]) -> Optional[dict]:
+async def _effective_safe_fields(db, tenant_id, doc_type: Optional[str]) -> set:
+    """
+    Static allowlist unioned with this tenant/doc_type's manifest-declared
+    safe_fields — mirrors prana-ai's Stage06Route._effective_safe_fields so
+    a tenant-custom field that survived Stage06's strip (because an OA-Admin
+    marked it safe in their manifest) doesn't get re-stripped here.
+
+    Fails closed: no doc_type on the row (older exception, pre-dates this
+    field), or the manifest lookup itself fails (no manifest configured, DB
+    hiccup), falls back to the static allowlist alone.
+    """
+    if not doc_type:
+        return _SAFE_EXTRACTED_FIELDS
+    try:
+        manifest = await ManifestService(db).resolve(tenant_id, doc_type)
+        return _SAFE_EXTRACTED_FIELDS | set(manifest.safe_fields)
+    except Exception:
+        return _SAFE_EXTRACTED_FIELDS
+
+
+def _safe_extracted_fields(raw: Optional[str], effective_safe: Optional[set] = None) -> Optional[dict]:
     """
     Parse extracted_fields JSONB and strip raw financial figures before
     returning to OA-Admin. LLM output may include salary â€” must never surface.
@@ -110,7 +131,7 @@ def _safe_extracted_fields(raw: Optional[str]) -> Optional[dict]:
         data = raw
     if not isinstance(data, dict):
         return data
-    return {k: v for k, v in data.items() if k in _SAFE_EXTRACTED_FIELDS}
+    return {k: v for k, v in data.items() if k in (effective_safe or _SAFE_EXTRACTED_FIELDS)}
 
 
 def _serialize_exception(r: dict) -> dict:
@@ -202,11 +223,13 @@ async def get_exception(
 ):
     row = await db.fetchrow(
         """
-        SELECT exception_id, document_id, tenant_id, exception_type,
-               extracted_fields, candidate_matches,
-               status, raised_at, resolved_at, resolved_by, resolved_employee_uuid
-        FROM exception_queue
-        WHERE exception_id = $1 AND tenant_id = $2
+        SELECT eq.exception_id, eq.document_id, eq.tenant_id, eq.exception_type,
+               eq.extracted_fields, eq.candidate_matches,
+               eq.status, eq.raised_at, eq.resolved_at, eq.resolved_by, eq.resolved_employee_uuid,
+               d.doc_type
+        FROM exception_queue eq
+        JOIN document d ON d.document_id = eq.document_id
+        WHERE eq.exception_id = $1 AND eq.tenant_id = $2
         """,
         exception_id, current.tenant_id,
     )
@@ -214,7 +237,8 @@ async def get_exception(
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=PranaError.EXCEPTION_NOT_FOUND)
 
     exc = _serialize_exception(row)
-    exc["extracted_fields"] = _safe_extracted_fields(row["extracted_fields"])
+    effective_safe = await _effective_safe_fields(db, current.tenant_id, row.get("doc_type"))
+    exc["extracted_fields"] = _safe_extracted_fields(row["extracted_fields"], effective_safe)
     # candidate_matches are IDs/names/confidence â€” no raw financial data
     raw_candidates = row["candidate_matches"]
     if isinstance(raw_candidates, str):

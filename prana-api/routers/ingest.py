@@ -34,6 +34,7 @@ from dependencies import ApiKeyAuth, DbConn, require_oa
 from kafka.producer import TOPIC_INGEST
 from errors import PranaError
 from services.statutory_hold_service import compute_hold_until
+from services.checklist_service import ChecklistService, ChecklistIncompleteError
 
 router = APIRouter()
 
@@ -61,6 +62,7 @@ async def upload_documents(
     current=Depends(require_oa("oa_operator", "oa_admin")),
 ):
     """Accept 1-N PDF files. Each gets its own document_id and DOC_INGESTED Kafka event."""
+    await _assert_checklist_complete(db, current.tenant_id)
     started_at  = datetime.datetime.now(datetime.timezone.utc)
     ip          = _client_ip(request)
     ua          = request.headers.get("user-agent", "")
@@ -155,6 +157,7 @@ async def batch_upload(
     comment: Optional[str] = Form(None),
     current=Depends(require_oa("oa_operator", "oa_admin")),
 ):
+    await _assert_checklist_complete(db, current.tenant_id)
     started_at    = datetime.datetime.now(datetime.timezone.utc)
     ip            = _client_ip(request)
     ua            = request.headers.get("user-agent", "")
@@ -567,6 +570,7 @@ async def hrms_upload(
     doc_period: Optional[str] = None,
 ):
     """Single-file HRMS partner push. Auth + rate limiting handled by ApiKeyAuth."""
+    await _assert_checklist_complete(db, api_key.tenant_id)
     file_bytes = await request.body()  # cached by ApiKeyAuth's earlier read
     _validate_file(filename, file_bytes)
 
@@ -602,6 +606,28 @@ def _assert_not_zip_bomb(zf: zipfile.ZipFile) -> None:
         uncompressed_total += entry.file_size
         if uncompressed_total > _MAX_UNCOMPRESSED_TOTAL_BYTES:
             raise HTTPException(status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE, detail=PranaError.ZIP_BOMB_DETECTED)
+
+
+async def _assert_checklist_complete(db, tenant_id: str) -> None:
+    """
+    Go-Live Checklist gate — blocks all 3 upload entrypoints until every
+    required active item (platform baseline + this tenant's own) has a
+    completion row. Called once per HTTP request, before any file processing.
+
+    tenant_id is passed through as-is (no uuid.UUID() cast) — matching every
+    other tenant_id use in this file; asyncpg coerces the string at the wire
+    level against the UUID column, same as _ingest_one()'s own queries do.
+    """
+    try:
+        await ChecklistService(db).assert_upload_allowed(tenant_id)
+    except ChecklistIncompleteError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail={
+                "error": PranaError.SETUP_CHECKLIST_INCOMPLETE,
+                "missing_item_keys": exc.missing_item_keys,
+            },
+        )
 
 
 def _validate_file(filename: str, file_bytes: bytes) -> None:

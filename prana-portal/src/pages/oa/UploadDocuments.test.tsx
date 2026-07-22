@@ -13,11 +13,19 @@
 import { render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
+import { MemoryRouter } from 'react-router-dom'
 import { UploadDocuments } from './UploadDocuments'
 
-vi.mock('@/lib/api', () => ({ api: { post: vi.fn() } }))
+vi.mock('@/lib/api', () => ({ api: { post: vi.fn(), get: vi.fn() } }))
 import { api } from '@/lib/api'
 const mockPost = vi.mocked(api.post)
+const mockGet = vi.mocked(api.get)
+
+function wrapper({ children }: { children: React.ReactNode }) {
+  const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } })
+  return <QueryClientProvider client={qc}><MemoryRouter>{children}</MemoryRouter></QueryClientProvider>
+}
 
 // ── Minimal controllable EventSource mock ──────────────────────────────────
 class MockEventSource {
@@ -44,6 +52,9 @@ beforeEach(() => {
   vi.clearAllMocks()
   MockEventSource.instances = []
   vi.stubGlobal('EventSource', MockEventSource as any)
+  // Checklist gate query — default to no incomplete items so existing
+  // upload-flow tests are unaffected; individual tests can override.
+  mockGet.mockResolvedValue({ data: { items: [] } })
 })
 
 afterEach(() => {
@@ -52,13 +63,13 @@ afterEach(() => {
 
 describe('UploadDocuments — form state', () => {
   it('renders the form and disables upload until required fields are filled', () => {
-    render(<UploadDocuments />)
+    render(<UploadDocuments />, { wrapper })
     expect(screen.getByText('Upload Documents')).toBeInTheDocument()
     expect(screen.getByRole('button', { name: /Start Upload & Process/ })).toBeDisabled()
   })
 
   it('adds a PDF file via the hidden file input and enables upload after required fields set', async () => {
-    render(<UploadDocuments />)
+    render(<UploadDocuments />, { wrapper })
     const user = userEvent.setup()
 
     const fileInput = document.querySelector('input[type="file"]') as HTMLInputElement
@@ -72,7 +83,7 @@ describe('UploadDocuments — form state', () => {
   })
 
   it('rejects non-PDF files', async () => {
-    render(<UploadDocuments />)
+    render(<UploadDocuments />, { wrapper })
     const user = userEvent.setup()
     const fileInput = document.querySelector('input[type="file"]') as HTMLInputElement
     await user.upload(fileInput, makeFile('resume.docx', 100, 'application/msword'))
@@ -80,7 +91,7 @@ describe('UploadDocuments — form state', () => {
   })
 
   it('clear all removes selected files', async () => {
-    render(<UploadDocuments />)
+    render(<UploadDocuments />, { wrapper })
     const user = userEvent.setup()
     const fileInput = document.querySelector('input[type="file"]') as HTMLInputElement
     await user.upload(fileInput, makeFile('slip.pdf'))
@@ -91,7 +102,7 @@ describe('UploadDocuments — form state', () => {
   })
 
   it('shows over-limit warning and blocks upload when total size exceeds 500MB', async () => {
-    render(<UploadDocuments />)
+    render(<UploadDocuments />, { wrapper })
     const user = userEvent.setup()
     const fileInput = document.querySelector('input[type="file"]') as HTMLInputElement
     const bigFile = makeFile('big.pdf', 501 * 1024 * 1024)
@@ -103,11 +114,31 @@ describe('UploadDocuments — form state', () => {
     await user.type(screen.getByPlaceholderText('e.g. Jun 2024 · FY2023-24 · 2024-06-15'), 'Jun 2024')
     expect(screen.getByRole('button', { name: /Start Upload & Process/ })).toBeDisabled()
   })
+
+  it('blocks upload and shows a message when required setup checklist items are incomplete', async () => {
+    mockGet.mockResolvedValue({
+      data: { items: [
+        { item_id: 'i-1', is_platform_baseline: true, item_key: 'GRIEVANCE_OFFICER_CONFIGURED',
+          title: 'Grievance Officer configured', description: null, is_required: true, completed: false },
+      ] },
+    })
+    render(<UploadDocuments />, { wrapper })
+    const user = userEvent.setup()
+
+    const fileInput = document.querySelector('input[type="file"]') as HTMLInputElement
+    await user.upload(fileInput, makeFile('slip.pdf'))
+    await screen.findByText('slip.pdf')
+    await user.selectOptions(screen.getByRole('combobox'), 'SALARY_SLIP')
+    await user.type(screen.getByPlaceholderText('e.g. Jun 2024 · FY2023-24 · 2024-06-15'), 'Jun 2024')
+
+    expect(await screen.findByText(/setup checklist item\(s\) are complete/)).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /Start Upload & Process/ })).toBeDisabled()
+  })
 })
 
 describe('UploadDocuments — upload flow', () => {
   async function fillAndUpload(user: ReturnType<typeof userEvent.setup>, fileName = 'slip.pdf') {
-    render(<UploadDocuments />)
+    render(<UploadDocuments />, { wrapper })
     const fileInput = document.querySelector('input[type="file"]') as HTMLInputElement
     await user.upload(fileInput, makeFile(fileName))
     await screen.findByText(fileName)

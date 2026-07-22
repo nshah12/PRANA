@@ -221,6 +221,7 @@ class AiPipelineClient:
         exception_type: str,
         extracted_fields: dict,
         candidates: list,
+        doc_type: str | None = None,
     ) -> None:
         """Stage 06 — write EXCEPTION status + exception_queue row."""
         async with httpx.AsyncClient(timeout=self._timeout) as client:
@@ -233,6 +234,7 @@ class AiPipelineClient:
                     "exception_type": exception_type,
                     "extracted_fields": extracted_fields,
                     "candidates": candidates,
+                    "doc_type": doc_type,
                 },
             )
             self._check_response(resp)

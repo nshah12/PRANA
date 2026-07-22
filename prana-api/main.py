@@ -462,6 +462,7 @@ def create_app() -> FastAPI:
         hrms_definitions,
         hrms_config,
         hrms_webhook,
+        checklist,
     )
     # ── Unversioned — internal/auth (no external HRMS callers) ───────────────────
     app.include_router(auth_employee.router, prefix="/auth/employee",        tags=["auth"])
@@ -507,6 +508,7 @@ def create_app() -> FastAPI:
     app.include_router(hrms_config.router,       prefix="/v1/hrms/config",            tags=["v1:hrms-config"])
     app.include_router(hrms_webhook.router,      prefix="/v1/hrms/webhook",           tags=["v1:hrms-webhook"])
     app.include_router(doc_manifest.router,                                  tags=["v1:manifests"])
+    app.include_router(checklist.router,                                     tags=["v1:checklist"])
 
     # ── Internal — prana-ai VPC callbacks only (NOT in Kong routes) ──────────────
     app.include_router(internal_pipeline.router, prefix="/internal/pipeline", tags=["internal"])

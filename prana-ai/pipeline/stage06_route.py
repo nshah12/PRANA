@@ -11,6 +11,7 @@ from typing import Optional
 import asyncpg
 
 from insights.benchmark_service import BenchmarkService
+from manifest.manifest_client import ManifestClient
 from pipeline.errors import PipelineError, PipelineException
 
 log = logging.getLogger(__name__)
@@ -64,10 +65,34 @@ _SAFE_METADATA_FIELDS = {
 class Stage06Route:
 
     def __init__(self, db: asyncpg.Connection, benchmark_svc: BenchmarkService,
-                 kafka_producer=None):
+                 kafka_producer=None, manifest_client: Optional[ManifestClient] = None):
         self._db = db
         self._benchmark = benchmark_svc
         self._kafka = kafka_producer  # optional: AiPipelineClient or aiokafka producer
+        self._manifests = manifest_client  # optional — None falls back to static allowlist only
+
+    async def _effective_safe_fields(self, tenant_id: str, doc_type: str) -> set[str]:
+        """
+        Static allowlist unioned with this tenant/doc_type's manifest-declared
+        safe_fields — a tenant's OA-Admin/PA-confirmed custom field names are
+        the only way a manifest-driven custom field ever survives the strip.
+
+        Fails closed: no manifest client, or the fetch itself fails (network,
+        404, unparseable), falls back to the static allowlist alone — never
+        widens to "keep everything" on error.
+        """
+        if not self._manifests:
+            return _SAFE_METADATA_FIELDS
+        try:
+            manifest = await self._manifests.resolve(tenant_id, doc_type)
+            return _SAFE_METADATA_FIELDS | set(manifest.safe_fields)
+        except Exception:
+            log.warning(
+                "Stage06: manifest fetch failed for tenant=%s doc_type=%s — "
+                "falling back to static allowlist only (fail-closed)",
+                tenant_id, doc_type,
+            )
+            return _SAFE_METADATA_FIELDS
 
     async def route(
         self,
@@ -92,7 +117,8 @@ class Stage06Route:
         )
 
         # Allowlist filter — only known-safe metadata fields reach the DB.
-        safe_fields = {k: v for k, v in extracted_fields.items() if k in _SAFE_METADATA_FIELDS}
+        effective_safe = await self._effective_safe_fields(tenant_id, doc_type)
+        safe_fields = {k: v for k, v in extracted_fields.items() if k in effective_safe}
 
         employee_user_id = await self._db.fetchval(
             "SELECT employee_user_id FROM employee_master WHERE employee_uuid=$1", employee_uuid
@@ -180,8 +206,16 @@ class Stage06Route:
         exception_type: str,
         extracted_fields: dict,
         candidates: list,
+        doc_type: Optional[str] = None,
     ) -> None:
-        safe_fields = {k: v for k, v in extracted_fields.items() if k in _SAFE_METADATA_FIELDS}
+        # doc_type is optional for backward compatibility with callers that
+        # predate manifest-aware stripping — falls back to the static
+        # allowlist only when absent (same fail-closed direction).
+        effective_safe = (
+            await self._effective_safe_fields(tenant_id, doc_type)
+            if doc_type else _SAFE_METADATA_FIELDS
+        )
+        safe_fields = {k: v for k, v in extracted_fields.items() if k in effective_safe}
 
         async with self._db.transaction():
             await self._db.execute(

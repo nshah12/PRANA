@@ -425,3 +425,61 @@ async def test_exception_detail_strips_real_extraction_field_names(client, mock_
     assert resp.status_code == 200
     fields = resp.json()["exception"]["extracted_fields"]
     assert fields == {"employee_name": "Ramesh Kumar", "designation": "Engineer"}
+
+
+@pytest.mark.asyncio
+async def test_exception_detail_manifest_declared_safe_field_survives_strip(client, mock_db):
+    """
+    A tenant-custom field the OA-Admin has explicitly marked safe in their
+    doc_type_field_manifest must survive here too — this endpoint is the
+    defense-in-depth layer behind prana-ai's Stage06Route allowlist, and must
+    consult the same manifest to stay consistent with what actually got
+    persisted to exception_queue.extracted_fields.
+    """
+    exc = _open_exception()
+    exc["doc_type"] = "SALARY_SLIP"
+    exc["extracted_fields"] = json.dumps({
+        "designation": "Engineer",
+        "leave_balance_days": 12,       # tenant-custom, manifest-approved safe
+        "some_other_custom_field": "x",  # tenant-custom, NOT approved
+    })
+    manifest_row = {
+        "manifest_id": "44444444-4444-4444-4444-444444444444",
+        "tenant_id": "33333333-3333-3333-3333-333333333333",
+        "doc_type": "SALARY_SLIP",
+        "required_fields": json.dumps([]),
+        "identity_fields": json.dumps([]),
+        "optional_fields": json.dumps(["leave_balance_days"]),
+        "classification_signals": json.dumps([]),
+        "signal_weights": json.dumps([]),
+        "confidence_threshold": 0.75,
+        "supported_formats": json.dumps(["pdf"]),
+        "usage_count": 0,
+        "safe_fields": json.dumps(["leave_balance_days"]),
+    }
+    mock_db.fetchrow = AsyncMock(side_effect=[exc, manifest_row])
+    headers = _oa_admin_headers(client)
+
+    resp = await client.get("/v1/org/exceptions/exc-001", headers=headers)
+    assert resp.status_code == 200
+    fields = resp.json()["exception"]["extracted_fields"]
+    assert fields == {"designation": "Engineer", "leave_balance_days": 12}
+
+
+@pytest.mark.asyncio
+async def test_exception_detail_manifest_fetch_failure_falls_back_to_static_allowlist(client, mock_db):
+    """Manifest lookup failing (no manifest configured, DB hiccup) must fail
+    closed to the static allowlist only — never fail open to 'keep everything'."""
+    exc = _open_exception()
+    exc["doc_type"] = "SALARY_SLIP"
+    exc["extracted_fields"] = json.dumps({
+        "designation": "Engineer",       # static-allowlist safe
+        "leave_balance_days": 12,        # would need manifest approval — lookup failed
+    })
+    mock_db.fetchrow = AsyncMock(side_effect=[exc, None, None])  # no tenant override, no platform default
+    headers = _oa_admin_headers(client)
+
+    resp = await client.get("/v1/org/exceptions/exc-001", headers=headers)
+    assert resp.status_code == 200
+    fields = resp.json()["exception"]["extracted_fields"]
+    assert fields == {"designation": "Engineer"}
