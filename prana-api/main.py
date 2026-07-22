@@ -319,6 +319,31 @@ async def lifespan(app: FastAPI):
                 pass
             # Non-fatal — schedule creation must not block startup
 
+        try:
+            from workflows.security import ensure_anomaly_detection_running
+            await ensure_anomaly_detection_running(app.state.temporal_client)
+        except Exception as exc:
+            try:
+                from services.error_observability_service import ErrorObservabilityService
+                await ErrorObservabilityService(app.state.db_pool).record(
+                    exc=exc, source="HTTP", source_detail="lifespan:ensure_anomaly_detection_running",
+                )
+            except Exception:
+                pass
+
+        try:
+            from workflows.security import ensure_kms_key_rotation_running
+            await ensure_kms_key_rotation_running(app.state.temporal_client)
+        except Exception as exc:
+            try:
+                from services.error_observability_service import ErrorObservabilityService
+                await ErrorObservabilityService(app.state.db_pool).record(
+                    exc=exc, source="HTTP", source_detail="lifespan:ensure_kms_key_rotation_running",
+                )
+            except Exception:
+                pass
+            # Non-fatal — perpetual-workflow bootstrap must not block startup
+
     # Kafka producer
     kafka = KafkaPub(settings)
     try:

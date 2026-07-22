@@ -45,6 +45,22 @@ def test_pipeline_workflow_is_thin_shell_no_db_calls_in_run():
     assert "execute_activity" in src, "Must delegate all work to execute_activity"
 
 
+def test_stage06_routed_starts_vault_health_child_workflow():
+    """Regression: VaultHealthWorkflow's own docstring claims "Triggered by
+    DocumentPipelineWorkflow stage 06", but nothing anywhere ever started it —
+    stage06_route just ran the activity and returned. employee_master.
+    vault_completeness was never recomputed after a document actually routed."""
+    run_src = inspect.getsource(DocumentPipelineWorkflow.run)
+    assert "stage06_route" in run_src
+    assert "_finish_routed" in run_src, \
+        "run() must delegate post-routing work (starting VaultHealthWorkflow) to a helper"
+
+    finish_src = inspect.getsource(DocumentPipelineWorkflow._finish_routed)
+    assert "VaultHealthWorkflow" in finish_src, \
+        "DocumentPipelineWorkflow must start VaultHealthWorkflow after stage06_route"
+    assert "execute_child_workflow" in finish_src
+
+
 def test_pipeline_6_stages_executed_in_order():
     src = inspect.getsource(DocumentPipelineWorkflow.run)
     # All 6 stage activities must appear

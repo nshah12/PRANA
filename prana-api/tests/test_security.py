@@ -36,6 +36,62 @@ def test_kms_key_rotation_uses_continue_as_new():
         "Must check RENEW_THRESHOLD before calling continue_as_new"
 
 
+# ── Regression: AnomalyDetectionWorkflow and KMSKeyRotationWorkflow are both
+# Pattern 4 (Continue-As-New, perpetual) — meant to be started exactly once
+# and keep themselves running forever. Neither had ANY start_workflow call
+# anywhere in the codebase: AnomalyDetectionService (the 6-rule anomaly
+# detection engine: IMPOSSIBLE_TRAVEL, BULK_DOC_ACCESS, BRUTE_FORCE,
+# CROSS_TENANT_QUERY, PRE_EXIT_BULK, SHARE_ENUM) was only ever instantiated
+# from inside this dead workflow's own activity, and same for
+# KMSRotationService.rotate_tenant_kek — meaning neither anomaly detection nor
+# tenant KEK rotation has ever actually run. ──────────────────────────────────
+
+@pytest.mark.asyncio
+async def test_ensure_anomaly_detection_running_starts_with_deterministic_id():
+    from workflows.security import ensure_anomaly_detection_running, AnomalyDetectionWorkflow
+
+    client = AsyncMock()
+    await ensure_anomaly_detection_running(client)
+
+    client.start_workflow.assert_awaited_once()
+    args, kwargs = client.start_workflow.call_args
+    assert args[0] is AnomalyDetectionWorkflow.run
+    assert kwargs["id"] == "anomaly-detection-perpetual"
+    assert kwargs["task_queue"] == "secops-queue"
+
+
+@pytest.mark.asyncio
+async def test_ensure_anomaly_detection_running_tolerates_already_started():
+    from workflows.security import ensure_anomaly_detection_running
+
+    client = AsyncMock()
+    client.start_workflow.side_effect = Exception("Workflow execution already started")
+    await ensure_anomaly_detection_running(client)  # must not raise
+
+
+@pytest.mark.asyncio
+async def test_ensure_kms_key_rotation_running_starts_with_deterministic_id():
+    from workflows.security import ensure_kms_key_rotation_running, KMSKeyRotationWorkflow
+
+    client = AsyncMock()
+    await ensure_kms_key_rotation_running(client)
+
+    client.start_workflow.assert_awaited_once()
+    args, kwargs = client.start_workflow.call_args
+    assert args[0] is KMSKeyRotationWorkflow.run
+    assert kwargs["id"] == "kms-key-rotation-perpetual"
+    assert kwargs["task_queue"] == "secops-queue"
+
+
+@pytest.mark.asyncio
+async def test_ensure_kms_key_rotation_running_tolerates_already_started():
+    from workflows.security import ensure_kms_key_rotation_running
+
+    client = AsyncMock()
+    client.start_workflow.side_effect = Exception("already exists")
+    await ensure_kms_key_rotation_running(client)  # must not raise
+
+
 def test_totp_lockout_duration_from_config():
     src = inspect.getsource(TOTPLockoutWorkflow.run)
     assert "totp_lockout_cooldown_minutes" in src, \

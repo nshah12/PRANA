@@ -448,6 +448,20 @@ class AnomalyDetectionWorkflow:
         workflow.continue_as_new({**params, "batches_run": 0})
 
 
+async def ensure_anomaly_detection_running(client) -> None:
+    """Called once at prana-api startup. AnomalyDetectionWorkflow is perpetual
+    (Continue-As-New) — this only needs to succeed once, ever; every subsequent
+    restart hits "already started" and no-ops. Without this, the 6-rule
+    anomaly detection engine (AnomalyDetectionService) never runs at all."""
+    try:
+        await client.start_workflow(
+            AnomalyDetectionWorkflow.run, {}, id="anomaly-detection-perpetual", task_queue="secops-queue",
+        )
+    except Exception as exc:
+        if "already" not in str(exc).lower():
+            raise
+
+
 # ── KMSKeyRotationWorkflow (Pattern 4 — Continue-As-New, perpetual) ──────────
 
 @workflow.defn(name="KMSKeyRotationWorkflow")
@@ -485,7 +499,29 @@ class KMSKeyRotationWorkflow:
             await workflow.sleep(timedelta(days=int(interval_str)))
 
 
+async def ensure_kms_key_rotation_running(client) -> None:
+    """Called once at prana-api startup. KMSKeyRotationWorkflow is perpetual
+    (Continue-As-New) — this only needs to succeed once, ever; every subsequent
+    restart hits "already started" and no-ops. Without this, tenant KEKs never
+    rotate at all — rotate_tenant_kek/KMSRotationService was only ever called
+    from inside this workflow."""
+    try:
+        await client.start_workflow(
+            KMSKeyRotationWorkflow.run, {}, id="kms-key-rotation-perpetual", task_queue="secops-queue",
+        )
+    except Exception as exc:
+        if "already" not in str(exc).lower():
+            raise
+
+
 # ── HMACSecretRotationWorkflow (Pattern 4 — Continue-As-New, perpetual) ──────
+# NOTE: intentionally has NO ensure_*_running() bootstrap like its two siblings
+# above. See services/kms_rotation_service.py's KNOWN GAP docstring — this
+# workflow is missing the 2-distinct-PA-account approval gate schema.sql
+# documents as required. Starting it unconditionally would let the platform
+# HMAC secret rotate without that control ever being built. Needs a
+# workflow-shape change (signals + wait_condition on 2 distinct approver IDs)
+# before it's safe to run, not just a missing start call.
 
 @workflow.defn(name="HMACSecretRotationWorkflow")
 class HMACSecretRotationWorkflow:

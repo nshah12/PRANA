@@ -97,6 +97,19 @@ class DocumentPipelineWorkflow:
             if res is None:
                 return {"status": "EXCEPTION_TIMEOUT", "document_id": doc_id}
         await workflow.execute_activity(stage06_route, {**params, **enc, **ext, **res}, start_to_close_timeout=timedelta(minutes=10), retry_policy=_RETRY)
+        return await self._finish_routed(params, res, doc_id)
+
+    async def _finish_routed(self, params: dict, res: dict, doc_id: str) -> dict:
+        """VaultHealthWorkflow recomputes employee_master.vault_completeness after
+        every ROUTED document — see workflows/employee_lifecycle.py."""
+        employee_uuid = res.get("employee_uuid")
+        if employee_uuid:
+            await workflow.execute_child_workflow(
+                "VaultHealthWorkflow",
+                {"employee_uuid": employee_uuid, "tenant_id": params.get("tenant_id")},
+                id=f"vault-health-{employee_uuid}-{doc_id}",
+                task_queue="vault-queue",
+            )
         return {"status": "ROUTED", "document_id": doc_id}
 
     async def _handle_exception_wait(
