@@ -29,10 +29,49 @@ router = APIRouter()
 
 OAAdmin = Depends(require_oa("oa_admin"))
 
-# Fields stripped from extracted_fields before returning (privacy contract)
-_STRIP_FROM_EXTRACTED = {
-    "salary", "gross_salary", "net_salary", "basic_salary", "ctc",
-    "hra", "pf", "tds", "pan", "nik", "account_number",
+# ALLOWLIST of extracted_fields keys safe to return to OA-Admin — everything
+# NOT on this list is stripped by default.
+#
+# This used to be a blocklist of bare words ("ctc", "tds", "pf", "salary")
+# checked via exact match — it never matched the real field names prana-ai's
+# extraction schemas actually produce (gross_ctc, net_pay, tds_amount,
+# pf_employee), so real ₹ figures reached the OA-Admin's browser via this
+# endpoint. A blocklist also can't cover prana-api's own doc_type_field_
+# manifest system, which lets a tenant configure arbitrary field names per
+# doc type — no fixed "known-bad" list can keep up with that. An allowlist
+# fails in the safe direction: an unrecognized key (typo, new doc type, or
+# tenant-custom manifest field) is dropped instead of leaked.
+#
+# Kept in sync by hand with prana-ai/pipeline/stage06_route.py's
+# _SAFE_METADATA_FIELDS (separate deployables — no cross-service imports
+# allowed, see .claude/rules/deployment.md) — this is the second, defense-in-
+# depth layer, since exception_queue.extracted_fields was already filtered
+# once by Stage06Route.raise_exception() before landing here.
+_SAFE_EXTRACTED_FIELDS = {
+    "account_holder", "account_number", "acknowledgement_date",
+    "acknowledgement_no", "acknowledgement_number", "appraisal_period",
+    "assessment_year", "bank_name", "bonus_percentage", "bonus_type",
+    "conduct", "contribution_month", "credit_dates", "date_of_appointment",
+    "date_of_exit", "date_of_joining", "date_of_joining_prev",
+    "date_of_leaving", "date_of_leaving_prev", "date_of_offer",
+    "deductor_name", "deductor_tan", "department", "designation",
+    "effective_date", "eligible_months", "employee_id", "employee_name",
+    "employer_address", "employer_name", "employer_tan", "employment_type",
+    "establishment_id", "filing_date", "financial_year", "full_settlement",
+    "grade", "grade_band", "gratuity_eligible", "hr_name", "ifsc_code",
+    "increment_percent", "increment_percentage", "increment_reason",
+    "itr_form_type", "last_working_day", "letter_date", "location",
+    "manager_name", "member_id", "new_designation", "new_grade",
+    "notice_period", "notice_period_days", "overall_confidence",
+    "pan_number", "pay_period_month", "pay_period_year", "payment_date",
+    "performance_band", "performance_rating", "period_of_employment",
+    "pf_account_no", "pf_number", "policy_number", "previous_designation",
+    "previous_employer_name", "previous_employer_tan", "previous_grade",
+    "probation_months", "probation_period", "proof_type", "provider_name",
+    "reason", "reason_for_exit", "receipt_date", "reporting_manager",
+    "reporting_to", "salary_credit_count", "statement_from", "statement_to",
+    "submission_date", "taxpayer_name", "tenure_text", "uan", "uan_number",
+    "years_of_service",
 }
 
 
@@ -71,7 +110,7 @@ def _safe_extracted_fields(raw: Optional[str]) -> Optional[dict]:
         data = raw
     if not isinstance(data, dict):
         return data
-    return {k: v for k, v in data.items() if k.lower() not in _STRIP_FROM_EXTRACTED}
+    return {k: v for k, v in data.items() if k in _SAFE_EXTRACTED_FIELDS}
 
 
 def _serialize_exception(r: dict) -> dict:

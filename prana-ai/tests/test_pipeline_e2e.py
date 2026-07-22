@@ -276,10 +276,16 @@ async def test_stage05_output_feeds_stage06_no_raw_salary_stored():
 
     if safe_fields_json:
         safe_fields = json.loads(safe_fields_json) if isinstance(safe_fields_json, str) else safe_fields_json
+        # These are the ACTUAL raw-₹ field names SalarySlipExtraction/the extraction
+        # prompt produce (extraction/schemas/salary_slip.py, extraction/prompts/salary_slip.py) —
+        # not a hand-copied guess. gross_ctc/net_pay/tds_amount previously leaked to the DB
+        # unredacted because the old strip-list used different names (gross_salary/net_salary)
+        # that don't exist on any real schema.
         sensitive = {
-            "gross_salary", "basic_salary", "net_salary", "hra",
-            "pf_employee", "pf_employer", "total_deductions",
-            "ctc_before", "ctc_after", "employee_share", "employer_share",
+            "gross_ctc", "net_pay", "tds_amount", "basic_salary", "hra",
+            "pf_employee", "pf_employer",
+            "gross_salary", "total_deductions", "ctc_before", "ctc_after",
+            "employee_share", "employer_share",
         }
         found_sensitive = sensitive & set(safe_fields.keys())
         assert not found_sensitive, (

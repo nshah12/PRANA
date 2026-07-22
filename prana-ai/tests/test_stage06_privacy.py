@@ -9,7 +9,15 @@ from unittest.mock import AsyncMock, MagicMock, call, patch
 
 import pytest
 
-from pipeline.stage06_route import Stage06Route, _SENSITIVE_FIELDS
+from pipeline.stage06_route import Stage06Route
+
+# The specific field names this fixture uses to simulate raw ₹ figures —
+# checked directly rather than against Stage06Route's internal allowlist, so
+# this test stays a black-box proof of the observed behavior (these fields
+# stripped, safe ones kept) rather than coupling to the implementation.
+_SENSITIVE_TEST_FIELDS = {
+    "gross_salary", "basic_salary", "net_salary", "hra", "pf_employee", "total_deductions",
+}
 
 
 def _make_extracted(include_sensitive=True):
@@ -90,7 +98,7 @@ async def test_sensitive_fields_stripped_before_db_write(mock_db, mock_benchmark
 
     assert stored is not None, "Could not find extracted_fields JSON in DB call"
 
-    for field in _SENSITIVE_FIELDS:
+    for field in _SENSITIVE_TEST_FIELDS:
         assert field not in stored, \
             f"Sensitive field '{field}' leaked into DB write"
 
@@ -187,6 +195,6 @@ async def test_raise_exception_also_strips_sensitive_fields(mock_db, mock_benchm
                 continue
 
     assert stored is not None, "Could not find extracted_fields in exception_queue insert"
-    for field in _SENSITIVE_FIELDS:
+    for field in _SENSITIVE_TEST_FIELDS:
         assert field not in stored, \
             f"Sensitive field '{field}' leaked into exception_queue"

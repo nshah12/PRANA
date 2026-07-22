@@ -398,3 +398,30 @@ async def test_exception_detail_extracted_fields_no_raw_salary(client, mock_db):
         body_str = json.dumps(resp.json()).lower()
         assert "85000" not in body_str, "Raw salary must be stripped from extracted_fields before OA-Admin response"
         assert "92000" not in body_str
+
+
+@pytest.mark.asyncio
+async def test_exception_detail_strips_real_extraction_field_names(client, mock_db):
+    """
+    _STRIP_FROM_EXTRACTED used to be an exact-match blocklist of bare words
+    ("ctc", "tds", "pf", "salary") — it never matched the real field names
+    prana-ai's extraction schemas actually produce (gross_ctc, net_pay,
+    tds_amount, pf_employee), so real salary/PF figures reached the OA-Admin's
+    browser via this endpoint. Verifies the real field names are stripped.
+    """
+    exc = _open_exception()
+    exc["extracted_fields"] = json.dumps({
+        "employee_name": "Ramesh Kumar",
+        "designation": "Engineer",
+        "gross_ctc": 1260000,
+        "net_pay": 85000,
+        "tds_amount": 9800,
+        "pf_employee": 6240,
+    })
+    mock_db.fetchrow.return_value = exc
+    headers = _oa_admin_headers(client)
+
+    resp = await client.get("/v1/org/exceptions/exc-001", headers=headers)
+    assert resp.status_code == 200
+    fields = resp.json()["exception"]["extracted_fields"]
+    assert fields == {"employee_name": "Ramesh Kumar", "designation": "Engineer"}
