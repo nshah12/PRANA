@@ -9,6 +9,7 @@ Covers:
 import inspect
 
 import pytest
+from unittest.mock import AsyncMock, MagicMock
 
 
 def _get_source(cls_or_fn) -> str:
@@ -58,6 +59,95 @@ def test_platform_summary_workflow_is_thin_shell():
         f"PlatformSummaryWorkflow.run has {len(lines)} lines — must be <20"
 
 
+# ── Regression: PlatformSummaryWorkflow is documented (workflows/CLAUDE.md
+# Pattern 3) as running on a Temporal Schedule, but no ensure_*_schedule()
+# function existed anywhere for it — main.py's startup only ever registered
+# schedules for SystemHealthWorkflow/AuditIntegrityVerificationWorkflow/
+# ErrorThresholdEvaluationWorkflow. It has never actually run automatically. ─
+
+@pytest.mark.asyncio
+async def test_ensure_platform_summary_schedule_creates_real_schedule():
+    from temporalio.client import Schedule, ScheduleActionStartWorkflow, ScheduleSpec, ScheduleIntervalSpec
+    from temporalio.service import RPCError, RPCStatusCode
+    from datetime import timedelta
+    from workflows.platform_ops import PlatformSummaryWorkflow, ensure_platform_summary_schedule
+
+    client = MagicMock()
+    handle = MagicMock()
+    handle.describe = AsyncMock(side_effect=RPCError("not found", RPCStatusCode.NOT_FOUND, b""))
+    client.get_schedule_handle = MagicMock(return_value=handle)
+    client.create_schedule = AsyncMock()
+
+    await ensure_platform_summary_schedule(client, interval_minutes=5)
+
+    client.create_schedule.assert_awaited_once()
+    schedule_id, schedule = client.create_schedule.await_args.args[:2]
+    assert schedule_id == "platform-summary"
+    assert isinstance(schedule, Schedule)
+    assert isinstance(schedule.action, ScheduleActionStartWorkflow)
+    assert schedule.action.id
+    assert schedule.action.task_queue == "analytics-queue"
+    assert schedule.spec.intervals == [ScheduleIntervalSpec(every=timedelta(minutes=5))]
+
+
+# -- KMSHealthCheckWorkflow -------------------------------------------------
+
+@pytest.mark.asyncio
+async def test_ensure_kms_health_check_schedule_creates_real_schedule():
+    """KMSHealthCheckWorkflow is documented (Pattern 3) but had no schedule
+    registration anywhere — never actually ran."""
+    from temporalio.client import Schedule, ScheduleActionStartWorkflow, ScheduleSpec
+    from temporalio.service import RPCError, RPCStatusCode
+    from workflows.platform_ops import KMSHealthCheckWorkflow, ensure_kms_health_check_schedule
+
+    client = MagicMock()
+    handle = MagicMock()
+    handle.describe = AsyncMock(side_effect=RPCError("not found", RPCStatusCode.NOT_FOUND, b""))
+    client.get_schedule_handle = MagicMock(return_value=handle)
+    client.create_schedule = AsyncMock()
+
+    await ensure_kms_health_check_schedule(client, cron_expression="0 2 * * *")
+
+    client.create_schedule.assert_awaited_once()
+    schedule_id, schedule = client.create_schedule.await_args.args[:2]
+    assert schedule_id == "kms-health-check"
+    assert isinstance(schedule, Schedule)
+    assert isinstance(schedule.action, ScheduleActionStartWorkflow)
+    assert schedule.action.id
+    assert schedule.action.task_queue == "secops-queue"
+    assert schedule.spec.cron_expressions == ["0 2 * * *"]
+    assert schedule.spec.time_zone_name == "Asia/Kolkata"
+
+
+# -- StorageQuotaCheckWorkflow -----------------------------------------------
+
+@pytest.mark.asyncio
+async def test_ensure_storage_quota_check_schedule_creates_real_schedule():
+    """StorageQuotaCheckWorkflow is documented (Pattern 3) but had no schedule
+    registration anywhere — never actually ran."""
+    from temporalio.client import Schedule, ScheduleActionStartWorkflow, ScheduleSpec
+    from temporalio.service import RPCError, RPCStatusCode
+    from workflows.platform_ops import StorageQuotaCheckWorkflow, ensure_storage_quota_check_schedule
+
+    client = MagicMock()
+    handle = MagicMock()
+    handle.describe = AsyncMock(side_effect=RPCError("not found", RPCStatusCode.NOT_FOUND, b""))
+    client.get_schedule_handle = MagicMock(return_value=handle)
+    client.create_schedule = AsyncMock()
+
+    await ensure_storage_quota_check_schedule(client, cron_expression="0 1 * * *")
+
+    client.create_schedule.assert_awaited_once()
+    schedule_id, schedule = client.create_schedule.await_args.args[:2]
+    assert schedule_id == "storage-quota-check"
+    assert isinstance(schedule, Schedule)
+    assert isinstance(schedule.action, ScheduleActionStartWorkflow)
+    assert schedule.action.id
+    assert schedule.action.task_queue == "analytics-queue"
+    assert schedule.spec.cron_expressions == ["0 1 * * *"]
+    assert schedule.spec.time_zone_name == "Asia/Kolkata"
+
+
 # -- ClamAVUpdateWorkflow --------------------------------------------------
 
 def test_clamav_update_workflow_uses_temporal_schedule():
@@ -89,6 +179,83 @@ def test_clamav_update_workflow_is_thin_shell():
     ]
     assert len(lines) <= 20, \
         f"ClamAVUpdateWorkflow.run has {len(lines)} lines — must be <20"
+
+
+# ── Regression: ClamAVUpdateWorkflow was never registered on ANY worker task
+# queue at all (not just missing a schedule) — even a manually-started
+# workflow execution would sit forever with no worker to pick it up. Fixed
+# alongside adding its schedule registration. ────────────────────────────────
+
+def test_clamav_update_workflow_is_registered_on_a_worker_queue():
+    from workflows.worker import WORKERS
+    from workflows.platform_ops import ClamAVUpdateWorkflow, pull_clamav_signatures
+
+    matches = [q for q, defn in WORKERS.items() if ClamAVUpdateWorkflow in defn["workflows"]]
+    assert matches, "ClamAVUpdateWorkflow must be registered on at least one worker queue"
+    assert pull_clamav_signatures in WORKERS[matches[0]]["activities"], \
+        "pull_clamav_signatures activity must be registered on the same queue"
+
+
+@pytest.mark.asyncio
+async def test_ensure_clamav_update_schedule_creates_real_schedule():
+    from temporalio.client import Schedule, ScheduleActionStartWorkflow, ScheduleIntervalSpec
+    from temporalio.service import RPCError, RPCStatusCode
+    from datetime import timedelta
+    from workflows.platform_ops import ClamAVUpdateWorkflow, ensure_clamav_update_schedule
+
+    client = MagicMock()
+    handle = MagicMock()
+    handle.describe = AsyncMock(side_effect=RPCError("not found", RPCStatusCode.NOT_FOUND, b""))
+    client.get_schedule_handle = MagicMock(return_value=handle)
+    client.create_schedule = AsyncMock()
+
+    await ensure_clamav_update_schedule(client, interval_minutes=120)
+
+    client.create_schedule.assert_awaited_once()
+    schedule_id, schedule = client.create_schedule.await_args.args[:2]
+    assert schedule_id == "clamav-update"
+    assert isinstance(schedule, Schedule)
+    assert isinstance(schedule.action, ScheduleActionStartWorkflow)
+    assert schedule.action.id
+    assert schedule.action.task_queue == "ingestsvc-queue"
+    assert schedule.spec.intervals == [ScheduleIntervalSpec(every=timedelta(minutes=120))]
+
+
+# ── Regression: same 0x-anywhere gap as ClamAVUpdateWorkflow. ────────────────
+
+def test_staging_cleanup_workflow_is_registered_on_a_worker_queue():
+    from workflows.worker import WORKERS
+    from workflows.platform_ops import StagingCleanupWorkflow, purge_stale_staging_objects
+
+    matches = [q for q, defn in WORKERS.items() if StagingCleanupWorkflow in defn["workflows"]]
+    assert matches, "StagingCleanupWorkflow must be registered on at least one worker queue"
+    assert purge_stale_staging_objects in WORKERS[matches[0]]["activities"], \
+        "purge_stale_staging_objects activity must be registered on the same queue"
+
+
+@pytest.mark.asyncio
+async def test_ensure_staging_cleanup_schedule_creates_real_schedule():
+    from temporalio.client import Schedule, ScheduleActionStartWorkflow
+    from temporalio.service import RPCError, RPCStatusCode
+    from workflows.platform_ops import StagingCleanupWorkflow, ensure_staging_cleanup_schedule
+
+    client = MagicMock()
+    handle = MagicMock()
+    handle.describe = AsyncMock(side_effect=RPCError("not found", RPCStatusCode.NOT_FOUND, b""))
+    client.get_schedule_handle = MagicMock(return_value=handle)
+    client.create_schedule = AsyncMock()
+
+    await ensure_staging_cleanup_schedule(client, cron_expression="0 4 * * *")
+
+    client.create_schedule.assert_awaited_once()
+    schedule_id, schedule = client.create_schedule.await_args.args[:2]
+    assert schedule_id == "staging-cleanup"
+    assert isinstance(schedule, Schedule)
+    assert isinstance(schedule.action, ScheduleActionStartWorkflow)
+    assert schedule.action.id
+    assert schedule.action.task_queue == "ingestsvc-queue"
+    assert schedule.spec.cron_expressions == ["0 4 * * *"]
+    assert schedule.spec.time_zone_name == "Asia/Kolkata"
 
 
 # -- StorageExpansionWorkflow -----------------------------------------------

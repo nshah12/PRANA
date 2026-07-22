@@ -313,6 +313,41 @@ class DigestWorkflow:
         )
 
 
+async def ensure_digest_schedules(client, weekly_cron: str, monthly_cron: str) -> None:
+    """Called at prana-api startup to register both Temporal Schedules (idempotent).
+    Cadence comes from platform_config.digest_weekly_cron / digest_monthly_cron —
+    never hardcoded here."""
+    import dataclasses
+
+    from temporalio.client import (
+        ScheduleHandle, Schedule, ScheduleSpec, ScheduleActionStartWorkflow, ScheduleUpdate,
+    )
+    from temporalio.service import RPCError
+
+    for schedule_id, cron, digest_type in (
+        ("digest-weekly", weekly_cron, "weekly"),
+        ("digest-monthly", monthly_cron, "monthly"),
+    ):
+        new_spec = ScheduleSpec(cron_expressions=[cron], time_zone_name="Asia/Kolkata")
+        try:
+            handle: ScheduleHandle = client.get_schedule_handle(schedule_id)
+            await handle.describe()
+            async def _updater(inp, _spec=new_spec):
+                return ScheduleUpdate(schedule=dataclasses.replace(inp.description.schedule, spec=_spec))
+            await handle.update(_updater)
+        except RPCError:
+            await client.create_schedule(
+                schedule_id,
+                Schedule(
+                    action=ScheduleActionStartWorkflow(
+                        DigestWorkflow.run, {"digest_type": digest_type},
+                        id=f"{schedule_id}-run", task_queue="insight-queue",
+                    ),
+                    spec=new_spec,
+                ),
+            )
+
+
 # ── PeerBenchmarkWorkflow (Pattern 1 — fast, cross-tenant, no PII) ───────────
 
 @workflow.defn(name="PeerBenchmarkWorkflow")

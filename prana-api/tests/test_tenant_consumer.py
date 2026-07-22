@@ -1,6 +1,6 @@
 """Tests for TenantConsumer — prana.tenant.events"""
 import pytest
-from unittest.mock import AsyncMock, MagicMock
+from unittest.mock import AsyncMock, MagicMock, patch
 
 
 @pytest.fixture
@@ -39,8 +39,21 @@ async def test_tenant_activated_starts_no_workflow(consumer):
     @workflow.defn'd anywhere. The provisioning/welcome-email work it would have
     done already happens in TenantProvisioningWorkflow off TENANT_CREATED."""
     event = {"event_type": "TENANT_ACTIVATED", "tenant_id": "t-5"}
-    await consumer._dispatch("TENANT_ACTIVATED", event)
+    with patch("workflows.compliance.ensure_one_tenant_statutory_schedule", AsyncMock()):
+        await consumer._dispatch("TENANT_ACTIVATED", event)
     consumer._temporal.start_workflow.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+async def test_tenant_activated_ensures_statutory_compliance_schedule(consumer):
+    """Regression: StatutoryComplianceWorkflow's own docstring claims a per-tenant
+    schedule gets created — nothing ever triggered it for newly-activated tenants."""
+    event = {"event_type": "TENANT_ACTIVATED", "tenant_id": "t-5"}
+    with patch("workflows.compliance.ensure_one_tenant_statutory_schedule", AsyncMock()) as mock_ensure:
+        await consumer._dispatch("TENANT_ACTIVATED", event)
+    mock_ensure.assert_awaited_once()
+    assert mock_ensure.await_args.kwargs.get("tenant_id") == "t-5" \
+        or "t-5" in mock_ensure.await_args.args
 
 
 @pytest.mark.asyncio

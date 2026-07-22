@@ -77,12 +77,17 @@ class TenantConsumer:
                                        f"tenant-provision-{tid}", event, "admin-queue")
 
         elif etype == "TENANT_ACTIVATED":
-            # No workflow: "TenantOnboardingWorkflow" was never @workflow.defn'd —
+            # No workflow start: "TenantOnboardingWorkflow" was never @workflow.defn'd —
             # starting it would silently queue a workflow no worker could execute.
             # The welcome-email/provisioning it would have done already happens in
-            # TenantProvisioningWorkflow off TENANT_CREATED.
-            log.debug("TenantConsumer: TENANT_ACTIVATED has no event-driven handler "
-                      "— provisioning already ran off TENANT_CREATED")
+            # TenantProvisioningWorkflow off TENANT_CREATED. Does ensure the tenant's
+            # StatutoryComplianceWorkflow Temporal Schedule exists — see
+            # workflows/compliance.py's ensure_one_tenant_statutory_schedule.
+            if self._temporal and tid:
+                await self._ensure_statutory_schedule(tid)
+            else:
+                log.debug("TenantConsumer: TENANT_ACTIVATED — no temporal_client or tenant_id, "
+                          "skipping statutory-compliance schedule ensure")
 
         elif etype == "TENANT_SUSPENDED":
             # No workflow needed: routers/tenants.py's suspend_tenant DOES publish this
@@ -119,3 +124,11 @@ class TenantConsumer:
             if "already exists" not in str(exc).lower():
                 log.exception("TenantConsumer: failed to start %s", workflow)
                 raise
+
+    async def _ensure_statutory_schedule(self, tenant_id: str) -> None:
+        from workflows.compliance import ensure_one_tenant_statutory_schedule
+
+        try:
+            await ensure_one_tenant_statutory_schedule(self._temporal, tenant_id=tenant_id)
+        except Exception:
+            log.exception("TenantConsumer: failed to ensure statutory-compliance schedule tenant_id=%s", tenant_id)

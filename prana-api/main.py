@@ -168,6 +168,157 @@ async def lifespan(app: FastAPI):
                 pass
             # Non-fatal — schedule creation must not block startup
 
+        try:
+            from workflows.platform_ops import ensure_platform_summary_schedule
+            interval_row = await app.state.db_pool.fetchval(
+                "SELECT config_value FROM platform_config WHERE config_key=$1",
+                "platform_summary_interval_minutes",
+            )
+            await ensure_platform_summary_schedule(
+                app.state.temporal_client, interval_minutes=int(interval_row or 5),
+            )
+        except Exception as exc:
+            try:
+                from services.error_observability_service import ErrorObservabilityService
+                await ErrorObservabilityService(app.state.db_pool).record(
+                    exc=exc, source="HTTP", source_detail="lifespan:ensure_platform_summary_schedule",
+                )
+            except Exception:
+                pass
+
+        try:
+            from workflows.platform_ops import ensure_kms_health_check_schedule
+            cron_row = await app.state.db_pool.fetchval(
+                "SELECT config_value FROM platform_config WHERE config_key=$1",
+                "kms_health_check_cron",
+            )
+            await ensure_kms_health_check_schedule(
+                app.state.temporal_client, cron_expression=cron_row or "0 2 * * *",
+            )
+        except Exception as exc:
+            try:
+                from services.error_observability_service import ErrorObservabilityService
+                await ErrorObservabilityService(app.state.db_pool).record(
+                    exc=exc, source="HTTP", source_detail="lifespan:ensure_kms_health_check_schedule",
+                )
+            except Exception:
+                pass
+
+        try:
+            from workflows.platform_ops import ensure_storage_quota_check_schedule
+            cron_row = await app.state.db_pool.fetchval(
+                "SELECT config_value FROM platform_config WHERE config_key=$1",
+                "storage_quota_check_cron",
+            )
+            await ensure_storage_quota_check_schedule(
+                app.state.temporal_client, cron_expression=cron_row or "0 1 * * *",
+            )
+        except Exception as exc:
+            try:
+                from services.error_observability_service import ErrorObservabilityService
+                await ErrorObservabilityService(app.state.db_pool).record(
+                    exc=exc, source="HTTP", source_detail="lifespan:ensure_storage_quota_check_schedule",
+                )
+            except Exception:
+                pass
+
+        try:
+            from workflows.platform_ops import ensure_clamav_update_schedule
+            interval_row = await app.state.db_pool.fetchval(
+                "SELECT config_value FROM platform_config WHERE config_key=$1",
+                "clamav_update_interval_minutes",
+            )
+            await ensure_clamav_update_schedule(
+                app.state.temporal_client, interval_minutes=int(interval_row or 120),
+            )
+        except Exception as exc:
+            try:
+                from services.error_observability_service import ErrorObservabilityService
+                await ErrorObservabilityService(app.state.db_pool).record(
+                    exc=exc, source="HTTP", source_detail="lifespan:ensure_clamav_update_schedule",
+                )
+            except Exception:
+                pass
+
+        try:
+            from workflows.platform_ops import ensure_staging_cleanup_schedule
+            cron_row = await app.state.db_pool.fetchval(
+                "SELECT config_value FROM platform_config WHERE config_key=$1",
+                "staging_cleanup_check_cron",
+            )
+            await ensure_staging_cleanup_schedule(
+                app.state.temporal_client, cron_expression=cron_row or "0 4 * * *",
+            )
+        except Exception as exc:
+            try:
+                from services.error_observability_service import ErrorObservabilityService
+                await ErrorObservabilityService(app.state.db_pool).record(
+                    exc=exc, source="HTTP", source_detail="lifespan:ensure_staging_cleanup_schedule",
+                )
+            except Exception:
+                pass
+
+        try:
+            from workflows.intelligence import ensure_digest_schedules
+            weekly_row = await app.state.db_pool.fetchval(
+                "SELECT config_value FROM platform_config WHERE config_key=$1", "digest_weekly_cron",
+            )
+            monthly_row = await app.state.db_pool.fetchval(
+                "SELECT config_value FROM platform_config WHERE config_key=$1", "digest_monthly_cron",
+            )
+            await ensure_digest_schedules(
+                app.state.temporal_client,
+                weekly_cron=weekly_row or "0 6 * * MON",
+                monthly_cron=monthly_row or "0 6 1 * *",
+            )
+        except Exception as exc:
+            try:
+                from services.error_observability_service import ErrorObservabilityService
+                await ErrorObservabilityService(app.state.db_pool).record(
+                    exc=exc, source="HTTP", source_detail="lifespan:ensure_digest_schedules",
+                )
+            except Exception:
+                pass
+
+        try:
+            from workflows.compliance import ensure_audit_archival_schedule
+            cron_row = await app.state.db_pool.fetchval(
+                "SELECT config_value FROM platform_config WHERE config_key=$1",
+                "audit_archival_check_cron",
+            )
+            await ensure_audit_archival_schedule(
+                app.state.temporal_client, cron_expression=cron_row or "0 3 * * *",
+            )
+        except Exception as exc:
+            try:
+                from services.error_observability_service import ErrorObservabilityService
+                await ErrorObservabilityService(app.state.db_pool).record(
+                    exc=exc, source="HTTP", source_detail="lifespan:ensure_audit_archival_schedule",
+                )
+            except Exception:
+                pass
+
+        try:
+            from workflows.compliance import ensure_statutory_compliance_schedules
+            cron_row = await app.state.db_pool.fetchval(
+                "SELECT config_value FROM platform_config WHERE config_key=$1",
+                "statutory_compliance_check_hour",
+            )
+            async with app.state.db_pool.acquire() as _conn:
+                await ensure_statutory_compliance_schedules(
+                    db=_conn, temporal_client=app.state.temporal_client,
+                    cron_expression=cron_row or "30 0 * * *",
+                )
+        except Exception as exc:
+            try:
+                from services.error_observability_service import ErrorObservabilityService
+                await ErrorObservabilityService(app.state.db_pool).record(
+                    exc=exc, source="HTTP", source_detail="lifespan:ensure_statutory_compliance_schedules",
+                )
+            except Exception:
+                pass
+            # Non-fatal — schedule creation must not block startup
+
     # Kafka producer
     kafka = KafkaPub(settings)
     try:

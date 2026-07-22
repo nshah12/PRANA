@@ -200,6 +200,8 @@ WORKERS: dict[str, dict] = {
             DocumentPipelineWorkflow,
             BatchProgressWorkflow,
             BatchTimeoutMonitorWorkflow,
+            ClamAVUpdateWorkflow,
+            StagingCleanupWorkflow,
         ],
         "activities": [
             stage02_encrypt_impl, stage03_scan_impl, stage04_extract_impl,
@@ -207,6 +209,7 @@ WORKERS: dict[str, dict] = {
             stage05_resolve_impl, stage06_route_impl, stage06_raise_exception_impl,
             update_pipeline_status_impl, get_batch_config_impl,
             write_batch_summary_impl, mark_batch_straggler_impl,
+            pull_clamav_signatures, purge_stale_staging_objects,
         ],
     },
     "resolution-queue": {

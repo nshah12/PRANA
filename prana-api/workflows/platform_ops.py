@@ -224,12 +224,43 @@ class PlatformSummaryWorkflow:
         )
 
 
+async def ensure_platform_summary_schedule(client, interval_minutes: int = 5) -> None:
+    """Called at prana-api startup to register the Temporal Schedule (idempotent)."""
+    import dataclasses
+
+    from temporalio.client import (
+        ScheduleHandle, Schedule, ScheduleSpec, ScheduleIntervalSpec,
+        ScheduleActionStartWorkflow, ScheduleUpdate,
+    )
+    from temporalio.service import RPCError
+
+    schedule_id = "platform-summary"
+    new_spec = ScheduleSpec(intervals=[ScheduleIntervalSpec(every=timedelta(minutes=interval_minutes))])
+    try:
+        handle: ScheduleHandle = client.get_schedule_handle(schedule_id)
+        await handle.describe()
+        async def _updater(inp):
+            return ScheduleUpdate(schedule=dataclasses.replace(inp.description.schedule, spec=new_spec))
+        await handle.update(_updater)
+    except RPCError:
+        await client.create_schedule(
+            schedule_id,
+            Schedule(
+                action=ScheduleActionStartWorkflow(
+                    PlatformSummaryWorkflow.run, {}, id=f"{schedule_id}-run", task_queue="analytics-queue",
+                ),
+                spec=new_spec,
+            ),
+        )
+
+
 # ── ClamAVUpdateWorkflow (Pattern 3 — Temporal Schedule) ─────────────────────
 
 @workflow.defn(name="ClamAVUpdateWorkflow")
 class ClamAVUpdateWorkflow:
     """
-    Pulls fresh ClamAV virus + NSFW signature databases on a schedule (default: daily).
+    Pulls fresh ClamAV virus + NSFW signature databases on a schedule
+    (cadence from platform_config.clamav_update_interval_minutes, default 120).
     Restarts the scanner worker after successful update.
     Critical: must complete before any new documents reach stage 03.
     """
@@ -243,6 +274,36 @@ class ClamAVUpdateWorkflow:
         )
 
 
+async def ensure_clamav_update_schedule(client, interval_minutes: int = 120) -> None:
+    """Called at prana-api startup to register the Temporal Schedule (idempotent)."""
+    import dataclasses
+
+    from temporalio.client import (
+        ScheduleHandle, Schedule, ScheduleSpec, ScheduleIntervalSpec,
+        ScheduleActionStartWorkflow, ScheduleUpdate,
+    )
+    from temporalio.service import RPCError
+
+    schedule_id = "clamav-update"
+    new_spec = ScheduleSpec(intervals=[ScheduleIntervalSpec(every=timedelta(minutes=interval_minutes))])
+    try:
+        handle: ScheduleHandle = client.get_schedule_handle(schedule_id)
+        await handle.describe()
+        async def _updater(inp):
+            return ScheduleUpdate(schedule=dataclasses.replace(inp.description.schedule, spec=new_spec))
+        await handle.update(_updater)
+    except RPCError:
+        await client.create_schedule(
+            schedule_id,
+            Schedule(
+                action=ScheduleActionStartWorkflow(
+                    ClamAVUpdateWorkflow.run, {}, id=f"{schedule_id}-run", task_queue="ingestsvc-queue",
+                ),
+                spec=new_spec,
+            ),
+        )
+
+
 # ── KMSHealthCheckWorkflow (Pattern 3 — Temporal Schedule) ───────────────────
 
 @workflow.defn(name="KMSHealthCheckWorkflow")
@@ -250,7 +311,7 @@ class KMSHealthCheckWorkflow:
     """
     Verifies all KMS key ARNs (platform + tenant KEKs) are accessible and enabled.
     Alerts Platform Admin immediately on any failure.
-    Runs every N minutes (default: 15).
+    Runs daily (cadence from platform_config.kms_health_check_cron, default 02:00 IST).
     """
 
     @workflow.run
@@ -266,6 +327,35 @@ class KMSHealthCheckWorkflow:
                 start_to_close_timeout=timedelta(minutes=5),
                 retry_policy=_RETRY,
             )
+
+
+async def ensure_kms_health_check_schedule(client, cron_expression: str = "0 2 * * *") -> None:
+    """Called at prana-api startup to register the Temporal Schedule (idempotent)."""
+    import dataclasses
+
+    from temporalio.client import (
+        ScheduleHandle, Schedule, ScheduleSpec, ScheduleActionStartWorkflow, ScheduleUpdate,
+    )
+    from temporalio.service import RPCError
+
+    schedule_id = "kms-health-check"
+    new_spec = ScheduleSpec(cron_expressions=[cron_expression], time_zone_name="Asia/Kolkata")
+    try:
+        handle: ScheduleHandle = client.get_schedule_handle(schedule_id)
+        await handle.describe()
+        async def _updater(inp):
+            return ScheduleUpdate(schedule=dataclasses.replace(inp.description.schedule, spec=new_spec))
+        await handle.update(_updater)
+    except RPCError:
+        await client.create_schedule(
+            schedule_id,
+            Schedule(
+                action=ScheduleActionStartWorkflow(
+                    KMSHealthCheckWorkflow.run, {}, id=f"{schedule_id}-run", task_queue="secops-queue",
+                ),
+                spec=new_spec,
+            ),
+        )
 
 
 # ── StorageQuotaCheckWorkflow (Pattern 3 — Temporal Schedule) ────────────────
@@ -293,6 +383,35 @@ class StorageQuotaCheckWorkflow:
             )
 
 
+async def ensure_storage_quota_check_schedule(client, cron_expression: str = "0 1 * * *") -> None:
+    """Called at prana-api startup to register the Temporal Schedule (idempotent)."""
+    import dataclasses
+
+    from temporalio.client import (
+        ScheduleHandle, Schedule, ScheduleSpec, ScheduleActionStartWorkflow, ScheduleUpdate,
+    )
+    from temporalio.service import RPCError
+
+    schedule_id = "storage-quota-check"
+    new_spec = ScheduleSpec(cron_expressions=[cron_expression], time_zone_name="Asia/Kolkata")
+    try:
+        handle: ScheduleHandle = client.get_schedule_handle(schedule_id)
+        await handle.describe()
+        async def _updater(inp):
+            return ScheduleUpdate(schedule=dataclasses.replace(inp.description.schedule, spec=new_spec))
+        await handle.update(_updater)
+    except RPCError:
+        await client.create_schedule(
+            schedule_id,
+            Schedule(
+                action=ScheduleActionStartWorkflow(
+                    StorageQuotaCheckWorkflow.run, {}, id=f"{schedule_id}-run", task_queue="analytics-queue",
+                ),
+                spec=new_spec,
+            ),
+        )
+
+
 # ── StagingCleanupWorkflow (Pattern 3 — Temporal Schedule) ───────────────────
 
 @workflow.defn(name="StagingCleanupWorkflow")
@@ -315,6 +434,35 @@ class StagingCleanupWorkflow:
             retry_policy=_RETRY,
         )
         return result
+
+
+async def ensure_staging_cleanup_schedule(client, cron_expression: str = "0 4 * * *") -> None:
+    """Called at prana-api startup to register the Temporal Schedule (idempotent)."""
+    import dataclasses
+
+    from temporalio.client import (
+        ScheduleHandle, Schedule, ScheduleSpec, ScheduleActionStartWorkflow, ScheduleUpdate,
+    )
+    from temporalio.service import RPCError
+
+    schedule_id = "staging-cleanup"
+    new_spec = ScheduleSpec(cron_expressions=[cron_expression], time_zone_name="Asia/Kolkata")
+    try:
+        handle: ScheduleHandle = client.get_schedule_handle(schedule_id)
+        await handle.describe()
+        async def _updater(inp):
+            return ScheduleUpdate(schedule=dataclasses.replace(inp.description.schedule, spec=new_spec))
+        await handle.update(_updater)
+    except RPCError:
+        await client.create_schedule(
+            schedule_id,
+            Schedule(
+                action=ScheduleActionStartWorkflow(
+                    StagingCleanupWorkflow.run, {}, id=f"{schedule_id}-run", task_queue="ingestsvc-queue",
+                ),
+                spec=new_spec,
+            ),
+        )
 
 
 # ── WebhookDeliveryWorkflow (Pattern 1 — durable delivery) ───────────────────

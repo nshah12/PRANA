@@ -1332,7 +1332,10 @@ INSERT INTO platform_config (config_key, config_value, value_type, description, 
   ('chro_alert_exception_spike',     'true', 'BOOLEAN', 'CHRO: notify when exception queue exceeds 5 open', NULL, NULL),
   ('chro_alert_exit_doc_delay',      'true', 'BOOLEAN', 'CHRO: notify when exit docs not pushed within 7 days', NULL, NULL),
   ('audit_archival_cutoff_days',     '730',  'DURATION_DAYS', 'AuditArchivalWorkflow: age (days) after which audit_event rows are copied to cold S3 storage.', '30', '2555'),
-  ('audit_archival_batch_size',      '5000', 'INTEGER', 'AuditArchivalWorkflow: max rows archived per activity execution.', '100', '50000')
+  ('audit_archival_batch_size',      '5000', 'INTEGER', 'AuditArchivalWorkflow: max rows archived per activity execution.', '100', '50000'),
+  ('audit_archival_check_cron',      '0 3 * * *', 'CRON_EXPRESSION', 'AuditArchivalWorkflow schedule cadence (daily, 03:00 IST).', NULL, NULL),
+  ('staging_cleanup_check_cron',     '0 4 * * *', 'CRON_EXPRESSION', 'StagingCleanupWorkflow schedule cadence (daily, 04:00 IST).', NULL, NULL),
+  ('statutory_compliance_check_hour', '30 0 * * *', 'CRON_EXPRESSION', 'StatutoryComplianceWorkflow per-tenant schedule cadence (daily, 00:30 IST) — see workflows/compliance.py.', NULL, NULL)
 ON CONFLICT (config_key) DO NOTHING;
 
 -- ── HRMS connector definition (PA-level catalogue) — migration 029 ─────────

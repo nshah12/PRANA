@@ -421,6 +421,35 @@ class AuditArchivalWorkflow:
         )
 
 
+async def ensure_audit_archival_schedule(client, cron_expression: str = "0 3 * * *") -> None:
+    """Called at prana-api startup to register the Temporal Schedule (idempotent)."""
+    import dataclasses
+
+    from temporalio.client import (
+        ScheduleHandle, Schedule, ScheduleSpec, ScheduleActionStartWorkflow, ScheduleUpdate,
+    )
+    from temporalio.service import RPCError
+
+    schedule_id = "audit-archival"
+    new_spec = ScheduleSpec(cron_expressions=[cron_expression], time_zone_name="Asia/Kolkata")
+    try:
+        handle: ScheduleHandle = client.get_schedule_handle(schedule_id)
+        await handle.describe()
+        async def _updater(inp):
+            return ScheduleUpdate(schedule=dataclasses.replace(inp.description.schedule, spec=new_spec))
+        await handle.update(_updater)
+    except RPCError:
+        await client.create_schedule(
+            schedule_id,
+            Schedule(
+                action=ScheduleActionStartWorkflow(
+                    AuditArchivalWorkflow.run, {}, id=f"{schedule_id}-run", task_queue="compliance-queue",
+                ),
+                spec=new_spec,
+            ),
+        )
+
+
 # ── LegalHoldWorkflow (Pattern 2 — Signal-Driven) ────────────────────────────
 
 @workflow.defn(name="LegalHoldWorkflow")
@@ -538,3 +567,52 @@ class StatutoryComplianceWorkflow:
                 retry_policy=_RETRY,
             )
         return result
+
+
+def _statutory_schedule_id(tenant_id) -> str:
+    return f"statutory-compliance-{tenant_id}"
+
+
+async def ensure_one_tenant_statutory_schedule(client, tenant_id: str, cron_expression: str = "30 0 * * *") -> None:
+    """Idempotent create-or-update of one tenant's StatutoryComplianceWorkflow schedule."""
+    import dataclasses
+
+    from temporalio.client import (
+        ScheduleHandle, Schedule, ScheduleSpec, ScheduleActionStartWorkflow, ScheduleUpdate,
+    )
+    from temporalio.service import RPCError
+
+    schedule_id = _statutory_schedule_id(tenant_id)
+    new_spec = ScheduleSpec(cron_expressions=[cron_expression], time_zone_name="Asia/Kolkata")
+    try:
+        handle: ScheduleHandle = client.get_schedule_handle(schedule_id)
+        await handle.describe()
+        async def _updater(inp):
+            return ScheduleUpdate(schedule=dataclasses.replace(inp.description.schedule, spec=new_spec))
+        await handle.update(_updater)
+    except RPCError:
+        await client.create_schedule(
+            schedule_id,
+            Schedule(
+                action=ScheduleActionStartWorkflow(
+                    StatutoryComplianceWorkflow.run, {"tenant_id": str(tenant_id)},
+                    id=f"{schedule_id}-run", task_queue="compliance-queue",
+                ),
+                spec=new_spec,
+            ),
+        )
+
+
+async def ensure_statutory_compliance_schedules(db, temporal_client, cron_expression: str = "30 0 * * *") -> dict:
+    """For every ACTIVE tenant, ensure a StatutoryComplianceWorkflow Temporal Schedule
+    exists. Called at prana-api startup (self-heals for tenants that predate this
+    fix) and from TenantConsumer on TENANT_ACTIVATED (for newly-onboarded tenants)."""
+    rows = await db.fetch(
+        "SELECT tenant_id FROM tenant WHERE status = $1",
+        "ACTIVE",
+    )
+    for row in rows:
+        await ensure_one_tenant_statutory_schedule(
+            temporal_client, tenant_id=str(row["tenant_id"]), cron_expression=cron_expression,
+        )
+    return {"tenants_scheduled": len(rows)}
