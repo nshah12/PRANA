@@ -88,13 +88,22 @@ describe('SecurityIncidentRegister', () => {
     ))
   })
 
-  it('filters by tenant id input', async () => {
+  it('filters by tenant selected from the combobox', async () => {
     const user = userEvent.setup()
-    mockGet.mockResolvedValue({ data: MOCK })
+    mockGet.mockImplementation((url: string) => {
+      if (url.startsWith('/admin/tenants')) {
+        return Promise.resolve({ data: { tenants: [
+          { tenant_id: 'tenant-uuid-1234', tenant_name: 'Acme Corp', domain: 'acme.example', status: 'ACTIVE' },
+        ] } })
+      }
+      return Promise.resolve({ data: MOCK })
+    })
     render(<SecurityIncidentRegister />, { wrapper })
     await waitFor(() => expect(screen.getByText('Suspected credential leak')).toBeInTheDocument())
-    const tenantInput = screen.getByPlaceholderText('Filter by tenant UUID…')
-    await user.type(tenantInput, 'tenant-uuid-1234')
+
+    await user.click(screen.getByRole('button', { name: /filter by tenant/i }))
+    await user.click(await screen.findByText('Acme Corp'))
+
     await waitFor(() => expect(mockGet).toHaveBeenLastCalledWith(expect.stringContaining('tenant_id=tenant-uuid-1234')))
   })
 

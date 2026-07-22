@@ -9,6 +9,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { ShieldAlert, CheckCircle, TrendingUp, Clock, Filter, Globe, Bug, XCircle, ArrowUpCircle } from 'lucide-react'
 import { api } from '@/lib/api'
 import { tUi } from '@/i18n'
+import { TenantCombobox } from '@/components/TenantCombobox'
 
 const SEV: Record<string, { pill: string; ring: string }> = {
   P0: { pill: 'bg-red-100 text-red-700 border border-red-300',         ring: 'border-red-300' },
@@ -109,11 +110,11 @@ function ErrorsPanel() {
         <Filter size={14} className="text-slate-400" />
         <div className="flex items-center gap-1.5">
           <Globe size={12} className="text-slate-400" />
-          <input
-            value={tenantId}
-            onChange={e => setTenantId(e.target.value)}
+          <TenantCombobox
+            value={tenantId || null}
+            onChange={id => setTenantId(id ?? '')}
             placeholder={tUi('PA_SEC_INC_TENANT_FILTER_PLACEHOLDER')}
-            className="text-xs border border-slate-200 rounded-lg px-2 py-1.5 w-52 text-slate-600"
+            className="w-52 text-xs"
           />
         </div>
         <select value={errStatus} onChange={e => setErrStatus(e.target.value)}
@@ -366,11 +367,11 @@ export function SecurityIncidentRegister() {
         <Filter size={14} className="text-slate-400" />
         <div className="flex items-center gap-1.5">
           <Globe size={12} className="text-slate-400" />
-          <input
-            value={tenantId}
-            onChange={e => setTenantId(e.target.value)}
+          <TenantCombobox
+            value={tenantId || null}
+            onChange={id => setTenantId(id ?? '')}
             placeholder={tUi('PA_SEC_INC_TENANT_FILTER_PLACEHOLDER')}
-            className="text-xs border border-slate-200 rounded-lg px-2 py-1.5 w-52 text-slate-600"
+            className="w-52 text-xs"
           />
         </div>
         <select value={severity} onChange={e => setSeverity(e.target.value)}

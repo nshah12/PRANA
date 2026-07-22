@@ -4,13 +4,13 @@ PA has zero SELECT on document rows or employee PII — only aggregates and tena
 All routes require @prana.in JWT (enforced in auth_pa.py at login time).
 """
 import uuid
-from messages import SuccessCode, success_response
+from messages import SuccessCode
 import datetime
 from typing import Optional
 from fastapi import APIRouter, Depends, HTTPException, Request, status
 from pydantic import BaseModel, Field
 
-from dependencies import DbConn, require_pa, AuthUser as PortalAdmin
+from dependencies import DbConn, require_pa
 from errors import PranaError
 from services.encryption_service import compute_mobile_token
 
@@ -252,14 +252,41 @@ class PaUnlockIn(BaseModel):
     email: str
 
 
+# Controlled vocabulary for PA override actions — mirrors account_status_event's
+# reason_code (NOT NULL, from a fixed set) + reason_note (optional free elaboration)
+# pattern instead of a single unstructured free-text field, so overrides are
+# actually filterable/reportable in the audit trail.
+OVERRIDE_REASON_CODES = {
+    "SUPPORT_ESCALATION",
+    "EMPLOYEE_LOST_DEVICE",
+    "SECURITY_INCIDENT",
+    "COMPLIANCE_REQUEST",
+    "OTHER",
+}
+
+
+def _validate_override_reason(reason_code: Optional[str], reason_note: Optional[str]) -> tuple[str, Optional[str]]:
+    code = (reason_code or "").strip()
+    if not code:
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=PranaError.OVERRIDE_REASON_REQUIRED)
+    if code not in OVERRIDE_REASON_CODES:
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=PranaError.INVALID_REASON_CODE)
+    note = (reason_note or "").strip() or None
+    if code == "OTHER" and not note:
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=PranaError.REASON_NOTE_REQUIRED_FOR_OTHER)
+    return code, note
+
+
 class ResetEmployeeTotpIn(BaseModel):
     identifier: str   # employee's email or mobile (E.164 or bare 10-digit)
-    reason: str
+    reason_code: str
+    reason_note: Optional[str] = None
 
 
 class ResetEmployeePasswordIn(BaseModel):
     identifier: str   # employee's email or mobile (E.164 or bare 10-digit)
-    reason: str
+    reason_code: str
+    reason_note: Optional[str] = None
 
 
 class MergeEmployeesIn(BaseModel):
@@ -391,9 +418,7 @@ async def oa_emergency_reset(body: OaEmergencyIn, db: DbConn, current=PA):
 
 @router.post("/employees/reset-totp")
 async def pa_reset_employee_totp(body: ResetEmployeeTotpIn, request: Request, db: DbConn, current=PA):
-    reason = body.reason.strip()
-    if not reason:
-        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=PranaError.OVERRIDE_REASON_REQUIRED)
+    reason_code, reason_note = _validate_override_reason(body.reason_code, body.reason_note)
 
     identifier = body.identifier.strip()
     if not identifier:
@@ -432,7 +457,8 @@ async def pa_reset_employee_totp(body: ResetEmployeeTotpIn, request: Request, db
                 "actor_type":        "PORTAL_ADMIN",
                 "employee_user_id":  employee_user_id,
                 "employee_uuid":     str(t["employee_uuid"]),
-                "reason":            reason,
+                "reason_code":       reason_code,
+                "reason_note":       reason_note,
                 "override":          True,
             })
 
@@ -441,9 +467,7 @@ async def pa_reset_employee_totp(body: ResetEmployeeTotpIn, request: Request, db
 
 @router.post("/employees/reset-password")
 async def pa_reset_employee_password(body: ResetEmployeePasswordIn, request: Request, db: DbConn, current=PA):
-    reason = body.reason.strip()
-    if not reason:
-        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=PranaError.OVERRIDE_REASON_REQUIRED)
+    reason_code, reason_note = _validate_override_reason(body.reason_code, body.reason_note)
 
     identifier = body.identifier.strip()
     if not identifier:
@@ -486,7 +510,8 @@ async def pa_reset_employee_password(body: ResetEmployeePasswordIn, request: Req
                 "actor_type":        "PORTAL_ADMIN",
                 "employee_user_id":  employee_user_id,
                 "employee_uuid":     str(t["employee_uuid"]),
-                "reason":            reason,
+                "reason_code":       reason_code,
+                "reason_note":       reason_note,
                 "override":          True,
             })
 

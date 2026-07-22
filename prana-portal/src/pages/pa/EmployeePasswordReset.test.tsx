@@ -15,21 +15,23 @@ describe('EmployeePasswordReset (PA)', () => {
     expect(screen.getByRole('heading', { name: 'Reset Employee Password' })).toBeInTheDocument()
     expect(screen.getByText('PORTAL_ADMIN')).toBeInTheDocument()
     expect(screen.getByLabelText('Employee email or mobile number')).toBeInTheDocument()
-    expect(screen.getByLabelText(/Reason for override/)).toBeInTheDocument()
+    expect(screen.getByRole('combobox', { name: /reason for override/i })).toBeInTheDocument()
   })
 
-  it('submits identifier and reason to the PA reset-password endpoint', async () => {
+  it('submits identifier, reason_code, and reason_note to the PA reset-password endpoint', async () => {
     const user = userEvent.setup()
     mockPost.mockResolvedValue({ data: { message: 'EMPLOYEE_PASSWORD_RESET', temp_password: 'Tmp1234ABCD' } })
     render(<EmployeePasswordReset />)
 
     await user.type(screen.getByLabelText('Employee email or mobile number'), 'rahul@example.com')
-    await user.type(screen.getByLabelText(/Reason for override/), 'Support escalation TCK-1234')
+    await user.selectOptions(screen.getByRole('combobox', { name: /reason for override/i }), 'SUPPORT_ESCALATION')
+    await user.type(screen.getByLabelText(/additional detail/i), 'TCK-1234')
     await user.click(screen.getByRole('button', { name: /execute override/i }))
 
     expect(mockPost).toHaveBeenCalledWith('/admin/employees/reset-password', {
       identifier: 'rahul@example.com',
-      reason: 'Support escalation TCK-1234',
+      reason_code: 'SUPPORT_ESCALATION',
+      reason_note: 'TCK-1234',
     })
   })
 
@@ -40,7 +42,7 @@ describe('EmployeePasswordReset (PA)', () => {
 
     const identifierInput = screen.getByLabelText('Employee email or mobile number') as HTMLInputElement
     await user.type(identifierInput, 'rahul@example.com')
-    await user.type(screen.getByLabelText(/Reason for override/), 'Support escalation TCK-1234')
+    await user.selectOptions(screen.getByRole('combobox', { name: /reason for override/i }), 'EMPLOYEE_LOST_DEVICE')
     await user.click(screen.getByRole('button', { name: /execute override/i }))
 
     expect(await screen.findByText(/Password reset\./)).toBeInTheDocument()
@@ -54,7 +56,7 @@ describe('EmployeePasswordReset (PA)', () => {
     render(<EmployeePasswordReset />)
 
     await user.type(screen.getByLabelText('Employee email or mobile number'), 'nobody@example.com')
-    await user.type(screen.getByLabelText(/Reason for override/), 'Support escalation TCK-1234')
+    await user.selectOptions(screen.getByRole('combobox', { name: /reason for override/i }), 'EMPLOYEE_LOST_DEVICE')
     await user.click(screen.getByRole('button', { name: /execute override/i }))
 
     expect(await screen.findByText('Employee not found.')).toBeInTheDocument()
@@ -65,6 +67,17 @@ describe('EmployeePasswordReset (PA)', () => {
     render(<EmployeePasswordReset />)
 
     await user.type(screen.getByLabelText('Employee email or mobile number'), 'rahul@example.com')
+    await user.click(screen.getByRole('button', { name: /execute override/i }))
+
+    expect(mockPost).not.toHaveBeenCalled()
+  })
+
+  it('requires a note when "Other" is selected as the reason', async () => {
+    const user = userEvent.setup()
+    render(<EmployeePasswordReset />)
+
+    await user.type(screen.getByLabelText('Employee email or mobile number'), 'rahul@example.com')
+    await user.selectOptions(screen.getByRole('combobox', { name: /reason for override/i }), 'OTHER')
     await user.click(screen.getByRole('button', { name: /execute override/i }))
 
     expect(mockPost).not.toHaveBeenCalled()

@@ -2,9 +2,10 @@ import { useState } from 'react'
 import { AlertTriangle, KeyRound } from 'lucide-react'
 import { api } from '@/lib/api'
 import { tUi, tError, tSuccess } from '@/i18n'
+import { OverrideReasonFields } from '@/components/OverrideReasonFields'
 
 export function EmployeePasswordReset() {
-  const [form, setForm] = useState({ identifier: '', reason: '' })
+  const [form, setForm] = useState({ identifier: '', reasonCode: '', reasonNote: '' })
   const [result, setResult] = useState<string | null>(null)
   const [tempPassword, setTempPassword] = useState<string | null>(null)
   const [error, setError] = useState('')
@@ -12,10 +13,14 @@ export function EmployeePasswordReset() {
   async function submit(e: React.FormEvent) {
     e.preventDefault(); setError(''); setResult(null); setTempPassword(null)
     try {
-      const res = await api.post('/admin/employees/reset-password', form)
+      const res = await api.post('/admin/employees/reset-password', {
+        identifier: form.identifier,
+        reason_code: form.reasonCode,
+        reason_note: form.reasonNote.trim() || null,
+      })
       setResult(tSuccess(res.data.message))
       setTempPassword(res.data.temp_password ?? null)
-      setForm({ identifier: '', reason: '' })
+      setForm({ identifier: '', reasonCode: '', reasonNote: '' })
     } catch (e: any) {
       setError(tError(e.response?.data?.detail))
     }
@@ -54,20 +59,13 @@ export function EmployeePasswordReset() {
           />
         </div>
 
-        <div className="space-y-1">
-          <label htmlFor="pa-reset-password-reason"
-                 className="text-xs font-medium text-slate-500 uppercase tracking-wide">
-            {tUi('PA_RESET_TOTP_REASON_LABEL')} *
-          </label>
-          <input
-            id="pa-reset-password-reason"
-            value={form.reason}
-            onChange={e => setForm(f => ({...f, reason: e.target.value}))}
-            required
-            className="w-full border border-slate-200 rounded-lg px-3 py-2.5 text-sm
-                       focus:outline-none focus:ring-2 focus:ring-red-400"
-          />
-        </div>
+        <OverrideReasonFields
+          idPrefix="pa-reset-password"
+          reasonCode={form.reasonCode}
+          reasonNote={form.reasonNote}
+          onReasonCodeChange={code => setForm(f => ({...f, reasonCode: code}))}
+          onReasonNoteChange={note => setForm(f => ({...f, reasonNote: note}))}
+        />
 
         {error && <p className="text-sm text-red-600 bg-red-50 rounded-lg px-3 py-2">{error}</p>}
         {result && (

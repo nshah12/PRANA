@@ -528,10 +528,34 @@ async def test_pa_reset_totp_requires_reason(client, mock_db):
     resp = await client.post(
         "/admin/employees/reset-totp",
         headers=AUTH_HEADER,
-        json={"identifier": "rahul@example.com", "reason": ""},
+        json={"identifier": "rahul@example.com", "reason_code": ""},
     )
     assert resp.status_code == 422
     assert resp.json()["detail"] == "OVERRIDE_REASON_REQUIRED"
+
+
+@pytest.mark.asyncio
+async def test_pa_reset_totp_rejects_unknown_reason_code(client, mock_db):
+    _set_pa_auth(client)
+    resp = await client.post(
+        "/admin/employees/reset-totp",
+        headers=AUTH_HEADER,
+        json={"identifier": "rahul@example.com", "reason_code": "MADE_UP_CODE"},
+    )
+    assert resp.status_code == 422
+    assert resp.json()["detail"] == "INVALID_REASON_CODE"
+
+
+@pytest.mark.asyncio
+async def test_pa_reset_totp_requires_note_when_reason_code_is_other(client, mock_db):
+    _set_pa_auth(client)
+    resp = await client.post(
+        "/admin/employees/reset-totp",
+        headers=AUTH_HEADER,
+        json={"identifier": "rahul@example.com", "reason_code": "OTHER"},
+    )
+    assert resp.status_code == 422
+    assert resp.json()["detail"] == "REASON_NOTE_REQUIRED_FOR_OTHER"
 
 
 @pytest.mark.asyncio
@@ -540,7 +564,7 @@ async def test_pa_reset_totp_requires_identifier(client, mock_db):
     resp = await client.post(
         "/admin/employees/reset-totp",
         headers=AUTH_HEADER,
-        json={"identifier": "  ", "reason": "Lost device"},
+        json={"identifier": "  ", "reason_code": "EMPLOYEE_LOST_DEVICE"},
     )
     assert resp.status_code == 400
     assert resp.json()["detail"] == "IDENTIFIER_REQUIRED"
@@ -554,7 +578,7 @@ async def test_pa_reset_totp_employee_not_found_returns_404(client, mock_db):
     resp = await client.post(
         "/admin/employees/reset-totp",
         headers=AUTH_HEADER,
-        json={"identifier": "nobody@example.com", "reason": "Lost device"},
+        json={"identifier": "nobody@example.com", "reason_code": "EMPLOYEE_LOST_DEVICE"},
     )
 
     assert resp.status_code == 404
@@ -572,7 +596,8 @@ async def test_pa_reset_totp_clears_secret_platform_wide_no_tenant_scope(client,
     resp = await client.post(
         "/admin/employees/reset-totp",
         headers=AUTH_HEADER,
-        json={"identifier": "rahul@example.com", "reason": "Employee lost device, CHRO confirmed"},
+        json={"identifier": "rahul@example.com", "reason_code": "EMPLOYEE_LOST_DEVICE",
+              "reason_note": "CHRO confirmed"},
     )
 
     assert resp.status_code == 200
@@ -588,7 +613,9 @@ async def test_pa_reset_totp_publishes_override_event_with_reason_per_tenant(cli
     """Must fan out one PORTAL_ADMIN-actor audit event per tenant the employee belongs
     to (multi-org employees have multiple employee_master rows) so each affected
     tenant's CISO gets visibility — using the employee's real tenant_id, not a
-    platform-level placeholder."""
+    platform-level placeholder. reason_code/reason_note are structured, queryable
+    audit fields (see account_status_event.reason_code/reason_note) — not a single
+    free-text blob."""
     _set_pa_auth(client, pa_id="pa-uuid-777")
     mock_db.fetchrow.return_value = {"employee_user_id": "eu-002"}
     mock_db.fetch.return_value = [
@@ -600,7 +627,8 @@ async def test_pa_reset_totp_publishes_override_event_with_reason_per_tenant(cli
     resp = await client.post(
         "/admin/employees/reset-totp",
         headers=AUTH_HEADER,
-        json={"identifier": "9000000002", "reason": "Support escalation TCK-1234"},
+        json={"identifier": "9000000002", "reason_code": "SUPPORT_ESCALATION",
+              "reason_note": "TCK-1234"},
     )
 
     assert resp.status_code == 200
@@ -611,7 +639,8 @@ async def test_pa_reset_totp_publishes_override_event_with_reason_per_tenant(cli
         assert event["event_type"] == "EMPLOYEE_TOTP_RESET"
         assert event["actor_type"] == "PORTAL_ADMIN"
         assert event["actor_id"] == "pa-uuid-777"
-        assert event["reason"] == "Support escalation TCK-1234"
+        assert event["reason_code"] == "SUPPORT_ESCALATION"
+        assert event["reason_note"] == "TCK-1234"
         assert event["override"] is True
         seen_tenants.add(event["tenant_id"])
     assert seen_tenants == {"tenant-001", "tenant-002"}
@@ -783,7 +812,7 @@ async def test_pa_reset_password_requires_portal_admin_role(client, mock_db):
     resp = await client.post(
         "/admin/employees/reset-password",
         headers=AUTH_HEADER,
-        json={"identifier": "rahul@example.com", "reason": "Employee locked out"},
+        json={"identifier": "rahul@example.com", "reason_code": "EMPLOYEE_LOST_DEVICE"},
     )
     assert resp.status_code == 403
 
@@ -794,10 +823,34 @@ async def test_pa_reset_password_requires_reason(client, mock_db):
     resp = await client.post(
         "/admin/employees/reset-password",
         headers=AUTH_HEADER,
-        json={"identifier": "rahul@example.com", "reason": ""},
+        json={"identifier": "rahul@example.com", "reason_code": ""},
     )
     assert resp.status_code == 422
     assert resp.json()["detail"] == "OVERRIDE_REASON_REQUIRED"
+
+
+@pytest.mark.asyncio
+async def test_pa_reset_password_rejects_unknown_reason_code(client, mock_db):
+    _set_pa_auth(client)
+    resp = await client.post(
+        "/admin/employees/reset-password",
+        headers=AUTH_HEADER,
+        json={"identifier": "rahul@example.com", "reason_code": "MADE_UP_CODE"},
+    )
+    assert resp.status_code == 422
+    assert resp.json()["detail"] == "INVALID_REASON_CODE"
+
+
+@pytest.mark.asyncio
+async def test_pa_reset_password_requires_note_when_reason_code_is_other(client, mock_db):
+    _set_pa_auth(client)
+    resp = await client.post(
+        "/admin/employees/reset-password",
+        headers=AUTH_HEADER,
+        json={"identifier": "rahul@example.com", "reason_code": "OTHER", "reason_note": "  "},
+    )
+    assert resp.status_code == 422
+    assert resp.json()["detail"] == "REASON_NOTE_REQUIRED_FOR_OTHER"
 
 
 @pytest.mark.asyncio
@@ -807,7 +860,7 @@ async def test_pa_reset_password_employee_not_found_returns_404(client, mock_db)
     resp = await client.post(
         "/admin/employees/reset-password",
         headers=AUTH_HEADER,
-        json={"identifier": "nobody@example.com", "reason": "Lost device"},
+        json={"identifier": "nobody@example.com", "reason_code": "EMPLOYEE_LOST_DEVICE"},
     )
     assert resp.status_code == 404
     assert resp.json()["detail"] == "EMPLOYEE_NOT_FOUND"
@@ -823,7 +876,8 @@ async def test_pa_reset_password_generates_temp_password_platform_wide(client, m
     resp = await client.post(
         "/admin/employees/reset-password",
         headers=AUTH_HEADER,
-        json={"identifier": "rahul@example.com", "reason": "Employee locked out, CHRO confirmed"},
+        json={"identifier": "rahul@example.com", "reason_code": "EMPLOYEE_LOST_DEVICE",
+              "reason_note": "CHRO confirmed"},
     )
 
     assert resp.status_code == 200
@@ -849,7 +903,8 @@ async def test_pa_reset_password_publishes_override_event_with_reason_per_tenant
     resp = await client.post(
         "/admin/employees/reset-password",
         headers=AUTH_HEADER,
-        json={"identifier": "9000000002", "reason": "Support escalation TCK-1234"},
+        json={"identifier": "9000000002", "reason_code": "SUPPORT_ESCALATION",
+              "reason_note": "TCK-1234"},
     )
     temp_password = resp.json()["temp_password"]
 
@@ -861,7 +916,8 @@ async def test_pa_reset_password_publishes_override_event_with_reason_per_tenant
         assert event["event_type"] == "EMPLOYEE_PASSWORD_RESET"
         assert event["actor_type"] == "PORTAL_ADMIN"
         assert event["actor_id"] == "pa-uuid-777"
-        assert event["reason"] == "Support escalation TCK-1234"
+        assert event["reason_code"] == "SUPPORT_ESCALATION"
+        assert event["reason_note"] == "TCK-1234"
         assert event["override"] is True
         assert temp_password not in str(event)
         seen_tenants.add(event["tenant_id"])
