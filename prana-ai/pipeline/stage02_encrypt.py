@@ -206,10 +206,18 @@ def _ff3_encrypt_pan(pan: str, dek: bytes) -> str:
         cipher = FF3Cipher.withCustomAlphabet(key_hex, tweak_hex, "0123456789abcdefghijklmnopqrstuvwxyz")
         encrypted_digits = cipher.encrypt(pan_digits)
         return _base36_to_pan(encrypted_digits)
-    except Exception:
-        # ff3 not installed or PAN format unexpected — return a placeholder
-        import base64
-        return "ENC" + base64.urlsafe_b64encode(pan.encode()).decode()[:7]
+    except Exception as exc:
+        # NEVER degrade to a plaintext-derived placeholder — a base64 encoding of
+        # the raw PAN is trivially reversible with no key at all, which leaks the
+        # PAN. This is the exact "finding H2" anti-pattern
+        # prana-api/services/encryption_service.py documents as fixed and banned.
+        # A missing/failing FF3 primitive here is a hard failure, not a fallback.
+        from pipeline.errors import PipelineException, PipelineError
+        raise PipelineException(
+            PipelineError.S02_ENCRYPT_FF3_PAN_FAILED,
+            stage="stage02_encrypt",
+            message=f"FF3-1 PAN encryption failed: {exc}",
+        ) from exc
 
 
 def _pan_to_base36(pan: str) -> str:

@@ -170,6 +170,78 @@ async def test_ciso_flag_missing_record_returns_404(client, mock_db):
     assert resp.status_code == 404
 
 
+# -- employee_user.mobile column drift (schema.sql: no plaintext 'mobile' col) -
+
+@pytest.mark.asyncio
+async def test_share_analytics_shows_employee_full_name_via_employee_master(client, mock_db):
+    """employee_user has no plaintext 'mobile' column at all (replaced by
+    mobile_token + enc_mobile when mobile moved to encrypted-at-rest storage) —
+    this query used to select eu.mobile directly, an UndefinedColumnError on
+    every real call. The response field is literally named "employee_name", so
+    the fix joins employee_master for the real name rather than decrypting a
+    phone number into a name field."""
+    _set_auth(client)
+    mock_db.fetchval.return_value = 0
+    mock_db.fetch.return_value = [{
+        "token_id": "tok-1", "recipient_identifier": "friend@example.com",
+        "expires_at": datetime.datetime(2026, 8, 1, tzinfo=datetime.timezone.utc),
+        "usage_count": 2, "status": "ACTIVE", "emp_name": "Priya Sharma",
+        "doc_type": "SALARY_SLIP",
+    }]
+
+    resp = await client.get("/v1/ciso/shares", headers=AUTH_HEADER)
+
+    assert resp.status_code == 200
+    query = mock_db.fetch.call_args.args[0]
+    assert "employee_master" in query
+    assert "eu.mobile" not in query
+    body = resp.json()
+    assert body["links"][0]["employee_name"] == "Priya Sharma"
+
+
+@pytest.mark.asyncio
+async def test_account_locks_decrypts_employee_mobile_via_kms(client, mock_db):
+    """Same column-drift bug: the 'identifier' shown for a locked employee must
+    come from enc_mobile decrypted via the platform auth CMK (same model as
+    totp_secret_enc), not a nonexistent plaintext 'mobile' column."""
+    _set_auth(client)
+    client.app.state.kms_service.decrypt_value = MagicMock(return_value="+919000000001")
+    mock_db.fetch.return_value = [{
+        "event_id": "evt-1", "user_type": "employee", "user_id": "emp-1",
+        "lock_reason": "POLICY_LOCK",
+        "locked_at": datetime.datetime(2026, 7, 1, tzinfo=datetime.timezone.utc),
+        "scheduled_unlock_at": None, "failed_attempt_count": 5, "last_failed_ip": None,
+        "emp_enc_mobile": "kms-ciphertext-blob", "oa_email": None,
+    }]
+
+    resp = await client.get("/v1/ciso/account-locks", headers=AUTH_HEADER)
+
+    assert resp.status_code == 200
+    query = mock_db.fetch.call_args.args[0]
+    assert "enc_mobile" in query
+    assert "eu.mobile" not in query
+    body = resp.json()
+    assert body["items"][0]["identifier"] == "+919000000001"
+
+
+@pytest.mark.asyncio
+async def test_account_locks_oa_user_uses_email_not_mobile(client, mock_db):
+    _set_auth(client)
+    mock_db.fetch.return_value = [{
+        "event_id": "evt-2", "user_type": "oa_user", "user_id": "oa-1",
+        "lock_reason": "POLICY_LOCK",
+        "locked_at": datetime.datetime(2026, 7, 1, tzinfo=datetime.timezone.utc),
+        "scheduled_unlock_at": None, "failed_attempt_count": 3, "last_failed_ip": None,
+        "emp_enc_mobile": None, "oa_email": "ops@acme.example",
+    }]
+
+    resp = await client.get("/v1/ciso/account-locks", headers=AUTH_HEADER)
+
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["items"][0]["identifier"] == "ops@acme.example"
+
+
 # -- Tenant isolation ----------------------------------------------------------
 
 @pytest.mark.asyncio

@@ -6,9 +6,13 @@ Consent model (uses employee_consent with tenant_id):
   tenant_id NOT NULL → per-org consent (alumni_visibility for a specific past employer)
 
 When employee grants alumni_visibility for tenant T:
-  CHRO of T sees: full_name, designation, dept, grade, city, DOJ, DOL
-  + mobile (if share_mobile=TRUE) + email (if share_email=TRUE)
-  CHRO downloads CSV and contacts employee directly via call/email/WhatsApp.
+  CHRO's JSON list view (list_alumni) sees: designation, dept, grade, city,
+  DOJ, DOL, tenure, outreach status — deliberately NO name or contact info at
+  browse time (see _serialize_alumni_for_chro).
+  CHRO's CSV export (download_alumni_csv) additionally includes full_name
+  + mobile (if share_mobile=TRUE, decrypted via the platform auth CMK)
+  + email (if share_email=TRUE) — a separate, more deliberate action for
+  actually reaching out via call/email/WhatsApp.
   In-app outreach messages are supplementary.
 
 Withdrawal: immediate — next CHRO query excludes the employee.
@@ -248,8 +252,6 @@ class AlumniService:
                    em.location,
                    em.doj,
                    em.dol,
-                   CASE WHEN ec.share_mobile THEN eu.mobile ELSE NULL END AS mobile,
-                   CASE WHEN ec.share_email  THEN eu.email  ELSE NULL END AS email,
                    (SELECT status  FROM alumni_outreach ao
                     WHERE ao.employee_user_id = em.employee_user_id
                       AND ao.tenant_id = $1
@@ -263,7 +265,6 @@ class AlumniService:
                    ON ec.employee_user_id = em.employee_user_id
                   AND ec.tenant_id        = $1
                   AND ec.purpose          = 'alumni_visibility'
-            JOIN   employee_user eu ON eu.employee_user_id = em.employee_user_id
             WHERE  em.tenant_id    = $1
               AND  em.dol IS NOT NULL
               AND  em.dol <= (NOW() - ($2 * INTERVAL '1 day'))
@@ -439,12 +440,21 @@ class AlumniService:
                 "outreach_id":  str(outreach_id),
                 "subject":      subject,
             })
-            await self._kafka.notify_email({
-                "event_type":   "ALUMNI_OUTREACH_RECEIVED",
-                "recipient_id": employee_user_id,
-                "outreach_id":  str(outreach_id),
-                "subject":      subject,
-            })
+            # EmailConsumer requires recipient_email and template_id or it
+            # silently skips — employee_user.email is plaintext, direct lookup.
+            email = await self._db.fetchval(
+                "SELECT email FROM employee_user WHERE employee_user_id=$1", employee_user_id,
+            )
+            email_notif = {
+                "event_type":    "ALUMNI_OUTREACH_RECEIVED",
+                "recipient_id":  employee_user_id,
+                "template_id":   "ALUMNI_OUTREACH_RECEIVED",
+                "outreach_id":   str(outreach_id),
+                "template_data": {"subject": subject},
+            }
+            if email:
+                email_notif["recipient_email"] = email
+            await self._kafka.notify_email(email_notif)
         return {"outreach_id": str(outreach_id), "status": "SENT"}
 
     async def list_sent_outreach(

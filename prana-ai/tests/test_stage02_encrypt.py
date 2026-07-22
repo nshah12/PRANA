@@ -3,7 +3,10 @@ import hashlib
 import hmac
 import inspect
 
-from pipeline.stage02_encrypt import Stage02Encrypt
+import pytest
+
+from pipeline.stage02_encrypt import Stage02Encrypt, _ff3_encrypt_pan
+from pipeline.errors import PipelineException, PipelineError
 
 
 def test_stage02_zeroes_nik_from_memory_after_tokenisation():
@@ -41,3 +44,32 @@ def test_stage02_raw_pan_never_written_to_db():
         "run() must include pan_token in its return dict"
     assert '"nik"' not in src and "'nik'" not in src, \
         "run() must NOT include raw nik in its return dict"
+
+
+def test_ff3_encrypt_pan_never_falls_back_to_reversible_placeholder(monkeypatch):
+    """
+    Regression test: _ff3_encrypt_pan used to catch any exception (missing `ff3`
+    package, unexpected PAN format) and silently return
+    "ENC" + base64.urlsafe_b64encode(pan.encode())[:7] — trivially reversible with
+    no key at all. That is the exact "finding H2" anti-pattern
+    prana-api/services/encryption_service.py documents as a fixed, banned bug class
+    ("NEVER degrade to a plaintext-derived placeholder ... that would leak the
+    PAN. A missing crypto primitive is a hard failure."). A missing/failing FF3
+    primitive here must raise, never emit reversible pseudo-ciphertext.
+    """
+    import builtins
+    real_import = builtins.__import__
+
+    def _blocked_import(name, *args, **kwargs):
+        if name == "ff3":
+            raise ImportError("simulated: ff3 package not installed")
+        return real_import(name, *args, **kwargs)
+
+    monkeypatch.setattr(builtins, "__import__", _blocked_import)
+
+    with pytest.raises(PipelineException) as exc_info:
+        _ff3_encrypt_pan("ABCDE1234F", b"0" * 16)
+
+    assert exc_info.value.code == PipelineError.S02_ENCRYPT_FF3_PAN_FAILED
+    # The raw PAN must never appear, reversibly encoded or otherwise, in the exception
+    assert "ABCDE1234F" not in str(exc_info.value)

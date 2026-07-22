@@ -80,6 +80,26 @@ async def test_list_alumni_returns_items():
     assert "full_name" not in item
 
 @pytest.mark.asyncio
+async def test_list_alumni_does_not_reference_dead_mobile_column():
+    """employee_user has no plaintext 'mobile' column (schema.sql: replaced by
+    mobile_token + enc_mobile) — this query used to select eu.mobile/eu.email
+    via a CASE WHEN, an UndefinedColumnError on every real call. Those two
+    columns were never actually used by _serialize_alumni_for_chro (CHRO's list
+    view deliberately excludes contact PII — see test_list_alumni_returns_items's
+    "full_name must NOT appear" guard; full contact details are CSV-export-only,
+    via download_alumni_csv's separate, correctly KMS-wired query), so the fix
+    is to remove the dead SELECT expressions and the now-unnecessary
+    employee_user join entirely, not add decryption nothing reads."""
+    db = _make_db(fetch=[], fetchval=0)
+    svc = _make_svc(db)
+    await svc.list_alumni("tenant-1")
+    query = db.fetch.call_args[0][0]
+    assert "eu.mobile" not in query
+    assert "eu.email" not in query
+    assert "JOIN   employee_user eu" not in query
+
+
+@pytest.mark.asyncio
 async def test_list_alumni_excludes_recent_exits():
     """MIN_EXIT_DAYS (30) passed as $2 to the parameterized query — not interpolated."""
     db = _make_db(fetch=[], fetchval=0)
@@ -106,7 +126,7 @@ def _alumni_row(consent_active=True, dol=None):
 @pytest.mark.asyncio
 async def test_send_outreach_success():
     db = _make_db(fetchrow=_alumni_row(), fetchval=0)
-    db.fetchval = AsyncMock(side_effect=["user-1-outreach-id", 0])
+    db.fetchval = AsyncMock(side_effect=["user-1-outreach-id", 0, "priya@example.com"])
     kafka = AsyncMock()
     svc = _make_svc(db, kafka)
     result = await svc.send_outreach(
@@ -117,6 +137,12 @@ async def test_send_outreach_success():
     assert result.get("error") is None
     kafka.notify_bell.assert_called_once()
     kafka.notify_email.assert_called_once()
+    # Regression: EmailConsumer requires recipient_email AND template_id or it
+    # silently skips — this used to publish neither, so outreach emails
+    # (and their unread portal-bell counterpart's email fallback) never sent.
+    email_notif = kafka.notify_email.call_args[0][0]
+    assert email_notif["recipient_email"] == "priya@example.com"
+    assert email_notif["template_id"] == "ALUMNI_OUTREACH_RECEIVED"
 
 @pytest.mark.asyncio
 async def test_send_outreach_no_consent():

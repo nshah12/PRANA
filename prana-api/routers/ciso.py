@@ -13,6 +13,7 @@ from pydantic import BaseModel
 
 from dependencies import DbConn, require_oa
 from services.digest_service import DigestService, period_window, validate_window
+from services.encryption_service import resolve_platform_auth_kek_arn
 from errors import PranaError
 
 router = APIRouter()
@@ -204,10 +205,11 @@ async def share_analytics(db: DbConn, current=CISO):
     link_rows = await db.fetch(
         """
         SELECT st.token_id, st.recipient_identifier, st.expires_at, st.usage_count,
-               st.status, eu.mobile AS emp_mobile,
+               st.status, em.full_name AS emp_name,
                d.doc_type
         FROM share_token st
-        LEFT JOIN employee_user eu ON eu.employee_user_id = st.employee_user_id
+        LEFT JOIN employee_master em ON em.employee_user_id = st.employee_user_id
+                                      AND em.tenant_id = st.tenant_id
         LEFT JOIN document d ON d.document_id = ANY(st.document_ids) AND d.is_deleted = FALSE
         WHERE st.tenant_id = $1
           AND st.status = 'ACTIVE'
@@ -225,7 +227,7 @@ async def share_analytics(db: DbConn, current=CISO):
         "links": [
             {
                 "share_id":       str(r["token_id"]),
-                "employee_name":  r["emp_mobile"] or "â€”",
+                "employee_name":  r["emp_name"] or "â€”",
                 "doc_type":       r["doc_type"] or "â€”",
                 "recipient_label": (r["recipient_identifier"] or "")[:30],
                 "access_count":   r["usage_count"],
@@ -475,16 +477,13 @@ async def update_access_flag(access_id: str, body: FlagBody, db: DbConn, current
 # â”€â”€ Account lock management â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 @router.get("/account-locks")
-async def list_account_locks(db: DbConn, current=CISO):
+async def list_account_locks(request: Request, db: DbConn, current=CISO):
     rows = await db.fetch(
         """
         SELECT ase.event_id, ase.user_type, ase.user_id,
                ase.event_type AS lock_reason, ase.occurred_at AS locked_at,
                ase.scheduled_unlock_at, ase.failed_attempt_count, ase.last_failed_ip,
-               CASE ase.user_type
-                 WHEN 'employee' THEN eu.mobile
-                 WHEN 'oa_user'  THEN ou.email
-               END AS identifier
+               eu.enc_mobile AS emp_enc_mobile, ou.email AS oa_email
         FROM account_status_event ase
         LEFT JOIN employee_user eu ON eu.employee_user_id = ase.user_id
                                    AND ase.user_type = 'employee'
@@ -498,22 +497,26 @@ async def list_account_locks(db: DbConn, current=CISO):
         """,
         current.tenant_id,
     )
-    return {
-        "items": [
-            {
-                "event_id":          str(r["event_id"]),
-                "account_type":      r["user_type"],
-                "account_id":        str(r["user_id"]) if r["user_id"] else None,
-                "identifier":        r["identifier"] or "â€”",
-                "lock_reason":       r["lock_reason"],
-                "locked_at":         r["locked_at"].isoformat() if r["locked_at"] else None,
-                "scheduled_unlock_at": r["scheduled_unlock_at"].isoformat() if r["scheduled_unlock_at"] else None,
-                "failed_attempt_count": r["failed_attempt_count"],
-                "last_failed_ip":    str(r["last_failed_ip"]) if r["last_failed_ip"] else None,
-            }
-            for r in rows
-        ]
-    }
+    kms = request.app.state.kms_service
+    kek_arn = resolve_platform_auth_kek_arn(request.app.state.settings)
+    items = []
+    for r in rows:
+        if r["user_type"] == "employee" and r["emp_enc_mobile"]:
+            identifier = kms.decrypt_value(r["emp_enc_mobile"], kek_arn)
+        else:
+            identifier = r["oa_email"]
+        items.append({
+            "event_id":          str(r["event_id"]),
+            "account_type":      r["user_type"],
+            "account_id":        str(r["user_id"]) if r["user_id"] else None,
+            "identifier":        identifier or "â€”",
+            "lock_reason":       r["lock_reason"],
+            "locked_at":         r["locked_at"].isoformat() if r["locked_at"] else None,
+            "scheduled_unlock_at": r["scheduled_unlock_at"].isoformat() if r["scheduled_unlock_at"] else None,
+            "failed_attempt_count": r["failed_attempt_count"],
+            "last_failed_ip":    str(r["last_failed_ip"]) if r["last_failed_ip"] else None,
+        })
+    return {"items": items}
 
 
 @router.post("/account-locks/{event_id}/unlock", status_code=status.HTTP_200_OK)

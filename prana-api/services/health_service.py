@@ -9,6 +9,7 @@ Called by SystemHealthWorkflow (thin Temporal shell).
 Zero Temporal imports here.
 """
 
+import json
 import logging
 from datetime import datetime, timezone
 from typing import Optional
@@ -97,10 +98,17 @@ class HealthService:
         try:
             await self._db.execute(
                 """
-                INSERT INTO audit_event (event_type, actor_type, event_metadata)
-                VALUES ('SERVICE_INCIDENT_OPENED', 'system', $1::jsonb)
+                INSERT INTO audit_event (event_type, actor_type, actor_id, event_metadata)
+                VALUES ('SERVICE_INCIDENT_OPENED', 'system', $1, $2::jsonb)
                 """,
-                f'{{"service": "{service}", "severity": "{severity}", "incident_id": "{incident_id}", "detail": "{detail[:200]}"}}'
+                # audit_event.actor_id is NOT NULL with no default — SYSTEM-actor
+                # rows use the nil UUID sentinel, matching AuditConsumer's own
+                # `actor_id = event.get("actor_id") or "00000000-...-000000000000"`.
+                "00000000-0000-0000-0000-000000000000",
+                json.dumps({
+                    "service": service, "severity": severity,
+                    "incident_id": incident_id, "detail": detail[:200],
+                }),
             )
         except Exception as e:
             log.warning("failed to write incident audit event: %s", e)
