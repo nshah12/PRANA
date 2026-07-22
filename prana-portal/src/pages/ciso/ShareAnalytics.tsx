@@ -2,6 +2,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { Link2 } from 'lucide-react'
 import { api } from '@/lib/api'
 import { fmtDateTime } from '@/lib/utils'
+import { tUi } from '@/i18n'
 
 export function ShareAnalytics() {
   const qc = useQueryClient()
@@ -17,17 +18,17 @@ export function ShareAnalytics() {
   })
 
   const stats = [
-    { label: 'Active share links', value: data?.active_count ?? '—' },
-    { label: 'Accesses (24h)',     value: data?.accesses_24h ?? '—' },
-    { label: 'Expired today',      value: data?.expired_today ?? '—' },
-    { label: 'Revoked today',      value: data?.revoked_today ?? '—' },
+    { label: tUi('CISO_SHARE_ANALYTICS_ACTIVE_LINKS'), value: data?.active_count ?? '—' },
+    { label: tUi('CISO_SHARE_ANALYTICS_ACCESSES_24H'), value: data?.accesses_24h ?? '—' },
+    { label: tUi('CISO_SHARE_ANALYTICS_EXPIRED_TODAY'), value: data?.expired_today ?? '—' },
+    { label: tUi('CISO_SHARE_ANALYTICS_REVOKED_TODAY'), value: data?.revoked_today ?? '—' },
   ]
 
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
-        <h1 className="text-xl font-semibold text-slate-800">Share Analytics</h1>
-        <span className="text-xs font-mono text-slate-400">Refreshes every 60s</span>
+        <h1 className="text-xl font-semibold text-slate-800">{tUi('CISO_SHARE_ANALYTICS_TITLE')}</h1>
+        <span className="text-xs font-mono text-slate-400">{tUi('CISO_SHARE_ANALYTICS_REFRESH_NOTE')}</span>
       </div>
 
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
@@ -42,14 +43,14 @@ export function ShareAnalytics() {
 
       <div className="bg-white rounded-xl border border-slate-100 shadow-sm">
         <div className="px-5 py-4 border-b border-slate-100">
-          <h2 className="font-medium text-slate-800">Active share links</h2>
+          <h2 className="font-medium text-slate-800">{tUi('CISO_SHARE_ANALYTICS_ACTIVE_LINKS')}</h2>
         </div>
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
             <thead>
               <tr className="border-b border-slate-100 text-xs text-slate-400 uppercase tracking-wide">
                 <th className="px-5 py-3 text-left font-medium">Employee</th>
-                <th className="px-5 py-3 text-left font-medium">Doc type</th>
+                <th className="px-5 py-3 text-left font-medium">{tUi('CISO_SHARE_ANALYTICS_DOC_TYPE')}</th>
                 <th className="px-5 py-3 text-left font-medium">Recipient</th>
                 <th className="px-5 py-3 text-right font-medium">Accesses</th>
                 <th className="px-5 py-3 text-right font-medium">Expires</th>
@@ -61,7 +62,7 @@ export function ShareAnalytics() {
                 <tr key={l.share_id} className="hover:bg-slate-50/50">
                   <td className="px-5 py-3 text-slate-700">{l.employee_name}</td>
                   <td className="px-5 py-3 text-slate-500">{l.doc_type?.replace(/_/g, ' ')}</td>
-                  <td className="px-5 py-3 text-slate-500">{l.recipient_label ?? 'Unknown'}</td>
+                  <td className="px-5 py-3 text-slate-500">{l.recipient_label ?? tUi('CISO_SHARE_ANALYTICS_UNKNOWN_RECIPIENT')}</td>
                   <td className="px-5 py-3 text-right font-mono text-slate-700">{l.access_count}</td>
                   <td className="px-5 py-3 text-right font-mono text-xs text-slate-400">{fmtDateTime(l.expires_at)}</td>
                   <td className="px-5 py-3 text-right">
@@ -70,14 +71,14 @@ export function ShareAnalytics() {
                       disabled={revokeMut.isPending}
                       className="text-xs text-red-600 hover:text-red-800 font-medium"
                     >
-                      Revoke
+                      {tUi('CISO_SHARE_ANALYTICS_REVOKE')}
                     </button>
                   </td>
                 </tr>
               ))}
               {!data?.links?.length && (
                 <tr>
-                  <td colSpan={6} className="px-5 py-8 text-center text-sm text-slate-400">No active share links.</td>
+                  <td colSpan={6} className="px-5 py-8 text-center text-sm text-slate-400">{tUi('CISO_SHARE_ANALYTICS_NO_LINKS')}</td>
                 </tr>
               )}
             </tbody>

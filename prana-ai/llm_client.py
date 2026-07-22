@@ -11,19 +11,36 @@ Switch backends by changing `llm_base_url` and `*_llm_model` in platform_config.
 Never import or call an inference backend directly from service code — always use this client.
 """
 
+import logging
 import httpx
-from typing import Optional
+from typing import Awaitable, Callable, Optional
+
+log = logging.getLogger(__name__)
+
+UsageLogger = Callable[[dict], Awaitable[None]]
 
 
 class LLMClient:
     """OpenAI-compatible chat completion client."""
 
-    def __init__(self, base_url: str, model: str, api_key: Optional[str] = None, timeout: int = 120):
+    def __init__(
+        self,
+        base_url: str,
+        model: str,
+        api_key: Optional[str] = None,
+        timeout: int = 120,
+        usage_logger: Optional[UsageLogger] = None,
+    ):
         self.base_url = base_url.rstrip("/")
         self.model = model
         self.timeout = timeout
         # HuggingFace Inference Endpoints require Bearer token; local servers typically don't
         self._headers = {"Authorization": f"Bearer {api_key}"} if api_key else {}
+        # Optional async callback receiving {"model", "prompt_tokens",
+        # "completion_tokens", "total_tokens"} after each call — used for the
+        # PA Meta Dashboard's LLM Usage tile. complete()'s return type stays a
+        # plain str regardless, so no caller needs to change.
+        self._usage_logger = usage_logger
 
     async def complete(
         self,
@@ -54,7 +71,21 @@ class LLMClient:
                 },
             )
             resp.raise_for_status()
-            return resp.json()["choices"][0]["message"]["content"]
+            data = resp.json()
+
+        if self._usage_logger:
+            usage = data.get("usage") or {}
+            try:
+                await self._usage_logger({
+                    "model": self.model,
+                    "prompt_tokens": usage.get("prompt_tokens", 0),
+                    "completion_tokens": usage.get("completion_tokens", 0),
+                    "total_tokens": usage.get("total_tokens", 0),
+                })
+            except Exception:
+                log.exception("LLM usage logging failed — not fatal, continuing")
+
+        return data["choices"][0]["message"]["content"]
 
 
 class EmbeddingClient:

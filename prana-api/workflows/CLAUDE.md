@@ -3,8 +3,17 @@
 # PRANA Workflows — Temporal Architecture
 
 ## Overview
-53 named Temporal workflows replace ALL cron jobs, Celery tasks, and scheduled polling.
+59 named Temporal workflows replace ALL cron jobs, Celery tasks, and scheduled polling.
 **Zero cron anywhere in the system.**
+
+Reconciled 2026-07-05 against the actual `@workflow.defn` classes in this directory —
+previous count (53) undercounted real workflows and double-counted
+`BatchTimeoutMonitorWorkflow` across two domains. `prana-docs/PRANA_WorkflowArchitecture_v1.html`
+is an early design doc that predates several renames (e.g. `DPDPErasureWorkflow` →
+`ErasureConfirmationWorkflow`) and the removal of `ConsentWithdrawalWorkflow` from the
+design (consent withdrawal is immediate — no grace period — so it never needed a durable
+workflow; see `kafka/consumers/compliance_consumer.py`). **This file is the source of truth
+for what's actually implemented — the HTML doc was not updated to match.**
 
 ## Infrastructure
 | Property | Value |
@@ -18,12 +27,12 @@
 ## Task Queues (one per service)
 ```
 ingestsvc-queue       → IngestService (DocumentPipelineWorkflow, BatchProgressWorkflow)
-auth-queue            → AuthService (TOTPLockoutWorkflow, PolicyLockWorkflow, SessionExpiryWorkflow)
+auth-queue            → AuthService (TOTPLockoutWorkflow, SessionExpiryWorkflow, SessionForceRevokeWorkflow)
 vault-queue           → VaultService (ShareExpiryWorkflow, WatermarkWorkflow)
 admin-queue           → AdminService (EmployeeExitWorkflow, PushWindowExpiryWorkflow, ElevationWorkflow)
 analytics-queue       → AnalyticsService (VaultHealthWorkflow, DigestWorkflow)
 insight-queue         → InsightService (InsightRefreshWorkflow, AnomalyAcknowledgementWorkflow)
-secops-queue          → SecurityService (AnomalyDetectionWorkflow, KMSKeyRotationWorkflow)
+secops-queue          → SecurityService (PolicyLockWorkflow, AnomalyDetectionWorkflow, KMSKeyRotationWorkflow, SystemHealthWorkflow, AuditIntegrityVerificationWorkflow, ErrorThresholdEvaluationWorkflow)
 safety-queue          → SafetyService (CSAMReportingWorkflow)
 resolution-queue      → ResolutionService (EmbeddingUpdateWorkflow)
 resolution-low-priority-queue → ResolutionService (low-priority embedding updates — yields to pipeline)
@@ -86,7 +95,7 @@ async def ensure_schedule(client: Client, config: ConfigService):
                      spec=ScheduleSpec(intervals=[ScheduleIntervalSpec(every=timedelta(minutes=interval))]))
         )
 ```
-**Used by:** PlatformSummaryWorkflow, DigestWorkflow (weekly/monthly), KMSHealthCheckWorkflow, StorageQuotaCheckWorkflow, ClamAVUpdateWorkflow, RetentionWorkflow
+**Used by:** PlatformSummaryWorkflow, DigestWorkflow (weekly/monthly), KMSHealthCheckWorkflow, StorageQuotaCheckWorkflow, ClamAVUpdateWorkflow, RetentionWorkflow, SystemHealthWorkflow, AuditIntegrityVerificationWorkflow, ErrorThresholdEvaluationWorkflow
 
 ### Pattern 4 — Continue-As-New (perpetual)
 For workflows that run forever without unbounded history. Restart with fresh state at `RENEW_THRESHOLD`.
@@ -135,18 +144,53 @@ class HumanSignalWorkflow:
 ```
 **Used by:** ElevationWorkflow, StorageExpansionWorkflow, OnboardingReviewSLAWorkflow, TenantMigrationWorkflow
 
-## Workflow Domains (53 total)
+## Workflow Domains (59 total, verified against `@workflow.defn` classes 2026-07-05, +1 2026-07-15)
 
 | Domain | Count | Key workflows |
 |--------|-------|---------------|
 | Document Pipeline | 4 | DocumentPipelineWorkflow, BatchProgressWorkflow, BatchTimeoutMonitorWorkflow, EmbeddingUpdateWorkflow |
 | Employee Lifecycle | 7 | EmployeeExitWorkflow, PushWindowExpiryWorkflow, VaultActivationWorkflow, VaultHealthWorkflow, NomineeAccessWorkflow, RejoiningWorkflow, AccountDormancyWorkflow |
-| Security & Access Control | 9 | PolicyLockWorkflow, TOTPLockoutWorkflow, ElevationWorkflow, SessionExpiryWorkflow, SessionForceRevokeWorkflow, AnomalyDetectionWorkflow, KMSKeyRotationWorkflow, HMACSecretRotationWorkflow, CSAMReportingWorkflow |
-| DPDP & Legal Compliance | 8 | ErasureConfirmationWorkflow, DataExportWorkflow, ConsentRebumpWorkflow, GrievanceWorkflow, DataCorrectionWorkflow, RetentionWorkflow, AuditArchivalWorkflow, LegalHoldWorkflow |
+| Security & Access Control | 12 | PolicyLockWorkflow, TOTPLockoutWorkflow, ElevationWorkflow, SessionExpiryWorkflow, SessionForceRevokeWorkflow, AnomalyDetectionWorkflow, KMSKeyRotationWorkflow, HMACSecretRotationWorkflow, CSAMReportingWorkflow, SystemHealthWorkflow, AuditIntegrityVerificationWorkflow, ErrorThresholdEvaluationWorkflow |
+| DPDP & Legal Compliance | 9 | ErasureConfirmationWorkflow, DataExportWorkflow, ConsentRebumpWorkflow, GrievanceWorkflow, DataCorrectionWorkflow, RetentionWorkflow, AuditArchivalWorkflow, LegalHoldWorkflow, StatutoryComplianceWorkflow |
 | Intelligence Layer | 8 | InsightRefreshWorkflow, CareerInsightWorkflow, VaultCompletenessWorkflow, AnomalyAcknowledgementWorkflow, DigestWorkflow, PeerBenchmarkWorkflow, SkillGapWorkflow, MarketCompWorkflow |
-| Platform Operations | 9 | PlatformSummaryWorkflow, ClamAVUpdateWorkflow, KMSHealthCheckWorkflow, StorageQuotaCheckWorkflow, StagingCleanupWorkflow, BatchTimeoutMonitorWorkflow, WebhookDeliveryWorkflow, NotificationDeliveryWorkflow, SystemHealthWorkflow |
+| Platform Operations | 9 | PlatformSummaryWorkflow, ClamAVUpdateWorkflow, KMSHealthCheckWorkflow, StorageQuotaCheckWorkflow, StagingCleanupWorkflow, WebhookDeliveryWorkflow, NotificationDeliveryWorkflow, StorageExpansionWorkflow, OnboardingReviewSLAWorkflow |
 | Onboarding & Tenant Management | 4 | DomainVerificationWorkflow, TenantProvisioningWorkflow, TenantOffboardingWorkflow, TenantMigrationWorkflow |
 | Vault & Shares | 3 | ShareExpiryWorkflow, ShareRevocationWorkflow, DocumentShareWorkflow |
+| Gamification & HRMS Integration | 3 | GamificationRefreshWorkflow (registered on `insight-queue`), HRMSSyncWorkflow + HRMSSyncScheduleWorkflow (registered on `hrms-queue`). Fixed 2026-07-09: previously none were registered, and `WorkflowConsumer` started `GamificationRefreshWorkflow` on `"prana-analytics"` — a queue no worker polled, so it silently never ran. Consumer now targets `insight-queue`. NOTE: `HRMSSyncScheduleWorkflow`'s Temporal-Schedule creation (`hrms_sync_schedule.py`) is still a placeholder dict, not a real `client.create_schedule(...)` call — the schedule-driven trigger path is not yet functional even though the workers now exist. |
+
+Corrections from the previous (53-count) version of this table:
+- `BatchTimeoutMonitorWorkflow` was listed under both Document Pipeline and Platform
+  Operations — it only exists once, in `batch_progress.py`. Kept under Document Pipeline.
+- `SystemHealthWorkflow` was duplicate-defined in `platform_ops.py` (stub activities,
+  wired to `worker.py`) and `system_health.py` (real implementation, never registered).
+  Consolidated to the `system_health.py` version, now correctly registered on
+  `secops-queue` and moved to the Security & Access Control domain.
+- `StatutoryComplianceWorkflow` (compliance.py) existed in code but wasn't in this table.
+- `StorageExpansionWorkflow` and `OnboardingReviewSLAWorkflow` were named in the Pattern 5
+  usage example below but never counted in any domain row.
+- `GamificationRefreshWorkflow`, `HRMSSyncWorkflow`, `HRMSSyncScheduleWorkflow` existed in
+  code but weren't in this table at all — built after this doc was last reconciled.
+- `AuditIntegrityVerificationWorkflow` added 2026-07-15 (`workflows/audit_integrity.py`,
+  Pattern 3, `secops-queue`) — periodically re-verifies recent `audit_event` rows against
+  their Immudb dual-write. Companion to the `prana_app_role` DB-privilege split
+  (`prana-db/migrations/039_audit_role_revoke.sql`): the REVOKE stops the app from
+  mutating audit history, this workflow is what makes tampering by anyone else with DB
+  access actually get noticed. See `KAFKA_REDIS_ARCHITECTURE.md` §8.
+- `ErrorThresholdEvaluationWorkflow` added 2026-07-15 (`workflows/error_threshold.py`,
+  Pattern 3, `secops-queue`) — the 4th incident track (application error observability,
+  `prana-docs/ERROR_OBSERVABILITY_DESIGN.md`). Scans open `error_event` rows every
+  `error_threshold_check_interval_minutes` and promotes qualifying ones to real
+  `incident` rows via `services/error_threshold_service.py`'s classification rules
+  (security/crypto paths → P1 on first occurrence, compliance paths → P2 after 3
+  occurrences in 10 minutes, novel bugs → P2 on first occurrence, noisy recurrence →
+  P3 after 10 occurrences in 15 minutes).
+- `PolicyLockWorkflow`'s `apply_policy_lock`/`release_policy_lock`/`notify_policy_lock`
+  activities were bare stubs until 2026-07-16 — fixed alongside `get_security_config`
+  (also a stub; every workflow in `workflows/security.py` that reads a duration from
+  config depended on it). Now has a real trigger: `SecurityConsumer._maybe_auto_lock`
+  starts this workflow off a `BULK_DOC_ACCESS`/`BRUTE_FORCE` anomaly, gated behind
+  `bulk_access_auto_lock_enabled`/`brute_force_auto_lock_enabled` (both seeded `false`).
+  See `KAFKA_REDIS_ARCHITECTURE.md` §10 and `prana-docs/SEVERITY_SLA_POLICY_DESIGN.md`.
 
 ## Configuration Model (critical rule)
 Every duration and schedule is read at workflow **trigger time** from `get_config(key, tenant_id)`.
@@ -172,6 +216,8 @@ await workflow.sleep(timedelta(minutes=duration_minutes))
 | `consent_rebump_window_days` | 30 | ConsentRebumpWorkflow |
 | `nominee_access_window_days` | 90 | NomineeAccessWorkflow |
 | `platform_summary_interval_minutes` | 5 | PlatformSummaryWorkflow schedule |
+| `audit_integrity_check_interval_minutes` | 60 | AuditIntegrityVerificationWorkflow schedule |
+| `error_threshold_check_interval_minutes` | 15 | ErrorThresholdEvaluationWorkflow schedule |
 
 ## Engine Independence Rule
 Business logic lives in plain service classes (zero Temporal imports). Temporal workflows are thin shells that call service methods. This means:

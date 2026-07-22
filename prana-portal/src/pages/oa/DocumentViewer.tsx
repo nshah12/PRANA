@@ -5,6 +5,7 @@ import { api } from '@/lib/api'
 import { useAuthStore } from '@/store/auth'
 import { fmtDate } from '@/lib/utils'
 import { PipelineStatusBadge } from './Dashboard'
+import { tUi } from '@/i18n'
 
 export function DocumentViewer() {
   const { user } = useAuthStore()
@@ -14,7 +15,7 @@ export function DocumentViewer() {
   const [page] = useState(0)
   const limit = 20
 
-  const { data, isLoading, refetch } = useQuery({
+  const { data, isLoading, isError, refetch } = useQuery({
     queryKey: ['documents', docType, page],
     queryFn: () => api.get('/v1/ingest/documents', {
       params: { doc_type: docType || undefined, pipeline_status: 'ROUTED', limit, offset: page * limit },
@@ -27,7 +28,7 @@ export function DocumentViewer() {
   }
 
   async function deleteDoc(docId: string) {
-    if (!confirm('Mark this document as deleted? This cannot be undone.')) return
+    if (!confirm(tUi('OA_DOC_VIEWER_DELETE_CONFIRM'))) return
     await api.delete(`/v1/ingest/documents/${docId}`)
     refetch()
   }
@@ -36,9 +37,9 @@ export function DocumentViewer() {
     <div className="space-y-6">
       <div className="flex items-center justify-between flex-wrap gap-3">
         <div>
-          <h1 className="text-xl font-semibold text-slate-800">Document Viewer</h1>
+          <h1 className="text-xl font-semibold text-slate-800">{tUi('OA_DOC_VIEWER_TITLE')}</h1>
           <p className="text-xs text-amber-600 bg-amber-50 rounded-md px-2 py-1 mt-1 inline-block">
-            Every document open is logged immutably with your identity and timestamp
+            {tUi('OA_DOC_VIEWER_AUDIT_NOTE')}
           </p>
         </div>
       </div>
@@ -47,14 +48,14 @@ export function DocumentViewer() {
         <div className="relative flex-1 min-w-[200px]">
           <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
           <input value={search} onChange={e => setSearch(e.target.value)}
-                 placeholder="Search documents…"
+                 placeholder={tUi('OA_DOC_VIEWER_SEARCH_PLACEHOLDER')}
                  className="w-full pl-9 pr-4 py-2.5 border border-slate-200 rounded-lg text-sm
                             focus:outline-none focus:ring-2 focus:ring-violet-500" />
         </div>
         <select value={docType} onChange={e => setDocType(e.target.value)}
                 className="border border-slate-200 rounded-lg px-3 py-2.5 text-sm bg-white
                            focus:outline-none focus:ring-2 focus:ring-violet-500">
-          <option value="">All types</option>
+          <option value="">{tUi('OA_DOC_VIEWER_ALL_TYPES')}</option>
           {['SALARY_SLIP','FORM_16','OFFER_LETTER','APPOINTMENT_LETTER',
             'EXPERIENCE_LETTER','RELIEVING_LETTER','JOINING_LETTER','PF_ACKNOWLEDGEMENT']
             .map(t => <option key={t} value={t}>{t.replace(/_/g,' ')}</option>)}
@@ -74,9 +75,15 @@ export function DocumentViewer() {
           </thead>
           <tbody className="divide-y divide-slate-50">
             {isLoading && (
-              <tr><td colSpan={5} className="px-5 py-8 text-center text-slate-400">Loading…</td></tr>
+              <tr><td colSpan={5} className="px-5 py-8 text-center text-slate-400">{tUi('CFO_DIGEST_LOADING')}</td></tr>
             )}
-            {data?.map((doc: any) => (
+            {!isLoading && isError && (
+              <tr><td colSpan={5} className="px-5 py-8 text-center text-red-500">{tUi('OA_DOC_VIEWER_LOAD_FAILED')}</td></tr>
+            )}
+            {!isLoading && !isError && (data?.length ?? 0) === 0 && (
+              <tr><td colSpan={5} className="px-5 py-8 text-center text-slate-400">{tUi('OA_DOC_VIEWER_NONE_FOUND')}</td></tr>
+            )}
+            {!isLoading && !isError && data?.map((doc: any) => (
               <tr key={doc.document_id} className="hover:bg-canvas2">
                 <td className="px-5 py-3">
                   <div className="flex items-center gap-3">
@@ -94,13 +101,13 @@ export function DocumentViewer() {
                     <button onClick={() => openDoc(doc.document_id)}
                             className="flex items-center gap-1 text-xs text-violet-600
                                        hover:underline font-medium">
-                      <Eye size={13}/> View
+                      <Eye size={13}/> {tUi('OA_DOC_VIEWER_VIEW')}
                     </button>
                     {isAdmin && (
                       <button onClick={() => deleteDoc(doc.document_id)}
                               className="flex items-center gap-1 text-xs text-red-500
                                          hover:underline font-medium">
-                        <Trash2 size={13}/> Delete
+                        <Trash2 size={13}/> {tUi('OA_DOC_VIEWER_DELETE')}
                       </button>
                     )}
                   </div>

@@ -119,9 +119,9 @@ def check_v1_router_safety():
     try:
         result = subprocess.run(
             ["git", "diff", "HEAD~1", "--", "routers/*.py"],
-            capture_output=True, text=True, cwd=ROOT
+            capture_output=True, cwd=ROOT
         )
-        diff = result.stdout
+        diff = result.stdout.decode("utf-8", errors="replace") if result.stdout else ""
     except Exception:
         warn("Could not run git diff — skipping v1 breaking change check.")
         return

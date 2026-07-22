@@ -8,12 +8,14 @@ Employee calls this on first vault access after OTP login.
 Until confirmed, vault is inaccessible (totp_configured_at IS NULL).
 """
 from datetime import datetime, timezone
+from messages import SuccessCode, success_response
 from fastapi import APIRouter, HTTPException, Request, status
 from pydantic import BaseModel
 
 from dependencies import AuthUser, DbConn
-from services.encryption_service import aes_encrypt
+from services.encryption_service import resolve_platform_auth_kek_arn
 from services.totp_service import TOTPService
+from errors import PranaError
 
 router = APIRouter()
 _totp_svc = TOTPService()
@@ -36,7 +38,7 @@ async def init_totp(current: AuthUser, request: Request, db: DbConn):
     # Block if already configured — must go through PA/OA-Admin reset to redo
     already = await _get_totp_configured_at(db, current)
     if already:
-        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="TOTP_ALREADY_CONFIGURED")
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=PranaError.TOTP_ALREADY_CONFIGURED)
 
     secret = _totp_svc.generate_secret()
     account_label = await _get_account_label(db, current)
@@ -70,7 +72,7 @@ async def confirm_totp(body: TOTPConfirmIn, request: Request, db: DbConn):
 
     raw = await request.app.state.redis.get(f"totp_setup:{body.setup_token}")
     if not raw:
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="SETUP_TOKEN_EXPIRED")
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail=PranaError.SETUP_TOKEN_EXPIRED)
 
     data = json.loads(raw.decode())
     secret = data["secret"]
@@ -82,20 +84,21 @@ async def confirm_totp(body: TOTPConfirmIn, request: Request, db: DbConn):
     import pyotp
     totp = pyotp.TOTP(secret)
     if not totp.verify(body.code, valid_window=1):
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="INVALID_CODE")
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail=PranaError.INVALID_CODE)
 
     await request.app.state.redis.delete(f"totp_setup:{body.setup_token}")
 
-    # Encrypt secret with DEK before storing
-    dev_dek = b"\x00" * 32   # prod: unwrap DEK from KMS
-    enc_secret = aes_encrypt(secret, dev_dek)
+    # Encrypt secret via the platform auth CMK before storing — real KMS, not a
+    # static local secret (2026-07-19).
+    kek_arn = resolve_platform_auth_kek_arn(request.app.state.settings)
+    enc_secret = request.app.state.kms_service.encrypt_value(secret, kek_arn)
     now = datetime.now(tz=timezone.utc)
 
     async with db.transaction():
         await _save_totp_secret(db, user_type, user_id, enc_secret, now)
         await _save_backup_codes(db, user_type, user_id, hashes)
 
-    return {"message": "TOTP configured", "configured_at": now.isoformat()}
+    return {"message": SuccessCode.TOTP_SETUP_COMPLETE, "configured_at": now.isoformat()}
 
 
 # ── Helpers ───────────────────────────────────────────────────────────────────
@@ -112,8 +115,13 @@ async def _get_totp_configured_at(db, current: AuthUser):
 
 async def _get_account_label(db, current: AuthUser) -> str:
     if current.user_type == "employee":
-        row = await db.fetchrow("SELECT mobile FROM employee_user WHERE employee_user_id=$1", current.user_id)
-        return row["mobile"] or current.user_id
+        # Cosmetic label only (shown in the authenticator app during QR-scan setup).
+        # mobile is no longer stored in plaintext (schema.sql employee_user,
+        # 2026-07-18) and decrypting it here would need a tenant_id/KMS round-trip
+        # this helper doesn't have — email (if set) or employee_user_id is enough
+        # for a label that isn't itself sensitive.
+        row = await db.fetchrow("SELECT email FROM employee_user WHERE employee_user_id=$1", current.user_id)
+        return (row["email"] if row else None) or current.user_id
     elif current.user_type == "oa_user":
         row = await db.fetchrow("SELECT email FROM oa_user WHERE oa_user_id=$1", current.user_id)
         return row["email"]

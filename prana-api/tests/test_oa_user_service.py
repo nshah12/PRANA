@@ -6,6 +6,11 @@ Covers:
   - User creation scoped to the tenant_id passed by the caller
   - Min-admin constraint: cannot deactivate last admin
   - Email domain validation
+  - change_role() returns old_role — needed by the router to publish a
+    ROLE_CHANGED event (see prana-docs/SEVERITY_SLA_POLICY_DESIGN.md §3.1,
+    PRIVILEGE_ESCALATION detection). change_role() itself never writes
+    audit/anomaly data directly — that's the HTTP handler contract; a Kafka
+    consumer does the anomaly detection downstream.
 """
 from unittest.mock import AsyncMock, MagicMock
 
@@ -122,3 +127,26 @@ async def test_deactivate_last_admin_raises_constraint():
 
     with pytest.raises(ValueError, match="MIN_ADMIN_CONSTRAINT"):
         await svc.deactivate("admin-uuid-001", "tenant-001", "admin-uuid-001")
+
+
+# -- change_role() returns old_role for the router's audit event ---------------
+
+@pytest.mark.asyncio
+async def test_change_role_returns_old_and_new_role():
+    db = _make_db()
+    db.fetchrow = AsyncMock(return_value={"role": "oa_operator"})
+    svc = OAUserService(db)
+
+    result = await svc.change_role("oa-uuid-1", "oa_admin", "tenant-001", "admin-uuid-001")
+
+    assert result == {"old_role": "oa_operator", "new_role": "oa_admin"}
+
+
+@pytest.mark.asyncio
+async def test_change_role_raises_when_user_not_found():
+    db = _make_db()
+    db.fetchrow = AsyncMock(return_value=None)
+    svc = OAUserService(db)
+
+    with pytest.raises(ValueError, match="USER_NOT_FOUND"):
+        await svc.change_role("oa-uuid-missing", "oa_admin", "tenant-001", "admin-uuid-001")

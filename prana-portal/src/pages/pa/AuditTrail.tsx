@@ -3,6 +3,7 @@ import { useQuery } from '@tanstack/react-query'
 import { Search, Download } from 'lucide-react'
 import { api } from '@/lib/api'
 import { fmtDateTime } from '@/lib/utils'
+import { tUi } from '@/i18n'
 
 export function AuditTrail() {
   const [search, setSearch] = useState('')
@@ -26,11 +27,11 @@ export function AuditTrail() {
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between flex-wrap gap-3">
-        <h1 className="text-xl font-semibold text-slate-800">Audit Trail Explorer</h1>
+        <h1 className="text-xl font-semibold text-slate-800">{tUi('PA_AUDIT_TITLE')}</h1>
         <button onClick={exportAudit}
                 className="flex items-center gap-2 px-4 py-2 border border-slate-200
                            rounded-lg text-sm font-medium text-slate-600 hover:bg-canvas2">
-          <Download size={14}/> Export CSV
+          <Download size={14}/> {tUi('PA_AUDIT_EXPORT_CSV')}
         </button>
       </div>
 
@@ -38,12 +39,12 @@ export function AuditTrail() {
         <div className="relative flex-1 min-w-[200px]">
           <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
           <input value={search} onChange={e => setSearch(e.target.value)}
-                 placeholder="Search by actor, tenant, resource…"
+                 placeholder={tUi('PA_AUDIT_SEARCH_PLACEHOLDER')}
                  className="w-full pl-9 pr-4 py-2.5 border border-slate-200 rounded-lg text-sm
                             focus:outline-none focus:ring-2 focus:ring-amber-400" />
         </div>
         <input value={eventType} onChange={e => setEventType(e.target.value)}
-               placeholder="Event type filter…"
+               placeholder={tUi('PA_AUDIT_EVENT_TYPE_PLACEHOLDER')}
                className="border border-slate-200 rounded-lg px-3 py-2.5 text-sm
                           focus:outline-none focus:ring-2 focus:ring-amber-400 w-48" />
       </div>
@@ -59,14 +60,14 @@ export function AuditTrail() {
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-50">
-            {isLoading && <tr><td colSpan={4} className="px-5 py-8 text-center text-slate-400">Loading…</td></tr>}
+            {isLoading && <tr><td colSpan={4} className="px-5 py-8 text-center text-slate-400">{tUi('CFO_DIGEST_LOADING')}</td></tr>}
             {data?.events?.map((e: any, i: number) => (
               <tr key={i} className="hover:bg-canvas2">
                 <td className="px-5 py-3">
                   <span className="badge badge-muted font-mono text-xs">{e.event_type}</span>
                 </td>
                 <td className="px-5 py-3 text-xs text-slate-600 font-mono">{e.actor_id?.slice(0,8)}…</td>
-                <td className="px-5 py-3 text-xs text-slate-600">{e.tenant_name ?? 'Platform'}</td>
+                <td className="px-5 py-3 text-xs text-slate-600">{e.tenant_name ?? tUi('PA_AUDIT_PLATFORM_FALLBACK')}</td>
                 <td className="px-5 py-3 text-xs text-slate-400 font-mono">{fmtDateTime(e.created_at)}</td>
               </tr>
             ))}

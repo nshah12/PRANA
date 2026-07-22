@@ -456,6 +456,25 @@
             </div>
           </div>
         </div>
+        <div class="callout c-amber">
+          <div class="cl">Stale, reconciled 2026-07-05</div>
+          <p><strong>This document predates several renames and one workflow removal and was
+          never updated to match.</strong> The current, code-verified source of truth is
+          <code>prana-api/workflows/CLAUDE.md</code> (57 real workflows, not 53).</p>
+          <p>Renamed since this doc was written: <code>DPDPErasureWorkflow</code> → <code>ErasureConfirmationWorkflow</code>,
+          <code>DPDPExportWorkflow</code> → <code>DataExportWorkflow</code>,
+          <code>DPDPCorrectionWorkflow</code> → <code>DataCorrectionWorkflow</code>,
+          <code>DPDPGrievanceWorkflow</code> → <code>GrievanceWorkflow</code>,
+          <code>ConsentVersionBumpWorkflow</code> → <code>ConsentRebumpWorkflow</code>,
+          <code>ShareOTPWorkflow</code>/<code>CShareAutoExpiryWorkflow</code> → <code>DocumentShareWorkflow</code>/<code>ShareExpiryWorkflow</code>/<code>ShareRevocationWorkflow</code>.</p>
+          <p>Removed from the design entirely: <code>ConsentWithdrawalWorkflow</code>. Consent
+          withdrawal is immediate (no grace period), so it never needed a durable Temporal
+          workflow. A leftover reference to it in <code>kafka/consumers/compliance_consumer.py</code>
+          was dead code that would have failed the first time it actually ran; fixed 2026-07-05.</p>
+          <p>Built after this doc was last written, not reflected here:
+          <code>StatutoryComplianceWorkflow</code>, <code>GamificationRefreshWorkflow</code>,
+          <code>HRMSSyncWorkflow</code>, <code>HRMSSyncScheduleWorkflow</code>.</p>
+        </div>
         <!-- OVERVIEW -->
         <span class="section-anchor" id="overview">
         </span>

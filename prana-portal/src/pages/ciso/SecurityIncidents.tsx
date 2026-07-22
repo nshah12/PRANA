@@ -5,8 +5,9 @@
  */
 import { useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { ShieldAlert, CheckCircle, TrendingUp, Clock, Filter } from 'lucide-react'
+import { ShieldAlert, CheckCircle, TrendingUp, Clock, Filter, Bug } from 'lucide-react'
 import { api } from '@/lib/api'
+import { tUi } from '@/i18n'
 
 const SEV: Record<string, { pill: string; ring: string }> = {
   P0: { pill: 'bg-red-100 text-red-700 border border-red-300',    ring: 'border-red-300' },
@@ -34,8 +35,149 @@ function SlaChip({ deadline }: { deadline: string | null }) {
   )
 }
 
+function CisoErrorsPanel() {
+  const qc = useQueryClient()
+  const [resolveId, setResolveId] = useState<string | null>(null)
+  const [resolveNote, setResolveNote] = useState('')
+
+  const { data, isLoading, isError, refetch } = useQuery({
+    queryKey: ['ciso-errors'],
+    queryFn:  () => api.get('/v1/ciso/errors').then(r => r.data),
+  })
+
+  const acknowledge = useMutation({
+    mutationFn: (id: string) => api.patch(`/v1/ciso/errors/${id}/acknowledge`, {}),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['ciso-errors'] }),
+  })
+
+  const resolve = useMutation({
+    mutationFn: ({ id, note }: { id: string; note: string }) =>
+      api.patch(`/v1/ciso/errors/${id}/resolve`, { resolution_note: note }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['ciso-errors'] })
+      setResolveId(null)
+      setResolveNote('')
+    },
+  })
+
+  const errors: any[] = data?.items ?? []
+  const openCount = errors.filter(e => e.status === 'NEW' || e.status === 'ACKNOWLEDGED').length
+
+  return (
+    <div className="space-y-6 max-w-4xl">
+      <div className="flex items-center justify-between">
+        <p className="text-sm text-slate-500">{tUi('ERR_SUB')}</p>
+        <button onClick={() => refetch()}
+          className="text-xs px-3 py-1.5 border border-slate-200 rounded-lg text-slate-500 hover:bg-slate-50">
+          {tUi('CISO_NOTIF_LOG_REFRESH')}
+        </button>
+      </div>
+
+      <div className={`rounded-xl p-4 border max-w-xs ${openCount ? 'bg-amber-50 border-amber-200' : 'bg-white border-slate-200'}`}>
+        <p className="text-xs text-slate-500 uppercase tracking-wide">{tUi('ERR_OPEN_TITLE')}</p>
+        <p className={`text-3xl font-bold mt-1 ${openCount ? 'text-amber-600' : 'text-slate-800'}`}>{openCount}</p>
+        <p className="text-xs text-slate-400 mt-1">{tUi('ERR_OPEN_NOTE')}</p>
+      </div>
+
+      {isLoading ? (
+        <div className="space-y-3">
+          {[...Array(3)].map((_, i) => <div key={i} className="h-24 bg-slate-100 rounded-xl animate-pulse" />)}
+        </div>
+      ) : isError ? (
+        <div className="flex flex-col items-center py-16 text-slate-400">
+          <p className="text-sm">{tUi('ERR_LOAD_FAILED')}</p>
+          <button onClick={() => refetch()} className="mt-3 text-xs text-indigo-600 hover:underline">{tUi('CFO_ATTRITION_RETRY')}</button>
+        </div>
+      ) : errors.length === 0 ? (
+        <div className="flex flex-col items-center py-16 text-slate-400">
+          <CheckCircle size={40} className="text-emerald-400 mb-3" />
+          <p className="font-medium text-slate-600">{tUi('ERR_EMPTY')}</p>
+        </div>
+      ) : (
+        <div className="space-y-3">
+          {errors.map((err: any) => (
+            <div key={err.error_id} className="bg-white border border-slate-200 rounded-xl p-4">
+              <div className="flex items-start justify-between gap-4">
+                <div className="flex-1 min-w-0 space-y-1.5">
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <span className="text-xs font-bold px-2 py-0.5 rounded-full bg-slate-100 text-slate-600 border border-slate-200 font-mono">
+                      {err.status}
+                    </span>
+                    <span className="text-xs font-mono text-slate-400">{err.source}</span>
+                    {err.source_detail && (
+                      <span className="text-xs font-mono text-slate-400">· {err.source_detail}</span>
+                    )}
+                  </div>
+                  <p className="font-medium text-slate-800">{err.exception_type}</p>
+                  <div className="flex items-center gap-3 text-xs text-slate-400">
+                    <span>{tUi('ERR_OCCURRENCES_PREFIX')} {err.occurrence_count}{tUi('ERR_OCCURRENCES_SUFFIX')}</span>
+                    <span className="flex items-center gap-1">
+                      <Clock size={10} /> {tUi('ERR_LAST_SEEN_PREFIX')} {new Date(err.last_seen_at).toLocaleString('en-IN')}
+                    </span>
+                  </div>
+                  {err.linked_incident_id && (
+                    <p className="text-xs text-indigo-600">
+                      {tUi('ERR_LINKED_INCIDENT_PREFIX')} {err.linked_incident_id.slice(0, 8)}…
+                    </p>
+                  )}
+                </div>
+
+                {(err.status === 'NEW' || err.status === 'ACKNOWLEDGED') && (
+                  <div className="flex flex-col gap-2 shrink-0">
+                    {resolveId === err.error_id ? (
+                      <div className="space-y-2">
+                        <textarea
+                          value={resolveNote}
+                          onChange={e => setResolveNote(e.target.value)}
+                          placeholder={tUi('CISO_SEC_INC_RESOLUTION_PLACEHOLDER')}
+                          rows={2}
+                          className="text-xs w-48 border border-slate-200 rounded-lg px-2 py-1.5 resize-none"
+                        />
+                        <div className="flex gap-1.5">
+                          <button
+                            onClick={() => resolve.mutate({ id: err.error_id, note: resolveNote })}
+                            disabled={!resolveNote || resolve.isPending}
+                            className="flex-1 text-xs px-2 py-1 bg-emerald-600 text-white rounded-lg
+                                       hover:bg-emerald-700 disabled:opacity-50">
+                            {resolve.isPending ? '…' : tUi('CISO_SEC_INC_CONFIRM')}
+                          </button>
+                          <button
+                            onClick={() => { setResolveId(null); setResolveNote('') }}
+                            className="text-xs px-2 py-1 border border-slate-200 rounded-lg text-slate-500">
+                            {tUi('CISO_SEC_INC_CANCEL')}
+                          </button>
+                        </div>
+                      </div>
+                    ) : (
+                      <>
+                        {err.status === 'NEW' && (
+                          <button
+                            onClick={() => acknowledge.mutate(err.error_id)}
+                            className="text-xs px-3 py-1.5 border border-amber-300 text-amber-700 rounded-lg hover:bg-amber-50">
+                            {tUi('ERR_ACK_BTN')}
+                          </button>
+                        )}
+                        <button
+                          onClick={() => setResolveId(err.error_id)}
+                          className="text-xs px-3 py-1.5 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 flex items-center gap-1">
+                          <CheckCircle size={11} /> {tUi('ERR_RESOLVE_BTN')}
+                        </button>
+                      </>
+                    )}
+                  </div>
+                )}
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  )
+}
+
 export function SecurityIncidents() {
   const qc = useQueryClient()
+  const [tab, setTab] = useState<'incidents' | 'errors'>('incidents')
   const [severity, setSeverity] = useState('')
   const [status, setStatus]     = useState('')
   const [resolveId, setResolveId] = useState<string | null>(null)
@@ -48,6 +190,7 @@ export function SecurityIncidents() {
   const { data, isLoading, isError, refetch } = useQuery({
     queryKey: ['ciso-incidents', severity, status],
     queryFn:  () => api.get(`/v1/ciso/incidents?${params}`).then(r => r.data),
+    enabled: tab === 'incidents',
   })
 
   const resolve = useMutation({
@@ -78,34 +221,56 @@ export function SecurityIncidents() {
         <div>
           <h1 className="text-xl font-semibold text-slate-800 flex items-center gap-2">
             <ShieldAlert size={20} className="text-red-500" />
-            Security Incidents
+            {tUi('CISO_SEC_INC_TITLE')}
           </h1>
           <p className="text-sm text-slate-500 mt-0.5">
-            Auto-created for P0/P1 anomalies · Resolve or escalate within SLA
+            {tUi('CISO_SEC_INC_SUB')}
           </p>
         </div>
-        <button onClick={() => refetch()}
-          className="text-xs px-3 py-1.5 border border-slate-200 rounded-lg text-slate-500 hover:bg-slate-50">
-          Refresh
+        {tab === 'incidents' && (
+          <button onClick={() => refetch()}
+            className="text-xs px-3 py-1.5 border border-slate-200 rounded-lg text-slate-500 hover:bg-slate-50">
+            {tUi('CISO_NOTIF_LOG_REFRESH')}
+          </button>
+        )}
+      </div>
+
+      {/* Tabs */}
+      <div className="flex items-center gap-1 border-b border-slate-200">
+        <button
+          onClick={() => setTab('incidents')}
+          className={`text-sm px-4 py-2 border-b-2 -mb-px flex items-center gap-1.5 ${
+            tab === 'incidents' ? 'border-indigo-600 text-indigo-700 font-medium' : 'border-transparent text-slate-500 hover:text-slate-700'
+          }`}>
+          <ShieldAlert size={14} /> {tUi('ERR_TAB_INCIDENTS')}
+        </button>
+        <button
+          onClick={() => setTab('errors')}
+          className={`text-sm px-4 py-2 border-b-2 -mb-px flex items-center gap-1.5 ${
+            tab === 'errors' ? 'border-indigo-600 text-indigo-700 font-medium' : 'border-transparent text-slate-500 hover:text-slate-700'
+          }`}>
+          <Bug size={14} /> {tUi('ERR_TAB_ERRORS')}
         </button>
       </div>
 
+      {tab === 'errors' ? <CisoErrorsPanel /> : (
+      <>
       {/* Summary chips */}
       <div className="grid grid-cols-3 gap-4">
         <div className={`rounded-xl p-4 border ${p0Open ? 'bg-red-50 border-red-200' : 'bg-white border-slate-200'}`}>
-          <p className="text-xs text-slate-500 uppercase tracking-wide">P0 Open</p>
+          <p className="text-xs text-slate-500 uppercase tracking-wide">{tUi('CISO_SEC_INC_P0_OPEN')}</p>
           <p className={`text-3xl font-bold mt-1 ${p0Open ? 'text-red-600' : 'text-slate-800'}`}>{p0Open}</p>
-          <p className="text-xs text-slate-400 mt-1">SLA: 30 min</p>
+          <p className="text-xs text-slate-400 mt-1">{tUi('CISO_SEC_INC_P0_SLA')}</p>
         </div>
         <div className={`rounded-xl p-4 border ${p1Open ? 'bg-orange-50 border-orange-200' : 'bg-white border-slate-200'}`}>
-          <p className="text-xs text-slate-500 uppercase tracking-wide">P1 Open</p>
+          <p className="text-xs text-slate-500 uppercase tracking-wide">{tUi('CISO_SEC_INC_P1_OPEN')}</p>
           <p className={`text-3xl font-bold mt-1 ${p1Open ? 'text-orange-600' : 'text-slate-800'}`}>{p1Open}</p>
-          <p className="text-xs text-slate-400 mt-1">SLA: 4 hrs</p>
+          <p className="text-xs text-slate-400 mt-1">{tUi('CISO_SEC_INC_P1_SLA')}</p>
         </div>
         <div className="rounded-xl p-4 border bg-white border-slate-200">
-          <p className="text-xs text-slate-500 uppercase tracking-wide">Total Open</p>
+          <p className="text-xs text-slate-500 uppercase tracking-wide">{tUi('CISO_SEC_INC_TOTAL_OPEN')}</p>
           <p className="text-3xl font-bold mt-1 text-slate-800">{totalOpen}</p>
-          <p className="text-xs text-slate-400 mt-1">All severities</p>
+          <p className="text-xs text-slate-400 mt-1">{tUi('CISO_SEC_INC_ALL_SEV_NOTE')}</p>
         </div>
       </div>
 
@@ -114,12 +279,12 @@ export function SecurityIncidents() {
         <Filter size={14} className="text-slate-400" />
         <select value={severity} onChange={e => setSeverity(e.target.value)}
           className="text-xs border border-slate-200 rounded-lg px-2 py-1.5 text-slate-600 bg-white">
-          <option value="">All severities</option>
+          <option value="">{tUi('CISO_SEC_INC_ALL_SEV_NOTE')}</option>
           {['P0','P1','P2','P3'].map(s => <option key={s}>{s}</option>)}
         </select>
         <select value={status} onChange={e => setStatus(e.target.value)}
           className="text-xs border border-slate-200 rounded-lg px-2 py-1.5 text-slate-600 bg-white">
-          <option value="">All statuses</option>
+          <option value="">{tUi('CISO_SEC_INC_ALL_STATUSES')}</option>
           {['OPEN','IN_PROGRESS','ESCALATED','RESOLVED'].map(s => <option key={s}>{s}</option>)}
         </select>
       </div>
@@ -133,13 +298,13 @@ export function SecurityIncidents() {
         </div>
       ) : isError ? (
         <div className="flex flex-col items-center py-16 text-slate-400">
-          <p className="text-sm">Failed to load incidents.</p>
-          <button onClick={() => refetch()} className="mt-3 text-xs text-indigo-600 hover:underline">Retry</button>
+          <p className="text-sm">{tUi('CISO_SEC_INC_LOAD_FAILED')}</p>
+          <button onClick={() => refetch()} className="mt-3 text-xs text-indigo-600 hover:underline">{tUi('CFO_ATTRITION_RETRY')}</button>
         </div>
       ) : incidents.length === 0 ? (
         <div className="flex flex-col items-center py-16 text-slate-400">
           <CheckCircle size={40} className="text-emerald-400 mb-3" />
-          <p className="font-medium text-slate-600">No incidents match this filter</p>
+          <p className="font-medium text-slate-600">{tUi('CISO_SEC_INC_EMPTY')}</p>
         </div>
       ) : (
         <div className="space-y-3">
@@ -166,16 +331,16 @@ export function SecurityIncidents() {
                     )}
                     <div className="flex items-center gap-3 text-xs text-slate-400">
                       <span className="flex items-center gap-1">
-                        <Clock size={10} /> Created {new Date(inc.created_at).toLocaleString('en-IN')}
+                        <Clock size={10} /> {tUi('CISO_SEC_INC_CREATED_PREFIX')} {new Date(inc.created_at).toLocaleString('en-IN')}
                       </span>
                       {inc.resolved_at && (
                         <span className="text-emerald-600">
-                          ✓ Resolved {new Date(inc.resolved_at).toLocaleString('en-IN')}
+                          ✓ {tUi('CISO_SEC_INC_RESOLVED_PREFIX')} {new Date(inc.resolved_at).toLocaleString('en-IN')}
                         </span>
                       )}
                       {inc.escalated_at && (
                         <span className="text-orange-600">
-                          ↑ Escalated {new Date(inc.escalated_at).toLocaleString('en-IN')}
+                          ↑ {tUi('CISO_SEC_INC_ESCALATED_PREFIX')} {new Date(inc.escalated_at).toLocaleString('en-IN')}
                         </span>
                       )}
                     </div>
@@ -194,7 +359,7 @@ export function SecurityIncidents() {
                           <textarea
                             value={resolveNote}
                             onChange={e => setResolveNote(e.target.value)}
-                            placeholder="Resolution note…"
+                            placeholder={tUi('CISO_SEC_INC_RESOLUTION_PLACEHOLDER')}
                             rows={2}
                             className="text-xs w-48 border border-slate-200 rounded-lg px-2 py-1.5 resize-none"
                           />
@@ -204,12 +369,12 @@ export function SecurityIncidents() {
                               disabled={!resolveNote || resolve.isPending}
                               className="flex-1 text-xs px-2 py-1 bg-emerald-600 text-white rounded-lg
                                          hover:bg-emerald-700 disabled:opacity-50">
-                              {resolve.isPending ? '…' : 'Confirm'}
+                              {resolve.isPending ? '…' : tUi('CISO_SEC_INC_CONFIRM')}
                             </button>
                             <button
                               onClick={() => { setResolveId(null); setResolveNote('') }}
                               className="text-xs px-2 py-1 border border-slate-200 rounded-lg text-slate-500">
-                              Cancel
+                              {tUi('CISO_SEC_INC_CANCEL')}
                             </button>
                           </div>
                         </div>
@@ -218,14 +383,14 @@ export function SecurityIncidents() {
                           <button
                             onClick={() => setResolveId(inc.incident_id)}
                             className="text-xs px-3 py-1.5 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 flex items-center gap-1">
-                            <CheckCircle size={11} /> Resolve
+                            <CheckCircle size={11} /> {tUi('CISO_SEC_INC_RESOLVE')}
                           </button>
                           {inc.status !== 'ESCALATED' && (
                             <button
                               onClick={() => escalate.mutate(inc.incident_id)}
                               disabled={escalate.isPending}
                               className="text-xs px-3 py-1.5 border border-orange-300 text-orange-700 rounded-lg hover:bg-orange-50 flex items-center gap-1 disabled:opacity-50">
-                              <TrendingUp size={11} /> Escalate
+                              <TrendingUp size={11} /> {tUi('CISO_SEC_INC_ESCALATE')}
                             </button>
                           )}
                         </>
@@ -237,6 +402,8 @@ export function SecurityIncidents() {
             )
           })}
         </div>
+      )}
+      </>
       )}
     </div>
   )

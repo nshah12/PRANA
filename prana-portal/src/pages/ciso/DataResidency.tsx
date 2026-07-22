@@ -1,6 +1,7 @@
 import { useQuery } from '@tanstack/react-query'
 import { Globe, CheckCircle, AlertTriangle } from 'lucide-react'
 import { api } from '@/lib/api'
+import { tUi } from '@/i18n'
 
 export function DataResidency() {
   const { data } = useQuery({
@@ -11,7 +12,7 @@ export function DataResidency() {
   return (
     <div className="space-y-6">
       <div className="flex items-center gap-3">
-        <h1 className="text-xl font-semibold text-slate-800">Data Residency</h1>
+        <h1 className="text-xl font-semibold text-slate-800">{tUi('CISO_DATA_RESIDENCY_TITLE')}</h1>
         <Globe size={18} className="text-sky-500" />
       </div>
 
@@ -36,11 +37,11 @@ export function DataResidency() {
             </div>
             <div className="grid grid-cols-2 gap-3 text-sm">
               <div>
-                <p className="text-xs text-slate-400">Documents</p>
+                <p className="text-xs text-slate-400">{tUi('CISO_DATA_RESIDENCY_DOCS_LABEL')}</p>
                 <p className="font-mono text-slate-700 mt-0.5">{r.doc_count ?? '—'}</p>
               </div>
               <div>
-                <p className="text-xs text-slate-400">Status</p>
+                <p className="text-xs text-slate-400">{tUi('CISO_DATA_RESIDENCY_STATUS_LABEL')}</p>
                 <p className="text-slate-700 mt-0.5">{r.status}</p>
               </div>
             </div>
@@ -50,7 +51,7 @@ export function DataResidency() {
 
       {/* Storage breakdown */}
       <div className="bg-white rounded-xl border border-slate-100 shadow-sm p-6">
-        <h2 className="font-medium text-slate-800 mb-4">Storage breakdown</h2>
+        <h2 className="font-medium text-slate-800 mb-4">{tUi('CISO_DATA_RESIDENCY_STORAGE_BREAKDOWN')}</h2>
         <div className="space-y-3">
           {[
             { label: 'YugabyteDB (encrypted at rest)', region: 'ap-south-1 + ap-south-2', status: 'Dual-region replication active' },

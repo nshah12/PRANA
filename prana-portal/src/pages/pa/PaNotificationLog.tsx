@@ -7,6 +7,7 @@ import { useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { Bell, Filter, CheckCircle, XCircle, Clock, Globe } from 'lucide-react'
 import { api } from '@/lib/api'
+import { tUi } from '@/i18n'
 
 const CHANNEL_STYLE: Record<string, string> = {
   EMAIL:       'bg-blue-50 text-blue-700',
@@ -54,15 +55,15 @@ export function PaNotificationLog() {
         <div>
           <h1 className="text-xl font-semibold text-slate-800 flex items-center gap-2">
             <Bell size={20} className="text-indigo-500" />
-            Notification Audit Log
+            {tUi('PA_NOTIF_LOG_TITLE')}
           </h1>
           <p className="text-sm text-slate-500 mt-0.5">
-            All outbound notifications across all tenants · 2-year hot retention
+            {tUi('PA_NOTIF_LOG_SUB')}
           </p>
         </div>
         <button onClick={() => refetch()}
           className="text-xs px-3 py-1.5 border border-slate-200 rounded-lg text-slate-500 hover:bg-slate-50">
-          Refresh
+          {tUi('CISO_NOTIF_LOG_REFRESH')}
         </button>
       </div>
 
@@ -70,15 +71,15 @@ export function PaNotificationLog() {
       {!isLoading && (
         <div className="flex items-center gap-6 text-sm bg-white rounded-xl border border-slate-100 px-5 py-3.5">
           <span className="flex items-center gap-1.5 text-emerald-600">
-            <CheckCircle size={14} /> {sentCount} delivered
+            <CheckCircle size={14} /> {sentCount} {tUi('CISO_NOTIF_LOG_DELIVERED')}
           </span>
           <span className="flex items-center gap-1.5 text-red-500">
-            <XCircle size={14} /> {failedCount} failed / bounced
+            <XCircle size={14} /> {failedCount} {tUi('CISO_NOTIF_LOG_FAILED_BOUNCED')}
           </span>
           <span className="flex items-center gap-1.5 text-amber-500">
-            <Clock size={14} /> {queuedCount} queued
+            <Clock size={14} /> {queuedCount} {tUi('PA_NOTIF_LOG_QUEUED')}
           </span>
-          <span className="text-slate-400 ml-auto">{rows.length} rows shown</span>
+          <span className="text-slate-400 ml-auto">{rows.length} {tUi('PA_NOTIF_LOG_ROWS_SHOWN')}</span>
         </div>
       )}
 
@@ -90,25 +91,25 @@ export function PaNotificationLog() {
           <input
             value={tenantId}
             onChange={e => setTenantId(e.target.value)}
-            placeholder="Tenant UUID…"
+            placeholder={tUi('PA_NOTIF_LOG_TENANT_UUID_PLACEHOLDER')}
             className="text-xs border border-slate-200 rounded-lg px-2 py-1.5 w-48 text-slate-600"
           />
         </div>
         <select value={channel} onChange={e => setChannel(e.target.value)}
           className="text-xs border border-slate-200 rounded-lg px-2 py-1.5 text-slate-600 bg-white">
-          <option value="">All channels</option>
+          <option value="">{tUi('CISO_NOTIF_LOG_ALL_CHANNELS')}</option>
           {['EMAIL','SMS','WHATSAPP','PUSH','PORTAL_BELL'].map(c => <option key={c}>{c}</option>)}
         </select>
         <select value={eventType} onChange={e => setEventType(e.target.value)}
           className="text-xs border border-slate-200 rounded-lg px-2 py-1.5 text-slate-600 bg-white">
-          <option value="">All event types</option>
+          <option value="">{tUi('CISO_NOTIF_LOG_ALL_EVENT_TYPES')}</option>
           {['ANOMALY_DETECTED','ACCOUNT_LOCKED','DOCUMENT_ROUTED','EXCEPTION_RAISED',
             'ELEVATION_APPROVED','ELEVATION_DENIED','DIGEST_READY','DPDP_ERASURE_COMPLETE',
             'DPDP_EXPORT_READY','OA_USER_CREATED'].map(e => <option key={e}>{e}</option>)}
         </select>
         <select value={notifStatus} onChange={e => setNotifStatus(e.target.value)}
           className="text-xs border border-slate-200 rounded-lg px-2 py-1.5 text-slate-600 bg-white">
-          <option value="">All statuses</option>
+          <option value="">{tUi('CISO_SEC_INC_ALL_STATUSES')}</option>
           {['QUEUED','SENT','FAILED','BOUNCED','SUPPRESSED'].map(s => <option key={s}>{s}</option>)}
         </select>
         <select value={limit} onChange={e => setLimit(Number(e.target.value))}
@@ -124,13 +125,13 @@ export function PaNotificationLog() {
         </div>
       ) : isError ? (
         <div className="flex flex-col items-center py-16 text-slate-400">
-          <p className="text-sm">Failed to load notification log.</p>
-          <button onClick={() => refetch()} className="mt-3 text-xs text-indigo-600 hover:underline">Retry</button>
+          <p className="text-sm">{tUi('CISO_NOTIF_LOG_LOAD_FAILED')}</p>
+          <button onClick={() => refetch()} className="mt-3 text-xs text-indigo-600 hover:underline">{tUi('CFO_ATTRITION_RETRY')}</button>
         </div>
       ) : rows.length === 0 ? (
         <div className="flex flex-col items-center py-16 text-slate-400">
           <Bell size={36} className="mb-3 text-slate-300" />
-          <p className="text-sm">No notifications match this filter.</p>
+          <p className="text-sm">{tUi('CISO_NOTIF_LOG_EMPTY')}</p>
         </div>
       ) : (
         <div className="bg-white rounded-xl border border-slate-100 overflow-hidden">

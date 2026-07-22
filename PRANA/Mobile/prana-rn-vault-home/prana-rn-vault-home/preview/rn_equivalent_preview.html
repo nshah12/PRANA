@@ -1,0 +1,182 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>RN-equivalent preview — Vault Home</title>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@600;700&family=Inter:wght@400;500;600;700&family=DM+Mono:wght@500&display=swap" rel="stylesheet">
+<style>
+/* This file approximates ONLY what React Native can actually render --
+   no backdrop-filter, no radial-gradient, no background-clip:text.
+   It exists to honestly show what VaultHomeScreen.tsx would look like
+   on-device, including the compromises noted in the .tsx comments. */
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body { font-family: 'Inter', sans-serif; background: #000; display: flex; justify-content: center; padding: 2rem; }
+.frame { width: 330px; height: 690px; background: #000; border-radius: 42px; padding: 12px; box-shadow: 0 30px 80px rgba(0,0,0,.6); }
+.screen { width: 100%; height: 100%; border-radius: 32px; overflow: hidden; background: #FAFAF8; position: relative; display: flex; flex-direction: column; }
+
+/* topBg -- linear gradient approximation of the CSS radial-gradient */
+.topbg {
+  background: linear-gradient(180deg, #2A3A6B 0%, #131B33 55%, #0B0F1E 100%);
+  padding: 24px 24px 38px; position: relative; overflow: hidden;
+}
+/* orb -- solid low-opacity circle, NO blur (RN has no filter:blur on View) */
+.orb {
+  position: absolute; width: 200px; height: 200px; border-radius: 100px;
+  background: #6366F1; opacity: .18; top: -60px; right: -60px;
+}
+.status-row { display: flex; justify-content: space-between; padding: 16px 0 22px; position: relative; z-index: 1; }
+.status-row span { font-family: 'DM Mono', monospace; font-size: 12px; font-weight: 600; color: #fff; }
+.greeting-row { display: flex; justify-content: space-between; align-items: flex-start; position: relative; z-index: 1; }
+.hi { font-size: 13px; color: #9CA8C9; margin-bottom: 2px; }
+.name { font-family: 'Space Grotesk', sans-serif; font-size: 24px; font-weight: 700; color: #fff; letter-spacing: -.2px; }
+.bell { width: 38px; height: 38px; border-radius: 12px; background: rgba(255,255,255,.08); border: 1px solid rgba(255,255,255,.1); display: flex; align-items: center; justify-content: center; font-size: 16px; position: relative; }
+.bell-dot { position: absolute; top: 6px; right: 6px; width: 8px; height: 8px; border-radius: 4px; background: #FBBF24; border: 2px solid #0B0F1E; }
+
+/* hero -- LinearGradient, this DOES translate cleanly */
+.hero {
+  margin: -26px 19px 0; border-radius: 22px; padding: 21px;
+  background: linear-gradient(135deg, #6366F1 0%, #22D3EE 55%, #34D399 100%);
+  box-shadow: 0 16px 28px -12px rgba(99,102,241,.5); position: relative; z-index: 2;
+}
+.hero-label { font-family: 'DM Mono', monospace; font-size: 10px; font-weight: 700; color: rgba(4,38,28,.65); text-transform: uppercase; letter-spacing: 1.2px; margin-bottom: 5px; }
+.hero-url { font-family: 'DM Mono', monospace; font-size: 12.5px; font-weight: 600; color: #04261C; margin-bottom: 6px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.hero-meta { font-size: 11px; color: rgba(4,38,28,.7); font-weight: 500; }
+
+.body { flex: 1; padding: 26px 19px 104px; overflow-y: auto; }
+.stat-grid { display: flex; gap: 11px; margin-bottom: 26px; }
+.stat-card { flex: 1; background: #fff; border-radius: 18px; padding: 16px; border: 1px solid rgba(0,0,0,.04); box-shadow: 0 2px 12px -4px rgba(0,0,0,.06); }
+.stat-num { font-family: 'Space Grotesk', sans-serif; font-size: 26px; font-weight: 700; letter-spacing: -.5px; }
+.stat-lbl { font-size: 11px; color: #9CA1AE; margin-top: 2px; font-weight: 500; }
+
+.section-label { font-family: 'DM Mono', monospace; font-size: 11px; font-weight: 700; color: #9CA1AE; letter-spacing: 1.3px; margin-bottom: 11px; }
+
+.doc-card { display: flex; gap: 12px; background: #F0EFEA; border-radius: 18px; padding: 12px; margin-bottom: 10px; box-shadow: 0 1px 6px -2px rgba(0,0,0,.04); }
+.doc-icon { width: 44px; height: 44px; border-radius: 13px; flex-shrink: 0; display: flex; align-items: center; justify-content: center; font-size: 20px; box-shadow: 0 4px 6px -4px rgba(0,0,0,.2); }
+.doc-icon.salary { background: linear-gradient(135deg, #6366F1, #818CF8); }
+.doc-icon.form16 { background: linear-gradient(135deg, #22D3EE, #34D399); }
+.doc-icon.invest { background: linear-gradient(135deg, #FBBF24, #FB923C); }
+.doc-info { flex: 1; min-width: 0; }
+.doc-title { font-family: 'Inter', sans-serif; font-size: 13px; font-weight: 600; color: #14171F; margin-bottom: 2px; }
+.doc-meta { font-size: 11px; color: #9CA1AE; margin-bottom: 2px; }
+.doc-bottom-row { display: flex; align-items: center; justify-content: space-between; margin-top: 8px; gap: 8px; }
+.left-group { display: flex; align-items: center; gap: 8px; min-width: 0; }
+.cal-chip { width: 38px; height: 38px; border-radius: 10px; overflow: hidden; border: 1px solid rgba(0,0,0,.06); display: flex; flex-direction: column; box-shadow: 0 2px 3px -3px rgba(0,0,0,.12); }
+.cal-month { background: #FB7185; color: #fff; font-size: 9px; font-weight: 700; text-align: center; padding: 2px 0; text-transform: uppercase; letter-spacing: .4px; font-family: 'DM Mono', monospace; }
+.cal-day { background: #fff; color: #14171F; font-size: 16px; font-weight: 700; text-align: center; flex: 1; display: flex; align-items: center; justify-content: center; font-family: 'Space Grotesk', sans-serif; }
+.date-label { font-size: 11px; color: #9CA1AE; }
+.provenance { width: 28px; height: 28px; border-radius: 14px; display: flex; align-items: center; justify-content: center; font-size: 14px; }
+.provenance.employer { background: rgba(52,211,153,.15); color: #047857; }
+.provenance.self { background: rgba(251,191,36,.18); color: #92400E; }
+
+.fab { position: absolute; bottom: 100px; right: 20px; width: 54px; height: 54px; border-radius: 16px; background: linear-gradient(135deg, #6366F1 0%, #22D3EE 55%, #34D399 100%); display: flex; align-items: center; justify-content: center; font-size: 22px; color: #04261C; font-weight: 700; box-shadow: 0 12px 18px -8px rgba(99,102,241,.6); }
+
+/* nav -- BlurView approximated as solid translucent (Android fallback path,
+   since this static HTML can't do a real backdrop blur of content beneath it
+   either -- but on iOS the BlurView WOULD show document cards blurred through it) */
+.nav { position: absolute; bottom: 18px; left: 16px; right: 16px; border-radius: 22px; background: rgba(255,255,255,.92); border: 1px solid rgba(0,0,0,.04); box-shadow: 0 12px 16px -10px rgba(0,0,0,.18); display: flex; justify-content: space-around; padding: 12px 0; }
+.nav-item { display: flex; flex-direction: column; align-items: center; gap: 3px; font-size: 10px; font-weight: 600; color: #9CA1AE; }
+.nav-item.active { color: #6366F1; }
+.nav-icon { font-size: 18px; }
+.nav-item.active .nav-icon { transform: scale(1.1); }
+
+.note { max-width: 330px; margin-top: 1rem; color: #94A3B8; font-size: 11px; font-family: monospace; line-height: 1.6; }
+</style>
+</head>
+<body>
+<div>
+<div class="frame">
+  <div class="screen">
+    <div class="topbg">
+      <div class="orb"></div>
+      <div class="status-row"><span>9:43</span><span>●●●</span></div>
+      <div class="greeting-row">
+        <div>
+          <div class="hi">Good morning</div>
+          <div class="name">Rahul Sharma</div>
+        </div>
+        <div class="bell">🔔<div class="bell-dot"></div></div>
+      </div>
+    </div>
+
+    <div class="hero">
+      <div class="hero-label">YOUR PERMANENT VAULT</div>
+      <div class="hero-url">prana.in/vault/rahul-sharma-xk72</div>
+      <div class="hero-meta">Active since Mar 2019 · 2 employers · 16 documents</div>
+    </div>
+
+    <div class="body">
+      <div class="stat-grid">
+        <div class="stat-card"><div class="stat-num" style="color:#6366F1;">16</div><div class="stat-lbl">Documents</div></div>
+        <div class="stat-card"><div class="stat-num" style="color:#10B981;">3</div><div class="stat-lbl">Active shares</div></div>
+      </div>
+
+      <div class="section-label">RECENT DOCUMENTS</div>
+
+      <div class="doc-card">
+        <div class="doc-icon salary">💰</div>
+        <div class="doc-info">
+          <div class="doc-title">Salary Slip — May 2026</div>
+          <div class="doc-meta">NPCI · Pushed by employer</div>
+          <div class="doc-bottom-row">
+            <div class="left-group">
+              <div class="cal-chip"><div class="cal-month">JUN</div><div class="cal-day">02</div></div>
+              <span class="date-label">Received</span>
+            </div>
+            <div class="provenance employer">🛡</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="doc-card">
+        <div class="doc-icon form16">🧾</div>
+        <div class="doc-info">
+          <div class="doc-title">Form 16 — FY 2024-25</div>
+          <div class="doc-meta">NPCI · Pushed by employer</div>
+          <div class="doc-bottom-row">
+            <div class="left-group">
+              <div class="cal-chip"><div class="cal-month">MAY</div><div class="cal-day">28</div></div>
+              <span class="date-label">Received</span>
+            </div>
+            <div class="provenance employer">🛡</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="doc-card">
+        <div class="doc-icon invest">📊</div>
+        <div class="doc-info">
+          <div class="doc-title">Investment Proof — LIC</div>
+          <div class="doc-meta">Self-uploaded</div>
+          <div class="doc-bottom-row">
+            <div class="left-group">
+              <div class="cal-chip"><div class="cal-month">JUN</div><div class="cal-day">12</div></div>
+              <span class="date-label">Uploaded</span>
+            </div>
+            <div class="provenance self">⬆</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="fab">⬆</div>
+    <div class="nav">
+      <div class="nav-item active"><span class="nav-icon">🗂</span>Vault</div>
+      <div class="nav-item"><span class="nav-icon">🕐</span>Activity</div>
+      <div class="nav-item"><span class="nav-icon">💼</span>Career</div>
+      <div class="nav-item"><span class="nav-icon">↗</span>Shares</div>
+      <div class="nav-item"><span class="nav-icon">⚙</span>Settings</div>
+    </div>
+  </div>
+</div>
+<div class="note">
+This reflects ONLY what VaultHomeScreen.tsx renders on-device:<br>
+— top glow is a flat 18%-opacity circle (no blur filter in RN)<br>
+— header gradient is linear top-to-bottom (no radial-gradient in RN)<br>
+— bottom nav shown as solid 92% white (Android BlurView fallback);<br>
+&nbsp;&nbsp;on iOS, BlurView would show cards blurred through the pill<br>
+— everything else (hero gradient, doc icons, calendar chips,<br>
+&nbsp;&nbsp;provenance badges, stat cards, FAB) renders identically
+</div>
+</div>
+</body>
+</html>

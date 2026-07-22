@@ -1,0 +1,53 @@
+name: Deploy kong.yml → S3
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'kong/kong.yml'
+      - '.github/workflows/deploy-kong.yml'
+  workflow_dispatch:
+
+env:
+  AWS_REGION: ap-south-1
+
+jobs:
+  upload:
+    name: Upload kong.yml to S3 + reload Kong
+    runs-on: ubuntu-latest
+
+    permissions:
+      id-token: write
+      contents: read
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Configure AWS credentials (OIDC)
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_DEPLOY_ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Validate kong.yml syntax
+        run: |
+          docker run --rm -v $PWD/kong:/kong \
+            kong/kong:3.7 kong config parse /kong/kong.yml
+          echo "kong.yml syntax OK"
+
+      - name: Upload to S3
+        run: |
+          aws s3 cp kong/kong.yml \
+            s3://${{ secrets.S3_DOCUMENTS_BUCKET }}/config/kong.yml \
+            --sse aws:kms \
+            --content-type "application/yaml"
+          echo "Uploaded kong/kong.yml → s3://[bucket]/config/kong.yml"
+
+      - name: Force new Kong ECS deployment (picks up updated config from S3)
+        run: |
+          aws ecs update-service \
+            --cluster prana-prod \
+            --service prana-prod-kong \
+            --force-new-deployment \
+            --no-cli-pager
+          echo "Kong rolling restart triggered — new tasks will pull updated kong.yml from S3"

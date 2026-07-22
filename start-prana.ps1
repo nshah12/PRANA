@@ -9,10 +9,10 @@ Write-Host ""
 Write-Host "=== PRANA Dev Stack Startup ===" -ForegroundColor Cyan
 Write-Host ""
 
-# 1. Start Docker services (YugabyteDB + Redis + db-init)
-Write-Host "[1/4] Starting YugabyteDB + Redis..." -ForegroundColor Yellow
+# 1. Start Docker services (YugabyteDB + Redis + Kafka + db-init)
+Write-Host "[1/4] Starting YugabyteDB + Redis + Kafka..." -ForegroundColor Yellow
 Set-Location $root
-docker compose up -d yugabyte redis
+docker compose up -d yugabyte redis kafka
 Write-Host "      Waiting for DB to be healthy (up to 60s)..."
 $retries = 0
 do {
@@ -27,7 +27,24 @@ if ($health -ne "healthy") {
 }
 Write-Host "      YugabyteDB is healthy." -ForegroundColor Green
 
-# 2. Run DB init (schema + seed) — only runs once, skips if already done
+# prana-api's aiokafka producer does not recover from a failed initial connection â€”
+# if Kafka isn't ready when prana-api boots, it retries against the broker forever
+# (fills the log, never self-heals). Always confirm Kafka is healthy first.
+Write-Host "      Waiting for Kafka to be healthy (up to 60s)..."
+$kafkaRetries = 0
+do {
+    Start-Sleep 5
+    $kafkaRetries++
+    $kafkaHealth = docker inspect --format="{{.State.Health.Status}}" prana-kafka 2>$null
+} while ($kafkaHealth -ne "healthy" -and $kafkaRetries -lt 12)
+
+if ($kafkaHealth -ne "healthy") {
+    Write-Host "ERROR: Kafka did not become healthy in time." -ForegroundColor Red
+    exit 1
+}
+Write-Host "      Kafka is healthy." -ForegroundColor Green
+
+# 2. Run DB init (schema + seed) ï¿½ only runs once, skips if already done
 Write-Host "[2/4] Applying schema + seed data..." -ForegroundColor Yellow
 docker compose up db-init
 Write-Host "      DB init complete." -ForegroundColor Green

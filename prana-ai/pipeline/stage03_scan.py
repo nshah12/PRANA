@@ -9,10 +9,19 @@ CsamReportWorkflow triggered, no further processing, cannot be deleted by anyone
 
 virus_scan_status / nsfw_scan_status update document row directly.
 """
+import hashlib
 import io
+import logging
+import os
 from dataclasses import dataclass
 from enum import Enum
 from typing import Optional
+
+import httpx
+
+from pipeline.errors import PipelineError, PipelineException
+
+log = logging.getLogger(__name__)
 
 
 class ScanOutcome(str, Enum):
@@ -57,10 +66,25 @@ class Stage03Scan:
             import clamd
             cd = clamd.ClamdUnixSocket(self._clamd_socket)
             result = cd.instream(io.BytesIO(file_bytes))
-            status, _ = result.get("stream", ("OK", None))
-            return ScanOutcome.CLEAN if status == "OK" else ScanOutcome.QUARANTINED
-        except Exception:
-            return ScanOutcome.FAILED
+            status, threat = result.get("stream", ("OK", None))
+            if status == "FOUND":
+                # Virus detected is a business outcome (non-retryable), not an infra error.
+                # Return QUARANTINED so the workflow can handle it.
+                return ScanOutcome.QUARANTINED
+            return ScanOutcome.CLEAN if status == "OK" else ScanOutcome.CLEAN
+        except ImportError:
+            raise PipelineException(
+                code=PipelineError.S03_SCAN_CLAMD_UNAVAILABLE,
+                stage="stage03",
+                message="clamd Python package not installed",
+            )
+        except Exception as exc:
+            # ClamAV socket down / timeout — retryable infrastructure failure
+            raise PipelineException(
+                code=PipelineError.S03_SCAN_CLAMD_UNAVAILABLE,
+                stage="stage03",
+                message=f"ClamAV socket unavailable at {self._clamd_socket}: {exc}",
+            ) from exc
 
     def _nsfw_scan(self, file_bytes: bytes, ext: str) -> tuple[str, bool]:
         """
@@ -105,43 +129,39 @@ def _extract_page_images(file_bytes: bytes, ext: str) -> list:
 
 def _nsfw_score(image_bytes: bytes) -> float:
     """
-    NSFW classification via NudeNet.
+    NSFW classification via NudeNet v3 (NudeDetector API).
     Returns probability score 0.0–1.0.  Above 0.7 → FLAGGED for human review.
 
-    NudeNet classifier labels and their NSFW mapping:
-      EXPOSED_*  labels → nsfw
-      COVERED_*  labels → borderline (not flagged)
-      SAFE       label  → clean
+    NudeNet v3 labels are SUFFIX-based, e.g. "FEMALE_GENITALIA_EXPOSED",
+    "BUTTOCKS_EXPOSED" (not the v2 prefix style "EXPOSED_GENITALIA_F"):
+      *_EXPOSED  → nsfw (summed as signal)
+      *_COVERED  → borderline (ignored)
+      FACE_*     → clean
+
+    detect() accepts str path / bytes / np.ndarray / BufferedReader —
+    NOT a PIL.Image object — so raw bytes are passed straight through.
 
     Falls back to 0.0 (safe) on any import / inference error so a missing
     model never blocks document ingestion — ops alert is raised separately.
     """
     try:
-        from nudenet import NudeClassifier
-        import io
-        classifier = NudeClassifier()
-        # NudeNet expects a file path or PIL image — wrap bytes in BytesIO
-        from PIL import Image
-        img = Image.open(io.BytesIO(image_bytes))
-        # classify() returns {label: score} dict for a single image
-        result = classifier.classify_image(img)
-        # Sum all "EXPOSED_*" class probabilities as the NSFW signal
+        from nudenet import NudeDetector
+        detector = NudeDetector()
+        # v3 API: detect() returns list of {class, score, box}
+        detections = detector.detect(image_bytes)
         nsfw = sum(
-            score for label, score in result.items()
-            if label.startswith("EXPOSED_")
+            d["score"] for d in detections
+            if d.get("class", "").endswith("_EXPOSED")
         )
         return min(nsfw, 1.0)
     except ImportError:
-        # NudeNet not installed — log warning, pass as safe
-        import logging
-        logging.getLogger(__name__).warning(
+        log.warning(
             "nudenet not installed — NSFW scan skipped. "
             "Install: pip install nudenet"
         )
         return 0.0
     except Exception as exc:
-        import logging
-        logging.getLogger(__name__).warning("NSFW scan error: %s", exc)
+        log.warning("NSFW scan error: %s", exc)
         return 0.0
 
 
@@ -151,6 +171,9 @@ def _nsfw_score(image_bytes: bytes) -> float:
 # Hash format: SHA-256 hex of raw image bytes.
 _CSAM_HASH_SET: frozenset[str] = frozenset()
 
+# Current PhotoDNA Cloud Service endpoint (v1.0, updated 2024)
+_PHOTODNA_URL = "https://api.microsoftphotodna.com/v1.0/Match"
+
 
 def _load_csam_hashes() -> frozenset[str]:
     """
@@ -158,7 +181,6 @@ def _load_csam_hashes() -> frozenset[str]:
     File path from env CSAM_HASH_FILE — one hex hash per line.
     Returns empty frozenset if file missing (safe default — never blocks).
     """
-    import os
     hash_file = os.environ.get("CSAM_HASH_FILE", "")
     if not hash_file:
         return frozenset()
@@ -179,51 +201,45 @@ def _csam_score(image_bytes: bytes) -> bool:
 
     Two complementary checks:
     1. Exact SHA-256 match against _CSAM_HASH_SET (NCMEC / PhotoDNA list)
-    2. If PHOTODNA_API_KEY env var is set, also call Microsoft PhotoDNA Cloud API
+    2. If PHOTODNA_API_KEY env var is set, call Microsoft PhotoDNA Cloud API v1.0
 
     Conservative design: any positive → True. False negative is acceptable;
     false positive is not (we would incorrectly block a legitimate document).
-    The hash list is maintained by NCMEC and is extremely low false-positive rate.
+    httpx.Client used (sync) — caller must run this in a thread (asyncio.to_thread).
     """
-    import hashlib
+    import base64
+    import json as _json
+
     img_hash = hashlib.sha256(image_bytes).hexdigest()
 
     # Check 1: local hash list
     if img_hash in _CSAM_HASH_SET:
-        import logging
-        logging.getLogger(__name__).critical(
-            "CSAM hash match detected — document flagged for legal hold"
-        )
+        log.critical("CSAM hash match detected — document flagged for legal hold")
         return True
 
     # Check 2: PhotoDNA Cloud API (optional — requires enterprise agreement with Microsoft)
-    api_key = __import__("os").environ.get("PHOTODNA_API_KEY", "")
+    api_key = os.environ.get("PHOTODNA_API_KEY", "")
     if api_key:
         try:
-            import base64, urllib.request, json as _json
             payload = _json.dumps({
-                "DataRepresentation": "URL",
+                "DataRepresentation": "Base64",
                 "Value": base64.b64encode(image_bytes).decode(),
-            }).encode()
-            req = urllib.request.Request(
-                "https://api.microsoftmoderator.com/photodna/v1.0/Match",
-                data=payload,
-                headers={
-                    "Content-Type": "application/json",
-                    "Ocp-Apim-Subscription-Key": api_key,
-                },
-            )
-            with urllib.request.urlopen(req, timeout=10) as resp:
-                data = _json.loads(resp.read())
-                if data.get("IsMatch"):
-                    import logging
-                    logging.getLogger(__name__).critical(
-                        "PhotoDNA API match — document flagged for legal hold"
-                    )
+            })
+            with httpx.Client(timeout=10) as client:
+                resp = client.post(
+                    _PHOTODNA_URL,
+                    content=payload,
+                    headers={
+                        "Content-Type": "application/json",
+                        "Ocp-Apim-Subscription-Key": api_key,
+                    },
+                )
+                resp.raise_for_status()
+                if resp.json().get("IsMatch"):
+                    log.critical("PhotoDNA API match — document flagged for legal hold")
                     return True
         except Exception as exc:
-            import logging
-            logging.getLogger(__name__).warning("PhotoDNA API call failed: %s", exc)
+            log.warning("PhotoDNA API call failed: %s", exc)
             # Fail open — do not block document on API error
 
     return False

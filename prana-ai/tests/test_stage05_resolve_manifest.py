@@ -19,7 +19,6 @@ from manifest.manifest_client import ManifestData
 def _manifest(identity_fields=None) -> ManifestData:
     return ManifestData(
         manifest_id="m-001",
-        tenant_id=None,
         doc_type="SALARY_SLIP",
         required_fields=["employee_name", "net_pay"],
         identity_fields=identity_fields or ["pan_number", "employee_id", "employee_name"],
@@ -52,6 +51,10 @@ def _extracted(
 def _make_stage05(resolution_result=None):
     """Build a Stage05Resolve with a mocked ResolutionService."""
     mock_db = AsyncMock()
+    # Default: pan_token not found in any tenant — no cross-tenant collision.
+    # Tests that specifically want to simulate a collision override this
+    # explicitly via svc._svc._db.fetchrow = AsyncMock(return_value={...}).
+    mock_db.fetchrow = AsyncMock(return_value=None)
     mock_emb = AsyncMock()
 
     svc = Stage05Resolve(db=mock_db, embedding_client=mock_emb, qdrant_client=None)

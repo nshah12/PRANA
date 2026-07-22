@@ -1,3 +1,5 @@
+import base64
+import json
 import uuid
 from datetime import datetime, timezone, timedelta
 from pathlib import Path
@@ -9,21 +11,29 @@ import redis.asyncio as redis
 from config import Settings
 
 
+def _b64url(data: bytes) -> str:
+    """URL-safe base64 without padding — the JWS segment encoding (RFC 7515)."""
+    return base64.urlsafe_b64encode(data).rstrip(b"=").decode()
+
+
 class JWTService:
     """
     RS256 JWT issue and verification.
     - JTI = session_id — checked against Redis blocklist on every request.
-    - Private key signing: KMS in production, local PEM in dev.
+    - Signing: local PEM in dev/test; KMS (private key never leaves the HSM) in production.
     - Refresh tokens are opaque random bytes stored as SHA-256 hash in user_session.
     """
 
-    def __init__(self, settings: Settings, redis_client: redis.Redis):
+    def __init__(self, settings: Settings, redis_client: redis.Redis, kms_service=None):
         self._settings = settings
         self._redis = redis_client
+        self._kms = kms_service
         self._public_key = Path(settings.jwt_public_key_path).read_text()
-        # Dev only — in prod, signing happens via KMSService.sign_jwt
-        self._private_key = Path(settings.jwt_private_key_path).read_text() \
-            if settings.app_env == "development" else None
+        # Local PEM for non-production (dev/test/staging-local). Production signs via KMS.
+        self._private_key = (
+            None if settings.is_production
+            else Path(settings.jwt_private_key_path).read_text()
+        )
 
     def issue(
         self,
@@ -46,9 +56,27 @@ class JWTService:
             "tenant_id": tenant_id,
             "role": role,
         }
+        # Dev/test: sign locally.
         if self._private_key:
             return pyjwt.encode(payload, self._private_key, algorithm="RS256")
-        raise RuntimeError("KMS signing not implemented yet — set app_env=development for local keys")
+        # Production: sign via KMS so the private key never leaves the HSM.
+        if self._kms and self._settings.jwt_kms_key_id:
+            return self._sign_via_kms(payload)
+        raise RuntimeError(
+            "No JWT signing key available: set jwt_private_key_path (dev) "
+            "or jwt_kms_key_id + KMS service (prod)."
+        )
+
+    def _sign_via_kms(self, payload: dict) -> str:
+        """Build an RS256 JWS whose signature is produced by KMS (RSASSA_PKCS1_V1_5_SHA_256)."""
+        header = {"alg": "RS256", "typ": "JWT"}
+        signing_input = (
+            _b64url(json.dumps(header, separators=(",", ":")).encode())
+            + "."
+            + _b64url(json.dumps(payload, separators=(",", ":")).encode())
+        )
+        signature = self._kms.sign_jwt(signing_input.encode(), self._settings.jwt_kms_key_id)
+        return signing_input + "." + _b64url(signature)
 
     def decode(self, token: str) -> dict:
         """Decode and verify RS256 JWT. Raises pyjwt.InvalidTokenError on any failure."""

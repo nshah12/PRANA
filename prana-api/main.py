@@ -7,22 +7,44 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
 from config import get_settings
+from errors import PranaError
 from middleware.deprecation import DeprecationMiddleware
+from middleware.request_id import RequestIDMiddleware
 from db import create_pool
 from services.jwt_service import JWTService
 from services.encryption_service import KMSService
 from services.s3_service import S3Service
-from kafka.producer import KafkaPub
+from kafka.producer import KafkaPub, set_kafka_producer
 from kafka.consumers.audit_consumer import AuditConsumer
 from kafka.consumers.workflow_consumer import WorkflowConsumer
 from kafka.consumers.sse_fanout_consumer import SSEFanoutConsumer
 from kafka.consumers.notif_consumer import NotifConsumer
 from kafka.consumers.analytics_consumer import AnalyticsConsumer
+from kafka.consumers.cache_invalidation_consumer import CacheInvalidationConsumer
+from kafka.consumers.compliance_consumer import ComplianceConsumer
+from kafka.consumers.oa_user_consumer import OAUserConsumer
+from kafka.consumers.employee_consumer import EmployeeConsumer
+from kafka.consumers.tenant_consumer import TenantConsumer
+from kafka.consumers.auth_consumer import AuthConsumer
+from kafka.consumers.statutory_consumer import StatutoryConsumer
+from kafka.consumers.security_consumer import SecurityConsumer
+from kafka.consumers.email_consumer import EmailConsumer
+from kafka.consumers.sms_consumer import SMSConsumer
+from kafka.consumers.push_consumer import PushConsumer
+from kafka.consumers.whatsapp_consumer import WhatsAppConsumer
+from kafka.consumers.bell_consumer import BellConsumer
+from kafka.consumers.integration_consumer import IntegrationConsumer
+from kafka.consumers.platform_consumer import PlatformConsumer
+from services.cache_service import CacheService
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     settings = get_settings()
+
+    # Fail-closed: refuse to start in production on placeholder/missing secrets (C2/C3).
+    # No-op in dev/test. Raises before any pool/connection is opened.
+    settings.assert_production_ready()
 
     # DB pool
     app.state.db_pool = await create_pool(
@@ -34,13 +56,17 @@ async def lifespan(app: FastAPI):
     # Redis
     app.state.redis = redis.from_url(settings.redis_url, decode_responses=False)
 
-    # Services
-    app.state.jwt_service = JWTService(settings, app.state.redis)
+    # Cache service (Redis wrapper — available to all routers via request.app.state)
+    app.state.cache = CacheService(app.state.redis)
+
+    # Services — KMS first so JWTService can use it for production signing (C4).
     app.state.kms_service = KMSService(
         region=settings.aws_region,
         access_key_id=settings.aws_access_key_id,
         secret_access_key=settings.aws_secret_access_key,
+        endpoint_url=settings.kms_endpoint_url,
     )
+    app.state.jwt_service = JWTService(settings, app.state.redis, kms_service=app.state.kms_service)
     app.state.settings = settings
 
     # S3 / MinIO
@@ -48,9 +74,30 @@ async def lifespan(app: FastAPI):
     try:
         s3_svc.ensure_bucket(settings.s3_bucket_documents)
         s3_svc.ensure_bucket(settings.s3_bucket_staging)
-    except Exception:
-        pass   # No S3 in dev without MinIO — non-fatal
+    except Exception as exc:
+        try:
+            from services.error_observability_service import ErrorObservabilityService
+            await ErrorObservabilityService(app.state.db_pool).record(
+                exc=exc, source="HTTP", source_detail="lifespan:s3_ensure_bucket",
+            )
+        except Exception:
+            pass
+        # No S3 in dev without MinIO — non-fatal
     app.state.s3 = s3_svc
+
+    # Immudb — tamper-evident audit ledger. AuditConsumer dual-writes every audit_event
+    # row here alongside YugabyteDB (see prana-docs/KAFKA_REDIS_ARCHITECTURE.md).
+    try:
+        from services.immudb_service import ImmudbService
+        app.state.immudb_service = ImmudbService(
+            host=settings.immudb_host,
+            port=settings.immudb_port,
+            user=settings.immudb_user,
+            password=settings.immudb_password,
+            database=settings.immudb_database,
+        )
+    except Exception:
+        app.state.immudb_service = None   # dev: Immudb not running
 
     # Temporal client
     try:
@@ -59,23 +106,125 @@ async def lifespan(app: FastAPI):
     except Exception:
         app.state.temporal_client = None   # dev: Temporal not running
 
+    # Temporal Schedules (Pattern 3 — idempotent, safe to call on every startup)
+    if app.state.temporal_client:
+        try:
+            from workflows.system_health import ensure_health_schedule
+            interval_row = await app.state.db_pool.fetchval(
+                "SELECT config_value FROM platform_config WHERE config_key=$1",
+                "system_health_check_interval_minutes",
+            )
+            await ensure_health_schedule(
+                app.state.temporal_client,
+                interval_minutes=int(interval_row or 2),
+            )
+        except Exception as exc:
+            try:
+                from services.error_observability_service import ErrorObservabilityService
+                await ErrorObservabilityService(app.state.db_pool).record(
+                    exc=exc, source="HTTP", source_detail="lifespan:ensure_health_schedule",
+                )
+            except Exception:
+                pass
+            # Non-fatal — health-check schedule creation must not block startup
+
+        try:
+            from workflows.audit_integrity import ensure_audit_integrity_schedule
+            interval_row = await app.state.db_pool.fetchval(
+                "SELECT config_value FROM platform_config WHERE config_key=$1",
+                "audit_integrity_check_interval_minutes",
+            )
+            await ensure_audit_integrity_schedule(
+                app.state.temporal_client,
+                interval_minutes=int(interval_row or 60),
+            )
+        except Exception as exc:
+            try:
+                from services.error_observability_service import ErrorObservabilityService
+                await ErrorObservabilityService(app.state.db_pool).record(
+                    exc=exc, source="HTTP", source_detail="lifespan:ensure_audit_integrity_schedule",
+                )
+            except Exception:
+                pass
+            # Non-fatal — schedule creation must not block startup
+
+        try:
+            from workflows.error_threshold import ensure_error_threshold_schedule
+            interval_row = await app.state.db_pool.fetchval(
+                "SELECT config_value FROM platform_config WHERE config_key=$1",
+                "error_threshold_check_interval_minutes",
+            )
+            await ensure_error_threshold_schedule(
+                app.state.temporal_client,
+                interval_minutes=int(interval_row or 15),
+            )
+        except Exception as exc:
+            try:
+                from services.error_observability_service import ErrorObservabilityService
+                await ErrorObservabilityService(app.state.db_pool).record(
+                    exc=exc, source="HTTP", source_detail="lifespan:ensure_error_threshold_schedule",
+                )
+            except Exception:
+                pass
+            # Non-fatal — schedule creation must not block startup
+
     # Kafka producer
     kafka = KafkaPub(settings)
     try:
         await kafka.start()
         app.state.kafka_producer = kafka
+        set_kafka_producer(kafka)
     except Exception:
         app.state.kafka_producer = None   # dev: Kafka not running
+
+    # Signal WORKER_STARTED — PlatformConsumer routes to ops alerting
+    if app.state.kafka_producer:
+        try:
+            await app.state.kafka_producer.platform_event({
+                "event_type": "WORKER_STARTED",
+                "service":    "prana-api",
+                "version":    settings.app_version if hasattr(settings, "app_version") else "unknown",
+            })
+        except Exception as exc:
+            try:
+                from services.error_observability_service import ErrorObservabilityService
+                await ErrorObservabilityService(app.state.db_pool).record(
+                    exc=exc, source="HTTP", source_detail="lifespan:publish_worker_started",
+                )
+            except Exception:
+                pass
+            # Non-fatal — don't block startup
 
     # Kafka consumers — each runs as a background asyncio task
     _consumer_tasks: list[asyncio.Task] = []
     if app.state.kafka_producer:
+        import os
+        pod_id = os.environ.get("POD_NAME", "local")
         consumers = [
-            AuditConsumer(settings, app.state.db_pool),
-            WorkflowConsumer(settings, app.state.temporal_client),
+            # Original consumers
+            AuditConsumer(settings, app.state.db_pool, immudb_service=app.state.immudb_service),
+            WorkflowConsumer(settings, app.state.temporal_client, app.state.db_pool),
             SSEFanoutConsumer(settings, app.state.redis),
             NotifConsumer(settings, app.state.db_pool),
             AnalyticsConsumer(settings, app.state.temporal_client, app.state.redis),
+            CacheInvalidationConsumer(settings, app.state.redis, pod_id=pod_id),
+            # Domain event consumers
+            ComplianceConsumer(settings, temporal_client=app.state.temporal_client),
+            OAUserConsumer(settings, db_pool=app.state.db_pool, temporal_client=app.state.temporal_client),
+            EmployeeConsumer(settings, db_pool=app.state.db_pool, temporal_client=app.state.temporal_client, kafka_producer=kafka),
+            TenantConsumer(settings, db_pool=app.state.db_pool, temporal_client=app.state.temporal_client),
+            AuthConsumer(settings, db_pool=app.state.db_pool, temporal_client=app.state.temporal_client),
+            StatutoryConsumer(settings, db_pool=app.state.db_pool, temporal_client=app.state.temporal_client),
+            SecurityConsumer(settings, db_pool=app.state.db_pool, temporal_client=app.state.temporal_client, redis=app.state.redis),
+            # Notification channel consumers
+            EmailConsumer(settings, app.state.db_pool),
+            SMSConsumer(settings, app.state.db_pool),
+            PushConsumer(settings, app.state.db_pool),
+            WhatsAppConsumer(settings, app.state.db_pool),
+            BellConsumer(settings, app.state.db_pool, app.state.redis),
+            # Integration & platform consumers
+            IntegrationConsumer(settings, app.state.db_pool, kafka),
+            PlatformConsumer(settings),
         ]
         for c in consumers:
             _consumer_tasks.append(asyncio.create_task(c.run()))
@@ -85,7 +234,22 @@ async def lifespan(app: FastAPI):
     for t in _consumer_tasks:
         t.cancel()
     if app.state.kafka_producer:
+        try:
+            await app.state.kafka_producer.platform_event({
+                "event_type": "WORKER_STOPPED",
+                "service":    "prana-api",
+            })
+        except Exception as exc:
+            try:
+                from services.error_observability_service import ErrorObservabilityService
+                await ErrorObservabilityService(app.state.db_pool).record(
+                    exc=exc, source="HTTP", source_detail="lifespan:publish_worker_stopped",
+                )
+            except Exception:
+                pass
         await app.state.kafka_producer.stop()
+    if app.state.immudb_service:
+        app.state.immudb_service.close()
     await app.state.db_pool.close()
     await app.state.redis.aclose()
 
@@ -103,38 +267,202 @@ def create_app() -> FastAPI:
 
     app.add_middleware(
         CORSMiddleware,
-        allow_origins=settings.cors_origins,
+        allow_origins=settings.effective_cors_origins,   # prod drops localhost/github.io
         allow_credentials=True,
         allow_methods=["GET", "POST", "PUT", "DELETE", "PATCH"],
         allow_headers=["Authorization", "Content-Type", "X-Request-ID"],
     )
+    # Assigns request.state.request_id (honours an incoming X-Request-ID, else generates
+    # one) and echoes it on every response. Prerequisite for error-observability
+    # correlation — see prana-docs/ERROR_OBSERVABILITY_DESIGN.md §3.1.
+    app.add_middleware(RequestIDMiddleware)
     # Adds Deprecation/Sunset headers to deprecated versions/endpoints automatically
     # Blocks sunset versions with 410 Gone — no router changes needed
     app.add_middleware(DeprecationMiddleware)
 
+    # ── Security headers (defence-in-depth) ─────────────────────────────────────
+    @app.middleware("http")
+    async def security_headers(request: Request, call_next):
+        response = await call_next(request)
+        response.headers["X-Content-Type-Options"] = "nosniff"
+        response.headers["X-Frame-Options"] = "DENY"
+        response.headers["Referrer-Policy"] = "no-referrer"
+        # Strict CSP for the JSON API; skip the interactive docs (dev-only) so Swagger works.
+        path = request.url.path
+        if not path.startswith("/docs") and not path.startswith("/openapi"):
+            response.headers["Content-Security-Policy"] = "default-src 'none'; frame-ancestors 'none'"
+        # HSTS only in production (served over HTTPS behind Kong/ALB).
+        if settings.is_production:
+            response.headers["Strict-Transport-Security"] = "max-age=63072000; includeSubDomains; preload"
+        return response
+
+    # ── Rate limiter (SlowAPI) ─────────────────────────────────────────────────
+    from limiter import limiter as _limiter
+    from slowapi import _rate_limit_exceeded_handler
+    from slowapi.errors import RateLimitExceeded
+    app.state.limiter = _limiter
+    app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
+
     # ── Global exception handlers ──────────────────────────────────────────────
+    # Each handler returns a typed PranaError code — never a hardcoded English sentence.
+    # Frontend maps the code to a locale string via tError().
+
+    def _request_id(request: Request) -> str | None:
+        return getattr(request.state, "request_id", None)
+
+    async def _record_error(request: Request, exc: Exception) -> None:
+        """Best-effort — a failure recording the error must never mask the
+        original error response (prana-docs/ERROR_OBSERVABILITY_DESIGN.md §4A)."""
+        try:
+            db_pool = getattr(request.app.state, "db_pool", None)
+            if db_pool is None:
+                return
+            from services.error_observability_service import ErrorObservabilityService
+            async with db_pool.acquire() as conn:
+                await ErrorObservabilityService(conn).record(
+                    exc=exc,
+                    source="HTTP",
+                    source_detail=request.url.path,
+                    request_id=_request_id(request),
+                )
+        except Exception:
+            pass
+
+    try:
+        import asyncpg
+        @app.exception_handler(asyncpg.PostgresConnectionError)
+        @app.exception_handler(asyncpg.TooManyConnectionsError)
+        @app.exception_handler(asyncpg.CannotConnectNowError)
+        async def db_unavailable_handler(request: Request, exc: Exception):
+            await _record_error(request, exc)
+            return JSONResponse(
+                status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+                content={"error": PranaError.INFRA_DB_UNAVAILABLE, "request_id": _request_id(request)},
+            )
+    except ImportError:
+        pass
+
+    try:
+        import redis.exceptions as redis_exc
+        @app.exception_handler(redis_exc.ConnectionError)
+        @app.exception_handler(redis_exc.TimeoutError)
+        async def redis_unavailable_handler(request: Request, exc: Exception):
+            await _record_error(request, exc)
+            return JSONResponse(
+                status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+                content={"error": PranaError.INFRA_REDIS_UNAVAILABLE, "request_id": _request_id(request)},
+            )
+    except ImportError:
+        pass
+
+    try:
+        import aiokafka.errors as kafka_errors
+        @app.exception_handler(kafka_errors.KafkaConnectionError)
+        @app.exception_handler(kafka_errors.KafkaTimeoutError)
+        async def kafka_unavailable_handler(request: Request, exc: Exception):
+            await _record_error(request, exc)
+            return JSONResponse(
+                status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+                content={"error": PranaError.INFRA_KAFKA_UNAVAILABLE, "request_id": _request_id(request)},
+            )
+    except ImportError:
+        pass
+
+    try:
+        import botocore.exceptions as boto_exc
+        @app.exception_handler(boto_exc.EndpointConnectionError)
+        @app.exception_handler(boto_exc.ConnectTimeoutError)
+        async def aws_unavailable_handler(request: Request, exc: Exception):
+            # Could be S3 or KMS — generic AWS infra error
+            await _record_error(request, exc)
+            return JSONResponse(
+                status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+                content={"error": PranaError.INFRA_SERVICE_UNAVAILABLE, "request_id": _request_id(request)},
+            )
+
+        @app.exception_handler(boto_exc.ClientError)
+        async def aws_client_error_handler(request: Request, exc: Exception):
+            await _record_error(request, exc)
+            code = getattr(exc, "response", {}).get("Error", {}).get("Code", "")
+            if code in ("KMSInvalidStateException", "DisabledException", "InvalidKeyUsageException"):
+                return JSONResponse(
+                    status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+                    content={"error": PranaError.INFRA_KMS_UNAVAILABLE, "request_id": _request_id(request)},
+                )
+            if code in ("NoSuchBucket", "NoSuchKey"):
+                return JSONResponse(
+                    status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+                    content={"error": PranaError.INFRA_S3_UNAVAILABLE, "request_id": _request_id(request)},
+                )
+            # Other boto errors fall through to the generic handler
+            return JSONResponse(
+                status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+                content={"error": PranaError.INFRA_SERVICE_UNAVAILABLE, "request_id": _request_id(request)},
+            )
+    except ImportError:
+        pass
+
+    try:
+        from temporalio.service import RPCError
+        @app.exception_handler(RPCError)
+        async def temporal_unavailable_handler(request: Request, exc: Exception):
+            await _record_error(request, exc)
+            return JSONResponse(
+                status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+                content={"error": PranaError.INFRA_TEMPORAL_UNAVAILABLE, "request_id": _request_id(request)},
+            )
+    except ImportError:
+        pass
 
     @app.exception_handler(Exception)
     async def unhandled_exception_handler(request: Request, exc: Exception):
         # Never leak stack traces to clients
+        await _record_error(request, exc)
         return JSONResponse(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            content={"error": "INTERNAL_ERROR"},
+            content={"error": PranaError.INFRA_SERVICE_UNAVAILABLE, "request_id": _request_id(request)},
         )
 
     # ── Health ─────────────────────────────────────────────────────────────────
 
     @app.get("/health", include_in_schema=False)
     async def health():
+        # Liveness only: is the process up? (Does not gate traffic on dependencies.)
         return {"status": "ok"}
+
+    @app.get("/health/ready", include_in_schema=False)
+    async def readiness():
+        # Readiness: probe critical dependencies so the load balancer stops routing
+        # to a pod that can't actually serve (DB/Redis down) instead of always "ok".
+        checks: dict[str, str] = {}
+        try:
+            await app.state.db_pool.fetchval("SELECT 1")
+            checks["db"] = "ok"
+        except Exception:
+            checks["db"] = "down"
+        try:
+            await app.state.redis.ping()
+            checks["redis"] = "ok"
+        except Exception:
+            checks["redis"] = "down"
+        ready = all(v == "ok" for v in checks.values())
+        return JSONResponse(
+            status_code=status.HTTP_200_OK if ready else status.HTTP_503_SERVICE_UNAVAILABLE,
+            content={"ready": ready, "checks": checks},
+        )
 
     # ── Routers ────────────────────────────────────────────────────────────────
     from routers import (
         auth_employee, auth_oa, auth_pa, totp_setup,
         tenants, employees, oa_users, ingest, elevations, exceptions,
-        vault, share_access, compliance, dpdp,
+        vault, share_access, compliance, dpdp, labour_law,
         chro, cfo, ciso, pa_admin, org_settings, sessions,
-        ask, public, doc_manifest,
+        ask, public, doc_manifest, internal_pipeline, alumni, benchmarking,
+        gamification,
+        hrms_definitions,
+        hrms_config,
+        hrms_webhook,
+        checklist,
     )
     # ── Unversioned — internal/auth (no external HRMS callers) ───────────────────
     app.include_router(auth_employee.router, prefix="/auth/employee",        tags=["auth"])
@@ -148,6 +476,14 @@ def create_app() -> FastAPI:
 
     # ── v1 — HRMS-facing and mobile-facing (versioned, stable contract) ────────
     # Rule: NEVER modify existing v1 behaviour — breaking changes go to v2 router
+    # public.router mounted a 2nd time under /v1 — genuinely public endpoints
+    # (contact form, org self-registration, credential verification) belong in
+    # the versioned surface per api-versioning.md ("only public/HRMS/mobile
+    # APIs are versioned"). /public/* (above) keeps working unmodified — this
+    # is additive, not a breaking change. Same router, same handlers, no
+    # duplicated logic; only the 3 PA-only reads that used to share this
+    # router moved out entirely (see routers/pa_admin.py's /admin/* additions).
+    app.include_router(public.router,        prefix="/v1",       tags=["v1:public"])
     # Rule: Adding optional fields to v1 responses is safe (non-breaking)
     # Rule: Removing/renaming fields requires v2 + 90-day deprecation notice
     app.include_router(ingest.router,        prefix="/v1/ingest",            tags=["v1:ingest"])
@@ -160,11 +496,22 @@ def create_app() -> FastAPI:
     app.include_router(exceptions.router,   prefix="/v1/org",               tags=["v1:exceptions"])
     app.include_router(compliance.router,    prefix="/v1/vault/compliance",  tags=["v1:compliance"])
     app.include_router(dpdp.router,          prefix="/v1/dpdp",              tags=["v1:dpdp"])
+    app.include_router(labour_law.router,    prefix="/v1/compliance/statutory", tags=["v1:labour-law"])
     app.include_router(chro.router,          prefix="/v1/chro",              tags=["v1:chro"])
     app.include_router(cfo.router,           prefix="/v1/cfo",               tags=["v1:cfo"])
     app.include_router(ciso.router,          prefix="/v1/ciso",              tags=["v1:ciso"])
     app.include_router(ask.router,           prefix="/v1/ask",               tags=["v1:ask"])
+    app.include_router(alumni.router,        prefix="/v1/alumni",            tags=["v1:alumni"])
+    app.include_router(benchmarking.router,  prefix="/v1/benchmarking",      tags=["v1:benchmarking"])
+    app.include_router(gamification.router,      prefix="/v1/gamification",           tags=["v1:gamification"])
+    app.include_router(hrms_definitions.router,  prefix="/v1/admin/hrms/definitions", tags=["v1:hrms-admin"])
+    app.include_router(hrms_config.router,       prefix="/v1/hrms/config",            tags=["v1:hrms-config"])
+    app.include_router(hrms_webhook.router,      prefix="/v1/hrms/webhook",           tags=["v1:hrms-webhook"])
     app.include_router(doc_manifest.router,                                  tags=["v1:manifests"])
+    app.include_router(checklist.router,                                     tags=["v1:checklist"])
+
+    # ── Internal — prana-ai VPC callbacks only (NOT in Kong routes) ──────────────
+    app.include_router(internal_pipeline.router, prefix="/internal/pipeline", tags=["internal"])
 
     # ── v2 — mount here when ready (import v2 routers from routers/v2/) ────────
     # from routers.v2 import ingest as ingest_v2

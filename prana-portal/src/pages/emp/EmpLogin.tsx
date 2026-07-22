@@ -12,20 +12,24 @@
  */
 import { useState, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { Loader2, ShieldCheck, Eye, EyeOff, QrCode } from 'lucide-react'
+import { Loader2, ShieldCheck, Eye, EyeOff, QrCode, Settings } from 'lucide-react'
+import { getApiBase } from '@/lib/api'
 import QRCode from 'qrcode'
 import { api } from '@/lib/api'
 import { useEmpAuthStore } from '@/store/empAuth'
+import { tUi } from '@/i18n'
 
 type Step = 'identifier' | 'password' | 'totp' | 'force_password' | 'totp_setup' | 'consent'
 
-const STEP_META: Record<Step, { title: string; sub: string }> = {
-  identifier:     { title: 'Your vault, always with you',      sub: 'Enter your email or mobile number.' },
-  password:       { title: 'Welcome back',                     sub: 'Enter your PRANA password.' },
-  totp:           { title: 'Two-factor check',                 sub: 'Enter the 6-digit code from your authenticator app.' },
-  force_password: { title: 'Set your password',               sub: 'Your account needs a new password before you can continue.' },
-  totp_setup:     { title: 'Set up authenticator',            sub: 'Scan this QR code with Google Authenticator or Authy.' },
-  consent:        { title: 'Data consent',                     sub: 'Review and accept PRANA\'s data processing terms to continue.' },
+function getStepMeta(): Record<Step, { title: string; sub: string }> {
+  return {
+    identifier:     { title: tUi('EMP_LOGIN_STEP_IDENTIFIER_TITLE'),      sub: tUi('EMP_LOGIN_STEP_IDENTIFIER_SUB') },
+    password:       { title: tUi('EMP_LOGIN_STEP_PASSWORD_TITLE'),        sub: tUi('EMP_LOGIN_STEP_PASSWORD_SUB') },
+    totp:           { title: tUi('EMP_LOGIN_STEP_TOTP_TITLE'),            sub: tUi('EMP_LOGIN_STEP_TOTP_SUB') },
+    force_password: { title: tUi('EMP_LOGIN_STEP_FORCE_PASSWORD_TITLE'),  sub: tUi('EMP_LOGIN_STEP_FORCE_PASSWORD_SUB') },
+    totp_setup:     { title: tUi('EMP_LOGIN_STEP_TOTP_SETUP_TITLE'),      sub: tUi('EMP_LOGIN_STEP_TOTP_SETUP_SUB') },
+    consent:        { title: tUi('EMP_LOGIN_STEP_CONSENT_TITLE'),         sub: tUi('EMP_LOGIN_STEP_CONSENT_SUB') },
+  }
 }
 
 const FLOW_STEPS: Step[] = ['identifier', 'password', 'totp']
@@ -58,7 +62,7 @@ export function EmpLogin() {
 
   async function submitIdentifier() {
     const val = identifier.trim()
-    if (!val) { setError('Enter your email or mobile number'); return }
+    if (!val) { setError(tUi('EMP_LOGIN_ERR_IDENTIFIER_REQUIRED')); return }
     // Just advance — we pass identifier to the login call with password
     clearError()
     setStep('password')
@@ -67,7 +71,7 @@ export function EmpLogin() {
   // ── Step 2: password ──────────────────────────────────────────────────────
 
   async function submitPassword() {
-    if (!password) { setError('Enter your password'); return }
+    if (!password) { setError(tUi('EMP_LOGIN_ERR_PASSWORD_REQUIRED')); return }
     clearError(); setLoading(true)
     try {
       const { data } = await api.post('/auth/employee/login', {
@@ -78,10 +82,10 @@ export function EmpLogin() {
       await advanceToNext(data.next, data.step_token)
     } catch (e: any) {
       const detail = e.response?.data?.detail
-      if (detail === 'INVALID_CREDENTIALS') setError('Incorrect password or account not found.')
-      else if (detail === 'ACCOUNT_LOCKED') setError('Account locked. Contact support.')
-      else if (detail === 'ACCOUNT_NOT_ACTIVE') setError('Account not activated yet.')
-      else setError('Sign in failed. Try again.')
+      if (detail === 'INVALID_CREDENTIALS') setError(tUi('EMP_LOGIN_ERR_INVALID_CREDENTIALS'))
+      else if (detail === 'ACCOUNT_LOCKED') setError(tUi('EMP_LOGIN_ERR_ACCOUNT_LOCKED'))
+      else if (detail === 'ACCOUNT_NOT_ACTIVE') setError(tUi('EMP_LOGIN_ERR_ACCOUNT_NOT_ACTIVE'))
+      else setError(tUi('EMP_LOGIN_ERR_SIGNIN_FAILED'))
     } finally { setLoading(false) }
   }
 
@@ -103,7 +107,7 @@ export function EmpLogin() {
   // ── Step 3a: TOTP ─────────────────────────────────────────────────────────
 
   async function submitTotp() {
-    if (totpCode.length !== 6) { setError('Enter your 6-digit authenticator code'); return }
+    if (totpCode.length !== 6) { setError(tUi('EMP_LOGIN_ERR_TOTP_REQUIRED')); return }
     clearError(); setLoading(true)
     try {
       const { data } = await api.post('/auth/employee/totp', {
@@ -113,18 +117,18 @@ export function EmpLogin() {
       await finishLogin(data.access_token)
     } catch (e: any) {
       const detail = e.response?.data?.detail
-      if (detail === 'INVALID_TOTP') setError('Incorrect code. Try again.')
-      else if (detail === 'ACCOUNT_LOCKED') setError('Account locked after too many attempts.')
-      else if (detail === 'STEP_TOKEN_EXPIRED') setError('Session expired. Please sign in again.')
-      else setError('Verification failed.')
+      if (detail === 'INVALID_TOTP') setError(tUi('EMP_LOGIN_ERR_TOTP_INVALID'))
+      else if (detail === 'ACCOUNT_LOCKED') setError(tUi('EMP_LOGIN_ERR_TOTP_ACCOUNT_LOCKED'))
+      else if (detail === 'STEP_TOKEN_EXPIRED') setError(tUi('EMP_LOGIN_ERR_STEP_TOKEN_EXPIRED'))
+      else setError(tUi('EMP_LOGIN_ERR_VERIFICATION_FAILED'))
     } finally { setLoading(false) }
   }
 
   // ── Setup: Force password change ──────────────────────────────────────────
 
   async function submitForcePassword() {
-    if (newPassword.length < 8) { setError('Password must be at least 8 characters'); return }
-    if (newPassword !== confirmPwd) { setError('Passwords do not match'); return }
+    if (newPassword.length < 8) { setError(tUi('EMP_LOGIN_ERR_NEW_PASSWORD_TOO_SHORT')); return }
+    if (newPassword !== confirmPwd) { setError(tUi('EMP_LOGIN_ERR_PASSWORDS_MISMATCH')); return }
     clearError(); setLoading(true)
     try {
       const { data } = await api.post('/auth/employee/setup/password', {
@@ -135,8 +139,8 @@ export function EmpLogin() {
       await advanceToNext(data.next, data.step_token)
     } catch (e: any) {
       setError(e.response?.data?.detail === 'PASSWORD_TOO_SHORT'
-        ? 'Password must be at least 8 characters.'
-        : 'Failed to update password.')
+        ? tUi('EMP_LOGIN_ERR_PASSWORD_UPDATE_TOO_SHORT')
+        : tUi('EMP_LOGIN_ERR_PASSWORD_UPDATE_FAILED'))
     } finally { setLoading(false) }
   }
 
@@ -148,12 +152,12 @@ export function EmpLogin() {
       const dataUrl = await QRCode.toDataURL(data.provisioning_uri, { width: 200, margin: 1 })
       setQrDataUrl(dataUrl)
     } catch {
-      setError('Failed to load QR code. Refresh and try again.')
+      setError(tUi('EMP_LOGIN_ERR_QR_LOAD_FAILED'))
     }
   }
 
   async function submitTotpSetup() {
-    if (setupCode.length !== 6) { setError('Enter the 6-digit code from your authenticator app'); return }
+    if (setupCode.length !== 6) { setError(tUi('EMP_LOGIN_ERR_SETUP_CODE_REQUIRED')); return }
     clearError(); setLoading(true)
     try {
       const { data } = await api.post('/auth/employee/setup/totp/confirm', {
@@ -164,8 +168,8 @@ export function EmpLogin() {
       await advanceToNext(data.next, data.step_token)
     } catch (e: any) {
       const detail = e.response?.data?.detail
-      if (detail === 'INVALID_TOTP_CODE') setError('Code incorrect. Make sure your phone\'s time is synced.')
-      else setError('Verification failed.')
+      if (detail === 'INVALID_TOTP_CODE') setError(tUi('EMP_LOGIN_ERR_SETUP_CODE_INVALID'))
+      else setError(tUi('EMP_LOGIN_ERR_VERIFICATION_FAILED'))
     } finally { setLoading(false) }
   }
 
@@ -179,32 +183,46 @@ export function EmpLogin() {
       })
       await finishLogin(data.access_token)
     } catch {
-      setError('Failed to record consent. Try again.')
+      setError(tUi('EMP_LOGIN_ERR_CONSENT_FAILED'))
     } finally { setLoading(false) }
   }
 
   // ── Finish ────────────────────────────────────────────────────────────────
 
   async function finishLogin(accessToken: string) {
-    setAccessToken(accessToken)
-    // Decode sub from JWT payload (not secret — just base64) and set minimal user
-    // so RequireEmpAuth guard passes. Full profile loaded by EmpVault.
+    let userId = ''
     try {
-      const payload = JSON.parse(atob(accessToken.split('.')[1]))
-      useEmpAuthStore.getState().setUser({
-        userId:    payload.sub ?? '',
-        name:      'Employee',
-        email:     '',
-        mobile:    '',
-        pan_token: '',
-        vault_url: '',
-      })
-    } catch { /* guard will bounce on null user */ }
+      const b64 = accessToken.split('.')[1].replace(/-/g, '+').replace(/_/g, '/')
+      const payload = JSON.parse(atob(b64))
+      userId = payload.sub ?? ''
+    } catch {}
+
+    const user = { userId, name: 'Employee', email: '', mobile: '', pan_token: '', vault_url: '' }
+
+    setAccessToken(accessToken)
+    useEmpAuthStore.getState().setUser(user)
     setStepToken(null)
+
+    // SPA navigate (not window.location.href) — a hard reload would drop the
+    // in-memory accessToken we just set (it's deliberately excluded from
+    // persist's partialize, per CLAUDE.md: JWT never in localStorage), forcing
+    // /emp/vault's first render to fire its API calls unauthenticated.
     navigate('/emp/vault')
   }
 
   // ── Progress indicator (main flow only) ──────────────────────────────────
+
+  // ── Dev API URL config ────────────────────────────────────────────────────
+  const [showApiCfg, setShowApiCfg] = useState(false)
+  const [apiUrl, setApiUrl] = useState(() => { try { return localStorage.getItem('PRANA_API_URL') ?? '' } catch { return '' } })
+
+  function saveApiUrl() {
+    try {
+      if (apiUrl.trim()) localStorage.setItem('PRANA_API_URL', apiUrl.trim())
+      else localStorage.removeItem('PRANA_API_URL')
+    } catch {}
+    window.location.reload()
+  }
 
   const isSetupStep = ['force_password', 'totp_setup', 'consent'].includes(step)
   const progressIdx = FLOW_STEPS.indexOf(step as Step)
@@ -220,14 +238,14 @@ export function EmpLogin() {
           </div>
           <div>
             <p className="text-white font-bold text-lg tracking-tight leading-none">PRANA</p>
-            <p className="text-slate-400 text-xs">Employee vault</p>
+            <p className="text-slate-400 text-xs">{tUi('EMP_LOGIN_BRAND_SUBTITLE')}</p>
           </div>
         </div>
 
         <div className="bg-white/5 backdrop-blur-sm border border-white/10 rounded-2xl p-6 space-y-5">
           <div>
-            <h1 className="text-white font-semibold text-lg">{STEP_META[step].title}</h1>
-            <p className="text-slate-400 text-sm mt-1">{STEP_META[step].sub}</p>
+            <h1 className="text-white font-semibold text-lg">{getStepMeta()[step].title}</h1>
+            <p className="text-slate-400 text-sm mt-1">{getStepMeta()[step].sub}</p>
           </div>
 
           {/* Progress dots — main flow only */}
@@ -250,12 +268,12 @@ export function EmpLogin() {
                 type="text" autoComplete="username"
                 value={identifier} onChange={e => setIdentifier(e.target.value)}
                 onKeyDown={e => e.key === 'Enter' && submitIdentifier()}
-                placeholder="Email or mobile number"
+                placeholder={tUi('EMP_LOGIN_PLACEHOLDER_IDENTIFIER')}
                 className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-2.5 text-white text-sm placeholder-slate-500 outline-none focus:border-emerald-400/50"
               />
               <button onClick={submitIdentifier}
                 className="w-full bg-gradient-to-r from-emerald-400 to-cyan-400 text-emerald-950 font-semibold rounded-xl py-2.5 text-sm">
-                Continue →
+                {tUi('EMP_LOGIN_CONTINUE')}
               </button>
             </div>
           )}
@@ -268,7 +286,7 @@ export function EmpLogin() {
                   type={showPwd ? 'text' : 'password'} autoComplete="current-password"
                   value={password} onChange={e => setPassword(e.target.value)}
                   onKeyDown={e => e.key === 'Enter' && submitPassword()}
-                  placeholder="Password"
+                  placeholder={tUi('EMP_LOGIN_PASSWORD_PLACEHOLDER')}
                   className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-2.5 pr-10 text-white text-sm placeholder-slate-500 outline-none focus:border-emerald-400/50"
                 />
                 <button onClick={() => setShowPwd(v => !v)}
@@ -279,11 +297,11 @@ export function EmpLogin() {
               <button onClick={submitPassword} disabled={loading}
                 className="w-full bg-gradient-to-r from-emerald-400 to-cyan-400 text-emerald-950 font-semibold rounded-xl py-2.5 text-sm flex items-center justify-center gap-2 disabled:opacity-50">
                 {loading ? <Loader2 size={16} className="animate-spin" /> : null}
-                Continue →
+                {tUi('EMP_LOGIN_CONTINUE')}
               </button>
               <button onClick={() => { setStep('identifier'); setPassword('') }}
                 className="w-full text-slate-400 text-xs hover:text-white">
-                ← Change identifier
+                {tUi('EMP_LOGIN_CHANGE_IDENTIFIER')}
               </button>
             </div>
           )}
@@ -295,13 +313,13 @@ export function EmpLogin() {
                 type="text" inputMode="numeric" maxLength={6} autoComplete="one-time-code"
                 value={totpCode} onChange={e => setTotpCode(e.target.value.replace(/\D/g, ''))}
                 onKeyDown={e => e.key === 'Enter' && submitTotp()}
-                placeholder="6-digit code"
+                placeholder={tUi('EMP_LOGIN_TOTP_PLACEHOLDER')}
                 className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-2.5 text-white text-sm placeholder-slate-500 outline-none focus:border-emerald-400/50 tracking-widest text-center text-lg"
               />
               <button onClick={submitTotp} disabled={loading}
                 className="w-full bg-gradient-to-r from-emerald-400 to-cyan-400 text-emerald-950 font-semibold rounded-xl py-2.5 text-sm flex items-center justify-center gap-2 disabled:opacity-50">
                 {loading ? <Loader2 size={16} className="animate-spin" /> : null}
-                Sign in to vault →
+                {tUi('EMP_LOGIN_SIGNIN_TO_VAULT')}
               </button>
             </div>
           )}
@@ -312,20 +330,20 @@ export function EmpLogin() {
               <input
                 type="password" autoComplete="new-password"
                 value={newPassword} onChange={e => setNewPassword(e.target.value)}
-                placeholder="New password (min 8 chars)"
+                placeholder={tUi('EMP_LOGIN_NEW_PASSWORD_PLACEHOLDER')}
                 className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-2.5 text-white text-sm placeholder-slate-500 outline-none focus:border-emerald-400/50"
               />
               <input
                 type="password" autoComplete="new-password"
                 value={confirmPwd} onChange={e => setConfirmPwd(e.target.value)}
                 onKeyDown={e => e.key === 'Enter' && submitForcePassword()}
-                placeholder="Confirm new password"
+                placeholder={tUi('EMP_LOGIN_PLACEHOLDER_CONFIRM_PWD')}
                 className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-2.5 text-white text-sm placeholder-slate-500 outline-none focus:border-emerald-400/50"
               />
               <button onClick={submitForcePassword} disabled={loading}
                 className="w-full bg-gradient-to-r from-emerald-400 to-cyan-400 text-emerald-950 font-semibold rounded-xl py-2.5 text-sm flex items-center justify-center gap-2 disabled:opacity-50">
                 {loading ? <Loader2 size={16} className="animate-spin" /> : null}
-                Set password →
+                {tUi('EMP_LOGIN_SET_PASSWORD_BTN')}
               </button>
             </div>
           )}
@@ -336,7 +354,7 @@ export function EmpLogin() {
               {qrDataUrl ? (
                 <div className="flex justify-center">
                   <div className="bg-white p-3 rounded-xl">
-                    <img src={qrDataUrl} alt="TOTP QR code" className="w-40 h-40" />
+                    <img src={qrDataUrl} alt={tUi('EMP_LOGIN_QR_ALT')} className="w-40 h-40" />
                   </div>
                 </div>
               ) : (
@@ -345,20 +363,19 @@ export function EmpLogin() {
                 </div>
               )}
               <p className="text-slate-400 text-xs text-center">
-                Scan with Google Authenticator, Authy, or any TOTP app.
-                Then enter the code below.
+                {tUi('EMP_LOGIN_TOTP_SETUP_HELP')}
               </p>
               <input
                 type="text" inputMode="numeric" maxLength={6}
                 value={setupCode} onChange={e => setSetupCode(e.target.value.replace(/\D/g, ''))}
                 onKeyDown={e => e.key === 'Enter' && submitTotpSetup()}
-                placeholder="Enter 6-digit code to confirm"
+                placeholder={tUi('EMP_LOGIN_PLACEHOLDER_CONFIRM_CODE')}
                 className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-2.5 text-white text-sm placeholder-slate-500 outline-none focus:border-emerald-400/50 tracking-widest text-center text-lg"
               />
               <button onClick={submitTotpSetup} disabled={loading || setupCode.length < 6}
                 className="w-full bg-gradient-to-r from-emerald-400 to-cyan-400 text-emerald-950 font-semibold rounded-xl py-2.5 text-sm flex items-center justify-center gap-2 disabled:opacity-50">
                 {loading ? <Loader2 size={16} className="animate-spin" /> : null}
-                Confirm →
+                {tUi('EMP_LOGIN_CONFIRM_BTN')}
               </button>
             </div>
           )}
@@ -367,15 +384,15 @@ export function EmpLogin() {
           {step === 'consent' && (
             <div className="space-y-4">
               <div className="bg-white/5 border border-white/10 rounded-xl p-4 text-slate-300 text-xs space-y-2 leading-5">
-                <p className="font-semibold text-white">Data Processing Consent</p>
-                <p>PRANA stores your career documents (salary slips, Form 16, offer letters) on your behalf.</p>
-                <p>Your employer pushes these documents to your vault. You retain full ownership and can request deletion at any time under the <span className="text-emerald-400">DPDP Act 2023</span>.</p>
-                <p>Raw salary figures and PAN are never stored in plaintext. AI insights (not raw data) are shown in your vault.</p>
+                <p className="font-semibold text-white">{tUi('EMP_LOGIN_CONSENT_HEADING')}</p>
+                <p>{tUi('EMP_LOGIN_CONSENT_P1')}</p>
+                <p>{tUi('EMP_LOGIN_CONSENT_P2_PREFIX')} <span className="text-emerald-400">DPDP Act 2023</span>.</p>
+                <p>{tUi('EMP_LOGIN_CONSENT_P3')}</p>
               </div>
               <button onClick={acceptConsent} disabled={loading}
                 className="w-full bg-gradient-to-r from-emerald-400 to-cyan-400 text-emerald-950 font-semibold rounded-xl py-2.5 text-sm flex items-center justify-center gap-2 disabled:opacity-50">
                 {loading ? <Loader2 size={16} className="animate-spin" /> : null}
-                I accept · Open my vault →
+                {tUi('EMP_LOGIN_ACCEPT_BTN')}
               </button>
             </div>
           )}
@@ -383,8 +400,38 @@ export function EmpLogin() {
           {error && <p className="text-red-400 text-xs text-center">{error}</p>}
 
           <p className="text-slate-500 text-[10px] text-center leading-4">
-            Biometric stays on device · No salary figures shown · PRANA will never ask for your password via email
+            {tUi('EMP_LOGIN_FOOTER_NOTE')}
           </p>
+        </div>
+
+        {/* API URL config — dev/demo use */}
+        <div className="mt-4">
+          <button onClick={() => setShowApiCfg(v => !v)}
+            className="flex items-center gap-1.5 text-slate-600 hover:text-slate-400 text-[10px] mx-auto transition-colors">
+            <Settings size={10} /> {tUi('EMP_LOGIN_DEV_API_LABEL')} {getApiBase()}
+          </button>
+          {showApiCfg && (
+            <div className="mt-2 bg-white/5 border border-white/10 rounded-xl p-3 space-y-2">
+              <p className="text-slate-400 text-[10px]">
+                {tUi('EMP_LOGIN_DEV_TUNNEL_PREFIX')} <code className="text-emerald-400">cloudflared tunnel --url http://localhost:8001</code> {tUi('EMP_LOGIN_DEV_TUNNEL_SUFFIX')}
+              </p>
+              <input
+                type="url" value={apiUrl} onChange={e => setApiUrl(e.target.value)}
+                placeholder="https://abc-xyz.trycloudflare.com"
+                className="w-full bg-white/5 border border-white/10 rounded-lg px-3 py-2 text-white text-xs placeholder-slate-600 outline-none focus:border-emerald-400/50"
+              />
+              <div className="flex gap-2">
+                <button onClick={saveApiUrl}
+                  className="flex-1 bg-emerald-600 text-white text-xs rounded-lg py-1.5 font-medium">
+                  {tUi('EMP_LOGIN_SAVE_RELOAD')}
+                </button>
+                <button onClick={() => { setApiUrl(''); localStorage.removeItem('PRANA_API_URL'); window.location.reload() }}
+                  className="text-slate-500 text-xs px-3 hover:text-slate-300">
+                  {tUi('EMP_LOGIN_RESET_BTN')}
+                </button>
+              </div>
+            </div>
+          )}
         </div>
       </div>
     </div>

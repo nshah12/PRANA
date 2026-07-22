@@ -1,0 +1,499 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>PRANA — Cross-Project Error Taxonomy</title>
+<style>
+  :root {
+    --bg: #f8f7f4;
+    --surface: #ffffff;
+    --border: rgba(0,0,0,0.08);
+    --border-strong: rgba(0,0,0,0.15);
+    --text: #0b0b0b;
+    --text-2: #52514e;
+    --text-3: #898781;
+    --radius: 8px;
+
+    --api-bg: #e6f1fb; --api-border: #b5d4f4; --api-text: #0c447c; --api-dot: #185fa5;
+    --ai-bg: #eaf3de;  --ai-border:  #c0dd97; --ai-text:  #3b6d11; --ai-dot: #639922;
+    --ask-bg: #faeeda; --ask-border: #fac775; --ask-text: #854f0b; --ask-dot: #ba7517;
+
+    --red-bg: #fcebeb; --red-text: #a32d2d; --red-border: #f7c1c1;
+    --amber-bg: #faeeda; --amber-text: #854f0b; --amber-border: #fac775;
+    --green-bg: #eaf3de; --green-text: #3b6d11; --green-border: #c0dd97;
+    --gray-bg: #f1efe8; --gray-text: #5f5e5a; --gray-border: #d3d1c7;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #1a1a19; --surface: #232321; --border: rgba(255,255,255,0.08); --border-strong: rgba(255,255,255,0.15);
+      --text: #ffffff; --text-2: #c3c2b7; --text-3: #898781;
+      --api-bg: #0c2a4a; --api-border: #185fa5; --api-text: #85b7eb; --api-dot: #378add;
+      --ai-bg: #172d0a; --ai-border: #3b6d11; --ai-text: #c0dd97; --ai-dot: #97c459;
+      --ask-bg: #2c1e06; --ask-border: #854f0b; --ask-text: #fac775; --ask-dot: #ef9f27;
+      --red-bg: #2a0f0f; --red-text: #f09595; --red-border: #791f1f;
+      --amber-bg: #2c1e06; --amber-text: #fac775; --amber-border: #854f0b;
+      --green-bg: #172d0a; --green-text: #c0dd97; --green-border: #3b6d11;
+      --gray-bg: #2c2c2a; --gray-text: #b4b2a9; --gray-border: #5f5e5a;
+    }
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: var(--bg); color: var(--text); font-size: 14px; line-height: 1.5; }
+
+  .page { max-width: 1280px; margin: 0 auto; padding: 32px 24px 64px; }
+
+  h1 { font-size: 22px; font-weight: 500; margin-bottom: 4px; }
+  .subtitle { font-size: 13px; color: var(--text-2); margin-bottom: 28px; }
+
+  /* Stats row */
+  .stats { display: flex; gap: 12px; margin-bottom: 24px; flex-wrap: wrap; }
+  .stat-card { background: var(--surface); border: 0.5px solid var(--border); border-radius: var(--radius); padding: 12px 16px; min-width: 140px; }
+  .stat-label { font-size: 11px; text-transform: uppercase; letter-spacing: 0.05em; color: var(--text-3); margin-bottom: 4px; }
+  .stat-value { font-size: 22px; font-weight: 500; }
+  .stat-sub { font-size: 11px; color: var(--text-3); margin-top: 2px; }
+
+  /* Controls */
+  .controls { display: flex; gap: 10px; margin-bottom: 16px; flex-wrap: wrap; align-items: center; }
+  .search-wrap { position: relative; flex: 1; min-width: 220px; max-width: 360px; }
+  .search-wrap svg { position: absolute; left: 10px; top: 50%; transform: translateY(-50%); color: var(--text-3); width:15px; height:15px; }
+  input[type=search] { width: 100%; padding: 7px 10px 7px 32px; border: 0.5px solid var(--border-strong); border-radius: var(--radius); background: var(--surface); color: var(--text); font-size: 13px; outline: none; }
+  input[type=search]:focus { border-color: #378add; box-shadow: 0 0 0 3px rgba(55,138,221,0.15); }
+
+  .filter-group { display: flex; gap: 6px; flex-wrap: wrap; }
+  .filter-btn { padding: 5px 12px; border: 0.5px solid var(--border-strong); border-radius: 20px; background: var(--surface); color: var(--text-2); font-size: 12px; cursor: pointer; transition: all 0.15s; white-space: nowrap; }
+  .filter-btn:hover { background: var(--bg); }
+  .filter-btn.active { background: #185fa5; border-color: #185fa5; color: #fff; }
+  .filter-btn.active.ai { background: #639922; border-color: #639922; }
+  .filter-btn.active.ask { background: #ba7517; border-color: #ba7517; }
+  .filter-btn.active.nr { background: #a32d2d; border-color: #a32d2d; }
+  .filter-btn.active.all { background: #444441; border-color: #444441; }
+
+  .count-badge { display: inline-flex; align-items: center; justify-content: center; background: var(--bg); border: 0.5px solid var(--border); border-radius: 10px; font-size: 11px; color: var(--text-3); padding: 1px 7px; margin-left: 6px; }
+
+  /* Table */
+  .table-wrap { background: var(--surface); border: 0.5px solid var(--border); border-radius: 12px; overflow: hidden; }
+  table { width: 100%; border-collapse: collapse; table-layout: fixed; }
+  th { background: var(--bg); text-align: left; padding: 9px 14px; font-size: 11px; font-weight: 500; text-transform: uppercase; letter-spacing: 0.05em; color: var(--text-3); border-bottom: 0.5px solid var(--border); position: sticky; top: 0; z-index: 2; }
+  td { padding: 9px 14px; border-bottom: 0.5px solid var(--border); vertical-align: middle; }
+  tr:last-child td { border-bottom: none; }
+  tr:hover td { background: var(--bg); }
+
+  col.c-code   { width: 34%; }
+  col.c-svc    { width: 100px; }
+  col.c-domain { width: 14%; }
+  col.c-retry  { width: 90px; }
+  col.c-notes  { width: auto; }
+
+  .code-cell { display: flex; align-items: center; gap: 8px; }
+  .code-text { font-family: 'SF Mono', 'Fira Code', 'Consolas', monospace; font-size: 12px; color: var(--text); word-break: break-all; }
+  .copy-btn { opacity: 0; border: none; background: none; cursor: pointer; color: var(--text-3); padding: 2px 4px; border-radius: 4px; font-size: 11px; transition: opacity 0.1s; }
+  tr:hover .copy-btn { opacity: 1; }
+  .copy-btn:hover { background: var(--bg); }
+  .copy-btn.copied { color: #3b6d11; }
+
+  .svc-badge { display: inline-flex; align-items: center; gap: 5px; padding: 3px 8px; border-radius: 12px; font-size: 11px; font-weight: 500; white-space: nowrap; border: 0.5px solid transparent; }
+  .svc-api { background: var(--api-bg); color: var(--api-text); border-color: var(--api-border); }
+  .svc-ai  { background: var(--ai-bg);  color: var(--ai-text);  border-color: var(--ai-border); }
+  .svc-ask { background: var(--ask-bg); color: var(--ask-text); border-color: var(--ask-border); }
+  .dot { width: 6px; height: 6px; border-radius: 50%; flex-shrink: 0; }
+  .dot-api { background: var(--api-dot); }
+  .dot-ai  { background: var(--ai-dot); }
+  .dot-ask { background: var(--ask-dot); }
+
+  .domain-tag { display: inline-block; padding: 2px 8px; border-radius: 10px; font-size: 11px; background: var(--gray-bg); color: var(--gray-text); border: 0.5px solid var(--gray-border); white-space: nowrap; }
+
+  .retry-badge { display: inline-flex; align-items: center; gap: 4px; padding: 2px 8px; border-radius: 10px; font-size: 11px; font-weight: 500; }
+  .retry-yes { background: var(--green-bg); color: var(--green-text); border: 0.5px solid var(--green-border); }
+  .retry-no  { background: var(--red-bg);   color: var(--red-text);   border: 0.5px solid var(--red-border); }
+  .retry-na  { background: var(--gray-bg);  color: var(--gray-text);  border: 0.5px solid var(--gray-border); }
+
+  .notes-text { font-size: 12px; color: var(--text-2); }
+
+  .empty { text-align: center; padding: 48px 0; color: var(--text-3); font-size: 13px; }
+
+  /* Separator rows */
+  .group-sep td { background: var(--bg); color: var(--text-3); font-size: 11px; font-weight: 500; text-transform: uppercase; letter-spacing: 0.06em; padding: 6px 14px; border-bottom: 0.5px solid var(--border); }
+
+  .copied-toast { position: fixed; bottom: 24px; left: 50%; transform: translateX(-50%); background: #232321; color: #fff; font-size: 12px; padding: 6px 16px; border-radius: 20px; opacity: 0; transition: opacity 0.2s; pointer-events: none; z-index: 100; }
+  .copied-toast.show { opacity: 1; }
+</style>
+</head>
+<body>
+
+<div class="page">
+  <h1>PRANA — Cross-Project Error Taxonomy</h1>
+  <p class="subtitle">Single source of truth for all error codes across prana-api · prana-ai · prana-ask. Every code value equals its name (code-as-string pattern).</p>
+
+  <div class="stats" id="stats-row">
+    <div class="stat-card">
+      <div class="stat-label">Total codes</div>
+      <div class="stat-value" id="stat-total">—</div>
+      <div class="stat-sub">across 3 services</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-label">prana-api</div>
+      <div class="stat-value" id="stat-api" style="color:var(--api-dot)">—</div>
+      <div class="stat-sub">PranaError · 11 domains</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-label">prana-ai</div>
+      <div class="stat-value" id="stat-ai" style="color:var(--ai-dot)">—</div>
+      <div class="stat-sub">PipelineError · 7 stages</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-label">prana-ask</div>
+      <div class="stat-value" id="stat-ask" style="color:var(--ask-dot)">—</div>
+      <div class="stat-sub">AskError · 4 domains</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-label">Non-retryable</div>
+      <div class="stat-value" id="stat-nr" style="color:#a32d2d">—</div>
+      <div class="stat-sub">pipeline only — Temporal fails immediately</div>
+    </div>
+  </div>
+
+  <div class="controls">
+    <div class="search-wrap">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
+      <input type="search" id="search" placeholder="Search by code, domain, or note…" autocomplete="off">
+    </div>
+    <div class="filter-group" id="filter-svc">
+      <button class="filter-btn active all" data-svc="all">All <span class="count-badge" id="fb-all">—</span></button>
+      <button class="filter-btn" data-svc="prana-api">prana-api <span class="count-badge" id="fb-api">—</span></button>
+      <button class="filter-btn ai" data-svc="prana-ai">prana-ai <span class="count-badge" id="fb-ai">—</span></button>
+      <button class="filter-btn ask" data-svc="prana-ask">prana-ask <span class="count-badge" id="fb-ask">—</span></button>
+    </div>
+    <div class="filter-group">
+      <button class="filter-btn nr" id="btn-nr" data-nr="false">Non-retryable only</button>
+    </div>
+  </div>
+
+  <div class="table-wrap">
+    <table id="main-table">
+      <colgroup>
+        <col class="c-code">
+        <col class="c-svc">
+        <col class="c-domain">
+        <col class="c-retry">
+        <col class="c-notes">
+      </colgroup>
+      <thead>
+        <tr>
+          <th>Error code</th>
+          <th>Service</th>
+          <th>Domain / Stage</th>
+          <th>Retryable</th>
+          <th>Notes</th>
+        </tr>
+      </thead>
+      <tbody id="tbody"></tbody>
+    </table>
+    <div class="empty" id="empty" style="display:none">No matching error codes</div>
+  </div>
+</div>
+
+<div class="copied-toast" id="toast">Copied!</div>
+
+<script>
+const NR = new Set([
+  "S03_SCAN_VIRUS_DETECTED","S03_SCAN_NSFW_EXPLICIT","S03_SCAN_CSAM_DETECTED",
+  "S05_RESOLVE_CROSS_TENANT","S04_EXTRACT_PASSWORD_PROTECTED","S04_EXTRACT_CORRUPTED",
+  "S06_ROUTE_LEGAL_HOLD_BLOCK","S06_ROUTE_ALREADY_TERMINAL",
+  "S04_EXTRACT_OCR_BLANK_OUTPUT","S04_EXTRACT_DARK_IMAGE"
+]);
+
+const CODES = [
+  /* ── prana-api / PranaError ─────────────────────────────────────────── */
+  {svc:"prana-api", domain:"AUTH", code:"INVALID_CREDENTIALS",       notes:"Wrong password on login"},
+  {svc:"prana-api", domain:"AUTH", code:"ACCOUNT_LOCKED",            notes:"Too many failed attempts"},
+  {svc:"prana-api", domain:"AUTH", code:"ACCOUNT_INACTIVE",          notes:"OA / PA users"},
+  {svc:"prana-api", domain:"AUTH", code:"ACCOUNT_NOT_ACTIVE",        notes:"Employee variant (compat alias)"},
+  {svc:"prana-api", domain:"AUTH", code:"INVALID_TOTP",              notes:"OA / PA TOTP mismatch"},
+  {svc:"prana-api", domain:"AUTH", code:"INVALID_TOTP_CODE",         notes:"Employee variant (compat alias)"},
+  {svc:"prana-api", domain:"AUTH", code:"TOTP_NOT_CONFIGURED",       notes:"User hasn't set up TOTP yet"},
+  {svc:"prana-api", domain:"AUTH", code:"TOTP_ALREADY_CONFIGURED",   notes:"Attempt to init TOTP again"},
+  {svc:"prana-api", domain:"AUTH", code:"TOTP_INIT_REQUIRED",        notes:"Must complete TOTP setup first"},
+  {svc:"prana-api", domain:"AUTH", code:"STEP_TOKEN_EXPIRED",        notes:"Multi-step auth token expired"},
+  {svc:"prana-api", domain:"AUTH", code:"INVALID_STEP",              notes:"Unexpected step in auth flow"},
+  {svc:"prana-api", domain:"AUTH", code:"MISSING_STEP_TOKEN",        notes:"Step token not provided"},
+  {svc:"prana-api", domain:"AUTH", code:"SETUP_TOKEN_EXPIRED",       notes:"One-time setup link expired"},
+  {svc:"prana-api", domain:"AUTH", code:"INVALID_CODE",              notes:"Generic OTP / invite code invalid"},
+  {svc:"prana-api", domain:"AUTH", code:"NO_REFRESH_TOKEN",          notes:"Refresh cookie missing"},
+  {svc:"prana-api", domain:"AUTH", code:"REFRESH_INVALID",           notes:"Refresh token revoked or forged"},
+  {svc:"prana-api", domain:"AUTH", code:"USER_NOT_FOUND",            notes:"Credential lookup returned nothing"},
+  {svc:"prana-api", domain:"AUTH", code:"PASSWORD_TOO_SHORT",        notes:"Password policy violation"},
+  {svc:"prana-api", domain:"AUTH", code:"DEVICE_NOT_ENROLLED",       notes:"Biometric device not registered"},
+  {svc:"prana-api", domain:"AUTH", code:"DEVICE_NOT_FOUND",          notes:"Device ID not in DB"},
+  {svc:"prana-api", domain:"AUTH", code:"INVALID_PLATFORM",          notes:"Unknown mobile platform string"},
+  {svc:"prana-api", domain:"AUTH", code:"SESSION_NOT_FOUND",         notes:"Session ID not in user_session"},
+  {svc:"prana-api", domain:"AUTH", code:"ALREADY_REVOKED",           notes:"Session already revoked"},
+
+  {svc:"prana-api", domain:"ACCESS", code:"MISSING_AUTH",            notes:"No Authorization header / cookie"},
+  {svc:"prana-api", domain:"ACCESS", code:"OA_ADMIN_REQUIRED",       notes:"Route needs oa_admin role"},
+  {svc:"prana-api", domain:"ACCESS", code:"OA_ADMIN_ROLE_REQUIRED",  notes:"Legacy alias for OA_ADMIN_REQUIRED"},
+  {svc:"prana-api", domain:"ACCESS", code:"PORTAL_ADMIN_REQUIRED",   notes:"Route needs portal_admin role"},
+  {svc:"prana-api", domain:"ACCESS", code:"INTERNAL_TOKEN_REQUIRED", notes:"Endpoint only accepts internal service header"},
+  {svc:"prana-api", domain:"ACCESS", code:"INTERNAL_ONLY",           notes:"Route is not exposed externally"},
+  {svc:"prana-api", domain:"ACCESS", code:"ELEVATION_REQUIRED",      notes:"Action needs active elevation"},
+  {svc:"prana-api", domain:"ACCESS", code:"INSUFFICIENT_ROLE",       notes:"Generic role-guard fallback"},
+
+  {svc:"prana-api", domain:"TENANT", code:"TENANT_NOT_FOUND",              notes:"tenant_id from JWT has no row"},
+  {svc:"prana-api", domain:"TENANT", code:"ALREADY_ACTIVATED",             notes:"Tenant onboarding already done"},
+  {svc:"prana-api", domain:"TENANT", code:"OVERRIDE_REASON_REQUIRED",      notes:"Config override needs justification"},
+  {svc:"prana-api", domain:"TENANT", code:"MISSING_OA_ADMIN_EMAIL",        notes:"Provisioning requires admin email"},
+  {svc:"prana-api", domain:"TENANT", code:"TENANT_KEK_NOT_FOUND",          notes:"KMS key record missing for tenant"},
+  {svc:"prana-api", domain:"TENANT", code:"AT_LEAST_ONE_CHANNEL_REQUIRED", notes:"Must enable at least one notif channel"},
+  {svc:"prana-api", domain:"TENANT", code:"CONFIG_CREATE_FAILED",          notes:"DB insert for tenant_config failed"},
+
+  {svc:"prana-api", domain:"DOCUMENT", code:"DOCUMENT_NOT_FOUND",      notes:"document_id not found for this tenant"},
+  {svc:"prana-api", domain:"DOCUMENT", code:"UNSUPPORTED_FILE_TYPE",   notes:"Not a PDF"},
+  {svc:"prana-api", domain:"DOCUMENT", code:"EMPTY_FILE",              notes:"Zero-byte upload"},
+  {svc:"prana-api", domain:"DOCUMENT", code:"ARCHIVE_MUST_BE_ZIP",     notes:"Batch endpoint only accepts .zip"},
+  {svc:"prana-api", domain:"DOCUMENT", code:"INVALID_ZIP",             notes:"ZIP is corrupted / malformed"},
+  {svc:"prana-api", domain:"DOCUMENT", code:"REPORT_NOT_FOUND",        notes:"Analytics report not available"},
+  {svc:"prana-api", domain:"DOCUMENT", code:"ANOMALY_NOT_FOUND",       notes:"CISO anomaly_event not found"},
+  {svc:"prana-api", domain:"DOCUMENT", code:"ACCESS_LOG_NOT_FOUND",    notes:"document_access_log row not found"},
+
+  {svc:"prana-api", domain:"SHARE", code:"SHARE_NOT_FOUND",        notes:"share_token not in Redis"},
+  {svc:"prana-api", domain:"SHARE", code:"SHARE_NOT_ACTIVE",       notes:"Token exists but is expired / revoked"},
+  {svc:"prana-api", domain:"SHARE", code:"OTP_NOT_REQUIRED",       notes:"Share doesn't require OTP verification"},
+  {svc:"prana-api", domain:"SHARE", code:"INVALID_OTP",            notes:"Wrong OTP entered by recipient"},
+  {svc:"prana-api", domain:"SHARE", code:"OTP_REQUIRED",           notes:"Must verify OTP before accessing share"},
+  {svc:"prana-api", domain:"SHARE", code:"DOCUMENT_NOT_IN_SHARE",  notes:"Requested doc not covered by this share token"},
+
+  {svc:"prana-api", domain:"EXCEPTION", code:"EXCEPTION_NOT_FOUND", notes:"Identity exception queue item not found"},
+  {svc:"prana-api", domain:"EXCEPTION", code:"ALREADY_RESOLVED",    notes:"Exception already closed"},
+  {svc:"prana-api", domain:"EXCEPTION", code:"EXCEPTION_NOT_OPEN",  notes:"Can only resolve OPEN exceptions"},
+  {svc:"prana-api", domain:"EXCEPTION", code:"EMPLOYEE_NOT_FOUND",  notes:"employee_uuid not matched in DB"},
+
+  {svc:"prana-api", domain:"ELEVATION", code:"INVALID_DURATION",         notes:"Duration outside allowed range"},
+  {svc:"prana-api", domain:"ELEVATION", code:"REASON_REQUIRED",          notes:"Elevation request must state reason"},
+  {svc:"prana-api", domain:"ELEVATION", code:"ELEVATION_ALREADY_ACTIVE", notes:"User already has an active elevation"},
+  {svc:"prana-api", domain:"ELEVATION", code:"ELEVATION_NOT_FOUND",      notes:"elevation_id not found"},
+  {svc:"prana-api", domain:"ELEVATION", code:"ELEVATION_NOT_PENDING",    notes:"Approval action on non-pending elevation"},
+  {svc:"prana-api", domain:"ELEVATION", code:"ELEVATION_NOT_ACTIVE",     notes:"Action requires active elevation"},
+  {svc:"prana-api", domain:"ELEVATION", code:"NOT_YOUR_ELEVATION",       notes:"Elevation belongs to different user"},
+  {svc:"prana-api", domain:"ELEVATION", code:"WORKFLOW_UNAVAILABLE",     notes:"Temporal signal target not found"},
+
+  {svc:"prana-api", domain:"DPDP", code:"INVALID_PURPOSE",        notes:"Purpose code not in consent_purpose enum"},
+  {svc:"prana-api", domain:"DPDP", code:"ERASURE_ALREADY_PENDING", notes:"Active erasure request exists"},
+  {svc:"prana-api", domain:"DPDP", code:"NO_PENDING_ERASURE",     notes:"No erasure request to cancel/check"},
+  {svc:"prana-api", domain:"DPDP", code:"NOT_FOUND",              notes:"Generic — prefer specific codes when possible"},
+
+  {svc:"prana-api", domain:"CISO", code:"LOCK_NOT_FOUND",   notes:"Security lock record not found"},
+  {svc:"prana-api", domain:"CISO", code:"ALREADY_UNLOCKED", notes:"Lock is already in unlocked state"},
+
+  {svc:"prana-api", domain:"HRMS", code:"CONNECTOR_CONFIG_NOT_FOUND", notes:"No HRMS connector configured for tenant"},
+  {svc:"prana-api", domain:"HRMS", code:"CONNECTOR_NOT_FOUND",        notes:"Connector ID not found"},
+
+  {svc:"prana-api", domain:"LABOUR LAW", code:"INVALID_ACT",          notes:"statutory_act not in allowed enum"},
+  {svc:"prana-api", domain:"LABOUR LAW", code:"INVALID_STATUS",       notes:"status value not allowed"},
+  {svc:"prana-api", domain:"LABOUR LAW", code:"NO_FIELDS_TO_UPDATE",  notes:"PATCH body has no updatable fields"},
+
+  /* ── prana-ai / PipelineError ────────────────────────────────────────── */
+  {svc:"prana-ai", domain:"S01 · Ingest", code:"S01_INGEST_FILE_MISSING",     notes:"File not found in S3 at stage start"},
+  {svc:"prana-ai", domain:"S01 · Ingest", code:"S01_INGEST_SIZE_EXCEEDED",    notes:"File exceeds max size limit"},
+  {svc:"prana-ai", domain:"S01 · Ingest", code:"S01_INGEST_EXT_REJECTED",     notes:"Extension not in allowed list"},
+  {svc:"prana-ai", domain:"S01 · Ingest", code:"S01_INGEST_S3_UPLOAD_FAILED", notes:"Could not write to S3"},
+  {svc:"prana-ai", domain:"S01 · Ingest", code:"S01_INGEST_DB_INSERT_FAILED", notes:"document row insert failed"},
+
+  {svc:"prana-ai", domain:"S02 · Encrypt", code:"S02_ENCRYPT_KMS_UNAVAILABLE",       notes:"AWS KMS endpoint unreachable"},
+  {svc:"prana-ai", domain:"S02 · Encrypt", code:"S02_ENCRYPT_KMS_PERMISSION_DENIED", notes:"IAM role lacks KMS decrypt"},
+  {svc:"prana-ai", domain:"S02 · Encrypt", code:"S02_ENCRYPT_FF3_INIT_FAILED",       notes:"Format-preserving encryption init error"},
+  {svc:"prana-ai", domain:"S02 · Encrypt", code:"S02_ENCRYPT_FF3_PAN_FAILED",        notes:"PAN encryption failed"},
+  {svc:"prana-ai", domain:"S02 · Encrypt", code:"S02_ENCRYPT_AES_FAILED",            notes:"AES-256-GCM operation failed"},
+  {svc:"prana-ai", domain:"S02 · Encrypt", code:"S02_ENCRYPT_S3_UPLOAD_FAILED",      notes:"Encrypted file could not be written"},
+  {svc:"prana-ai", domain:"S02 · Encrypt", code:"S02_ENCRYPT_S3_DELETE_FAILED",      notes:"Cleanup of plaintext failed (non-fatal, logged)"},
+  {svc:"prana-ai", domain:"S02 · Encrypt", code:"S02_ENCRYPT_OCR_TESSERACT_FAILED",  notes:"Primary OCR failed"},
+  {svc:"prana-ai", domain:"S02 · Encrypt", code:"S02_ENCRYPT_OCR_TEXTRACT_FAILED",   notes:"Fallback OCR failed"},
+  {svc:"prana-ai", domain:"S02 · Encrypt", code:"S02_ENCRYPT_PAN_NOT_FOUND",         notes:"No PAN detected in document"},
+  {svc:"prana-ai", domain:"S02 · Encrypt", code:"S02_ENCRYPT_MULTIPLE_PANS",         notes:"Multiple PANs found — ambiguous"},
+
+  {svc:"prana-ai", domain:"S03 · Safety Scan", code:"S03_SCAN_CLAMD_UNAVAILABLE",    notes:"ClamAV daemon not reachable"},
+  {svc:"prana-ai", domain:"S03 · Safety Scan", code:"S03_SCAN_CLAMD_TIMEOUT",        notes:"ClamAV scan timed out"},
+  {svc:"prana-ai", domain:"S03 · Safety Scan", code:"S03_SCAN_CLAMD_ERROR",          notes:"ClamAV returned error"},
+  {svc:"prana-ai", domain:"S03 · Safety Scan", code:"S03_SCAN_VIRUS_DETECTED",       notes:"Document quarantined — non-retryable"},
+  {svc:"prana-ai", domain:"S03 · Safety Scan", code:"S03_SCAN_NUDENET_UNAVAILABLE",  notes:"NudeNet API not reachable"},
+  {svc:"prana-ai", domain:"S03 · Safety Scan", code:"S03_SCAN_NUDENET_FAILED",       notes:"NudeNet scan error"},
+  {svc:"prana-ai", domain:"S03 · Safety Scan", code:"S03_SCAN_NSFW_EXPLICIT",        notes:"Explicit content detected — non-retryable"},
+  {svc:"prana-ai", domain:"S03 · Safety Scan", code:"S03_SCAN_NSFW_SUGGESTIVE",      notes:"Suggestive content — goes to review queue"},
+  {svc:"prana-ai", domain:"S03 · Safety Scan", code:"S03_SCAN_PHOTODNA_UNAVAILABLE", notes:"PhotoDNA endpoint not reachable"},
+  {svc:"prana-ai", domain:"S03 · Safety Scan", code:"S03_SCAN_PHOTODNA_ERROR",       notes:"PhotoDNA scan error"},
+  {svc:"prana-ai", domain:"S03 · Safety Scan", code:"S03_SCAN_CSAM_DETECTED",        notes:"CSAM — mandatory report — non-retryable"},
+  {svc:"prana-ai", domain:"S03 · Safety Scan", code:"S03_SCAN_FORMAT_UNSUPPORTED",   notes:"File format not supported by scanner"},
+
+  {svc:"prana-ai", domain:"S04 · LLM Extract", code:"S04_EXTRACT_PDF_FAILED",                    notes:"PDF text extraction failed"},
+  {svc:"prana-ai", domain:"S04 · LLM Extract", code:"S04_EXTRACT_DOCX_FAILED",                   notes:"DOCX text extraction failed"},
+  {svc:"prana-ai", domain:"S04 · LLM Extract", code:"S04_EXTRACT_XLSX_FAILED",                   notes:"XLSX parsing failed"},
+  {svc:"prana-ai", domain:"S04 · LLM Extract", code:"S04_EXTRACT_OCR_TESSERACT_UNAVAILABLE",     notes:"Tesseract process not available"},
+  {svc:"prana-ai", domain:"S04 · LLM Extract", code:"S04_EXTRACT_OCR_TESSERACT_TIMEOUT",         notes:"Tesseract timed out"},
+  {svc:"prana-ai", domain:"S04 · LLM Extract", code:"S04_EXTRACT_OCR_TEXTRACT_UNAVAILABLE",      notes:"AWS Textract not reachable"},
+  {svc:"prana-ai", domain:"S04 · LLM Extract", code:"S04_EXTRACT_OCR_TEXTRACT_QUOTA",            notes:"Textract quota exceeded"},
+  {svc:"prana-ai", domain:"S04 · LLM Extract", code:"S04_EXTRACT_OCR_BLANK_OUTPUT",              notes:"OCR returned empty text — non-retryable"},
+  {svc:"prana-ai", domain:"S04 · LLM Extract", code:"S04_EXTRACT_OCR_LOW_CONFIDENCE",            notes:"OCR confidence below threshold"},
+  {svc:"prana-ai", domain:"S04 · LLM Extract", code:"S04_EXTRACT_PASSWORD_PROTECTED",            notes:"PDF is password-locked — non-retryable"},
+  {svc:"prana-ai", domain:"S04 · LLM Extract", code:"S04_EXTRACT_MANIFEST_NOT_FOUND",            notes:"Doc-type manifest missing"},
+  {svc:"prana-ai", domain:"S04 · LLM Extract", code:"S04_EXTRACT_MANIFEST_BUILD_FAILED",         notes:"Manifest assembly failed"},
+  {svc:"prana-ai", domain:"S04 · LLM Extract", code:"S04_EXTRACT_LLM_UNAVAILABLE",               notes:"LLM endpoint not reachable"},
+  {svc:"prana-ai", domain:"S04 · LLM Extract", code:"S04_EXTRACT_LLM_TIMEOUT",                   notes:"LLM call timed out"},
+  {svc:"prana-ai", domain:"S04 · LLM Extract", code:"S04_EXTRACT_LLM_JSON_INVALID",              notes:"LLM response was not valid JSON"},
+  {svc:"prana-ai", domain:"S04 · LLM Extract", code:"S04_EXTRACT_LLM_SCHEMA_INVALID",            notes:"JSON does not match Pydantic schema"},
+  {svc:"prana-ai", domain:"S04 · LLM Extract", code:"S04_EXTRACT_LOW_CONFIDENCE",                notes:"Confidence < 0.75 → exception queue"},
+  {svc:"prana-ai", domain:"S04 · LLM Extract", code:"S04_EXTRACT_AUTODETECT_FAILED",             notes:"doc_type AUTO_DETECT failed → unclassified queue"},
+  {svc:"prana-ai", domain:"S04 · LLM Extract", code:"S04_EXTRACT_LANGUAGE_UNSUPPORTED",          notes:"Language not in supported set"},
+  {svc:"prana-ai", domain:"S04 · LLM Extract", code:"S04_EXTRACT_CORRUPTED",                     notes:"File is corrupted / unreadable — non-retryable"},
+  {svc:"prana-ai", domain:"S04 · LLM Extract", code:"S04_EXTRACT_DARK_IMAGE",                    notes:"Image too dark for OCR — non-retryable"},
+
+  {svc:"prana-ai", domain:"S05 · Resolution", code:"S05_RESOLVE_CROSS_TENANT",              notes:"PAN belongs to a different tenant — P0 anomaly — non-retryable"},
+  {svc:"prana-ai", domain:"S05 · Resolution", code:"S05_RESOLVE_L1_DB_ERROR",              notes:"Level-1 pan_token DB lookup failed"},
+  {svc:"prana-ai", domain:"S05 · Resolution", code:"S05_RESOLVE_L2_DB_ERROR",              notes:"Level-2 employee_id DB lookup failed"},
+  {svc:"prana-ai", domain:"S05 · Resolution", code:"S05_RESOLVE_L3_DB_ERROR",              notes:"Level-3 fuzzy name DB lookup failed"},
+  {svc:"prana-ai", domain:"S05 · Resolution", code:"S05_RESOLVE_L3_MULTIPLE_CANDIDATES",   notes:"Fuzzy match found multiple candidates"},
+  {svc:"prana-ai", domain:"S05 · Resolution", code:"S05_RESOLVE_L4_EMBEDDING_FAILED",      notes:"bge-m3 embedding generation failed"},
+  {svc:"prana-ai", domain:"S05 · Resolution", code:"S05_RESOLVE_L4_QDRANT_UNAVAILABLE",    notes:"Qdrant not reachable for L4 lookup"},
+  {svc:"prana-ai", domain:"S05 · Resolution", code:"S05_RESOLVE_L4_QDRANT_ERROR",          notes:"Qdrant vector search error"},
+  {svc:"prana-ai", domain:"S05 · Resolution", code:"S05_RESOLVE_L4_MULTIPLE_CANDIDATES",   notes:"Embedding search returned multiple candidates"},
+  {svc:"prana-ai", domain:"S05 · Resolution", code:"S05_RESOLVE_UNRESOLVED",               notes:"All 4 levels failed → exception queue"},
+  {svc:"prana-ai", domain:"S05 · Resolution", code:"S05_RESOLVE_MANIFEST_FETCH_FAILED",    notes:"Could not fetch manifest for resolution"},
+  {svc:"prana-ai", domain:"S05 · Resolution", code:"S05_RESOLVE_EMBEDDING_GENERATION_FAILED", notes:"Embedding step failed during resolution"},
+
+  {svc:"prana-ai", domain:"S06 · Route", code:"S06_ROUTE_DB_TRANSACTION_FAILED",       notes:"Vault DB transaction rolled back"},
+  {svc:"prana-ai", domain:"S06 · Route", code:"S06_ROUTE_S3_MOVE_FAILED",              notes:"Could not move file to vault prefix"},
+  {svc:"prana-ai", domain:"S06 · Route", code:"S06_ROUTE_KAFKA_PUBLISH_FAILED",        notes:"DOC_ROUTED publish failed (non-fatal, logged)"},
+  {svc:"prana-ai", domain:"S06 · Route", code:"S06_ROUTE_SENSITIVE_STRIP_FAILED",      notes:"Could not strip sensitive fields from extracted_fields"},
+  {svc:"prana-ai", domain:"S06 · Route", code:"S06_ROUTE_BENCHMARK_FAILED",            notes:"benchmark_service call failed"},
+  {svc:"prana-ai", domain:"S06 · Route", code:"S06_ROUTE_EXCEPTION_QUEUE_FAILED",      notes:"Could not insert into exception_queue"},
+  {svc:"prana-ai", domain:"S06 · Route", code:"S06_ROUTE_UNCLASSIFIED_QUEUE_FAILED",   notes:"Could not insert into unclassified_queue"},
+  {svc:"prana-ai", domain:"S06 · Route", code:"S06_ROUTE_INTERNAL_CALLBACK_FAILED",    notes:"prana-api /internal/pipeline/routed call failed"},
+  {svc:"prana-ai", domain:"S06 · Route", code:"S06_ROUTE_ALREADY_TERMINAL",            notes:"Document already in terminal state — non-retryable"},
+  {svc:"prana-ai", domain:"S06 · Route", code:"S06_ROUTE_LEGAL_HOLD_BLOCK",            notes:"Legal hold prevents routing — non-retryable"},
+  {svc:"prana-ai", domain:"S06 · Route", code:"S06_ROUTE_VAULT_HEALTH_FAILED",         notes:"Vault completeness update failed"},
+  {svc:"prana-ai", domain:"S06 · Route", code:"S06_ROUTE_CAREER_EVENT_UNKNOWN",        notes:"career_event type could not be determined"},
+
+  {svc:"prana-ai", domain:"Infrastructure", code:"INFRA_DB_UNAVAILABLE",          notes:"YugabyteDB not reachable"},
+  {svc:"prana-ai", domain:"Infrastructure", code:"INFRA_REDIS_UNAVAILABLE",       notes:"Redis not reachable"},
+  {svc:"prana-ai", domain:"Infrastructure", code:"INFRA_KAFKA_UNAVAILABLE",       notes:"Kafka not reachable"},
+  {svc:"prana-ai", domain:"Infrastructure", code:"INFRA_S3_UNAVAILABLE",          notes:"AWS S3 not reachable"},
+  {svc:"prana-ai", domain:"Infrastructure", code:"INFRA_KMS_UNAVAILABLE",         notes:"AWS KMS not reachable"},
+  {svc:"prana-ai", domain:"Infrastructure", code:"INFRA_LLM_URL_MISSING",         notes:"llm_base_url config not set"},
+  {svc:"prana-ai", domain:"Infrastructure", code:"INFRA_QDRANT_UNAVAILABLE",      notes:"Qdrant not reachable"},
+  {svc:"prana-ai", domain:"Infrastructure", code:"INFRA_CONFIG_MISSING",          notes:"Required platform_config key absent"},
+  {svc:"prana-ai", domain:"Infrastructure", code:"INFRA_CONFIG_INVALID",          notes:"Config key present but invalid value"},
+  {svc:"prana-ai", domain:"Infrastructure", code:"INFRA_WORKER_HEARTBEAT_FAILED", notes:"Temporal activity worker heartbeat failed"},
+  {svc:"prana-ai", domain:"Infrastructure", code:"INFRA_INTERNAL_HTTP_FAILED",    notes:"VPC-internal HTTP call to prana-api failed"},
+
+  /* ── prana-ask / AskError ────────────────────────────────────────────── */
+  {svc:"prana-ask", domain:"AUTH",       code:"UNAUTHORIZED",        notes:"X-Prana-Ask-Secret missing or wrong"},
+  {svc:"prana-ask", domain:"VALIDATION", code:"MISSING_EMPLOYEE_ID", notes:"X-Employee-ID header not provided by prana-api"},
+  {svc:"prana-ask", domain:"VALIDATION", code:"INVALID_EMPLOYEE_ID", notes:"X-Employee-ID is not a valid UUID"},
+  {svc:"prana-ask", domain:"VALIDATION", code:"EMPTY_QUERY",         notes:"Query string is blank after trim"},
+  {svc:"prana-ask", domain:"VALIDATION", code:"QUERY_TOO_LONG",      notes:"Query exceeds 1 000-char limit"},
+  {svc:"prana-ask", domain:"PRIVACY",    code:"PRIVACY_BLOCK",       notes:"LLM output blocked by privacy guard (₹ amount or PAN pattern detected)"},
+  {svc:"prana-ask", domain:"INFRA",      code:"RAG_UNAVAILABLE",     notes:"Qdrant or LLM endpoint unreachable"},
+];
+
+function retryable(row) {
+  if (row.svc !== "prana-ai") return "n/a";
+  return NR.has(row.code) ? "no" : "yes";
+}
+
+let activeSvc = "all";
+let nrOnly    = false;
+let query     = "";
+
+function render() {
+  const q = query.toLowerCase().trim();
+  const tbody = document.getElementById("tbody");
+  const empty = document.getElementById("empty");
+  tbody.innerHTML = "";
+
+  let lastGroup = null;
+  let visible   = 0;
+
+  CODES.forEach(row => {
+    if (activeSvc !== "all" && row.svc !== activeSvc) return;
+    const r = retryable(row);
+    if (nrOnly && r !== "no") return;
+    if (q && !row.code.toLowerCase().includes(q) && !row.domain.toLowerCase().includes(q) && !row.notes.toLowerCase().includes(q) && !row.svc.includes(q)) return;
+
+    const groupKey = row.svc + "||" + row.domain;
+    if (groupKey !== lastGroup) {
+      const sep = document.createElement("tr");
+      sep.className = "group-sep";
+      sep.innerHTML = `<td colspan="5">${row.svc} — ${row.domain}</td>`;
+      tbody.appendChild(sep);
+      lastGroup = groupKey;
+    }
+
+    const svcClass = {"prana-api":"api","prana-ai":"ai","prana-ask":"ask"}[row.svc] || "api";
+    const rBadge = r === "yes"
+      ? `<span class="retry-badge retry-yes">✓ yes</span>`
+      : r === "no"
+        ? `<span class="retry-badge retry-no">✗ no</span>`
+        : `<span class="retry-badge retry-na">—</span>`;
+
+    const tr = document.createElement("tr");
+    tr.innerHTML = `
+      <td>
+        <div class="code-cell">
+          <span class="code-text">${row.code}</span>
+          <button class="copy-btn" title="Copy code" onclick="copyCode(this,'${row.code}')">
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
+          </button>
+        </div>
+      </td>
+      <td><span class="svc-badge svc-${svcClass}"><span class="dot dot-${svcClass}"></span>${row.svc}</span></td>
+      <td><span class="domain-tag">${row.domain}</span></td>
+      <td>${rBadge}</td>
+      <td><span class="notes-text">${row.notes}</span></td>
+    `;
+    tbody.appendChild(tr);
+    visible++;
+  });
+
+  empty.style.display = visible === 0 ? "block" : "none";
+
+  document.getElementById("fb-all").textContent  = CODES.length;
+  document.getElementById("fb-api").textContent  = CODES.filter(r => r.svc === "prana-api").length;
+  document.getElementById("fb-ai").textContent   = CODES.filter(r => r.svc === "prana-ai").length;
+  document.getElementById("fb-ask").textContent  = CODES.filter(r => r.svc === "prana-ask").length;
+
+  document.getElementById("stat-total").textContent = CODES.length;
+  document.getElementById("stat-api").textContent   = CODES.filter(r => r.svc === "prana-api").length;
+  document.getElementById("stat-ai").textContent    = CODES.filter(r => r.svc === "prana-ai").length;
+  document.getElementById("stat-ask").textContent   = CODES.filter(r => r.svc === "prana-ask").length;
+  document.getElementById("stat-nr").textContent    = NR.size;
+}
+
+document.getElementById("search").addEventListener("input", e => { query = e.target.value; render(); });
+
+document.getElementById("filter-svc").addEventListener("click", e => {
+  const btn = e.target.closest("[data-svc]");
+  if (!btn) return;
+  activeSvc = btn.dataset.svc;
+  document.querySelectorAll("[data-svc]").forEach(b => b.classList.remove("active"));
+  btn.classList.add("active");
+  render();
+});
+
+document.getElementById("btn-nr").addEventListener("click", e => {
+  nrOnly = !nrOnly;
+  e.target.classList.toggle("active", nrOnly);
+  render();
+});
+
+function copyCode(btn, code) {
+  navigator.clipboard.writeText(code).then(() => {
+    btn.classList.add("copied");
+    const toast = document.getElementById("toast");
+    toast.textContent = "Copied " + code;
+    toast.classList.add("show");
+    setTimeout(() => { toast.classList.remove("show"); btn.classList.remove("copied"); }, 1500);
+  });
+}
+
+render();
+</script>
+</body>
+</html>

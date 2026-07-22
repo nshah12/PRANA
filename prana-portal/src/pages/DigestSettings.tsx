@@ -8,6 +8,7 @@ import { useState, useEffect } from 'react'
 import { api } from '@/lib/api'
 import { useAuthStore } from '@/store/auth'
 import { Plus, X, Mail, Calendar, FileText, CheckCircle } from 'lucide-react'
+import { tUi } from '@/i18n'
 
 type Period = 'weekly' | 'monthly' | 'quarterly'
 
@@ -155,9 +156,9 @@ export function DigestSettings() {
     <div className="space-y-6 max-w-xl">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-xl font-semibold text-slate-800">Digest Settings</h1>
+          <h1 className="text-xl font-semibold text-slate-800">{tUi('DIGEST_SETTINGS_TITLE')}</h1>
           <p className="text-xs text-slate-400 mt-0.5">
-            Configure who receives the {ROLE_LABEL[role]} digest and when.
+            {tUi('DIGEST_SETTINGS_SUB', { role: ROLE_LABEL[role] })}
           </p>
         </div>
         <span className={`text-xs font-medium px-3 py-1 rounded-full border ${colorCls}`}>
@@ -190,7 +191,7 @@ export function DigestSettings() {
         </div>
 
         {cfg.recipients.length === 0 ? (
-          <p className="text-xs text-slate-400">No recipients configured yet.</p>
+          <p className="text-xs text-slate-400">{tUi('DIGEST_NO_RECIPIENTS')}</p>
         ) : (
           <div className="flex flex-wrap gap-2">
             {cfg.recipients.map(email => (
@@ -211,7 +212,7 @@ export function DigestSettings() {
       <div className="bg-white rounded-xl border border-slate-100 shadow-sm p-5 space-y-4">
         <div className="flex items-center gap-2">
           <Calendar size={14} className="text-slate-400"/>
-          <h2 className="text-sm font-medium text-slate-700">Delivery schedule</h2>
+          <h2 className="text-sm font-medium text-slate-700">{tUi('DIGEST_SETTINGS_SCHEDULE_LABEL')}</h2>
         </div>
 
         {(['weekly', 'monthly', 'quarterly'] as Period[]).map(period => {
@@ -230,14 +231,14 @@ export function DigestSettings() {
               <div className="flex-1">
                 <p className="text-sm font-medium text-slate-700 capitalize">{period}</p>
                 <p className="text-xs text-slate-400 mt-0.5">
-                  {period === 'weekly'    && 'Every Monday 08:00 IST'}
-                  {period === 'monthly'   && '1st of each month, 08:00 IST'}
-                  {period === 'quarterly' && 'Start of Q1/Q2/Q3/Q4, 08:00 IST'}
+                  {period === 'weekly'    && tUi('DIGEST_SETTINGS_WEEKLY_TIME')}
+                  {period === 'monthly'   && tUi('DIGEST_SETTINGS_MONTHLY_TIME')}
+                  {period === 'quarterly' && tUi('DIGEST_SETTINGS_QUARTERLY_TIME')}
                 </p>
               </div>
               {enabled && (
                 <span className="text-xs font-medium text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded-full">
-                  Active
+                  {tUi('DIGEST_SETTINGS_ACTIVE_BADGE')}
                 </span>
               )}
             </div>
@@ -249,9 +250,9 @@ export function DigestSettings() {
       <div className="bg-white rounded-xl border border-slate-100 shadow-sm p-5 space-y-4">
         <div className="flex items-center gap-2">
           <FileText size={14} className="text-slate-400"/>
-          <h2 className="text-sm font-medium text-slate-700">Content sections</h2>
+          <h2 className="text-sm font-medium text-slate-700">{tUi('DIGEST_SETTINGS_SECTIONS_LABEL')}</h2>
           <span className="text-xs text-slate-400 ml-auto">
-            {cfg.sections.length === 0 ? 'All sections' : `${cfg.sections.length} selected`}
+            {cfg.sections.length === 0 ? tUi('DIGEST_SETTINGS_ALL_SECTIONS') : tUi('DIGEST_SETTINGS_N_SELECTED', { count: cfg.sections.length })}
           </span>
         </div>
         <div className="space-y-2">
@@ -268,13 +269,13 @@ export function DigestSettings() {
           ))}
         </div>
         {cfg.sections.length === 0 && (
-          <p className="text-xs text-slate-400">All sections included when none selected.</p>
+          <p className="text-xs text-slate-400">{tUi('DIGEST_SETTINGS_ALL_INCLUDED_NOTE')}</p>
         )}
       </div>
 
       {/* Format */}
       <div className="bg-white rounded-xl border border-slate-100 shadow-sm p-5">
-        <h2 className="text-sm font-medium text-slate-700 mb-3">Delivery format</h2>
+        <h2 className="text-sm font-medium text-slate-700 mb-3">{tUi('DIGEST_SETTINGS_FORMAT_LABEL')}</h2>
         <div className="flex gap-3">
           {(['email', 'email_pdf'] as const).map(fmt => (
             <label key={fmt} className="flex items-center gap-2 cursor-pointer">

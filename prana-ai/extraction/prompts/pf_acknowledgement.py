@@ -11,8 +11,8 @@ DOCUMENT TEXT:
 
 EXTRACT THESE FIELDS:
 employee_name     — Member / employee full name
-uan_number        — Universal Account Number (12-digit)
-pf_number         — PF account number
+uan               — Universal Account Number (12-digit)
+pf_account_no     — PF account number
 pan_number        — PAN card number — will be [NIK_REDACTED] if already tokenised
 employer_name     — Establishment / employer name
 establishment_id  — EPFO establishment ID (e.g. MH/BAN/12345/678)
@@ -24,8 +24,8 @@ acknowledgement_date — Date of the acknowledgement (YYYY-MM-DD)
 RETURN FORMAT (JSON only):
 {{
   "employee_name":        {{"value": null, "confidence": 0.0}},
-  "uan_number":           {{"value": null, "confidence": 0.0}},
-  "pf_number":            {{"value": null, "confidence": 0.0}},
+  "uan":                  {{"value": null, "confidence": 0.0}},
+  "pf_account_no":        {{"value": null, "confidence": 0.0}},
   "pan_number":           {{"value": null, "confidence": 0.0}},
   "employer_name":        {{"value": null, "confidence": 0.0}},
   "establishment_id":     {{"value": null, "confidence": 0.0}},

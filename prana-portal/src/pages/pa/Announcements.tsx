@@ -1,4 +1,5 @@
 import { Bell } from 'lucide-react'
+import { tUi } from '@/i18n'
 
 const ANNOUNCEMENTS = [
   {
@@ -43,7 +44,7 @@ export function Announcements() {
     <div className="space-y-6">
       <div className="flex items-center gap-3">
         <Bell size={20} className="text-amber-500" />
-        <h1 className="text-xl font-semibold text-slate-800">Platform Announcements</h1>
+        <h1 className="text-xl font-semibold text-slate-800">{tUi('PA_ANNOUNCEMENTS_TITLE')}</h1>
       </div>
 
       <div className="space-y-4">

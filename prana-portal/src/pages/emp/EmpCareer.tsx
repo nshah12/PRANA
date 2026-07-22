@@ -1,6 +1,7 @@
 import { useQuery } from '@tanstack/react-query'
 import { Share2 } from 'lucide-react'
 import { api } from '@/lib/api'
+import { tUi } from '@/i18n'
 
 const ORG_COLORS = ['#0EA5E9','#10B981','#F59E0B','#8B5CF6','#EF4444']
 const ORG_BG     = ['rgba(14,165,233,0.1)','rgba(16,185,129,0.1)','rgba(245,158,11,0.1)','rgba(139,92,246,0.1)','rgba(239,68,68,0.1)']
@@ -97,18 +98,18 @@ export function EmpCareer() {
       {/* Header */}
       <div className="flex items-start justify-between mb-4">
         <div>
-          <h1 className="text-xl font-bold text-slate-800">Career Timeline</h1>
-          <p className="text-sm text-slate-500 mt-0.5">Your entire career — verified, assembled automatically from employer-pushed documents</p>
+          <h1 className="text-xl font-bold text-slate-800">{tUi('EMP_CAREER_TITLE')}</h1>
+          <p className="text-sm text-slate-500 mt-0.5">{tUi('EMP_CAREER_SUB')}</p>
         </div>
         <button className="flex items-center gap-1.5 px-3 py-2 text-sm border border-slate-200 rounded-lg text-slate-600 hover:bg-slate-50">
-          <Share2 size={14}/> Share Career Passport
+          <Share2 size={14}/> {tUi('EMP_CAREER_SHARE_PASSPORT')}
         </button>
       </div>
 
       {/* AI-assembled banner */}
       <div className="rounded-xl px-4 py-3 mb-6 text-sm text-emerald-700"
         style={{ background:'rgba(16,185,129,0.06)', borderLeft:'3px solid #10B981', border:'1px solid rgba(16,185,129,0.2)', borderLeftWidth:3 }}>
-        🤖 <strong>AI-assembled.</strong> Every role, promotion, and tenure below was extracted from documents pushed by your employers. All entries marked ✓ are cryptographically verified.
+        🤖 <strong>{tUi('EMP_CAREER_BANNER_BOLD')}</strong> {tUi('EMP_CAREER_BANNER_TEXT')}
       </div>
 
       {isLoading ? (
@@ -118,7 +119,7 @@ export function EmpCareer() {
       ) : employers.length === 0 ? (
         <div className="text-center py-20 text-slate-400">
           <div className="text-4xl mb-3">🏢</div>
-          <p className="font-medium text-slate-600">No employers linked yet</p>
+          <p className="font-medium text-slate-600">{tUi('EMP_CAREER_NO_EMPLOYERS')}</p>
         </div>
       ) : (
         <div className="relative">
@@ -147,7 +148,7 @@ export function EmpCareer() {
                         <p className="text-[11px] text-slate-400 font-mono mt-0.5">
                           {fmtMonth(org.doj)} – {fmtMonth(org.dol)} · {tenureStr(org.doj, org.dol)} ·{' '}
                           <span style={{ color: active ? '#10B981' : '#94A3B8' }} className="font-semibold">
-                            {active ? 'Active' : 'Alumni'}
+                            {active ? tUi('EMP_CAREER_ACTIVE') : tUi('EMP_CAREER_ALUMNI')}
                           </span>
                         </p>
                       </div>
@@ -157,7 +158,7 @@ export function EmpCareer() {
                     {/* Events */}
                     <div className="divide-y divide-slate-100">
                       {org.events.length === 0 ? (
-                        <div className="px-4 py-3 text-sm text-slate-400">No career events extracted yet.</div>
+                        <div className="px-4 py-3 text-sm text-slate-400">{tUi('EMP_CAREER_NO_EVENTS')}</div>
                       ) : org.events.map((ev: any, ei: number) => {
                         const es = EVENT_STYLE[ev.event_type] ?? EVENT_STYLE.join
                         return (

@@ -1,0 +1,223 @@
+/**
+ * Data hooks for the vault — documents, employers, timeline, health, shares.
+ * Each hook follows the { data, loading, error, refetch } pattern.
+ * Mocks are still importable as fallback for Expo Go / offline dev.
+ */
+
+import { useCallback, useEffect, useRef, useState } from 'react';
+import { api } from '@/lib/api';
+
+type IconType = 'salary' | 'form16' | 'invest' | 'letter' | 'tax' | 'bank';
+
+export type DocSourceType =
+  | 'EMPLOYER_PUSH'
+  | 'EMPLOYEE_SELF_UPLOAD'
+  | 'EMAIL_FETCH'
+  | 'THIRD_PARTY_VERIFIED';
+
+export interface VaultDocument {
+  id: string;             // document_id UUID
+  doc_type: string;
+  title: string;
+  source_type: DocSourceType;
+  issuer: string;         // tenant_name, "Self", or email domain
+  employer_id: string | null;
+  received_at: string;
+  icon_type: IconType;
+  icon_emoji: string;
+}
+
+export interface DocumentDetail extends VaultDocument {
+  file_hash: string;
+  // Insights from AI pipeline — non-sensitive fields only (no ₹ salary amounts)
+  insights: Record<string, { value: string; confidence: number }>;
+}
+
+export interface Employer {
+  id: string;
+  name: string;
+  role: string;
+  from: string;
+  to: string | null;
+}
+
+export interface VaultHealth {
+  score: number;
+  label: string;
+  missing_types: string[];
+}
+
+export interface ShareLink {
+  token_id: string;
+  label: string;
+  status: string;
+  expires_at: string | null;
+  usage_count: number;
+  usage_limit: number | null;
+  created_at: string;
+}
+
+// ── Generic fetch hook ────────────────────────────────────────────────────────
+
+function useFetch<T>(path: string, deps: unknown[] = []) {
+  const [data, setData] = useState<T | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const mounted = useRef(true);
+
+  const fetch_ = useCallback(async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      const result = await api.get<T>(path);
+      if (mounted.current) setData(result);
+    } catch (e: unknown) {
+      if (mounted.current) setError((e as Error).message);
+    } finally {
+      if (mounted.current) setLoading(false);
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [path, ...deps]);
+
+  useEffect(() => {
+    mounted.current = true;
+    fetch_();
+    return () => { mounted.current = false; };
+  }, [fetch_]);
+
+  return { data, loading, error, refetch: fetch_ };
+}
+
+// ── Vault document list ───────────────────────────────────────────────────────
+
+export function useDocuments(params?: { employer_id?: string; doc_type?: string }) {
+  const qs = new URLSearchParams();
+  if (params?.employer_id) qs.set('employer_id', params.employer_id);
+  if (params?.doc_type)    qs.set('doc_type',    params.doc_type);
+  const query = qs.toString() ? `?${qs}` : '';
+  return useFetch<{ documents: VaultDocument[] }>(`/v1/vault/documents${query}`);
+}
+
+// ── Employers list ────────────────────────────────────────────────────────────
+
+export function useEmployers() {
+  return useFetch<{ employers: Employer[] }>('/v1/vault/employers');
+}
+
+// ── Vault health score ────────────────────────────────────────────────────────
+
+export function useVaultHealth() {
+  return useFetch<VaultHealth>('/v1/vault/health');
+}
+
+// ── Share links ───────────────────────────────────────────────────────────────
+
+export function useShares() {
+  return useFetch<{ shares: ShareLink[] }>('/v1/vault/share');
+}
+
+// ── Activity: document access log ─────────────────────────────────────────────
+
+export interface AccessEntry {
+  access_id: string;
+  document_id: string;
+  doc_title: string;
+  access_type: string;
+  channel: string;
+  accessed_at: string;
+  ip_address: string | null;
+}
+
+export function useAccessLog(limit = 30) {
+  return useFetch<{ events: AccessEntry[] }>(`/v1/vault/activity?limit=${limit}`);
+}
+
+// ── Career timeline ───────────────────────────────────────────────────────────
+
+export interface TimelineEvent {
+  event_id: string;
+  event_type: string;
+  event_date: string;
+  employer_name: string;
+  title: string | null;
+  notes: string | null;
+}
+
+export function useTimeline() {
+  return useFetch<{ events: TimelineEvent[] }>('/v1/vault/timeline');
+}
+
+// ── Single document detail ────────────────────────────────────────────────────
+
+export function useDocument(id: string) {
+  return useFetch<{ document: DocumentDetail }>(`/v1/vault/documents/${id}`, [id]);
+}
+
+// ── Download presigned URL ────────────────────────────────────────────────────
+
+// TODO(backend): no presigned-URL endpoint exists. The real endpoint
+// (GET /v1/vault/documents/{id}?download=true, routers/vault.py view_document)
+// streams the watermarked bytes directly as a StreamingResponse — it does not
+// return { presigned_url }. This function's whole contract needs to change to
+// an authenticated streaming fetch (with the Bearer header) rather than a URL
+// handed to a bare <Image>/browser request. Left unfixed — needs a real design
+// decision, not a prefix patch.
+export async function getDownloadUrl(id: string): Promise<string> {
+  const res = await api.get<{ presigned_url: string }>(`/vault/documents/${id}/download`);
+  return res.presigned_url;
+}
+
+// ── Create share link ─────────────────────────────────────────────────────────
+
+export interface CreateShareParams {
+  document_ids: string[];
+  recipient_label?: string;
+  expires_hours: number;     // 1-720, backend default 72 (routers/vault.py CreateShareIn)
+  max_views?: number;
+  otp_required?: boolean;
+  recipient_email?: string;
+}
+
+export interface CreatedShare {
+  share_id: string;
+  share_token: string;
+  expires_at: string;
+  otp_required: boolean;
+  otp?: string;
+}
+
+// TODO(product/backend): the backend returns a raw share_token, not a full
+// URL — there's no documented public base URL for share links (checked for
+// SHARE_BASE_URL / frontend_url config in prana-api, found none). Building a
+// URL here would mean guessing a domain, so callers get the token as-is;
+// the UI should present/copy the token rather than a fabricated link until
+// a public share base URL is decided.
+export async function createShare(params: CreateShareParams): Promise<CreatedShare> {
+  return api.post<CreatedShare>('/v1/vault/share', params);
+}
+
+// ── Career Passport credential card ──────────────────────────────────────────
+
+export interface CredentialCard {
+  verification_code: string;
+  verify_url:        string;
+  qr_url:            string;
+  doc_type:          string;
+  doc_period:        string | null;
+  pushed_by:         string;
+  pushed_at:         string | null;
+  routed_at:         string | null;
+  file_hash_sha256:  string | null;
+}
+
+export async function getCredential(docId: string): Promise<CredentialCard> {
+  return api.get<CredentialCard>(`/v1/vault/documents/${docId}/credential`);
+}
+
+// ── Bulk ZIP download ─────────────────────────────────────────────────────────
+
+// TODO(backend): no bulk-download endpoint exists at all in routers/vault.py.
+// This feature needs a real backend endpoint before it can work — not a prefix fix.
+export async function requestZipDownload(document_ids: string[]): Promise<{ job_id: string; download_url?: string }> {
+  return api.post('/vault/documents/bulk-download', { document_ids });
+}

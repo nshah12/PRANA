@@ -1,0 +1,268 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>PRANA FAQ — by Role</title>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@3.19.0/dist/tabler-icons.min.css">
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --bg:#f8fafc;--surface:#fff;--border:#e2e8f0;--border-strong:#cbd5e1;
+  --text:#0f172a;--muted:#64748b;--accent:#6366f1;--accent-bg:#eef2ff;
+  --radius:8px;--font:system-ui,-apple-system,sans-serif
+}
+body{font-family:var(--font);background:var(--bg);color:var(--text);min-height:100vh}
+.page{max-width:860px;margin:0 auto;padding:2rem 1.5rem 4rem}
+header{text-align:center;margin-bottom:2rem;padding-bottom:1.5rem;border-bottom:1px solid var(--border)}
+header h1{font-size:1.75rem;font-weight:700;margin-bottom:.4rem}
+header p{color:var(--muted);font-size:.875rem}
+.search-wrap{position:relative;margin-bottom:1.25rem}
+.search-wrap i{position:absolute;left:.75rem;top:50%;transform:translateY(-50%);color:var(--muted);font-size:16px}
+#search{width:100%;padding:.65rem .9rem .65rem 2.5rem;border:1px solid var(--border-strong);border-radius:var(--radius);font-size:.875rem;background:var(--surface);color:var(--text);outline:none;font-family:var(--font)}
+#search:focus{border-color:var(--accent);box-shadow:0 0 0 3px rgba(99,102,241,.12)}
+.tabs{display:flex;gap:6px;margin-bottom:1.5rem;flex-wrap:wrap}
+.tab{padding:.4rem 1rem;border-radius:20px;border:1px solid var(--border);font-size:.8125rem;font-weight:600;cursor:pointer;background:transparent;color:var(--muted);font-family:var(--font);transition:all .15s}
+.tab:hover{background:#f1f5f9;color:var(--text)}
+.tab.active{background:var(--accent-bg);color:var(--accent);border-color:#c7d2fe}
+.tab .ct{font-size:.7rem;margin-left:4px;opacity:.7}
+.section{display:none}.section.active{display:block}
+.role-bar{display:flex;align-items:center;gap:10px;padding:.75rem 1rem;background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);margin-bottom:1rem;font-size:.8125rem;color:var(--muted)}
+.role-pill{padding:.25rem .75rem;border-radius:20px;font-size:.75rem;font-weight:600}
+.faq{display:flex;flex-direction:column;gap:6px}
+.item{border:1px solid var(--border);border-radius:10px;overflow:hidden}
+.item:hover{border-color:var(--border-strong)}
+.q{display:flex;align-items:center;gap:10px;padding:.8rem 1rem;cursor:pointer;background:var(--surface)}
+.q-text{flex:1;font-size:.875rem;font-weight:500;line-height:1.4}
+.cat{font-size:.6875rem;font-weight:600;padding:.2rem .6rem;border-radius:20px;white-space:nowrap;flex-shrink:0}
+.chevron{font-size:13px;color:var(--muted);transition:transform .2s;flex-shrink:0}
+.item.open .chevron{transform:rotate(180deg)}
+.a{display:none;padding:.85rem 1rem;font-size:.8375rem;line-height:1.7;color:#334155;border-top:1px solid var(--border);background:#f8fafc}
+.item.open .a{display:block}
+mark{background:#fef9c3;border-radius:2px;padding:0 2px}
+.no-results{text-align:center;padding:3rem 1rem;color:var(--muted)}
+.no-results i{display:block;font-size:2rem;margin-bottom:.5rem}
+@media(max-width:600px){.page{padding:1rem 1rem 3rem}.tab{font-size:.75rem;padding:.35rem .75rem}}
+</style>
+</head>
+<body>
+<div class="page">
+  <header>
+    <div style="display:inline-flex;align-items:center;gap:8px;margin-bottom:.75rem">
+      <div style="width:32px;height:32px;border-radius:8px;background:linear-gradient(135deg,#6366f1,#22d3ee);display:flex;align-items:center;justify-content:center">
+        <span style="color:#fff;font-weight:700;font-size:.875rem">P</span>
+      </div>
+      <span style="font-family:monospace;font-weight:700;font-size:1.125rem;letter-spacing:-.02em">PRANA<span style="color:#6366f1">·</span></span>
+    </div>
+    <h1>FAQ — by Role</h1>
+    <p>80 questions across Employee · CHRO · CISO / InfoSec · CFO — searchable, crispy, to the point.</p>
+  </header>
+
+  <div class="search-wrap">
+    <i class="ti ti-search"></i>
+    <input type="text" id="search" placeholder="Search any question across all roles…" autocomplete="off">
+  </div>
+
+  <div class="tabs" id="tabs">
+    <button class="tab active" data-s="emp"><i class="ti ti-user"></i> Employee <span class="ct"></span></button>
+    <button class="tab" data-s="chro"><i class="ti ti-chart-bar"></i> CHRO <span class="ct"></span></button>
+    <button class="tab" data-s="ciso"><i class="ti ti-shield-check"></i> CISO / InfoSec <span class="ct"></span></button>
+    <button class="tab" data-s="cfo"><i class="ti ti-currency-rupee"></i> CFO <span class="ct"></span></button>
+  </div>
+
+  <div id="emp" class="section active">
+    <div class="role-bar">
+      <span class="role-pill" style="background:#e0f2fe;color:#0369a1">Employee</span>
+      Individual employees using the PRANA mobile app or web vault
+    </div>
+    <div class="faq" id="emp-list"></div>
+  </div>
+  <div id="chro" class="section">
+    <div class="role-bar">
+      <span class="role-pill" style="background:#dcfce7;color:#15803d">CHRO</span>
+      Head of HR — workforce visibility, compliance posture, document operations
+    </div>
+    <div class="faq" id="chro-list"></div>
+  </div>
+  <div id="ciso" class="section">
+    <div class="role-bar">
+      <span class="role-pill" style="background:#fef3c7;color:#92400e">CISO / InfoSec</span>
+      Security, encryption, access control, audit logs, breach response
+    </div>
+    <div class="faq" id="ciso-list"></div>
+  </div>
+  <div id="cfo" class="section">
+    <div class="role-bar">
+      <span class="role-pill" style="background:#fce7f3;color:#9d174d">CFO</span>
+      Financial privacy, audit cost, ROI, liability, payroll analytics
+    </div>
+    <div class="faq" id="cfo-list"></div>
+  </div>
+  <div class="no-results" id="nr" style="display:none">
+    <i class="ti ti-search-off"></i>No matching questions. Try a different keyword.
+  </div>
+</div>
+
+<script>
+const CATS={
+  "Access & setup":"#dbeafe|#1e40af","Documents":"#dcfce7|#15803d",
+  "Privacy":"#ede9fe|#5b21b6","Privacy rights":"#ede9fe|#5b21b6",
+  "Sharing":"#d1fae5|#065f46","Career Score":"#fef3c7|#92400e",
+  "Security":"#fee2e2|#991b1b","Password docs":"#fee2e2|#991b1b",
+  "Ask PRANA":"#fce7f3|#9d174d","Integration":"#dbeafe|#1e40af",
+  "Operations":"#dcfce7|#15803d","Compliance":"#ede9fe|#5b21b6",
+  "Vault health":"#d1fae5|#065f46","Multi-org":"#fef3c7|#92400e",
+  "Onboarding":"#dcfce7|#15803d","Storage":"#fee2e2|#991b1b",
+  "Encryption":"#fef3c7|#92400e","Access control":"#ede9fe|#5b21b6",
+  "Audit":"#d1fae5|#065f46","Sessions":"#fee2e2|#991b1b",
+  "Network":"#fce7f3|#9d174d","Pipeline":"#dbeafe|#1e40af",
+  "Scanning":"#fee2e2|#991b1b","Incident":"#fce7f3|#9d174d",
+  "Passwords":"#dcfce7|#15803d","Privacy & liability":"#ede9fe|#5b21b6",
+  "Compliance cost":"#dcfce7|#15803d","Analytics":"#d1fae5|#065f46",
+  "ROI":"#fce7f3|#9d174d","Risk":"#fee2e2|#991b1b"
+};
+function cs(c){const p=(CATS[c]||"#f1f5f9|#475569").split("|");return`background:${p[0]};color:${p[1]}`}
+
+const D={
+emp:[
+  {c:"Access & setup",q:"Where do I get the PRANA app?",a:"Download from the App Store or Play Store — search 'PRANA Vault'. Log in with the mobile number your employer registered. You get an OTP on first login; no password needed."},
+  {c:"Access & setup",q:"My employer says my documents are on PRANA — but I can't log in.",a:"Your employer must register your mobile number before your account activates. Ask HR to confirm the number they used. It must be in +91 E.164 format. If it matches but OTP doesn't arrive, check DND status on your number."},
+  {c:"Documents",q:"Which documents will I find in my vault?",a:"Salary slips, Form 16, offer letters, relieving letters, increment letters, PF statements, and any other HR documents your employer pushes. You can also self-upload — stored but marked 'Unverified — self-uploaded'."},
+  {c:"Documents",q:"I changed jobs — what happens to documents from my previous employer?",a:"They stay permanently under that employer's section. PRANA is a lifelong career vault — documents never disappear when you leave. Your new employer's documents appear separately."},
+  {c:"Privacy",q:"Can my current employer see my documents from a previous employer?",a:"No. Documents are strictly tenant-isolated. Each employer sees only what they pushed. No employer can see another employer's documents or access your full vault."},
+  {c:"Privacy",q:"Is my salary stored anywhere in PRANA?",a:"No. PRANA never stores raw salary figures. The AI extracts insights — like 'your salary is competitive for your band' — but the number itself is never written to any database, never shown in the app, and never accessible to anyone."},
+  {c:"Privacy",q:"Can my employer see when I open a document?",a:"Your employer can see that a document was accessed (timestamp and city), but not the specific content you read or how long you viewed it. CISO-level users see city only — not your IP address. PRANA's own staff never look at individual access events."},
+  {c:"Privacy",q:"Is my PAN visible anywhere in the app?",a:"Never. PAN is not displayed anywhere in PRANA — not masked, not partial. It is stored in encrypted form only, used internally for identity matching, and never surfaced in any UI."},
+  {c:"Sharing",q:"How do I share a salary slip with a bank for a loan?",a:"Open the document → tap Share → enter the recipient's phone or email. They get an OTP. Once entered, they can view the document for 10 minutes — watermarked with their name, your name, and the timestamp. They cannot download a clean copy. You can revoke access anytime."},
+  {c:"Sharing",q:"Can the person I share a document with download it?",a:"They can view it in-browser during their 10-minute session. They cannot download a clean copy. Every page shows a watermark tied to the share link. You can revoke the share from your app at any time."},
+  {c:"Career Score",q:"What is the Career Score?",a:"A 0–100 score reflecting how complete and active your career vault is. Factors: document completeness (40%), document freshness (30%), document diversity (20%), engagement (10%). It is a vault health indicator — not a creditworthiness score."},
+  {c:"Career Score",q:"How do I improve my Career Score?",a:"Ensure your vault has all key document types (salary slip, Form 16, offer letter, relieving letter, PF statement). Keep them current — a salary slip from 3 years ago counts less. Self-uploading missing documents also helps."},
+  {c:"Privacy rights",q:"Can I ask PRANA to delete all my data?",a:"Yes. Under DPDP Act 2023 you have the right to erasure. Go to Settings → Data Rights → Request Erasure. PRANA processes it within 30 days. Exception: audit logs are retained for 7 years as required by law — you are told this upfront."},
+  {c:"Privacy rights",q:"Can I download everything PRANA has on me?",a:"Yes. Settings → Data Rights → Export My Data. You get a zip file within 72 hours containing all your documents, your career timeline, and a log of who accessed what."},
+  {c:"Privacy rights",q:"Can I correct wrong information on a document?",a:"You can flag a document as disputed. Go to the document → Report Issue. The employer is notified. For employer-pushed documents, the correction must come from the employer. For self-uploaded documents you can delete and re-upload."},
+  {c:"Privacy rights",q:"Can I withdraw consent for PRANA to process my data?",a:"Yes — Settings → Privacy → Manage Consent. Withdrawing consent stops all future processing for that purpose immediately. You can withdraw selectively per purpose (e.g. withdraw analytics consent but keep vault access)."},
+  {c:"Security",q:"What if I lose my phone?",a:"Go to prana.in/emp/login from any browser, log in with OTP, then Settings → Devices → Revoke this device. All active sessions on the lost phone terminate within seconds. Your documents are safe — nothing is stored on the device."},
+  {c:"Security",q:"What is biometric unlock for?",a:"If you enroll fingerprint or Face ID, PRANA requires biometric re-authentication before showing any document — even if you are already logged in. This protects you if someone picks up your unlocked phone."},
+  {c:"Ask PRANA",q:"What can I ask the PRANA chatbot?",a:"Career questions in plain English or Hindi: 'When did I join TechCorp?', 'Do I have Form 16 for FY 2023?', 'How many employers have I worked for?'. It cannot tell you salary figures — those are never stored."},
+  {c:"Ask PRANA",q:"Will the chatbot ever reveal my salary?",a:"No. The chatbot has a mandatory privacy filter that blocks any salary figure from appearing in responses. If you ask 'What was my salary at XYZ?', it will say it can share career insights but not specific financial figures."},
+  {c:"Password docs",q:"My salary slip is password-protected. How does PRANA handle it?",a:"You enter the password in-app. PRANA decrypts the document in memory for that session only. The decrypted content is never saved anywhere — not to disk, not to cache. After 10 minutes the session wipes itself."},
+  {c:"Documents",q:"Can I add documents that my employer didn't push?",a:"Yes — tap the '+' button in your vault. Self-uploaded documents are processed through the same AI pipeline and appear in your vault marked 'Unverified'. They contribute to your career score but are visually distinguished from employer-verified documents."}
+],
+chro:[
+  {c:"Integration",q:"How does PRANA connect to our HRMS (Darwinbox / Keka / SAP)?",a:"PRANA has native connectors for Darwinbox and Keka. Two modes: Pull (PRANA fetches employee records on schedule — default 6 hours) or Webhook (HRMS pushes changes in real time). You configure credentials once in Portal → HRMS Integration. Credentials are KMS-encrypted at write time."},
+  {c:"Integration",q:"What if our HRMS isn't in the supported list?",a:"PRANA's Platform Admin can add a new connector definition. For custom integrations we also support CSV-based shared location pickup (S3/SFTP/SharePoint) where PRANA ingests and maps fields using an AI field-mapper."},
+  {c:"Documents",q:"What document types does PRANA support?",a:"14 types out of the box: salary slip, Form 16, offer letter, relieving letter, increment letter, appointment letter, PF statement, ESI document, bonus letter, promotion letter, experience letter, appraisal letter, training certificate, identity proof. Custom types can be added via manifest configuration."},
+  {c:"Documents",q:"Can we push documents for contract workers or consultants?",a:"Yes — any individual with a registered mobile number and PAN can have a vault. Contract workers are onboarded the same way as full-time employees. Their documents are isolated to your tenant."},
+  {c:"Operations",q:"What happens to an employee's vault when they leave?",a:"Their status is set to ALUMNI. Existing documents remain in their vault permanently — they still own access. You stop being able to push new documents for them. Pending pipeline jobs complete. You can configure a grace period for access log retention."},
+  {c:"Operations",q:"We pushed a wrong salary slip. Can we replace it?",a:"Yes — upload the corrected version via Portal → Upload. The old document is superseded (marked as replaced) but retained in audit history. The employee sees the updated version. Both versions are logged with timestamps for audit."},
+  {c:"Operations",q:"What is the exception queue?",a:"When PRANA can't match a document to an employee (e.g. name mismatch, no PAN in document), it goes to the exception queue. Your OA-Operator reviews it, manually links the document to the correct employee, and resolves it. SLA: 4 hours (P50), 24 hours (P95)."},
+  {c:"Operations",q:"Can we do a bulk historical upload?",a:"Yes — drag-and-drop a ZIP with a CSV manifest in Portal → Batch Upload. PRANA fans out to process each document in parallel. You see per-file progress in real time via the pipeline status tracker."},
+  {c:"Compliance",q:"What happens if an employee files a DPDP correction or erasure request?",a:"You are notified via the Portal. A Temporal workflow manages the SLA (30 days for erasure, 15 days for correction). PRANA auto-escalates to your Grievance Officer if unresolved. Audit logs are exempt from erasure."},
+  {c:"Compliance",q:"Does PRANA help with Form 16 issuance deadlines?",a:"Yes. The Compliance Calendar shows statutory due dates. When you push Form 16 documents, the compliance posture view updates to show coverage percentage per employee. You get alerts for employees who haven't received Form 16 before the deadline."},
+  {c:"Vault health",q:"What is vault completeness?",a:"A per-employee score showing what percentage of expected document types are present and current. PRANA shows completeness aggregated by department and grade in your CHRO dashboard. Low completeness triggers alerts so you can chase missing documents before audit."},
+  {c:"Vault health",q:"Can CHRO see employees' actual salary figures in PRANA?",a:"No. PRANA never stores salary amounts. The CHRO dashboard shows completion rates, document counts, and insight-level summaries. Raw salary data is not accessible to anyone — including PRANA's own staff."},
+  {c:"Integration",q:"What if the HRMS sync fails? Who gets alerted?",a:"The OA-Admin and Grievance Officer for your tenant receive an alert. The failed sync is logged in HRMS Integration → Sync History with an error reason. You can trigger a manual re-sync from the Portal without waiting for the next scheduled run."},
+  {c:"Multi-org",q:"An employee worked at two of our group companies — do they get duplicate vaults?",a:"No. PRANA deduplicates employees by PAN token (a one-way hash — the actual PAN is never stored). An employee who worked at two group companies has one vault with two employer sections. Career insights span the full tenure across all employers."},
+  {c:"Onboarding",q:"How long does it take to onboard a new employee to PRANA?",a:"Near-instant if your HRMS is connected. When the HRMS pushes the employee record, PRANA creates the account, sends an SMS invite, and the employee can log in within minutes. For manual onboarding via Portal, it's a single-step OA-Operator action."},
+  {c:"Operations",q:"Can I see who at my organisation accessed PRANA and what they did?",a:"Yes — CHRO and CISO dashboards show OA-user activity. Every upload, resolution, elevation, and config change is logged. The CISO view shows IP addresses; CHRO sees city-level only."}
+],
+ciso:[
+  {c:"Storage",q:"Where is the data physically stored?",a:"AWS ap-south-1 (Mumbai) primary, ap-south-2 (Hyderabad) secondary. YugabyteDB (distributed SQL) for structured data, AWS S3 for document bytes. No data leaves India. Audit logs older than 2 years move to Apache Iceberg on S3 (cold archive)."},
+  {c:"Encryption",q:"What encryption is used at rest and in transit?",a:"In transit: TLS 1.3 everywhere. At rest: S3 documents encrypted with tenant-specific DEKs. DEKs are envelope-encrypted with tenant KEKs stored in AWS KMS (customer-managed, ap-south-1). DB fields: FF3-1 format-preserving encryption for PAN, AES-256-GCM for TOTP secrets."},
+  {c:"Encryption",q:"Is PAN stored in plaintext anywhere?",a:"Never. PAN goes through two transformations: (1) HMAC-SHA256(PAN, platform_secret) → pan_token — one-way, safe to store as a dedup key. (2) FF3-1 FPE(PAN, employee_DEK) → enc_pan — reversible only with the employee's DEK. Plaintext PAN never touches the DB, cache, logs, or API responses."},
+  {c:"Encryption",q:"Who holds the KMS keys?",a:"AWS KMS customer-managed keys. Platform_secret and tenant KEKs are managed via AWS IAM roles — no standing access for PRANA engineers. Tenant KEKs are per-organisation, never shared across tenants. Key rotation is tracked in the kms_key_log table."},
+  {c:"Access control",q:"What MFA is enforced?",a:"All OA users (Operator, Admin, CHRO, CFO, CISO) and Portal Admins require TOTP (Google Authenticator-compatible) in addition to password. Employees use OTP-per-session (SMS). Biometric re-auth for document access on mobile is enforced if enrolled."},
+  {c:"Access control",q:"What happens after failed login attempts?",a:"5 failed TOTP attempts triggers a policy lock (configurable). Portal Admin accounts lock after 3 failed TOTP (stricter). Every attempt — success or failure — is written to login_attempt_log with IP, device fingerprint, and request_id."},
+  {c:"Access control",q:"Can PRANA engineers access our data?",a:"No. There is no admin backdoor. Engineers have no standing access to tenant data. KMS key access requires IAM policy approval. All platform-level activity is logged to audit_event and visible to your CISO dashboard."},
+  {c:"Audit",q:"What audit logs does PRANA produce?",a:"Every action generates an audit_event row: document pushes, accesses, shares, logins, TOTP events, elevation approvals, DPDP requests, exceptions resolved, key rotations, config changes. Immutable — no DELETE on audit_event. 7-year retention."},
+  {c:"Audit",q:"How long are audit logs retained?",a:"7 years — non-negotiable (legal requirement under DPDP Act 2023). Hot (queryable) in YugabyteDB for 2 years. Cold archive in Apache Iceberg on S3 after that. AuditArchivalWorkflow handles migration on schedule."},
+  {c:"Audit",q:"Can an employee's erasure request wipe audit logs?",a:"No. DPDP erasure removes PII fields from employee_user, employee_master, and document tables. Audit logs are explicitly exempt under the legal retention exception — this is disclosed to the employee during the erasure flow."},
+  {c:"Sessions",q:"How is session revocation handled?",a:"Each session has a JTI mapped to user_session.session_id. On revocation, user_session.revoked is set to TRUE. The JWT revocation check is at Redis cache first (sub-millisecond lookup) — no DB round-trip on every request. JWT TTL: 1 hour. Refresh: 7 days."},
+  {c:"Sessions",q:"Can we force-logout a user remotely?",a:"Yes — CISO dashboard → Sessions → Revoke. Takes effect within one request cycle (Redis pub/sub propagation). Works for any role. Elevation sessions can also be terminated early by the OA-Admin."},
+  {c:"Network",q:"How is the API secured at the network boundary?",a:"Kong API gateway is the single entry point. It validates JWT signatures, checks revocation status, enforces rate limits, and routes. HRMS-to-PRANA calls are additionally HMAC-SHA256 signed. Internal calls from the AI pipeline go direct (VPC-internal), enforced by AWS security group rules."},
+  {c:"Network",q:"How are HRMS webhook calls authenticated?",a:"Each connector config has a webhook_secret. Incoming POST requests must include X-Prana-Webhook-Sig = HMAC-SHA256(raw_body, webhook_secret). PRANA verifies with hmac.compare_digest (timing-safe) before processing any payload. 401 on mismatch."},
+  {c:"Sharing",q:"How are document share links protected?",a:"Share tokens are generated per-share, stored in Redis with a TTL. The recipient must enter a 6-digit OTP sent to their registered phone/email before viewing. Each view is watermarked and logged in document_access_log. Max active shares per document and TTL are platform-configurable."},
+  {c:"Pipeline",q:"Does the AI model see salary figures and PAN?",a:"The extraction model (Qwen 2.5-14B) receives full document text — it needs to find the data. But its output contract is insights only. The pipeline strips all raw figures before any DB write (Stage 05 → Stage 06 transition). Rule: LLM input = full data. LLM output = insights only."},
+  {c:"Scanning",q:"Are uploaded documents scanned for malware and CSAM?",a:"Yes. Stage 03 of the pipeline runs ClamAV (malware), a NSFW classifier, and a CSAM hash-check against PhotoDNA. Any match triggers immediate quarantine — document is never routed to the vault. CSAM matches fire a reporting workflow (CSAMReportingWorkflow) as required by law."},
+  {c:"Incident",q:"What is the breach response process?",a:"PRANA's AnomalyDetectionWorkflow fires alerts for anomalous access patterns (bulk downloads, foreign IPs, off-hours spikes). Your CISO dashboard shows flagged events for review. For confirmed breaches, PRANA supports immediate tenant-wide session revocation and can assist with CERT-In 6-hour notification requirements."},
+  {c:"Passwords",q:"How are passwords hashed?",a:"Argon2id — time=2, memory=65536, parallelism=2. Force-reset passwords use a temp_password_hash that takes priority over the main hash on login, then clears to NULL after first use. Backup recovery codes are bcrypt-hashed and single-use."},
+  {c:"Access control",q:"What RLS is applied at the database level?",a:"Row-level security is enforced on all tenant-scoped tables. Portal Admin accounts have no SELECT grant on document content rows — the query is refused at DB level, not filtered in application code. This makes cross-tenant data exposure structurally impossible."}
+],
+cfo:[
+  {c:"Privacy & liability",q:"Does PRANA store employee salary figures?",a:"No. This is the most important guarantee: PRANA never stores raw salary amounts in any database, cache, log, or API response. The AI extracts insights only ('salary is above median for the band'). If you are ever asked to produce salary data from PRANA, it will not be there — by design."},
+  {c:"Privacy & liability",q:"If an employee disputes a salary figure in PRANA, who is liable?",a:"PRANA stores exactly what your payroll system pushed. If the figure is wrong, the source of truth is your HRMS/payroll system — PRANA is the vault, not the calculator. Liability for payroll accuracy remains with you. PRANA provides the paper trail (who pushed it, when, from which IP) to support any dispute investigation."},
+  {c:"Compliance cost",q:"How does PRANA reduce Form 16 issuance cost?",a:"PRANA automates delivery — your TDS system pushes Form 16s via the API and every employee gets it in their vault instantly. No printing, no courier, no chasing employees for delivery confirmation. The compliance calendar shows who has received it. Estimated saving: ₹40–120 per employee per year in distribution cost."},
+  {c:"Compliance cost",q:"Does PRANA help with DPDP Act compliance costs?",a:"Yes. All 5 employee rights (erasure, export, correction, consent withdrawal, grievance) are handled by PRANA workflows with built-in SLA tracking and audit trails. Without PRANA, each request requires manual effort and legal review. PRANA reduces per-request cost from ₹2,000–5,000 (manual) to near-zero (automated)."},
+  {c:"Analytics",q:"What financial analytics does PRANA provide for CFOs?",a:"Payroll intelligence (document completeness by cost centre), attrition cost modelling (based on document patterns), anomaly detection (unusual document requests that may indicate moonlighting or fraud), and compensation benchmarking (insight-level — no raw figures). All in the CFO dashboard."},
+  {c:"Analytics",q:"Can CFO see individual employee salary data?",a:"No. CFO analytics are aggregated and insight-level only. PRANA cannot show you an individual's salary figure — it was never stored. Benchmarking is against anonymised cohort bands, not individual employee records."},
+  {c:"ROI",q:"What is the ROI case for PRANA?",a:"Four levers: (1) HR admin cost — salary slip distribution, Form 16 issuance, document requests reduced ~80%. (2) Attrition signal — vault completeness gaps correlate with resignation risk, enabling early intervention. (3) DPDP compliance — automated response to rights requests vs. ₹5,000+ per manual request. (4) Audit cost — 7-year log retention and instant access reduces external audit time by 30–40%."},
+  {c:"ROI",q:"How is PRANA priced?",a:"Per-active-employee per-month, billed annually. Volume bands apply for large enterprises. Contact your account team for a commercial proposal. There is no per-document charge — push as many documents as you need."},
+  {c:"Audit",q:"Is PRANA useful during a statutory audit?",a:"Yes. Auditors can be given read-only Portal access scoped to specific document types. PRANA's 7-year immutable audit log shows exactly who accessed what and when. During a PF or labour law audit you can pull a vault completeness report for any period in seconds."},
+  {c:"Audit",q:"What happens to audit logs if we terminate the PRANA contract?",a:"Your audit logs are retained for 7 years regardless of contract status — this is a legal requirement. You receive an export of all logs at offboarding. Document bytes and employee records are erased on your timeline (subject to active legal holds)."},
+  {c:"Risk",q:"What if an employee takes their PRANA vault to a competitor when they leave?",a:"Employees own their vault — it is their career record, just as they own their bank statement. But previous employer documents are only accessible to the employee, not to the new employer. A new employer cannot see what documents the previous employer pushed. There is no competitive data leakage risk."},
+  {c:"Risk",q:"What if the PRANA service goes down — do we lose access to documents?",a:"Documents are stored in AWS S3 (dual-region Mumbai + Hyderabad) with 11 nines of durability. The YugabyteDB database is dual-region active-active. PRANA's SLA is 99.9% uptime. Even in a full service outage, documents are never lost — they recover as the service restores."},
+  {c:"Privacy",q:"Does PRANA share our employee data with third parties?",a:"No. PRANA does not sell data, share data with advertisers, or use your employee data to train models. The LLM used for extraction runs on PRANA's own infrastructure. Data is processed solely to provide the PRANA service to you and your employees."},
+  {c:"Privacy",q:"Can PRANA analytics reveal salary benchmarks that expose our pay strategy?",a:"No. Benchmarking uses anonymised, aggregated cohort data — never individual salary figures (which PRANA doesn't store anyway). Your pay bands are not visible to other tenants. The benchmark is a market comparison, not a peer-company comparison."}
+]};
+
+function build(sid,items){
+  const list=document.getElementById(sid+"-list");
+  items.forEach((item,i)=>{
+    const id=sid+"-"+i;
+    const div=document.createElement("div");
+    div.className="item";
+    div.dataset.q=item.q.toLowerCase();
+    div.dataset.a=item.a.toLowerCase();
+    div.dataset.c=item.c.toLowerCase();
+    div.innerHTML=`<div class="q" onclick="tog('${id}')"><span class="q-text">${item.q}</span><span class="cat" style="${cs(item.c)}">${item.c}</span><i class="ti ti-chevron-down chevron"></i></div><div class="a" id="${id}">${item.a}</div>`;
+    list.appendChild(div);
+  });
+}
+function tog(id){
+  const a=document.getElementById(id);
+  const it=a.closest(".item");
+  it.classList.toggle("open",!it.classList.contains("open"));
+}
+function counts(f){
+  ["emp","chro","ciso","cfo"].forEach(s=>{
+    const its=document.querySelectorAll(`#${s}-list .item`);
+    let v=0;
+    its.forEach(el=>{
+      const show=!f||(el.dataset.q.includes(f)||el.dataset.a.includes(f)||el.dataset.c.includes(f));
+      el.style.display=show?"":"none";if(show)v++;
+    });
+    const sp=document.querySelector(`.tab[data-s="${s}"] .ct`);
+    if(sp)sp.textContent=f?`${v}`:"";
+  });
+}
+build("emp",D.emp);build("chro",D.chro);build("ciso",D.ciso);build("cfo",D.cfo);
+
+document.querySelectorAll(".tab").forEach(t=>{
+  t.addEventListener("click",()=>{
+    document.querySelectorAll(".tab").forEach(x=>x.classList.remove("active"));
+    document.querySelectorAll(".section").forEach(x=>x.classList.remove("active"));
+    t.classList.add("active");
+    document.getElementById(t.dataset.s).classList.add("active");
+  });
+});
+document.getElementById("search").addEventListener("input",e=>{
+  const f=e.target.value.toLowerCase().trim();
+  if(f){
+    document.querySelectorAll(".section").forEach(s=>s.classList.add("active"));
+    document.querySelectorAll(".tab").forEach(t=>t.classList.remove("active"));
+  } else {
+    document.querySelectorAll(".section").forEach(s=>s.classList.remove("active"));
+    document.getElementById("emp").classList.add("active");
+    document.querySelector(".tab[data-s='emp']").classList.add("active");
+  }
+  counts(f);
+  document.getElementById("nr").style.display=(f&&[...document.querySelectorAll(".item")].every(el=>el.style.display==="none"))?"block":"none";
+  document.querySelectorAll(".q-text,.a").forEach(el=>{
+    const txt=el.textContent;
+    if(f){const re=new RegExp(`(${f.replace(/[.*+?^${}()|[\]\\]/g,'\\$&')})`, "gi");el.innerHTML=txt.replace(re,'<mark>$1</mark>');}
+    else el.textContent=txt;
+  });
+});
+</script>
+</body>
+</html>

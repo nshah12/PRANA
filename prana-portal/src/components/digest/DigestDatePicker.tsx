@@ -12,6 +12,7 @@
  */
 import { useState, useEffect } from 'react'
 import { Calendar, Info } from 'lucide-react'
+import { tUi } from '@/i18n'
 
 export type Period = 'weekly' | 'monthly' | 'quarterly' | 'custom'
 
@@ -74,11 +75,11 @@ export function DigestDatePicker({ accentColor, accentText, accentBorder, onChan
     const todayDt = new Date(today)
 
     if (toDt > todayDt) {
-      setError('End date cannot be in the future.')
+      setError(tUi('DIGEST_DATE_END_FUTURE'))
       return
     }
     if (fromDt >= toDt) {
-      setError('Start date must be before end date.')
+      setError(tUi('DIGEST_DATE_START_BEFORE_END'))
       return
     }
     const range = diffDays(fromDt, toDt)

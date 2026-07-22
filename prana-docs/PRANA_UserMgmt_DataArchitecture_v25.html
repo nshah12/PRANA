@@ -169,6 +169,40 @@
         </div>
       </header>
       <!-- ═══════════════════════════════════════════════════════ -->
+      <!-- ADDENDUM — 2026-07-15 (not yet folded into the sections  -->
+      <!-- below; see prana-db/migrations/038_employee_merge.sql    -->
+      <!-- and KAFKA_REDIS_ARCHITECTURE.md §8)                       -->
+      <!-- ═══════════════════════════════════════════════════════ -->
+      <div class="insight warn">
+        <div class="insight-icon">⚠</div>
+        <div class="insight-body">
+          <div class="insight-title">Addendum — 2026-07-15</div>
+          <div class="insight-text">
+            Two changes landed after this doc's last full revision (v48, Jun 2026)
+            and are not yet reflected in the table/column sections below:<br><br>
+            <strong>1. employee_user.merged_into</strong> (nullable UUID, FK to
+            employee_user.employee_user_id), added for the Portal Admin
+            employee-merge/dedupe tool. When a duplicate identity (PAN typo)
+            is merged into a canonical record, the duplicate's
+            <code>status</code> is set to <code>MERGED</code> and
+            <code>merged_into</code> points at the canonical row; the row is
+            never deleted. See <code>prana-db/migrations/038_employee_merge.sql</code>.<br><br>
+            <strong>2. Immudb</strong> is now a 4th data store (alongside
+            YugabyteDB, Kafka, and Redis): a tamper-evident, cryptographically
+            verifiable audit ledger. <code>AuditConsumer</code> dual-writes
+            every <code>audit_event</code> row to it. This doesn't change any
+            table schema here, but it does change the trust model for
+            <code>audit_event</code>. As of 2026-07-15 there's also a real
+            least-privilege <code>prana_app_role</code> (LAYER 14 in
+            <code>schema.sql</code>) with <code>UPDATE</code>/<code>DELETE</code>
+            REVOKEd on <code>audit_event</code>, and a scheduled
+            <code>AuditIntegrityVerificationWorkflow</code> that re-checks
+            recent rows against Immudb and alerts Portal Admins on mismatch.
+            Full design: <code>prana-docs/KAFKA_REDIS_ARCHITECTURE.md</code> §8.
+          </div>
+        </div>
+      </div>
+      <!-- ═══════════════════════════════════════════════════════ -->
       <!-- NAMING STANDARDS                                        -->
       <!-- ═══════════════════════════════════════════════════════ -->
       <section class="section" id="naming">

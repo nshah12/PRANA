@@ -2,6 +2,7 @@ import { useQuery } from '@tanstack/react-query'
 import { TrendingDown, Users, Clock } from 'lucide-react'
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer } from 'recharts'
 import { api } from '@/lib/api'
+import { tUi } from '@/i18n'
 
 export function AttritionCost() {
   const { data, isLoading, isError, refetch } = useQuery({
@@ -20,8 +21,8 @@ export function AttritionCost() {
   )
   if (isError) return (
     <div className="flex flex-col items-center justify-center py-20 text-slate-400">
-      <p className="text-sm">Failed to load attrition data.</p>
-      <button onClick={() => refetch()} className="mt-3 text-xs text-indigo-600 hover:underline">Retry</button>
+      <p className="text-sm">{tUi('CFO_ATTRITION_LOAD_FAILED')}</p>
+      <button onClick={() => refetch()} className="mt-3 text-xs text-indigo-600 hover:underline">{tUi('CFO_ATTRITION_RETRY')}</button>
     </div>
   )
 
@@ -35,9 +36,9 @@ export function AttritionCost() {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-xl font-semibold text-slate-800">Attrition Cost</h1>
+        <h1 className="text-xl font-semibold text-slate-800">{tUi('CFO_ATTRITION_TITLE')}</h1>
         <p className="text-xs text-indigo-600 bg-indigo-50 rounded-md px-2 py-1 mt-1 inline-block">
-          Aggregated metrics only — no individual salary figures
+          {tUi('CFO_ATTRITION_SUB')}
         </p>
       </div>
 
@@ -52,7 +53,7 @@ export function AttritionCost() {
       </div>
 
       <div className="bg-white rounded-xl border border-slate-100 shadow-sm p-6">
-        <h2 className="font-medium text-slate-800 mb-4">Monthly exits (rolling 12m)</h2>
+        <h2 className="font-medium text-slate-800 mb-4">{tUi('CFO_ATTRITION_MONTHLY_EXITS_LABEL')}</h2>
         <ResponsiveContainer width="100%" height={200}>
           <BarChart data={data?.monthly_exits ?? []}>
             <XAxis dataKey="month" tick={{ fontSize: 11, fill: '#94A3B8' }} />
@@ -64,7 +65,7 @@ export function AttritionCost() {
       </div>
 
       <div className="bg-white rounded-xl border border-slate-100 shadow-sm p-6">
-        <h2 className="font-medium text-slate-800 mb-4">Exit reasons (category split)</h2>
+        <h2 className="font-medium text-slate-800 mb-4">{tUi('CFO_ATTRITION_EXIT_REASONS_LABEL')}</h2>
         <div className="space-y-3">
           {(data?.exit_reasons ?? []).map((r: any) => (
             <div key={r.reason} className="flex items-center gap-3">
@@ -76,7 +77,7 @@ export function AttritionCost() {
             </div>
           ))}
           {!data?.exit_reasons?.length && (
-            <p className="text-sm text-slate-400 text-center py-4">No exit data for this period.</p>
+            <p className="text-sm text-slate-400 text-center py-4">{tUi('CFO_ATTRITION_NO_EXIT_DATA')}</p>
           )}
         </div>
       </div>

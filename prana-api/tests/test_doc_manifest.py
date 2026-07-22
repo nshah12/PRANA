@@ -11,6 +11,45 @@ from uuid import uuid4
 
 from services.manifest_service import ManifestService, ManifestRecord, AUTO_DETECT_MIN_SCORE
 
+AUTH_HEADER = {"Authorization": "Bearer test.mock.token"}
+TENANT_ID = "11111111-1111-1111-1111-111111111111"
+
+
+def _set_oa_admin_auth(client, tenant_id: str = TENANT_ID) -> None:
+    jwt = client.app.state.jwt_service
+    jwt.decode = MagicMock(return_value={
+        "sub": "22222222-2222-2222-2222-222222222222",
+        "user_type": "oa_user",
+        "role": "oa_admin",
+        "tenant_id": tenant_id,
+        "jti": "oa-admin-session-001",
+    })
+    jwt.is_revoked = AsyncMock(return_value=False)
+
+
+def _set_oa_operator_auth(client, tenant_id: str = TENANT_ID) -> None:
+    jwt = client.app.state.jwt_service
+    jwt.decode = MagicMock(return_value={
+        "sub": "33333333-3333-3333-3333-333333333333",
+        "user_type": "oa_user",
+        "role": "oa_operator",
+        "tenant_id": tenant_id,
+        "jti": "oa-operator-session-001",
+    })
+    jwt.is_revoked = AsyncMock(return_value=False)
+
+
+def _set_pa_auth(client) -> None:
+    jwt = client.app.state.jwt_service
+    jwt.decode = MagicMock(return_value={
+        "sub": "44444444-4444-4444-4444-444444444444",
+        "user_type": "portal_admin",
+        "role": "portal_admin",
+        "tenant_id": None,
+        "jti": "pa-session-001",
+    })
+    jwt.is_revoked = AsyncMock(return_value=False)
+
 
 # ── Fixtures ───────────────────────────────────────────────────────────────────
 
@@ -23,9 +62,12 @@ def _manifest_row(doc_type="SALARY_SLIP", tenant_id=None, **overrides):
         "identity_fields":         json.dumps(["pan_number", "employee_id", "employee_name"]),
         "optional_fields":         json.dumps(["designation", "uan_number"]),
         "classification_signals":  json.dumps([["net_pay", "pay_period_month"]]),
+        "signal_weights":          json.dumps([]),
+        "safe_fields":             json.dumps([]),
         "confidence_threshold":    0.75,
         "supported_formats":       json.dumps(["pdf", "docx", "jpeg", "jpg", "png", "tiff"]),
         "is_active":               True,
+        "usage_count":             0,
         "created_at":              None,
         "updated_at":              None,
     }
@@ -93,6 +135,44 @@ def test_manifest_record_score_null_values_dont_fire():
     record = ManifestRecord(row)
     assert record.score_against({"net_pay": None, "pay_period_month": "March"}) == 0.0
     assert record.score_against({"net_pay": "", "pay_period_month": "March"}) == 0.0
+
+
+def test_manifest_record_score_with_weights_prioritizes_higher_weight_signal():
+    # A generic signal (employee_name + employer_name) is far less discriminative
+    # than a specific one (uan_number + pf_number) but fired equally under the
+    # old unweighted scoring (gap 1d).
+    row = _manifest_row(
+        classification_signals=json.dumps([
+            ["employee_name", "employer_name"],
+            ["uan_number", "pf_number"],
+        ]),
+        signal_weights=json.dumps([1.0, 3.0]),
+    )
+    record = ManifestRecord(row)
+
+    generic_only = {"employee_name": "A", "employer_name": "B"}
+    assert record.score_against(generic_only) == 1.0 / 4.0
+
+    specific_only = {"uan_number": "123", "pf_number": "456"}
+    assert record.score_against(specific_only) == 3.0 / 4.0
+
+
+def test_manifest_record_score_no_weights_falls_back_to_equal():
+    row = _manifest_row(
+        classification_signals=json.dumps([["a", "b"], ["c", "d"]]),
+        signal_weights=json.dumps([]),
+    )
+    record = ManifestRecord(row)
+    assert record.score_against({"a": 1, "b": 2}) == 0.5
+
+
+def test_manifest_record_score_mismatched_weight_length_falls_back_to_equal():
+    row = _manifest_row(
+        classification_signals=json.dumps([["a", "b"], ["c", "d"]]),
+        signal_weights=json.dumps([5.0]),   # wrong length vs 2 signals — ignored
+    )
+    record = ManifestRecord(row)
+    assert record.score_against({"a": 1, "b": 2}) == 0.5
 
 
 # ── ManifestService.resolve ────────────────────────────────────────────────────
@@ -209,6 +289,71 @@ async def test_auto_detect_skips_unsupported_formats():
     assert result is None
 
 
+@pytest.mark.asyncio
+async def test_auto_detect_tie_breaks_on_usage_count():
+    # Both manifests score identically — the one this tenant classifies more
+    # often should win the tie (gap 1c: frequency-informed AUTO_DETECT).
+    tenant_id = uuid4()
+    salary_row = _manifest_row(
+        doc_type="SALARY_SLIP", tenant_id=None,
+        classification_signals=json.dumps([["net_pay"]]),
+        usage_count=2,
+    )
+    form16_row = _manifest_row(
+        doc_type="FORM_16", tenant_id=None,
+        classification_signals=json.dumps([["net_pay"]]),
+        usage_count=10,
+    )
+    mock_db = AsyncMock()
+    mock_db.fetch.return_value = [salary_row, form16_row]
+
+    svc = ManifestService(mock_db)
+    result = await svc.auto_detect(tenant_id, {"net_pay": 1}, ext="pdf")
+
+    assert result.doc_type == "FORM_16"
+
+
+@pytest.mark.asyncio
+async def test_auto_detect_query_has_defensive_limit():
+    tenant_id = uuid4()
+    mock_db = AsyncMock()
+    mock_db.fetch.return_value = []
+
+    svc = ManifestService(mock_db)
+    await svc.auto_detect(tenant_id, {}, ext="pdf")
+
+    query = mock_db.fetch.call_args[0][0]
+    assert "LIMIT" in query.upper()
+
+
+# ── ManifestService.record_usage ──────────────────────────────────────────────
+
+@pytest.mark.asyncio
+async def test_record_usage_increments_tenant_override_when_present():
+    tenant_id = uuid4()
+    mock_db = AsyncMock()
+    mock_db.fetchval.return_value = uuid4()   # tenant override row was updated
+
+    svc = ManifestService(mock_db)
+    await svc.record_usage(tenant_id, "SALARY_SLIP")
+
+    mock_db.fetchval.assert_called_once()
+    mock_db.execute.assert_not_called()
+
+
+@pytest.mark.asyncio
+async def test_record_usage_falls_back_to_platform_default():
+    tenant_id = uuid4()
+    mock_db = AsyncMock()
+    mock_db.fetchval.return_value = None   # no tenant override exists
+
+    svc = ManifestService(mock_db)
+    await svc.record_usage(tenant_id, "SALARY_SLIP")
+
+    mock_db.fetchval.assert_called_once()
+    mock_db.execute.assert_called_once()
+
+
 # ── ManifestService.upsert ─────────────────────────────────────────────────────
 
 @pytest.mark.asyncio
@@ -274,25 +419,142 @@ async def test_get_manifest_requires_auth(client):
 
 
 @pytest.mark.asyncio
-async def test_upsert_manifest_requires_oa_admin_role(client):
+async def test_upsert_manifest_requires_oa_admin_role(client, mock_db):
     """OA-Operator cannot modify manifests — only OA-Admin."""
-    headers = {"Authorization": "Bearer operator_token"}
-    with patch("routers.doc_manifest._require_oa_admin") as mock_auth:
-        mock_auth.return_value = (uuid4(), uuid4())
-        # Simulate operator role check
-        response = await client.put(
-            "/v1/manifests/SALARY_SLIP",
-            json={"required_fields": [], "identity_fields": [], "optional_fields": []},
-            headers=headers,
-        )
-    # 401 or 403 — auth not set up in test client
-    assert response.status_code in (401, 403)
+    _set_oa_operator_auth(client)
+
+    response = await client.put(
+        "/v1/manifests/SALARY_SLIP",
+        json={"required_fields": [], "identity_fields": [], "optional_fields": []},
+        headers=AUTH_HEADER,
+    )
+    assert response.status_code == 403
+
+
+@pytest.mark.asyncio
+async def test_upsert_manifest_succeeds_for_oa_admin(client, mock_db):
+    """OA-Admin can create/update a tenant manifest override."""
+    _set_oa_admin_auth(client)
+    mock_db.fetchrow.side_effect = [
+        None,  # no existing override
+        _manifest_row(doc_type="SALARY_SLIP", tenant_id=TENANT_ID),  # INSERT result
+    ]
+
+    response = await client.put(
+        "/v1/manifests/SALARY_SLIP",
+        json={"required_fields": ["employee_name"], "identity_fields": [], "optional_fields": []},
+        headers=AUTH_HEADER,
+    )
+    assert response.status_code == 200
+    assert response.json()["manifest"]["doc_type"] == "SALARY_SLIP"
 
 
 @pytest.mark.asyncio
 async def test_pa_manifests_requires_portal_admin(client):
     response = await client.get("/admin/manifests")
     assert response.status_code in (401, 403)
+
+
+# ── safe_fields validation ─────────────────────────────────────────────────────
+# Root cause this guards: a tenant-configured custom field name is never on
+# prana-ai's static _SAFE_METADATA_FIELDS allowlist, so it's stripped by
+# default (fail-closed) unless explicitly declared safe here. safe_fields must
+# be a subset of the fields the manifest actually declares — otherwise an
+# admin could "mark safe" a field that was never being extracted in the first
+# place, silently no-op'ing their intent.
+
+@pytest.mark.asyncio
+async def test_upsert_rejects_safe_field_not_in_declared_fields(client, mock_db):
+    """safe_fields entries must already appear in required/identity/optional_fields."""
+    _set_oa_admin_auth(client)
+
+    response = await client.put(
+        "/v1/manifests/SALARY_SLIP",
+        json={
+            "required_fields": ["employee_name"],
+            "identity_fields": [],
+            "optional_fields": [],
+            "safe_fields": ["leave_balance_days"],  # never declared above
+        },
+        headers=AUTH_HEADER,
+    )
+    assert response.status_code == 422
+
+
+@pytest.mark.asyncio
+async def test_upsert_accepts_safe_field_that_is_declared(client, mock_db):
+    """safe_fields entries that ARE in required/identity/optional_fields are accepted."""
+    _set_oa_admin_auth(client)
+    mock_db.fetchrow.side_effect = [
+        None,  # no existing override
+        _manifest_row(
+            doc_type="SALARY_SLIP", tenant_id=TENANT_ID,
+            required_fields=json.dumps(["employee_name", "leave_balance_days"]),
+            safe_fields=json.dumps(["leave_balance_days"]),
+        ),
+    ]
+
+    response = await client.put(
+        "/v1/manifests/SALARY_SLIP",
+        json={
+            "required_fields": ["employee_name", "leave_balance_days"],
+            "identity_fields": [],
+            "optional_fields": [],
+            "safe_fields": ["leave_balance_days"],
+        },
+        headers=AUTH_HEADER,
+    )
+    assert response.status_code == 200
+    assert response.json()["manifest"]["safe_fields"] == ["leave_balance_days"]
+
+
+@pytest.mark.asyncio
+async def test_get_manifest_returns_safe_fields(client, mock_db):
+    _set_oa_admin_auth(client)
+    mock_db.fetchrow.return_value = _manifest_row(
+        doc_type="SALARY_SLIP", tenant_id=None,
+        safe_fields=json.dumps(["leave_balance_days"]),
+    )
+
+    response = await client.get("/v1/manifests/SALARY_SLIP", headers=AUTH_HEADER)
+    assert response.status_code == 200
+    assert response.json()["manifest"]["safe_fields"] == ["leave_balance_days"]
+
+
+@pytest.mark.asyncio
+async def test_pa_upsert_platform_manifest_persists_safe_fields(client, mock_db):
+    """PA's platform-default upsert path (raw SQL, not ManifestService) must
+    also persist safe_fields — this is a separate code path from the OA-Admin
+    tenant-override upsert and easy to miss when adding a new column."""
+    _set_pa_auth(client)
+    mock_db.fetchrow.return_value = _manifest_row(
+        doc_type="SALARY_SLIP", tenant_id=None,
+        safe_fields=json.dumps(["leave_balance_days"]),
+    )
+
+    response = await client.put(
+        "/admin/manifests/SALARY_SLIP",
+        json={
+            "required_fields": ["employee_name", "leave_balance_days"],
+            "identity_fields": [],
+            "optional_fields": [],
+            "safe_fields": ["leave_balance_days"],
+        },
+        headers=AUTH_HEADER,
+    )
+    assert response.status_code == 200
+    assert response.json()["manifest"]["safe_fields"] == ["leave_balance_days"]
+
+
+@pytest.mark.asyncio
+async def test_pa_manifests_works_for_portal_admin(client, mock_db):
+    """PA can list platform-default manifests once authenticated."""
+    _set_pa_auth(client)
+    mock_db.fetch.return_value = []
+
+    response = await client.get("/admin/manifests", headers=AUTH_HEADER)
+    assert response.status_code == 200
+    assert response.json() == {"items": [], "total": 0}
 
 
 # ── Router: tenant isolation ───────────────────────────────────────────────────
@@ -325,12 +587,46 @@ async def test_resolve_unclassified_requires_auth(client):
 
 
 @pytest.mark.asyncio
-async def test_resolve_unclassified_validates_doc_type(client):
+async def test_resolve_unclassified_validates_doc_type(client, mock_db):
     """Unknown doc_type must be rejected with 422."""
-    with patch("routers.doc_manifest._require_oa_admin") as mock_auth:
-        mock_auth.return_value = (uuid4(), uuid4())
-        response = await client.post(
-            f"/v1/unclassified/{uuid4()}/resolve",
-            json={"resolved_doc_type": "TOTALLY_MADE_UP"},
-        )
-    assert response.status_code in (401, 403, 422)
+    _set_oa_admin_auth(client)
+    response = await client.post(
+        f"/v1/unclassified/{uuid4()}/resolve",
+        json={"resolved_doc_type": "TOTALLY_MADE_UP"},
+        headers=AUTH_HEADER,
+    )
+    assert response.status_code == 422
+
+
+def test_unclassified_list_query_uses_document_id_pk():
+    """Query must use document_id as PK — no unclassified_id column in schema."""
+    import pathlib
+    src = pathlib.Path(__file__).parent.parent.joinpath("routers/doc_manifest.py").read_text()
+    # Find the list_unclassified function body
+    start = src.index("async def list_unclassified")
+    body = src[start:start + 1000]
+    assert "unclassified_id" not in body, \
+        "unclassified_queue has document_id as PK — unclassified_id column does not exist"
+
+
+def test_resolve_unclassified_publishes_doc_reclassified_to_kafka():
+    """resolve_unclassified must publish DOC_RECLASSIFIED to prana.ingest.events."""
+    import pathlib
+    src = pathlib.Path(__file__).parent.parent.joinpath("routers/doc_manifest.py").read_text()
+    start = src.index("async def resolve_unclassified")
+    body = src[start:start + 1500]
+    assert "DOC_RECLASSIFIED" in body, \
+        "resolve_unclassified must publish DOC_RECLASSIFIED event to Kafka"
+    assert "stage_changed" in body, \
+        "DOC_RECLASSIFIED must use stage_changed domain helper (not direct publish)"
+
+
+def test_unclassified_queue_migration_exists():
+    """Migration 021 must exist to create the unclassified_queue table."""
+    import pathlib
+    migrations = list(pathlib.Path(__file__).parent.parent.parent.joinpath("prana-db/migrations").glob("021_*.sql"))
+    assert migrations, "Migration 021_unclassified_queue.sql must exist"
+    content = migrations[0].read_text()
+    assert "unclassified_queue" in content
+    assert "document_id" in content
+    assert "ROLLBACK" in content

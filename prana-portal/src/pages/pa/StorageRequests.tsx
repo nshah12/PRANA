@@ -2,6 +2,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { CheckCircle, XCircle, Clock } from 'lucide-react'
 import { api } from '@/lib/api'
 import { fmtDateTime } from '@/lib/utils'
+import { tUi } from '@/i18n'
 
 export function StorageRequests() {
   const qc = useQueryClient()
@@ -18,18 +19,18 @@ export function StorageRequests() {
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
-        <h1 className="text-xl font-semibold text-slate-800">Storage Requests</h1>
-        <span className="badge badge-amber">{data?.filter((r: any) => r.status==='PENDING').length ?? 0} pending</span>
+        <h1 className="text-xl font-semibold text-slate-800">{tUi('PA_STORAGE_TITLE')}</h1>
+        <span className="badge badge-amber">{tUi('PA_ONBOARD_PENDING_COUNT', { n: data?.filter((r: any) => r.status==='PENDING').length ?? 0 })}</span>
       </div>
       <div className="space-y-3">
-        {isLoading && <p className="text-sm text-slate-400">Loading…</p>}
+        {isLoading && <p className="text-sm text-slate-400">{tUi('CFO_DIGEST_LOADING')}</p>}
         {data?.map((req: any) => (
           <div key={req.request_id} className="bg-white rounded-xl border border-slate-100 shadow-sm p-5">
             <div className="flex items-start gap-4">
               <div className="flex-1">
                 <p className="font-medium text-slate-800">{req.tenant_name}</p>
                 <p className="text-sm text-slate-500 mt-0.5">
-                  Requesting <span className="font-mono font-bold">{req.requested_gb} GB</span> · Current: {req.current_gb} GB
+                  {tUi('PA_STORAGE_REQUESTING_PREFIX')} <span className="font-mono font-bold">{req.requested_gb} GB</span> · {tUi('PA_STORAGE_CURRENT_PREFIX')} {req.current_gb} GB
                 </p>
                 <p className="text-xs text-slate-400 mt-1">{fmtDateTime(req.requested_at)}</p>
                 {req.reason && <p className="text-sm text-slate-600 mt-2 bg-slate-50 rounded-md px-3 py-2">{req.reason}</p>}

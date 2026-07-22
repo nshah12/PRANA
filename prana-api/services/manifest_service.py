@@ -20,6 +20,7 @@ from uuid import UUID
 log = logging.getLogger(__name__)
 
 AUTO_DETECT_MIN_SCORE = 0.5   # at least half the signals must fire to classify
+MANIFEST_PROBE_LIMIT = 50     # defensive cap on manifests scored per detection attempt
 
 
 class ManifestRecord:
@@ -32,9 +33,15 @@ class ManifestRecord:
         self.identity_fields: list[str]    = _load_json(row["identity_fields"])
         self.optional_fields: list[str]    = _load_json(row["optional_fields"])
         self.classification_signals: list  = _load_json(row["classification_signals"])
+        self.signal_weights: list[float]   = _load_json(row.get("signal_weights"))
+        # Subset of required/identity/optional fields explicitly confirmed
+        # non-monetary. Anything NOT here is sensitive by default (fail-closed)
+        # — unioned into prana-ai's static _SAFE_METADATA_FIELDS allowlist.
+        self.safe_fields: list[str]        = _load_json(row.get("safe_fields"))
         self.confidence_threshold: float   = row["confidence_threshold"]
         self.supported_formats: list[str]  = _load_json(row["supported_formats"])
         self.is_tenant_override: bool      = row["tenant_id"] is not None
+        self.usage_count: int              = row.get("usage_count") or 0
 
     def all_fields(self) -> list[str]:
         """Union of required + optional — full extraction target list."""
@@ -51,17 +58,32 @@ class ManifestRecord:
         Score this manifest against partially extracted fields.
         Used by AUTO_DETECT to rank manifests.
         Returns 0.0–1.0; 0.0 if no classification_signals configured.
+
+        Each signal group can carry a relative weight (signal_weights) so a
+        highly-discriminative signal (e.g. uan_number + pf_number) counts for
+        more than a generic one (e.g. employee_name + employer_name). If
+        signal_weights is empty or its length doesn't match classification_signals
+        (e.g. legacy rows predating this column), falls back to equal weighting.
         """
         if not self.classification_signals:
             return 0.0
-        fired = sum(
-            1 for signal in self.classification_signals
+
+        weights = self.signal_weights
+        if not weights or len(weights) != len(self.classification_signals):
+            weights = [1.0] * len(self.classification_signals)
+
+        total_weight = sum(weights)
+        if total_weight <= 0:
+            return 0.0
+
+        fired_weight = sum(
+            weight for signal, weight in zip(self.classification_signals, weights)
             if all(
                 partial_fields.get(field) not in (None, "", {})
                 for field in signal
             )
         )
-        return fired / len(self.classification_signals)
+        return fired_weight / total_weight
 
     def format_supported(self, ext: str) -> bool:
         return ext.lower() in self.supported_formats or "auto" in self.supported_formats
@@ -82,7 +104,8 @@ class ManifestService:
             """
             SELECT manifest_id, tenant_id, doc_type,
                    required_fields, identity_fields, optional_fields,
-                   classification_signals, confidence_threshold, supported_formats
+                   classification_signals, signal_weights, confidence_threshold,
+                   supported_formats, usage_count, safe_fields
             FROM doc_type_field_manifest
             WHERE tenant_id = $1 AND doc_type = $2 AND is_active = TRUE
             """,
@@ -95,7 +118,8 @@ class ManifestService:
                 """
                 SELECT manifest_id, tenant_id, doc_type,
                        required_fields, identity_fields, optional_fields,
-                       classification_signals, confidence_threshold, supported_formats
+                       classification_signals, signal_weights, confidence_threshold,
+                       supported_formats, usage_count, safe_fields
                 FROM doc_type_field_manifest
                 WHERE tenant_id IS NULL AND doc_type = $1 AND is_active = TRUE
                 """,
@@ -117,20 +141,36 @@ class ManifestService:
         Score all active manifests against partial_fields extracted from the doc.
         Returns the best-matching manifest if score >= AUTO_DETECT_MIN_SCORE,
         else None (→ unclassified_queue).
+
+        Manifests are considered in usage_count DESC order and capped at
+        MANIFEST_PROBE_LIMIT (gap 1c) — defense-in-depth against unbounded
+        doc_type growth; DISTINCT ON (doc_type) already bounds the row count
+        to the number of distinct doc types today. Ties in score are broken
+        by usage_count — prefer the doc_type this tenant classifies most often.
         """
-        # Load all effective manifests for this tenant
-        # (tenant overrides shadow platform defaults for the same doc_type)
+        # Load effective manifests for this tenant (tenant overrides shadow
+        # platform defaults for the same doc_type), ordered by how often this
+        # tenant actually uses each doc_type, capped defensively.
         rows = await self._db.fetch(
             """
-            SELECT DISTINCT ON (doc_type)
-                   manifest_id, tenant_id, doc_type,
+            SELECT manifest_id, tenant_id, doc_type,
                    required_fields, identity_fields, optional_fields,
-                   classification_signals, confidence_threshold, supported_formats
-            FROM doc_type_field_manifest
-            WHERE (tenant_id = $1 OR tenant_id IS NULL) AND is_active = TRUE
-            ORDER BY doc_type, tenant_id NULLS LAST
+                   classification_signals, signal_weights, confidence_threshold,
+                   supported_formats, usage_count
+            FROM (
+                SELECT DISTINCT ON (doc_type)
+                       manifest_id, tenant_id, doc_type,
+                       required_fields, identity_fields, optional_fields,
+                       classification_signals, signal_weights, confidence_threshold,
+                       supported_formats, usage_count
+                FROM doc_type_field_manifest
+                WHERE (tenant_id = $1 OR tenant_id IS NULL) AND is_active = TRUE
+                ORDER BY doc_type, tenant_id NULLS LAST
+            ) deduped
+            ORDER BY usage_count DESC
+            LIMIT $2
             """,
-            tenant_id,
+            tenant_id, MANIFEST_PROBE_LIMIT,
         )
 
         if not rows:
@@ -148,7 +188,7 @@ class ManifestService:
         if not scored:
             return None
 
-        scored.sort(key=lambda x: x[0], reverse=True)
+        scored.sort(key=lambda x: (x[0], x[1].usage_count), reverse=True)
         best_score, best_manifest = scored[0]
 
         if best_score >= AUTO_DETECT_MIN_SCORE:
@@ -164,6 +204,35 @@ class ManifestService:
         )
         return None
 
+    async def record_usage(self, tenant_id: UUID, doc_type: str) -> None:
+        """
+        Bump usage_count for the manifest that classified this doc_type.
+        Called as a side-effect of /internal/pipeline/routed — a successful
+        route confirms the classification was correct, so it's a good signal
+        for future AUTO_DETECT tie-breaking. Tenant override is bumped if one
+        exists; otherwise the platform default is bumped.
+        """
+        updated = await self._db.fetchval(
+            """
+            UPDATE doc_type_field_manifest
+            SET usage_count = usage_count + 1
+            WHERE tenant_id = $1 AND doc_type = $2 AND is_active = TRUE
+            RETURNING manifest_id
+            """,
+            tenant_id, doc_type,
+        )
+        if updated:
+            return
+
+        await self._db.execute(
+            """
+            UPDATE doc_type_field_manifest
+            SET usage_count = usage_count + 1
+            WHERE tenant_id IS NULL AND doc_type = $1 AND is_active = TRUE
+            """,
+            doc_type,
+        )
+
     async def list_for_tenant(self, tenant_id: UUID) -> list[dict]:
         """
         Return all effective manifests for a tenant — tenant overrides merged
@@ -174,8 +243,9 @@ class ManifestService:
             SELECT DISTINCT ON (doc_type)
                    manifest_id, tenant_id, doc_type,
                    required_fields, identity_fields, optional_fields,
-                   classification_signals, confidence_threshold, supported_formats,
-                   is_active, created_at, updated_at
+                   classification_signals, signal_weights, confidence_threshold,
+                   supported_formats, usage_count,
+                   is_active, created_at, updated_at, safe_fields
             FROM doc_type_field_manifest
             WHERE (tenant_id = $1 OR tenant_id IS NULL) AND is_active = TRUE
             ORDER BY doc_type, tenant_id NULLS LAST
@@ -205,49 +275,56 @@ class ManifestService:
                   identity_fields        = $4,
                   optional_fields        = $5,
                   classification_signals = $6,
-                  confidence_threshold   = $7,
-                  supported_formats      = $8,
-                  is_active              = $9,
-                  updated_by             = $10,
-                  updated_at             = NOW()
+                  signal_weights         = $7,
+                  confidence_threshold   = $8,
+                  supported_formats      = $9,
+                  is_active              = $10,
+                  updated_by             = $11,
+                  updated_at             = NOW(),
+                  safe_fields            = $12
                 WHERE tenant_id = $1 AND doc_type = $2
                 RETURNING manifest_id, tenant_id, doc_type, required_fields,
                           identity_fields, optional_fields, classification_signals,
-                          confidence_threshold, supported_formats, is_active,
-                          created_at, updated_at
+                          signal_weights, confidence_threshold, supported_formats,
+                          usage_count, is_active, created_at, updated_at, safe_fields
                 """,
                 tenant_id, doc_type,
                 json.dumps(payload.get("required_fields", [])),
                 json.dumps(payload.get("identity_fields", [])),
                 json.dumps(payload.get("optional_fields", [])),
                 json.dumps(payload.get("classification_signals", [])),
+                json.dumps(payload.get("signal_weights", [])),
                 payload.get("confidence_threshold", 0.75),
                 json.dumps(payload.get("supported_formats", ["pdf", "docx", "jpeg", "jpg", "png", "tiff"])),
                 payload.get("is_active", True),
                 updated_by,
+                json.dumps(payload.get("safe_fields", [])),
             )
         else:
             row = await self._db.fetchrow(
                 """
                 INSERT INTO doc_type_field_manifest
                   (tenant_id, doc_type, required_fields, identity_fields,
-                   optional_fields, classification_signals, confidence_threshold,
-                   supported_formats, is_active, created_by, updated_by)
-                VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$10)
+                   optional_fields, classification_signals, signal_weights,
+                   confidence_threshold, supported_formats, is_active,
+                   created_by, updated_by, safe_fields)
+                VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$11,$12)
                 RETURNING manifest_id, tenant_id, doc_type, required_fields,
                           identity_fields, optional_fields, classification_signals,
-                          confidence_threshold, supported_formats, is_active,
-                          created_at, updated_at
+                          signal_weights, confidence_threshold, supported_formats,
+                          usage_count, is_active, created_at, updated_at, safe_fields
                 """,
                 tenant_id, doc_type,
                 json.dumps(payload.get("required_fields", [])),
                 json.dumps(payload.get("identity_fields", [])),
                 json.dumps(payload.get("optional_fields", [])),
                 json.dumps(payload.get("classification_signals", [])),
+                json.dumps(payload.get("signal_weights", [])),
                 payload.get("confidence_threshold", 0.75),
                 json.dumps(payload.get("supported_formats", ["pdf", "docx", "jpeg", "jpg", "png", "tiff"])),
                 payload.get("is_active", True),
                 updated_by,
+                json.dumps(payload.get("safe_fields", [])),
             )
 
         return _serialize_manifest_row(dict(row))
@@ -268,8 +345,9 @@ class ManifestService:
         rows = await self._db.fetch(
             """
             SELECT manifest_id, tenant_id, doc_type, required_fields, identity_fields,
-                   optional_fields, classification_signals, confidence_threshold,
-                   supported_formats, is_active, created_at, updated_at
+                   optional_fields, classification_signals, signal_weights,
+                   confidence_threshold, supported_formats, usage_count,
+                   is_active, created_at, updated_at, safe_fields
             FROM doc_type_field_manifest
             WHERE tenant_id IS NULL
             ORDER BY doc_type
@@ -287,8 +365,11 @@ def _serialize_manifest_row(row: dict) -> dict:
         "identity_fields":         _load_json(row["identity_fields"]),
         "optional_fields":         _load_json(row["optional_fields"]),
         "classification_signals":  _load_json(row["classification_signals"]),
+        "signal_weights":          _load_json(row.get("signal_weights")),
+        "safe_fields":             _load_json(row.get("safe_fields")),
         "confidence_threshold":    row["confidence_threshold"],
         "supported_formats":       _load_json(row["supported_formats"]),
+        "usage_count":             row.get("usage_count") or 0,
         "is_active":               row["is_active"],
         "created_at":              row["created_at"].isoformat() if row.get("created_at") else None,
         "updated_at":              row["updated_at"].isoformat() if row.get("updated_at") else None,

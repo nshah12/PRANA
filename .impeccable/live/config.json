@@ -1,0 +1,8 @@
+{
+  "files": ["prana-portal/index.html"],
+  "insertBefore": "</body>",
+  "commentSyntax": "html",
+  "framework": "vite-react",
+  "devServer": "http://localhost:3001",
+  "cspChecked": true
+}

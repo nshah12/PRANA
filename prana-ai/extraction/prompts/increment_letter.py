@@ -17,8 +17,8 @@ department           — Department
 employer_name        — Company name
 effective_date       — Date from which increment is effective (YYYY-MM-DD)
 letter_date          — Date the letter was issued (YYYY-MM-DD)
-ctc_old              — Previous CTC (numeric, INR annual)
-ctc_new              — Revised CTC (numeric, INR annual)
+ctc_before           — Previous CTC (numeric, INR annual)
+ctc_after            — Revised CTC (numeric, INR annual)
 increment_percent    — Increment percentage (numeric, e.g. 12.5)
 increment_reason     — Reason stated (e.g. Annual Review, Promotion, Merit)
 
@@ -31,8 +31,8 @@ RETURN FORMAT (JSON only):
   "employer_name":     {{"value": null, "confidence": 0.0}},
   "effective_date":    {{"value": null, "confidence": 0.0}},
   "letter_date":       {{"value": null, "confidence": 0.0}},
-  "ctc_old":           {{"value": null, "confidence": 0.0}},
-  "ctc_new":           {{"value": null, "confidence": 0.0}},
+  "ctc_before":        {{"value": null, "confidence": 0.0}},
+  "ctc_after":         {{"value": null, "confidence": 0.0}},
   "increment_percent": {{"value": null, "confidence": 0.0}},
   "increment_reason":  {{"value": null, "confidence": 0.0}},
   "overall_confidence": 0.0

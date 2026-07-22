@@ -29,10 +29,10 @@ def test_totp_provision_returns_qr_code_not_raw_secret():
 @pytest.mark.asyncio
 async def test_totp_verify_confirms_setup(client, mock_db, mock_redis):
     _set_employee_auth(client)
-    # init_totp fetches totp_configured_at and mobile from employee_user
+    # init_totp fetches totp_configured_at and email from employee_user
     mock_db.fetchrow.side_effect = [
         {"totp_configured_at": None},            # _get_totp_configured_at
-        {"mobile": "+919000000001"},             # _get_account_label
+        {"email": "emp@example.com"},            # _get_account_label
     ]
 
     import json

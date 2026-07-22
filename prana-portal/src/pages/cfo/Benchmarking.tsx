@@ -1,5 +1,6 @@
 import { useQuery } from '@tanstack/react-query'
 import { api } from '@/lib/api'
+import { tUi } from '@/i18n'
 
 export function Benchmarking() {
   const { data, isLoading, isError, refetch } = useQuery({
@@ -15,35 +16,35 @@ export function Benchmarking() {
   )
   if (isError) return (
     <div className="flex flex-col items-center justify-center py-20 text-slate-400">
-      <p className="text-sm">Failed to load benchmarking data.</p>
-      <button onClick={() => refetch()} className="mt-3 text-xs text-indigo-600 hover:underline">Retry</button>
+      <p className="text-sm">{tUi('CFO_BENCHMARK_LOAD_FAILED')}</p>
+      <button onClick={() => refetch()} className="mt-3 text-xs text-indigo-600 hover:underline">{tUi('CFO_ATTRITION_RETRY')}</button>
     </div>
   )
 
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-xl font-semibold text-slate-800">Benchmarking</h1>
+        <h1 className="text-xl font-semibold text-slate-800">{tUi('CFO_BENCHMARK_TITLE')}</h1>
         <p className="text-xs text-indigo-600 bg-indigo-50 rounded-md px-2 py-1 mt-1 inline-block">
-          Market data shown as P25 / P50 / P75 indices — no individual figures
+          {tUi('CFO_BENCHMARK_SUB')}
         </p>
       </div>
 
       <div className="bg-white rounded-xl border border-slate-100 shadow-sm">
         <div className="px-5 py-4 border-b border-slate-100">
-          <h2 className="font-medium text-slate-800">Market percentile vs org median by role</h2>
-          <p className="text-xs text-slate-400 mt-0.5">Source: aggregated PRANA platform data · minimum cohort 30</p>
+          <h2 className="font-medium text-slate-800">{tUi('CFO_BENCHMARK_TABLE_TITLE')}</h2>
+          <p className="text-xs text-slate-400 mt-0.5">{tUi('CFO_BENCHMARK_SOURCE_NOTE')}</p>
         </div>
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
             <thead>
               <tr className="border-b border-slate-100 text-xs text-slate-400 uppercase tracking-wide">
-                <th className="px-5 py-3 text-left font-medium">Role category</th>
-                <th className="px-5 py-3 text-right font-medium">Market P25</th>
-                <th className="px-5 py-3 text-right font-medium">Market P50</th>
-                <th className="px-5 py-3 text-right font-medium">Market P75</th>
-                <th className="px-5 py-3 text-right font-medium">Org median</th>
-                <th className="px-5 py-3 text-right font-medium">Position</th>
+                <th className="px-5 py-3 text-left font-medium">{tUi('CFO_BENCHMARK_COL_ROLE')}</th>
+                <th className="px-5 py-3 text-right font-medium">{tUi('CFO_BENCHMARK_COL_P25')}</th>
+                <th className="px-5 py-3 text-right font-medium">{tUi('CFO_BENCHMARK_COL_P50')}</th>
+                <th className="px-5 py-3 text-right font-medium">{tUi('CFO_BENCHMARK_COL_P75')}</th>
+                <th className="px-5 py-3 text-right font-medium">{tUi('CFO_BENCHMARK_COL_ORG_MEDIAN')}</th>
+                <th className="px-5 py-3 text-right font-medium">{tUi('CFO_BENCHMARK_COL_POSITION')}</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-50">

@@ -55,3 +55,41 @@ async def test_sms_fallback_to_exotel_after_5_msg91_failures():
     # The service dispatches to _exotel or _msg91 based on configured provider
     assert "_exotel" in src, "SMSService must have an Exotel provider implementation"
     assert "_msg91" in src, "SMSService must have a MSG91 provider implementation"
+
+
+@pytest.mark.asyncio
+async def test_sms_provider_aws_dispatches_to_sns():
+    svc = SMSService(_settings(provider="aws"))
+    with patch("services.sms_service.boto3.client") as mock_boto:
+        mock_client = MagicMock()
+        mock_boto.return_value = mock_client
+        await svc.send_otp("+919876543210", "123456")
+
+    mock_boto.assert_called_once_with("sns", region_name="ap-south-1")
+    mock_client.publish.assert_called_once()
+    call_kwargs = mock_client.publish.call_args.kwargs
+    assert call_kwargs["PhoneNumber"] == "+919876543210"
+    assert "123456" in call_kwargs["Message"]
+
+
+@pytest.mark.asyncio
+async def test_sms_provider_aws_uses_sns_endpoint_url_when_set():
+    """LocalStack dev override — same pattern as KMSService's endpoint_url."""
+    settings = _settings(provider="aws")
+    settings.sns_endpoint_url = "http://localhost:4566"
+    svc = SMSService(settings)
+    with patch("services.sms_service.boto3.client") as mock_boto:
+        await svc.send_otp("+919876543210", "123456")
+
+    call_kwargs = mock_boto.call_args.kwargs
+    assert call_kwargs["endpoint_url"] == "http://localhost:4566"
+
+
+@pytest.mark.asyncio
+async def test_sms_provider_aws_failure_does_not_raise():
+    svc = SMSService(_settings(provider="aws"))
+    with patch("services.sms_service.boto3.client") as mock_boto:
+        mock_client = MagicMock()
+        mock_client.publish.side_effect = Exception("SNS unavailable")
+        mock_boto.return_value = mock_client
+        await svc.send_otp("+919876543210", "123456")   # must not raise

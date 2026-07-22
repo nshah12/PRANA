@@ -96,9 +96,8 @@ async def test_force_revoke_publishes_audit_event_to_kafka(client, mock_db, mock
     resp = await client.post("/auth/sessions/sess-uuid-001/revoke", headers=AUTH_HEADER)
 
     assert resp.status_code == 200
-    mock_kafka.publish.assert_called_once()
-    topic, payload = mock_kafka.publish.call_args[0][:2]
-    assert topic == "prana.audit.events"
+    mock_kafka.auth_event.assert_called_once()
+    payload = mock_kafka.auth_event.call_args[0][0]
     assert payload["event_type"] == "SESSION_FORCE_REVOKED"
     assert payload["revoked_session"] == "sess-uuid-001"
     assert payload["tenant_id"] == "tenant-001"
@@ -131,3 +130,33 @@ async def test_force_revoke_already_revoked_session_returns_409(client, mock_db,
 
     assert resp.status_code == 409
     assert "ALREADY_REVOKED" in resp.json().get("detail", "")
+
+
+# -- Regression: employee-session tenant scoping ------------------------------
+# The lookup query joined ONLY against oa_user (oa_user.oa_user_id = us.user_id),
+# but for user_type='employee' rows, us.user_id is an employee_user_id — a
+# completely different ID space. That join can never match, so force-revoking
+# an EMPLOYEE's session always 404'd, even for a real session in-tenant.
+
+@pytest.mark.asyncio
+async def test_force_revoke_query_checks_employee_master_for_employee_sessions(client, mock_db, mock_kafka):
+    """The tenant-scoping lookup must be able to resolve an employee session's
+    tenant via employee_master — not only via oa_user."""
+    _set_auth(client, role="ciso", tenant_id="tenant-001")
+    mock_db.fetchrow.return_value = _make_session_row()
+    mock_db.transaction = MagicMock(return_value=AsyncMock(
+        __aenter__=AsyncMock(return_value=None),
+        __aexit__=AsyncMock(return_value=False),
+    ))
+    mock_db.execute = AsyncMock(return_value=None)
+    jwt = client.app.state.jwt_service
+    jwt.revoke = AsyncMock()
+
+    resp = await client.post("/auth/sessions/sess-uuid-001/revoke", headers=AUTH_HEADER)
+
+    assert resp.status_code == 200
+    sql = mock_db.fetchrow.call_args[0][0].lower()
+    assert "employee_master" in sql, (
+        "Lookup query must check employee_master for employee sessions — "
+        "joining only against oa_user can never match an employee's user_id."
+    )

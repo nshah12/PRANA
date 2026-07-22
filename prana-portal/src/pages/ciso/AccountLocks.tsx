@@ -2,6 +2,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { LockOpen, Clock } from 'lucide-react'
 import { api } from '@/lib/api'
 import { fmtDateTime } from '@/lib/utils'
+import { tUi } from '@/i18n'
 
 export function AccountLocks() {
   const qc = useQueryClient()
@@ -22,8 +23,8 @@ export function AccountLocks() {
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-xl font-semibold text-slate-800">Account Locks</h1>
-          <p className="text-sm text-slate-500 mt-0.5">Accounts currently locked by policy. CISO can manually unlock.</p>
+          <h1 className="text-xl font-semibold text-slate-800">{tUi('CISO_ACCOUNT_LOCKS_TITLE')}</h1>
+          <p className="text-sm text-slate-500 mt-0.5">{tUi('CISO_ACCOUNT_LOCKS_SUB')}</p>
         </div>
         <span className="text-xs font-mono text-slate-400">{data?.items?.length ?? 0} locked accounts</span>
       </div>
@@ -35,16 +36,16 @@ export function AccountLocks() {
       )}
       {isError && (
         <div className="text-center py-16 text-slate-400">
-          <p className="text-sm">Failed to load account locks.</p>
-          <button onClick={() => refetch()} className="mt-2 text-xs text-red-600 hover:underline">Retry</button>
+          <p className="text-sm">{tUi('CISO_ACCOUNT_LOCKS_LOAD_FAILED')}</p>
+          <button onClick={() => refetch()} className="mt-2 text-xs text-red-600 hover:underline">{tUi('CFO_ATTRITION_RETRY')}</button>
         </div>
       )}
 
       {!isLoading && !isError && data?.items?.length === 0 && (
         <div className="bg-white rounded-xl border border-slate-100 p-16 text-center">
           <LockOpen size={32} className="text-emerald-400 mx-auto mb-3" />
-          <p className="text-slate-500 font-medium">No locked accounts</p>
-          <p className="text-xs text-slate-400 mt-1">All accounts are currently active.</p>
+          <p className="text-slate-500 font-medium">{tUi('CISO_ACCOUNT_LOCKS_NONE_TITLE')}</p>
+          <p className="text-xs text-slate-400 mt-1">{tUi('CISO_ACCOUNT_LOCKS_NONE_SUB')}</p>
         </div>
       )}
 

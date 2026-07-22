@@ -1,5 +1,6 @@
 import { useQuery } from '@tanstack/react-query'
 import { api } from '@/lib/api'
+import { tUi } from '@/i18n'
 
 const DOT: Record<string, string> = {
   VIEW: 'bg-sky-400', DOWNLOAD: 'bg-sky-500',
@@ -39,8 +40,8 @@ export function EmpActivity() {
 
   return (
     <div className="p-6 max-w-2xl">
-      <h1 className="text-xl font-semibold text-slate-800 mb-1">Activity Log</h1>
-      <p className="text-sm text-slate-500 mb-5">Every document event — pushes, accesses, shares, and revocations</p>
+      <h1 className="text-xl font-semibold text-slate-800 mb-1">{tUi('EMP_ACTIVITY_TITLE')}</h1>
+      <p className="text-sm text-slate-500 mb-5">{tUi('EMP_ACTIVITY_SUB')}</p>
 
       <div className="bg-white border border-slate-200 rounded-xl shadow-sm">
         {isLoading ? (
@@ -50,8 +51,8 @@ export function EmpActivity() {
         ) : events.length === 0 ? (
           <div className="py-16 text-center text-slate-400">
             <div className="text-3xl mb-3">📋</div>
-            <p className="font-medium text-slate-600">No activity yet</p>
-            <p className="text-sm mt-1">Events appear here as documents are pushed and accessed.</p>
+            <p className="font-medium text-slate-600">{tUi('EMP_ACTIVITY_NONE')}</p>
+            <p className="text-sm mt-1">{tUi('EMP_ACTIVITY_NONE_HINT')}</p>
           </div>
         ) : events.map((e, i) => (
           <div key={i} className={`flex items-start gap-3 px-4 py-3.5 ${i < events.length - 1 ? 'border-b border-slate-100' : ''}`}>

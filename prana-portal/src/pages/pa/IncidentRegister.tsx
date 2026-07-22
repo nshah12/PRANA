@@ -1,6 +1,7 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { CheckCircle, RefreshCw, ShieldAlert } from 'lucide-react'
 import { api } from '@/lib/api'
+import { tUi } from '@/i18n'
 
 const SEVERITY_STYLE: Record<string, string> = {
   P1: 'bg-red-100 text-red-700 border border-red-200',
@@ -28,23 +29,23 @@ export function IncidentRegister() {
 
   const { data, isLoading } = useQuery({
     queryKey: ['pa-incidents'],
-    queryFn: () => api.get('/pa/incidents').then(r => r.data),
+    queryFn: () => api.get('/admin/incidents').then(r => r.data),
     refetchInterval: 60_000,   // auto-refresh every 60s
   })
 
   const triggerCheck = useMutation({
-    mutationFn: () => api.post('/pa/incidents/run-check', {}),
+    mutationFn: () => api.post('/admin/incidents/run-check', {}),
     onSuccess: () => qc.invalidateQueries({ queryKey: ['pa-incidents'] }),
   })
 
   const acknowledge = useMutation({
-    mutationFn: (id: string) => api.post(`/pa/incidents/${id}/acknowledge`, {}),
+    mutationFn: (id: string) => api.post(`/admin/incidents/${id}/acknowledge`, {}),
     onSuccess: () => qc.invalidateQueries({ queryKey: ['pa-incidents'] }),
   })
 
   const resolve = useMutation({
     mutationFn: ({ id, note }: { id: string; note: string }) =>
-      api.post(`/pa/incidents/${id}/resolve`, { note }),
+      api.post(`/admin/incidents/${id}/resolve`, { note }),
     onSuccess: () => qc.invalidateQueries({ queryKey: ['pa-incidents'] }),
   })
 
@@ -59,10 +60,10 @@ export function IncidentRegister() {
         <div>
           <h1 className="text-xl font-semibold text-slate-800 flex items-center gap-2">
             <ShieldAlert size={20} className="text-red-500" />
-            Service Incidents
+            {tUi('PA_INCIDENT_TITLE')}
           </h1>
           <p className="text-sm text-slate-500 mt-0.5">
-            Auto-detected by SystemHealthWorkflow · polls every 2 min
+            {tUi('PA_INCIDENT_SUB')}
           </p>
         </div>
         <button
@@ -71,37 +72,37 @@ export function IncidentRegister() {
           className="flex items-center gap-2 px-4 py-2 text-sm bg-white border border-slate-200 rounded-lg hover:bg-slate-50 disabled:opacity-50"
         >
           <RefreshCw size={14} className={triggerCheck.isPending ? 'animate-spin' : ''} />
-          Run check now
+          {tUi('PA_INCIDENT_RUN_CHECK_BTN')}
         </button>
       </div>
 
       {/* Summary cards */}
       <div className="grid grid-cols-3 gap-4">
         <div className={`rounded-xl p-4 border ${p1Open > 0 ? 'bg-red-50 border-red-200' : 'bg-white border-slate-200'}`}>
-          <p className="text-xs text-slate-500 uppercase tracking-wide">P1 Open</p>
+          <p className="text-xs text-slate-500 uppercase tracking-wide">{tUi('PA_INCIDENT_P1_OPEN')}</p>
           <p className={`text-3xl font-bold mt-1 ${p1Open > 0 ? 'text-red-600' : 'text-slate-800'}`}>{p1Open}</p>
-          <p className="text-xs text-slate-400 mt-1">Critical — auth / data</p>
+          <p className="text-xs text-slate-400 mt-1">{tUi('PA_INCIDENT_P1_NOTE')}</p>
         </div>
         <div className={`rounded-xl p-4 border ${openCount > 0 ? 'bg-amber-50 border-amber-200' : 'bg-white border-slate-200'}`}>
-          <p className="text-xs text-slate-500 uppercase tracking-wide">Total Open</p>
+          <p className="text-xs text-slate-500 uppercase tracking-wide">{tUi('CISO_SEC_INC_TOTAL_OPEN')}</p>
           <p className={`text-3xl font-bold mt-1 ${openCount > 0 ? 'text-amber-600' : 'text-slate-800'}`}>{openCount}</p>
-          <p className="text-xs text-slate-400 mt-1">Across all services</p>
+          <p className="text-xs text-slate-400 mt-1">{tUi('PA_INCIDENT_TOTAL_NOTE')}</p>
         </div>
         <div className="rounded-xl p-4 border bg-white border-slate-200">
-          <p className="text-xs text-slate-500 uppercase tracking-wide">All Incidents</p>
+          <p className="text-xs text-slate-500 uppercase tracking-wide">{tUi('PA_INCIDENT_ALL_TITLE')}</p>
           <p className="text-3xl font-bold mt-1 text-slate-800">{incidents.length}</p>
-          <p className="text-xs text-slate-400 mt-1">Last 100 records</p>
+          <p className="text-xs text-slate-400 mt-1">{tUi('PA_INCIDENT_ALL_NOTE')}</p>
         </div>
       </div>
 
       {/* Incident list */}
       {isLoading ? (
-        <div className="text-sm text-slate-400 py-8 text-center">Loading incidents…</div>
+        <div className="text-sm text-slate-400 py-8 text-center">{tUi('PA_INCIDENT_LOADING')}</div>
       ) : incidents.length === 0 ? (
         <div className="flex flex-col items-center py-16 text-slate-400">
           <CheckCircle size={40} className="text-emerald-400 mb-3" />
-          <p className="font-medium text-slate-600">All systems healthy</p>
-          <p className="text-sm mt-1">No incidents detected</p>
+          <p className="font-medium text-slate-600">{tUi('PA_INCIDENT_HEALTHY_TITLE')}</p>
+          <p className="text-sm mt-1">{tUi('PA_INCIDENT_HEALTHY_SUB')}</p>
         </div>
       ) : (
         <div className="space-y-3">
@@ -126,8 +127,8 @@ export function IncidentRegister() {
                       <p className="text-xs text-slate-500 font-mono mt-0.5 truncate">{inc.detail}</p>
                     )}
                     <p className="text-xs text-slate-400 mt-1">
-                      Detected {new Date(inc.detected_at).toLocaleString('en-IN')}
-                      {inc.resolved_at && ` · Resolved ${new Date(inc.resolved_at).toLocaleString('en-IN')}`}
+                      {tUi('PA_INCIDENT_DETECTED_PREFIX')} {new Date(inc.detected_at).toLocaleString('en-IN')}
+                      {inc.resolved_at && ` · ${tUi('CISO_SEC_INC_RESOLVED_PREFIX')} ${new Date(inc.resolved_at).toLocaleString('en-IN')}`}
                     </p>
                     {inc.resolution_note && (
                       <p className="text-xs text-emerald-600 mt-1">✓ {inc.resolution_note}</p>
@@ -142,13 +143,13 @@ export function IncidentRegister() {
                       onClick={() => acknowledge.mutate(inc.incident_id)}
                       className="text-xs px-3 py-1.5 border border-amber-300 text-amber-700 rounded-lg hover:bg-amber-50"
                     >
-                      Acknowledge
+                      {tUi('PA_ANOMALY_ACK_BTN')}
                     </button>
                     <button
                       onClick={() => resolve.mutate({ id: inc.incident_id, note: 'Manually resolved by PA' })}
                       className="text-xs px-3 py-1.5 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700"
                     >
-                      Resolve
+                      {tUi('PA_INCIDENT_RESOLVE_BTN')}
                     </button>
                   </div>
                 )}
@@ -157,7 +158,7 @@ export function IncidentRegister() {
                     onClick={() => resolve.mutate({ id: inc.incident_id, note: 'Manually resolved by PA' })}
                     className="text-xs px-3 py-1.5 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 shrink-0"
                   >
-                    Resolve
+                    {tUi('PA_INCIDENT_RESOLVE_BTN')}
                   </button>
                 )}
               </div>

@@ -9,6 +9,7 @@ import { ShieldCheck, ShieldAlert, Activity, Download, Settings } from 'lucide-r
 import { api } from '@/lib/api'
 import { Link } from 'react-router-dom'
 import { DigestDatePicker, type DateWindow } from '@/components/digest/DigestDatePicker'
+import { tUi } from '@/i18n'
 
 function todayISO() { return new Date().toISOString().split('T')[0] }
 function daysAgoISO(n: number) {
@@ -43,9 +44,9 @@ export function CisoDigest() {
     <div className="space-y-4">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-xl font-semibold text-slate-800">InfoSec Digest</h1>
+          <h1 className="text-xl font-semibold text-slate-800">{tUi('CISO_DIGEST_TITLE')}</h1>
           <p className="text-xs text-slate-400 mt-0.5">
-            {data ? `${data.from} → ${data.to}` : 'Loading…'} · access metadata only · no PAN
+            {data ? `${data.from} → ${data.to}` : tUi('CFO_DIGEST_LOADING')} · {tUi('CISO_DIGEST_META_NOTE')}
           </p>
         </div>
         <div className="flex items-center gap-2">
@@ -56,7 +57,7 @@ export function CisoDigest() {
           </Link>
           <button className="flex items-center gap-1.5 text-sm text-slate-500 border border-slate-200
                              px-3 py-1.5 rounded-lg hover:bg-canvas2">
-            <Download size={13}/> Export
+            <Download size={13}/> {tUi('CISO_DIGEST_EXPORT')}
           </button>
         </div>
       </div>
@@ -85,8 +86,8 @@ export function CisoDigest() {
     <div className="space-y-6 max-w-2xl">
       {header}
       <div className="flex flex-col items-center justify-center py-20 text-slate-400">
-        <p className="text-sm">Failed to load CISO digest.</p>
-        <button onClick={() => refetch()} className="mt-3 text-xs text-emerald-600 hover:underline">Retry</button>
+        <p className="text-sm">{tUi('CISO_DIGEST_LOAD_FAILED')}</p>
+        <button onClick={() => refetch()} className="mt-3 text-xs text-emerald-600 hover:underline">{tUi('CFO_ATTRITION_RETRY')}</button>
       </div>
     </div>
   )
@@ -123,7 +124,7 @@ export function CisoDigest() {
 
       {channels.length > 0 && (
         <div className="bg-white rounded-xl border border-slate-100 shadow-sm p-5">
-          <h2 className="text-sm font-medium text-slate-700 mb-4">Access by channel</h2>
+          <h2 className="text-sm font-medium text-slate-700 mb-4">{tUi('CISO_DIGEST_ACCESS_BY_CHANNEL')}</h2>
           <div className="space-y-2.5">
             {channels.map((ch: any) => {
               const pct = Math.round((ch.count / maxChannelCount) * 100)
@@ -147,7 +148,7 @@ export function CisoDigest() {
       {incidents.length > 0 && (
         <div className="bg-white rounded-xl border border-slate-100 shadow-sm overflow-hidden">
           <div className="px-5 py-3 border-b border-slate-100">
-            <h2 className="text-sm font-medium text-slate-700">Incidents & security events</h2>
+            <h2 className="text-sm font-medium text-slate-700">{tUi('CISO_DIGEST_INCIDENTS_TITLE')}</h2>
           </div>
           <div className="divide-y divide-slate-50">
             {incidents.map((inc: any) => {

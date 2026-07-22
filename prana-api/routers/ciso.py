@@ -1,8 +1,9 @@
-"""
-CISO (Tenant) endpoints — read-only security observer + limited action authority.
+﻿"""
+CISO (Tenant) endpoints â€” read-only security observer + limited action authority.
 All queries scoped by tenant_id from JWT. Never sees document contents, salary, or PAN.
 """
 import json
+from messages import SuccessCode, success_response
 import uuid
 import datetime
 from typing import Literal, Optional
@@ -12,13 +13,14 @@ from pydantic import BaseModel
 
 from dependencies import DbConn, require_oa
 from services.digest_service import DigestService, period_window, validate_window
+from errors import PranaError
 
 router = APIRouter()
 CISO = Depends(require_oa("ciso", "oa_admin"))
 _digest_svc = DigestService()
 
 
-# ── Security overview ──────────────────────────────────────────────────────────
+# â”€â”€ Security overview â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 @router.get("/overview")
 async def security_overview(db: DbConn, current=CISO):
@@ -79,7 +81,10 @@ async def security_overview(db: DbConn, current=CISO):
     }
 
 
-# ── OA Activity Audit ─────────────────────────────────────────────────────────
+# â”€â”€ OA Activity Audit â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+
+_OA_AUDIT_ACTOR_TYPES = "'OA_OPERATOR','OA_ADMIN','OA_OPERATOR_ELEVATED','PORTAL_ADMIN'"
+
 
 @router.get("/oa-audit")
 async def oa_activity_audit(
@@ -89,7 +94,7 @@ async def oa_activity_audit(
     limit: int = 50,
     current=CISO,
 ):
-    conditions = ["ae.tenant_id = $1", "ae.actor_type IN ('OA_OPERATOR','OA_ADMIN','OA_OPERATOR_ELEVATED')"]
+    conditions = ["ae.tenant_id = $1", f"ae.actor_type IN ({_OA_AUDIT_ACTOR_TYPES})"]
     params: list = [current.tenant_id]
     i = 2
 
@@ -101,11 +106,15 @@ async def oa_activity_audit(
     where = " AND ".join(conditions)
     rows = await db.fetch(
         f"""
-        SELECT ae.event_id, ae.event_type AS action_type, ae.actor_id,
-               ae.document_id AS resource_id, ae.ip_address, ae.occurred_at AS created_at,
-               ou.display_name AS actor_name, ou.role AS actor_role
+        SELECT ae.event_id, ae.event_type AS action_type, ae.actor_id, ae.actor_type,
+               COALESCE(ae.document_id, (ae.event_metadata->>'employee_uuid')::uuid) AS resource_id,
+               ae.ip_address, ae.occurred_at AS created_at,
+               COALESCE(ou.email, pa.email) AS actor_name,
+               COALESCE(ou.role, 'portal_admin') AS actor_role,
+               ae.event_metadata->>'reason' AS reason
         FROM audit_event ae
-        LEFT JOIN oa_user ou ON ou.oa_user_id = ae.actor_id
+        LEFT JOIN oa_user ou ON ou.oa_user_id = ae.actor_id AND ae.actor_type != 'PORTAL_ADMIN'
+        LEFT JOIN portal_admin pa ON pa.pa_id = ae.actor_id AND ae.actor_type = 'PORTAL_ADMIN'
         WHERE {where}
         ORDER BY ae.occurred_at DESC
         LIMIT {limit} OFFSET {offset}
@@ -118,9 +127,11 @@ async def oa_activity_audit(
                 "event_id":    str(r["event_id"]),
                 "action_type": r["action_type"],
                 "actor_id":    str(r["actor_id"]) if r["actor_id"] else None,
+                "actor_type":  r["actor_type"],
                 "actor_name":  r["actor_name"],
                 "actor_role":  r["actor_role"],
                 "resource_id": str(r["resource_id"]) if r["resource_id"] else None,
+                "reason":      r["reason"],
                 "ip_address":  str(r["ip_address"]) if r["ip_address"] else None,
                 "created_at":  r["created_at"].isoformat() if r["created_at"] else None,
             }
@@ -133,25 +144,30 @@ async def oa_activity_audit(
 async def export_oa_audit(db: DbConn, current=CISO):
     from fastapi.responses import Response
     rows = await db.fetch(
-        """
-        SELECT ae.event_type, ae.actor_id, ou.display_name AS actor_name, ou.role AS actor_role,
-               ae.document_id, ae.ip_address, ae.occurred_at
+        f"""
+        SELECT ae.event_type, ae.actor_id, ae.actor_type,
+               COALESCE(ou.email, pa.email) AS actor_name,
+               COALESCE(ou.role, 'portal_admin') AS actor_role,
+               COALESCE(ae.document_id, (ae.event_metadata->>'employee_uuid')::uuid) AS resource_id,
+               ae.ip_address, ae.occurred_at
         FROM audit_event ae
-        LEFT JOIN oa_user ou ON ou.oa_user_id = ae.actor_id
+        LEFT JOIN oa_user ou ON ou.oa_user_id = ae.actor_id AND ae.actor_type != 'PORTAL_ADMIN'
+        LEFT JOIN portal_admin pa ON pa.pa_id = ae.actor_id AND ae.actor_type = 'PORTAL_ADMIN'
         WHERE ae.tenant_id = $1
-          AND ae.actor_type IN ('OA_OPERATOR','OA_ADMIN','OA_OPERATOR_ELEVATED')
+          AND ae.actor_type IN ({_OA_AUDIT_ACTOR_TYPES})
         ORDER BY ae.occurred_at DESC
         LIMIT 5000
         """,
         current.tenant_id,
     )
-    lines = ["event_type,actor_name,actor_role,resource_id,ip_address,occurred_at"]
+    lines = ["event_type,actor_type,actor_name,actor_role,resource_id,ip_address,occurred_at"]
     for r in rows:
         lines.append(",".join([
             r["event_type"] or "",
+            r["actor_type"] or "",
             (r["actor_name"] or "").replace(",", " "),
             r["actor_role"] or "",
-            str(r["document_id"]) if r["document_id"] else "",
+            str(r["resource_id"]) if r["resource_id"] else "",
             str(r["ip_address"]) if r["ip_address"] else "",
             r["occurred_at"].isoformat() if r["occurred_at"] else "",
         ]))
@@ -162,7 +178,7 @@ async def export_oa_audit(db: DbConn, current=CISO):
     )
 
 
-# ── Share analytics ───────────────────────────────────────────────────────────
+# â”€â”€ Share analytics â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 @router.get("/shares")
 async def share_analytics(db: DbConn, current=CISO):
@@ -209,8 +225,8 @@ async def share_analytics(db: DbConn, current=CISO):
         "links": [
             {
                 "share_id":       str(r["token_id"]),
-                "employee_name":  r["emp_mobile"] or "—",
-                "doc_type":       r["doc_type"] or "—",
+                "employee_name":  r["emp_mobile"] or "â€”",
+                "doc_type":       r["doc_type"] or "â€”",
                 "recipient_label": (r["recipient_identifier"] or "")[:30],
                 "access_count":   r["usage_count"],
                 "expires_at":     r["expires_at"].isoformat() if r["expires_at"] else None,
@@ -227,28 +243,26 @@ async def ciso_revoke_share(token_id: str, request: Request, db: DbConn, current
         token_id, current.tenant_id,
     )
     if not row:
-        raise HTTPException(status_code=404, detail="SHARE_NOT_FOUND")
+        raise HTTPException(status_code=404, detail=PranaError.SHARE_NOT_FOUND)
     if row["status"] != "ACTIVE":
-        raise HTTPException(status_code=409, detail="SHARE_NOT_ACTIVE")
+        raise HTTPException(status_code=409, detail=PranaError.SHARE_NOT_ACTIVE)
     await db.execute(
         "UPDATE share_token SET status='REVOKED', revoked_at=NOW() WHERE token_id=$1",
         token_id,
     )
     kafka = getattr(request.app.state, "kafka_producer", None)
     if kafka:
-        await kafka.publish("prana.audit.events", {
+        await kafka.share_event({
             "event_type": "SHARE_REVOKED_CISO",
-            "event_id": str(uuid.uuid4()),
-            "occurred_at": datetime.datetime.utcnow().isoformat(),
             "tenant_id": str(current.tenant_id),
             "actor_id": str(current.user_id),
             "actor_type": "CISO",
             "share_token_id": token_id,
-        }, key=str(current.tenant_id))
-    return {"message": "Share revoked"}
+        })
+    return {"message": SuccessCode.SHARE_REVOKED}
 
 
-# ── Key health ─────────────────────────────────────────────────────────────────
+# â”€â”€ Key health â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 @router.get("/keys")
 async def key_health(db: DbConn, current=CISO):
@@ -322,13 +336,13 @@ async def key_health(db: DbConn, current=CISO):
     }
 
 
-# ── Auth anomaly feed ──────────────────────────────────────────────────────────
+# â”€â”€ Auth anomaly feed â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 @router.get("/auth-anomalies")
 async def auth_anomaly_feed(db: DbConn, current=CISO):
     rows = await db.fetch(
         """
-        SELECT lal.log_id AS event_id,
+        SELECT lal.attempt_id AS event_id,
                lal.outcome AS anomaly_type,
                lal.ip_address,
                lal.attempted_at AS detected_at,
@@ -366,7 +380,7 @@ async def auth_anomaly_feed(db: DbConn, current=CISO):
     }
 
 
-# ── Data residency ─────────────────────────────────────────────────────────────
+# â”€â”€ Data residency â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 @router.get("/data-residency")
 async def data_residency(db: DbConn, current=CISO):
@@ -381,7 +395,7 @@ async def data_residency(db: DbConn, current=CISO):
     return {
         "home_region":         row["home_region"] if row else None,
         "verified":            True,
-        "last_checked":        datetime.datetime.utcnow().isoformat(),
+        "last_checked":        datetime.datetime.now(datetime.timezone.utc).isoformat(),
         "regions_used":        ["ap-south-1", "ap-south-2"],
         "dpdp_compliant":      True,
         "primary_doc_count":   int(doc_count or 0),
@@ -389,7 +403,7 @@ async def data_residency(db: DbConn, current=CISO):
     }
 
 
-# ── Document access flags ──────────────────────────────────────────────────────
+# â”€â”€ Document access flags â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 @router.get("/access-flags")
 async def list_access_flags(
@@ -450,32 +464,32 @@ async def update_access_flag(access_id: str, body: FlagBody, db: DbConn, current
         access_id, current.tenant_id,
     )
     if not row:
-        raise HTTPException(status_code=404, detail="ACCESS_LOG_NOT_FOUND")
+        raise HTTPException(status_code=404, detail=PranaError.ACCESS_LOG_NOT_FOUND)
     await db.execute(
         "UPDATE document_access_log SET is_flagged=$1, flag_reason=$2 WHERE access_id=$3",
         body.is_flagged, body.flag_reason, access_id,
     )
-    return {"message": "Updated"}
+    return {"message": SuccessCode.ANOMALY_UPDATED}
 
 
-# ── Account lock management ────────────────────────────────────────────────────
+# â”€â”€ Account lock management â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 @router.get("/account-locks")
 async def list_account_locks(db: DbConn, current=CISO):
     rows = await db.fetch(
         """
-        SELECT ase.event_id, ase.account_type, ase.account_id,
+        SELECT ase.event_id, ase.user_type, ase.user_id,
                ase.event_type AS lock_reason, ase.occurred_at AS locked_at,
                ase.scheduled_unlock_at, ase.failed_attempt_count, ase.last_failed_ip,
-               CASE ase.account_type
+               CASE ase.user_type
                  WHEN 'employee' THEN eu.mobile
                  WHEN 'oa_user'  THEN ou.email
                END AS identifier
         FROM account_status_event ase
-        LEFT JOIN employee_user eu ON eu.employee_user_id = ase.account_id
-                                   AND ase.account_type = 'employee'
-        LEFT JOIN oa_user ou ON ou.oa_user_id = ase.account_id
-                             AND ase.account_type = 'oa_user'
+        LEFT JOIN employee_user eu ON eu.employee_user_id = ase.user_id
+                                   AND ase.user_type = 'employee'
+        LEFT JOIN oa_user ou ON ou.oa_user_id = ase.user_id
+                             AND ase.user_type = 'oa_user'
         WHERE ase.tenant_id = $1
           AND ase.event_type = 'POLICY_LOCK'
           AND ase.reversed_by_event_id IS NULL
@@ -488,9 +502,9 @@ async def list_account_locks(db: DbConn, current=CISO):
         "items": [
             {
                 "event_id":          str(r["event_id"]),
-                "account_type":      r["account_type"],
-                "account_id":        str(r["account_id"]) if r["account_id"] else None,
-                "identifier":        r["identifier"] or "—",
+                "account_type":      r["user_type"],
+                "account_id":        str(r["user_id"]) if r["user_id"] else None,
+                "identifier":        r["identifier"] or "â€”",
                 "lock_reason":       r["lock_reason"],
                 "locked_at":         r["locked_at"].isoformat() if r["locked_at"] else None,
                 "scheduled_unlock_at": r["scheduled_unlock_at"].isoformat() if r["scheduled_unlock_at"] else None,
@@ -506,27 +520,27 @@ async def list_account_locks(db: DbConn, current=CISO):
 async def manual_unlock(event_id: str, request: Request, db: DbConn, current=CISO):
     lock_row = await db.fetchrow(
         """
-        SELECT event_id, account_type, account_id, reversed_by_event_id
+        SELECT event_id, user_type, user_id, reversed_by_event_id
         FROM account_status_event
         WHERE event_id=$1 AND tenant_id=$2 AND event_type='POLICY_LOCK'
         """,
         event_id, current.tenant_id,
     )
     if not lock_row:
-        raise HTTPException(status_code=404, detail="LOCK_NOT_FOUND")
+        raise HTTPException(status_code=404, detail=PranaError.LOCK_NOT_FOUND)
     if lock_row["reversed_by_event_id"]:
-        raise HTTPException(status_code=409, detail="ALREADY_UNLOCKED")
+        raise HTTPException(status_code=409, detail=PranaError.ALREADY_UNLOCKED)
 
     new_event_id = uuid.uuid4()
     async with db.transaction():
         await db.execute(
             """
             INSERT INTO account_status_event
-              (event_id, event_type, account_type, account_id, tenant_id, actor_type, actor_id, occurred_at)
+              (event_id, event_type, user_type, user_id, tenant_id, actor_type, actor_id, occurred_at)
             VALUES ($1, 'MANUAL_UNLOCK', $2, $3, $4, 'CISO', $5, NOW())
             """,
             new_event_id,
-            lock_row["account_type"], lock_row["account_id"],
+            lock_row["user_type"], lock_row["user_id"],
             current.tenant_id, current.user_id,
         )
         await db.execute(
@@ -534,33 +548,31 @@ async def manual_unlock(event_id: str, request: Request, db: DbConn, current=CIS
             new_event_id, event_id,
         )
         # Restore account to ACTIVE
-        if lock_row["account_type"] == "employee":
+        if lock_row["user_type"] == "employee":
             await db.execute(
                 "UPDATE employee_user SET status='ACTIVE', failed_totp_count=0 WHERE employee_user_id=$1",
-                lock_row["account_id"],
+                lock_row["user_id"],
             )
-        elif lock_row["account_type"] == "oa_user":
+        elif lock_row["user_type"] == "oa_user":
             await db.execute(
-                "UPDATE oa_user SET status='ACTIVE' WHERE oa_user_id=$1",
-                lock_row["account_id"],
+                "UPDATE oa_user SET status='ACTIVE', failed_totp_count=0 WHERE oa_user_id=$1",
+                lock_row["user_id"],
             )
 
     kafka = getattr(request.app.state, "kafka_producer", None)
     if kafka:
-        await kafka.publish("prana.audit.events", {
+        await kafka.security_event({
             "event_type": "ACCOUNT_UNLOCKED",
-            "event_id": str(uuid.uuid4()),
-            "occurred_at": datetime.datetime.utcnow().isoformat(),
             "tenant_id": str(current.tenant_id),
             "actor_id": str(current.user_id),
             "actor_type": "CISO",
-            "target_account_id": str(lock_row["account_id"]),
+            "target_account_id": str(lock_row["user_id"]),
             "reversed_lock_event_id": event_id,
-        }, key=str(current.tenant_id))
-    return {"message": "Account unlocked"}
+        })
+    return {"message": SuccessCode.LOCK_REMOVED}
 
 
-# ── Anomaly triage queue ───────────────────────────────────────────────────────
+# â”€â”€ Anomaly triage queue â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 @router.get("/anomaly-queue")
 async def anomaly_queue(
@@ -596,7 +608,7 @@ async def anomaly_queue(
         *params,
     )
     total = await db.fetchval(
-        f"SELECT COUNT(*) FROM anomaly_event WHERE {where}", *params
+        "SELECT COUNT(*) FROM anomaly_event WHERE " + where, *params
     )
     return {
         "items": [
@@ -631,7 +643,7 @@ async def triage_anomaly(anomaly_id: str, body: TriageBody, request: Request, db
         anomaly_id, current.tenant_id,
     )
     if not row:
-        raise HTTPException(status_code=404, detail="ANOMALY_NOT_FOUND")
+        raise HTTPException(status_code=404, detail=PranaError.ANOMALY_NOT_FOUND)
     await db.execute(
         """
         UPDATE anomaly_event
@@ -642,20 +654,18 @@ async def triage_anomaly(anomaly_id: str, body: TriageBody, request: Request, db
     )
     kafka = getattr(request.app.state, "kafka_producer", None)
     if kafka:
-        await kafka.publish("prana.audit.events", {
+        await kafka.security_event({
             "event_type": "ANOMALY_TRIAGED",
-            "event_id": str(uuid.uuid4()),
-            "occurred_at": datetime.datetime.utcnow().isoformat(),
             "tenant_id": str(current.tenant_id),
             "actor_id": str(current.user_id),
             "actor_type": "CISO",
             "anomaly_id": anomaly_id,
             "new_status": body.status,
-        }, key=str(current.tenant_id))
-    return {"message": "Anomaly updated"}
+        })
+    return {"message": SuccessCode.ANOMALY_UPDATED}
 
 
-# ── Elevation history ──────────────────────────────────────────────────────────
+# â”€â”€ Elevation history â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 @router.get("/elevations")
 async def elevation_history(
@@ -668,8 +678,8 @@ async def elevation_history(
         """
         SELECT er.elevation_id, er.requestor_id, er.approver_id, er.status,
                er.duration_hours, er.reason, er.requested_at, er.approved_at, er.expires_at,
-               req.display_name AS requestor_name, req.email AS requestor_email,
-               apr.display_name AS approver_name
+               req.email AS requestor_name, req.email AS requestor_email,
+               apr.email AS approver_name
         FROM elevation_request er
         LEFT JOIN oa_user req ON req.oa_user_id = er.requestor_id
         LEFT JOIN oa_user apr ON apr.oa_user_id = er.approver_id
@@ -703,7 +713,7 @@ async def elevation_history(
     }
 
 
-# ── Digest: settings ─────────────────────────────────────────────────────────
+# â”€â”€ Digest: settings â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 
 class DigestConfigBody(BaseModel):
@@ -725,10 +735,10 @@ async def save_digest_settings(body: DigestConfigBody, db: DbConn, current=CISO)
     await _digest_svc.save_config(
         db, current.tenant_id, "ciso", body.model_dump(), str(current.user_id)
     )
-    return {"message": "CISO digest settings saved"}
+    return {"message": SuccessCode.DIGEST_SETTINGS_SAVED}
 
 
-# ── Digest: data endpoints ────────────────────────────────────────────────────
+# â”€â”€ Digest: data endpoints â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 def _resolve_window(period: str, from_date: datetime.date | None, to_date: datetime.date | None):
     if from_date is not None or to_date is not None:
@@ -738,7 +748,10 @@ def _resolve_window(period: str, from_date: datetime.date | None, to_date: datet
                 "message": "Provide both from_date and to_date, or neither (uses period preset).",
             })
         from_dt = datetime.datetime.combine(from_date, datetime.datetime.min.time()).replace(tzinfo=datetime.timezone.utc)
-        to_dt   = datetime.datetime.combine(to_date,   datetime.datetime.min.time()).replace(tzinfo=datetime.timezone.utc) + datetime.timedelta(days=1)
+        to_dt   = min(
+            datetime.datetime.combine(to_date, datetime.datetime.min.time()).replace(tzinfo=datetime.timezone.utc) + datetime.timedelta(days=1),
+            datetime.datetime.now(datetime.timezone.utc),
+        )
     else:
         from_dt, to_dt = period_window(period)  # type: ignore[arg-type]
     try:
@@ -778,7 +791,7 @@ async def quarterly_digest(
     return {"digest": await _digest_svc.build_ciso_digest(db, current.tenant_id, from_dt, to_dt)}
 
 
-# ── Security incidents ─────────────────────────────────────────────────────────
+# â”€â”€ Security incidents â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 @router.get("/incidents")
 async def list_incidents(
@@ -841,7 +854,49 @@ async def escalate_incident(incident_id: str, db: DbConn, current=CISO):
     return {"status": "escalated"}
 
 
-# ── Notification log ───────────────────────────────────────────────────────────
+# â”€â”€ Application errors (4th incident track â€” see prana-docs/ERROR_OBSERVABILITY_DESIGN.md) â”€â”€
+# CISO gets read/acknowledge/resolve only â€” no ignore/promote-to-incident (PA-only, pa_admin.py).
+
+class CisoResolveErrorBody(BaseModel):
+    resolution_note: str
+
+
+def _ciso_error_value_error_status(exc: ValueError) -> int:
+    return status.HTTP_404_NOT_FOUND if "not found" in str(exc) else status.HTTP_422_UNPROCESSABLE_ENTITY
+
+
+@router.get("/errors")
+async def list_errors(db: DbConn, current=CISO):
+    """CISO: list application errors for own tenant, plus platform-level (tenant_id NULL) ones."""
+    from services.error_observability_service import ErrorObservabilityService
+    svc = ErrorObservabilityService(db)
+    items = await svc.list_errors(tenant_id=current.tenant_id, include_platform_errors=True)
+    return {"items": items, "total": len(items)}
+
+
+@router.patch("/errors/{error_id}/acknowledge")
+async def acknowledge_error(error_id: str, db: DbConn, current=CISO):
+    from services.error_observability_service import ErrorObservabilityService
+    svc = ErrorObservabilityService(db)
+    try:
+        await svc.acknowledge(error_id=error_id)
+    except ValueError as exc:
+        raise HTTPException(status_code=_ciso_error_value_error_status(exc), detail=str(exc)) from exc
+    return {"status": "acknowledged"}
+
+
+@router.patch("/errors/{error_id}/resolve")
+async def resolve_error(error_id: str, body: CisoResolveErrorBody, db: DbConn, current=CISO):
+    from services.error_observability_service import ErrorObservabilityService
+    svc = ErrorObservabilityService(db)
+    try:
+        await svc.resolve(error_id=error_id, resolved_by=current.user_id, resolution_note=body.resolution_note)
+    except ValueError as exc:
+        raise HTTPException(status_code=_ciso_error_value_error_status(exc), detail=str(exc)) from exc
+    return {"status": "resolved"}
+
+
+# â”€â”€ Notification log â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 @router.get("/notification-log")
 async def notification_log(
@@ -890,3 +945,5 @@ async def notification_log(
         for r in rows
     ]
     return {"items": items, "total": len(items)}
+
+

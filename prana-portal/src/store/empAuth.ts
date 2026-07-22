@@ -33,7 +33,9 @@ export const useEmpAuthStore = create<EmpAuthState>()(
     }),
     {
       name: 'prana-emp-auth',
-      partialize: (s) => ({ user: s.user, accessToken: s.accessToken }),
+      // Never persist the access token (CLAUDE.md: JWT never in localStorage — XSS-exposable).
+      // Only `user` is persisted; the token is rehydrated via silent refresh (httpOnly cookie).
+      partialize: (s) => ({ user: s.user }),
     },
   ),
 )

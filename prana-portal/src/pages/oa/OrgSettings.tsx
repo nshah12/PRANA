@@ -11,25 +11,28 @@ import { useEffect, useState } from 'react'
 import { useQuery, useMutation } from '@tanstack/react-query'
 import { Settings, Save, AlertTriangle, CheckCircle2, Info } from 'lucide-react'
 import { api } from '@/lib/api'
+import { tUi } from '@/i18n'
 
 type Channel = 'personal_email' | 'work_email' | 'sms'
 
-const CHANNEL_META: Record<Channel, { label: string; desc: string; bfsiAllowed: boolean }> = {
-  personal_email: {
-    label: 'Personal email',
-    desc: 'Temp password sent to the employee\'s personal email address (from employee record).',
-    bfsiAllowed: true,
-  },
-  work_email: {
-    label: 'Work / corporate email',
-    desc: 'Sent to the employee\'s work email (must match your domain). Reliable for active employees.',
-    bfsiAllowed: true,
-  },
-  sms: {
-    label: 'SMS to registered mobile',
-    desc: 'Sent as a text message to the mobile number in the employee record.',
-    bfsiAllowed: false,
-  },
+function getChannelMeta(): Record<Channel, { label: string; desc: string; bfsiAllowed: boolean }> {
+  return {
+    personal_email: {
+      label: tUi('OA_ORG_SETTINGS_CH_PERSONAL_EMAIL_LABEL'),
+      desc: tUi('OA_ORG_SETTINGS_CH_PERSONAL_EMAIL_DESC'),
+      bfsiAllowed: true,
+    },
+    work_email: {
+      label: tUi('OA_ORG_SETTINGS_CH_WORK_EMAIL_LABEL'),
+      desc: tUi('OA_ORG_SETTINGS_CH_WORK_EMAIL_DESC'),
+      bfsiAllowed: true,
+    },
+    sms: {
+      label: tUi('OA_ORG_SETTINGS_CH_SMS_LABEL'),
+      desc: tUi('OA_ORG_SETTINGS_CH_SMS_DESC'),
+      bfsiAllowed: false,
+    },
+  }
 }
 
 function parseChannels(raw: string | undefined): Set<Channel> {
@@ -55,6 +58,7 @@ export function OrgSettings() {
   }, [data])
 
   const isBfsi = data?.self_upload_policy === 'BLOCKED_ENTIRELY'
+  const CHANNEL_META = getChannelMeta()
 
   function toggle(ch: Channel) {
     if (isBfsi && !CHANNEL_META[ch].bfsiAllowed) return
@@ -88,15 +92,14 @@ export function OrgSettings() {
   return (
     <div className="space-y-6 max-w-xl">
       <h1 className="text-xl font-semibold text-slate-800 flex items-center gap-2">
-        <Settings size={18} /> Org Settings
+        <Settings size={18} /> {tUi('OA_ORG_SETTINGS_TITLE')}
       </h1>
 
       {isBfsi && (
         <div className="bg-amber-50 border border-amber-200 rounded-xl px-4 py-3 flex gap-2">
           <AlertTriangle size={15} className="text-amber-600 mt-0.5 shrink-0" />
           <p className="text-xs text-amber-700">
-            <strong>BFSI tenant</strong> — SMS-only activation is not permitted. At least one email channel must be enabled.
-            Contact Platform Admin to request a policy exception.
+            <strong>{tUi('OA_ORG_SETTINGS_BFSI_BOLD')}</strong> {tUi('OA_ORG_SETTINGS_BFSI_NOTE')}
           </p>
         </div>
       )}
@@ -104,10 +107,9 @@ export function OrgSettings() {
       {/* ── Employee Activation Channels ── */}
       <div className="bg-white rounded-xl border border-slate-100 shadow-sm p-6 space-y-5">
         <div>
-          <h2 className="font-medium text-slate-800">Employee Activation Channels</h2>
+          <h2 className="font-medium text-slate-800">{tUi('OA_ORG_SETTINGS_ACTIVATION_CHANNELS_TITLE')}</h2>
           <p className="text-xs text-slate-500 mt-1">
-            When a document is pushed for a new employee, PRANA sends their temporary password
-            via every channel you enable below. Select one or more.
+            {tUi('OA_ORG_SETTINGS_ACTIVATION_CHANNELS_SUB')}
           </p>
         </div>
 
@@ -139,7 +141,7 @@ export function OrgSettings() {
                   <p className="text-xs text-slate-500 mt-0.5">{meta.desc}</p>
                   {locked && (
                     <span className="inline-block mt-1 text-[10px] font-semibold text-amber-600 bg-amber-50 border border-amber-200 px-1.5 py-0.5 rounded">
-                      Disabled for BFSI
+                      {tUi('OA_ORG_SETTINGS_DISABLED_BFSI')}
                     </span>
                   )}
                 </div>
@@ -152,15 +154,14 @@ export function OrgSettings() {
         <div className="flex gap-2 bg-slate-50 border border-slate-200 rounded-lg px-3 py-2.5">
           <Info size={13} className="text-slate-400 mt-0.5 shrink-0" />
           <p className="text-xs text-slate-500 leading-4">
-            If an employee record is missing data for a selected channel (e.g., no personal email on file),
-            PRANA automatically falls back to the next available channel in the list above.
+            {tUi('OA_ORG_SETTINGS_FALLBACK_NOTE')}
           </p>
         </div>
 
         {activeSmsButBfsi && (
           <div className="flex gap-2 bg-red-50 border border-red-200 rounded-lg px-3 py-2.5">
             <AlertTriangle size={13} className="text-red-500 mt-0.5 shrink-0"/>
-            <p className="text-xs text-red-600">SMS is not allowed for BFSI tenants. Remove it before saving.</p>
+            <p className="text-xs text-red-600">{tUi('OA_ORG_SETTINGS_SMS_BFSI_ERROR')}</p>
           </div>
         )}
 
@@ -172,10 +173,10 @@ export function OrgSettings() {
                        rounded-lg text-sm font-medium hover:bg-violet-700 disabled:opacity-40 transition-opacity"
           >
             {saved
-              ? <><CheckCircle2 size={14}/> Saved</>
+              ? <><CheckCircle2 size={14}/> {tUi('OA_ORG_PROFILE_SAVED')}</>
               : saveMutation.isPending
-                ? 'Saving…'
-                : <><Save size={14}/> Save settings</>
+                ? tUi('OA_ORG_PROFILE_SAVING')
+                : <><Save size={14}/> {tUi('OA_ORG_SETTINGS_SAVE_BTN')}</>
             }
           </button>
         </div>
@@ -183,22 +184,21 @@ export function OrgSettings() {
 
       {/* ── Re-send activation ── */}
       <div className="bg-white rounded-xl border border-slate-100 shadow-sm p-6 space-y-3">
-        <h2 className="font-medium text-slate-800">Re-send Activation</h2>
+        <h2 className="font-medium text-slate-800">{tUi('OA_ORG_SETTINGS_RESEND_TITLE')}</h2>
         <p className="text-xs text-slate-500">
-          To re-send an activation credential to a specific employee, go to
-          <strong className="text-slate-700"> Employee Master → employee row → Re-send activation</strong>.
-          This uses the channels configured above.
+          {tUi('OA_ORG_SETTINGS_RESEND_TEXT_PREFIX')}
+          <strong className="text-slate-700"> {tUi('OA_ORG_SETTINGS_RESEND_TEXT_BOLD')}</strong>{tUi('OA_ORG_SETTINGS_RESEND_TEXT_SUFFIX')}
         </p>
       </div>
 
       {/* ── Storage ── */}
       <div className="bg-white rounded-xl border border-red-100 shadow-sm p-6 space-y-4">
         <h2 className="font-medium text-red-700 flex items-center gap-2">
-          <AlertTriangle size={16}/> Storage
+          <AlertTriangle size={16}/> {tUi('OA_ORG_SETTINGS_STORAGE_TITLE')}
         </h2>
-        <p className="text-sm text-slate-500">Need additional storage capacity?</p>
+        <p className="text-sm text-slate-500">{tUi('OA_ORG_SETTINGS_STORAGE_QUESTION')}</p>
         <button className="text-sm font-medium text-red-600 border border-red-200 px-4 py-2 rounded-lg hover:bg-red-50">
-          Request storage expansion
+          {tUi('OA_ORG_SETTINGS_STORAGE_REQUEST_BTN')}
         </button>
       </div>
     </div>

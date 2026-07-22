@@ -18,14 +18,24 @@ fixture and set app.state.jwt_service attributes before making requests.
 """
 import asyncio
 from typing import AsyncGenerator
-from unittest.mock import AsyncMock, MagicMock
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 import pytest_asyncio
 from httpx import ASGITransport, AsyncClient
 
-from main import create_app
-from config import Settings
+# Patch AIOKafkaConsumer BEFORE importing main (which triggers consumer module imports).
+# Consumer modules do `from aiokafka import AIOKafkaConsumer` at module load time;
+# patching here ensures they all get the mock when first imported.
+import aiokafka as _aiokafka
+_mock_consumer_instance = MagicMock()
+_mock_consumer_instance.start = AsyncMock()
+_mock_consumer_instance.stop = AsyncMock()
+_mock_consumer_instance.__aiter__ = MagicMock(return_value=iter([]))
+_aiokafka.AIOKafkaConsumer = MagicMock(return_value=_mock_consumer_instance)
+
+from main import create_app  # noqa: E402 — must come after aiokafka patch
+from config import Settings  # noqa: E402
 
 
 @pytest.fixture(scope="session")
@@ -56,7 +66,9 @@ def mock_db():
     db.fetch = AsyncMock(return_value=[])
     db.fetchval = AsyncMock(return_value=None)
     db.execute = AsyncMock()
-    db.transaction = MagicMock(return_value=AsyncMock(__aenter__=AsyncMock(), __aexit__=AsyncMock()))
+    # __aexit__ must return a falsy value — AsyncMock()'s default truthy return would
+    # otherwise silently suppress exceptions raised inside `async with db.transaction():`.
+    db.transaction = MagicMock(return_value=AsyncMock(__aenter__=AsyncMock(), __aexit__=AsyncMock(return_value=False)))
     return db
 
 
@@ -75,7 +87,23 @@ def mock_redis():
 def mock_kafka():
     kafka = AsyncMock()
     kafka.publish = AsyncMock()
+    kafka.doc_accessed = AsyncMock()
     return kafka
+
+
+@pytest.fixture(autouse=True)
+def reset_rate_limiter():
+    """Reset SlowAPI in-memory rate limiter between tests so they don't bleed into each other."""
+    from limiter import limiter as _limiter
+    try:
+        _limiter._limiter.storage.reset()
+    except Exception:
+        pass
+    yield
+    try:
+        _limiter._limiter.storage.reset()
+    except Exception:
+        pass
 
 
 @pytest.fixture
@@ -121,3 +149,18 @@ async def client(app) -> AsyncGenerator[AsyncClient, None]:
     ) as c:
         c.app = app   # attach so tests can reach app.state
         yield c
+
+
+@pytest.fixture
+def employee_auth_headers(client):
+    """Inject employee JWT claims and return auth headers for use in tests."""
+    from unittest.mock import AsyncMock
+    mock_jwt = client.app.state.jwt_service
+    mock_jwt.decode.return_value = {
+        "sub": "a0000000-0000-0000-0000-000000000001",
+        "user_type": "employee",
+        "jti": "test-session-id-001",
+        "exp": 9999999999,
+    }
+    mock_jwt.is_revoked = AsyncMock(return_value=False)
+    return {"Authorization": "Bearer fake.employee.jwt"}

@@ -39,7 +39,10 @@ export const useAuthStore = create<AuthState>()(
     }),
     {
       name: 'prana-auth',
-      partialize: (s) => ({ user: s.user, accessToken: s.accessToken }),
+      // Never persist the access token (CLAUDE.md: JWT never in localStorage — XSS-exposable).
+      // Only `user` is persisted so RequireAuth can render on reload; the access token is
+      // rehydrated in-memory via the silent /auth/*/refresh flow (httpOnly refresh cookie).
+      partialize: (s) => ({ user: s.user }),
     },
   ),
 )

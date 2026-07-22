@@ -11,6 +11,20 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import pytest
 
 
+# ── H1: rate limiting ─────────────────────────────────────────────────────────
+
+@pytest.mark.asyncio
+async def test_login_rate_limited_after_threshold(client, mock_db, mock_redis):
+    """After the 10/min cap, further OA login attempts from the same IP get 429."""
+    mock_db.fetchrow = AsyncMock(return_value=None)  # unknown user → 401 each attempt
+    mock_db.execute = AsyncMock()
+    statuses = []
+    for _ in range(12):
+        r = await client.post("/auth/org/login", json={"email": "spray@acme.in", "password": "x"})
+        statuses.append(r.status_code)
+    assert 429 in statuses, f"expected a 429 after the rate limit, got {statuses}"
+
+
 # ── Helpers ───────────────────────────────────────────────────────────────────
 
 def _make_oa_row(
@@ -124,6 +138,7 @@ async def test_totp_locks_at_5_failures(client, mock_db, mock_redis):
 
     mock_db.fetchrow = AsyncMock(side_effect=_fetchrow_side)
     mock_db.execute = AsyncMock()
+    mock_db.fetchval = AsyncMock(return_value=5)  # atomic increment returns 5 → lock
 
     with patch("routers.auth_oa.TOTPService.verify", return_value=False):
         resp = await client.post("/auth/org/totp", json={
@@ -154,6 +169,7 @@ async def test_totp_wrong_code_below_lockout(client, mock_db, mock_redis):
 
     mock_db.fetchrow = AsyncMock(side_effect=_fetchrow_side)
     mock_db.execute = AsyncMock()
+    mock_db.fetchval = AsyncMock(return_value=2)  # atomic increment returns 2 → below lock
 
     with patch("routers.auth_oa.TOTPService.verify", return_value=False):
         resp = await client.post("/auth/org/totp", json={

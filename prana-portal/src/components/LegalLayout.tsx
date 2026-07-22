@@ -1,4 +1,5 @@
 import { useNavigate } from 'react-router-dom'
+import { tUi } from '@/i18n'
 
 const GRAD = 'linear-gradient(135deg, #6366F1 0%, #22D3EE 55%, #34D399 100%)'
 
@@ -59,7 +60,7 @@ function LegalFooter() {
               Career document vault for every Indian worker. DPDP Act 2023 compliant.
             </p>
             <div className="flex gap-2 mt-4">
-              <span className="text-[10px] bg-emerald-900/50 text-emerald-400 border border-emerald-800 rounded-full px-2.5 py-1 font-semibold">Phase I Live</span>
+              <span className="text-[10px] bg-emerald-900/50 text-emerald-400 border border-emerald-800 rounded-full px-2.5 py-1 font-semibold">{tUi('LEGAL_LAYOUT_PHASE_BADGE')}</span>
               <span className="text-[10px] bg-indigo-900/50 text-indigo-400 border border-indigo-800 rounded-full px-2.5 py-1 font-semibold">Pilot-Ready</span>
             </div>
           </div>

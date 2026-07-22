@@ -18,7 +18,7 @@ location          — Office location
 employer_name     — Company name
 date_of_joining   — Actual date of joining (YYYY-MM-DD)
 letter_date       — Date the letter was issued (YYYY-MM-DD)
-reporting_manager — Reporting manager name (if stated)
+reporting_to      — Reporting manager name (if stated)
 
 RETURN FORMAT (JSON only):
 {{
@@ -30,6 +30,6 @@ RETURN FORMAT (JSON only):
   "employer_name":    {{"value": null, "confidence": 0.0}},
   "date_of_joining":  {{"value": null, "confidence": 0.0}},
   "letter_date":      {{"value": null, "confidence": 0.0}},
-  "reporting_manager":{{"value": null, "confidence": 0.0}},
+  "reporting_to":     {{"value": null, "confidence": 0.0}},
   "overall_confidence": 0.0
 }}"""

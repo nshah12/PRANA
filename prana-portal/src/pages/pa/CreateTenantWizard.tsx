@@ -6,6 +6,7 @@ import {
   ChevronRight, ChevronLeft, Check, AlertCircle, Info,
 } from 'lucide-react'
 import { api } from '@/lib/api'
+import { tUi } from '@/i18n'
 
 // ── Types ────────────────────────────────────────────────────────────────────
 
@@ -104,28 +105,28 @@ function AddressBlock({
   return (
     <div className="space-y-3">
       <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide">{label}</p>
-      <Field label="Address Line 1" required>
+      <Field label={tUi('OA_ORG_PROFILE_ADDR_LINE1')} required>
         <input className={inp} value={value.line1} onChange={s('line1')} placeholder="Building / Flat No., Street" />
       </Field>
-      <Field label="Address Line 2">
+      <Field label={tUi('OA_ORG_PROFILE_ADDR_LINE2')}>
         <input className={inp} value={value.line2} onChange={s('line2')} placeholder="Area / Locality" />
       </Field>
       <div className="grid grid-cols-2 gap-3">
-        <Field label="City" required>
+        <Field label={tUi('OA_ORG_PROFILE_CITY')} required>
           <input className={inp} value={value.city} onChange={s('city')} placeholder="Mumbai" />
         </Field>
-        <Field label="District">
-          <input className={inp} value={value.district} onChange={s('district')} placeholder="Mumbai City" />
+        <Field label={tUi('PA_WIZARD_DISTRICT_LABEL')}>
+          <input className={inp} value={value.district} onChange={s('district')} placeholder={tUi('PA_WIZARD_DISTRICT_PLACEHOLDER')} />
         </Field>
       </div>
       <div className="grid grid-cols-2 gap-3">
-        <Field label="State" required>
+        <Field label={tUi('OA_ORG_PROFILE_STATE')} required>
           <select className={sel} value={value.state} onChange={s('state')}>
-            <option value="">Select state</option>
+            <option value="">{tUi('OA_ORG_PROFILE_SELECT_STATE')}</option>
             {STATES.map(st => <option key={st} value={st}>{st}</option>)}
           </select>
         </Field>
-        <Field label="PIN Code" required>
+        <Field label={tUi('OA_ORG_PROFILE_PINCODE')} required>
           <input className={inp} value={value.pincode} onChange={s('pincode')} placeholder="400001" maxLength={6} />
         </Field>
       </div>
@@ -176,13 +177,15 @@ const HRMS_OPTIONS = [
   'Manual / None','Custom / In-house',
 ]
 
-const STEPS = [
-  { icon: Building2, label: 'Legal Identity' },
-  { icon: MapPin,    label: 'Address & Contacts' },
-  { icon: Shield,    label: 'Data Protection' },
-  { icon: Users,     label: 'Technical Config' },
-  { icon: Briefcase, label: 'Workforce & Contract' },
-]
+function getSteps() {
+  return [
+    { icon: Building2, label: tUi('OA_ORG_PROFILE_LEGAL_IDENTITY_TITLE') },
+    { icon: MapPin,    label: tUi('PA_WIZARD_STEP_ADDRESS') },
+    { icon: Shield,    label: tUi('PA_WIZARD_STEP_DPDP') },
+    { icon: Users,     label: tUi('PA_WIZARD_STEP_TECH') },
+    { icon: Briefcase, label: tUi('PA_WIZARD_STEP_WORKFORCE') },
+  ]
+}
 
 // ── Main component ────────────────────────────────────────────────────────────
 
@@ -191,6 +194,7 @@ export function CreateTenantWizard() {
   const [step, setStep] = useState(0)
   const [data, setData] = useState<WizardData>(EMPTY)
   const [errors, setErrors] = useState<string[]>([])
+  const STEPS = getSteps()
 
   const set = (key: keyof WizardData) => (
     e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>
@@ -210,36 +214,36 @@ export function CreateTenantWizard() {
   function validate(s: number): string[] {
     const errs: string[] = []
     if (s === 0) {
-      if (!data.tenant_name.trim()) errs.push('Organisation legal name is required')
-      if (!data.entity_type)        errs.push('Entity type is required')
+      if (!data.tenant_name.trim()) errs.push(tUi('PA_WIZARD_ERR_LEGAL_NAME'))
+      if (!data.entity_type)        errs.push(tUi('PA_WIZARD_ERR_ENTITY_TYPE'))
     }
     if (s === 1) {
-      if (!data.reg_address.line1.trim())  errs.push('Registered address Line 1 is required')
-      if (!data.reg_address.city.trim())   errs.push('Registered address city is required')
-      if (!data.reg_address.state)         errs.push('Registered address state is required')
-      if (!data.reg_address.pincode.trim()) errs.push('Registered address PIN code is required')
-      if (!data.primary_contact.name.trim())  errs.push('Primary contact name is required')
-      if (!data.primary_contact.email.trim()) errs.push('Primary contact email is required')
-      if (!data.primary_contact.mobile.trim()) errs.push('Primary contact mobile is required')
-      if (!data.first_oa_admin_email.trim()) errs.push('First OA-Admin email is required')
+      if (!data.reg_address.line1.trim())  errs.push(tUi('PA_WIZARD_ERR_ADDR_LINE1'))
+      if (!data.reg_address.city.trim())   errs.push(tUi('PA_WIZARD_ERR_ADDR_CITY'))
+      if (!data.reg_address.state)         errs.push(tUi('PA_WIZARD_ERR_ADDR_STATE'))
+      if (!data.reg_address.pincode.trim()) errs.push(tUi('PA_WIZARD_ERR_ADDR_PINCODE'))
+      if (!data.primary_contact.name.trim())  errs.push(tUi('PA_WIZARD_ERR_CONTACT_NAME'))
+      if (!data.primary_contact.email.trim()) errs.push(tUi('PA_WIZARD_ERR_CONTACT_EMAIL'))
+      if (!data.primary_contact.mobile.trim()) errs.push(tUi('PA_WIZARD_ERR_CONTACT_MOBILE'))
+      if (!data.first_oa_admin_email.trim()) errs.push(tUi('PA_WIZARD_ERR_ADMIN_EMAIL'))
     }
     if (s === 2) {
-      if (!data.dpo_name.trim())                  errs.push('DPO name is required (DPDP Act 2023)')
-      if (!data.dpo_email.trim())                 errs.push('DPO email is required')
-      if (!data.grievance_officer_name.trim())    errs.push('Grievance Officer name is required')
-      if (!data.grievance_officer_email.trim())   errs.push('Grievance Officer email is required')
-      if (!data.dpa_accepted)                     errs.push('Data Processing Agreement must be accepted')
-      if (!data.purpose_limitation_accepted)      errs.push('Purpose limitation declaration must be accepted')
+      if (!data.dpo_name.trim())                  errs.push(tUi('PA_WIZARD_ERR_DPO_NAME'))
+      if (!data.dpo_email.trim())                 errs.push(tUi('PA_WIZARD_ERR_DPO_EMAIL'))
+      if (!data.grievance_officer_name.trim())    errs.push(tUi('PA_WIZARD_ERR_GRIEVANCE_NAME'))
+      if (!data.grievance_officer_email.trim())   errs.push(tUi('PA_WIZARD_ERR_GRIEVANCE_EMAIL'))
+      if (!data.dpa_accepted)                     errs.push(tUi('PA_WIZARD_ERR_DPA_ACCEPT'))
+      if (!data.purpose_limitation_accepted)      errs.push(tUi('PA_WIZARD_ERR_PURPOSE_ACCEPT'))
     }
     if (s === 3) {
-      if (!data.domain.trim())        errs.push('Corporate domain is required')
-      if (!data.primary_state)        errs.push('Primary state is required')
-      if (!data.nik_type)             errs.push('Employee identifier type is required')
-      if (!data.home_region)          errs.push('Data region is required')
+      if (!data.domain.trim())        errs.push(tUi('PA_WIZARD_ERR_DOMAIN'))
+      if (!data.primary_state)        errs.push(tUi('PA_WIZARD_ERR_PRIMARY_STATE'))
+      if (!data.nik_type)             errs.push(tUi('PA_WIZARD_ERR_NIK_TYPE'))
+      if (!data.home_region)          errs.push(tUi('PA_WIZARD_ERR_HOME_REGION'))
     }
     if (s === 4) {
-      if (!data.employee_headcount_band) errs.push('Employee headcount band is required')
-      if (!data.storage_quota_gb || data.storage_quota_gb < 1) errs.push('Storage quota is required')
+      if (!data.employee_headcount_band) errs.push(tUi('PA_WIZARD_ERR_HEADCOUNT'))
+      if (!data.storage_quota_gb || data.storage_quota_gb < 1) errs.push(tUi('PA_WIZARD_ERR_STORAGE_QUOTA'))
     }
     return errs
   }
@@ -305,12 +309,11 @@ export function CreateTenantWizard() {
       <div>
         <button onClick={() => navigate('/admin/tenants')}
                 className="text-xs text-slate-400 hover:text-slate-600 mb-2 flex items-center gap-1">
-          ← Back to Tenant Directory
+          {tUi('PA_WIZARD_BACK_TO_DIRECTORY')}
         </button>
-        <h1 className="text-xl font-semibold text-slate-800">Onboard New Tenant</h1>
+        <h1 className="text-xl font-semibold text-slate-800">{tUi('PA_WIZARD_TITLE')}</h1>
         <p className="text-sm text-slate-500 mt-1">
-          All mandatory fields are marked <span className="text-red-500 font-medium">*</span>.
-          OA-Admin can complete optional sections via Org Profile after activation.
+          {tUi('PA_WIZARD_SUB_PREFIX')} <span className="text-red-500 font-medium">*</span>{tUi('PA_WIZARD_SUB_SUFFIX')}
         </p>
       </div>
 
@@ -359,49 +362,49 @@ export function CreateTenantWizard() {
         {/* ── STEP 0: Legal Identity ──────────────────────────────────────── */}
         {step === 0 && (
           <>
-            <StepHeading icon={Building2} title="Legal Identity"
-              subtitle="As per Ministry of Corporate Affairs (MCA) records" />
+            <StepHeading icon={Building2} title={tUi('OA_ORG_PROFILE_LEGAL_IDENTITY_TITLE')}
+              subtitle={tUi('PA_WIZARD_STEP0_SUB')} />
 
             <div className="grid grid-cols-2 gap-4">
               <div className="col-span-2">
-                <Field label="Organisation Legal Name (Full registered name)" required>
+                <Field label={tUi('PA_WIZARD_LEGAL_NAME_LABEL')} required>
                   <input className={inp} value={data.tenant_name} onChange={set('tenant_name')}
-                    placeholder="e.g. TechCorp Solutions Private Limited" />
+                    placeholder={tUi('PA_WIZARD_LEGAL_NAME_PLACEHOLDER')} />
                 </Field>
               </div>
-              <Field label="Brand / Trade Name" hint="Common operating name if different from legal name">
+              <Field label={tUi('OA_ORG_PROFILE_BRAND_NAME_LABEL')} hint={tUi('PA_WIZARD_BRAND_NAME_HINT')}>
                 <input className={inp} value={data.brand_name} onChange={set('brand_name')}
-                  placeholder="e.g. TechCorp" />
+                  placeholder={tUi('PA_WIZARD_BRAND_NAME_PLACEHOLDER')} />
               </Field>
-              <Field label="Entity Type" required>
+              <Field label={tUi('OA_ORG_PROFILE_ENTITY_TYPE')} required>
                 <select className={sel} value={data.entity_type} onChange={set('entity_type')}>
-                  <option value="">Select entity type</option>
+                  <option value="">{tUi('PA_WIZARD_SELECT_ENTITY_TYPE')}</option>
                   {ENTITY_TYPES.map(([v, l]) => <option key={v} value={v}>{l}</option>)}
                 </select>
               </Field>
-              <Field label="CIN" hint="Company Identification Number — 21 characters (e.g. U72900MH2010PTC123456)">
+              <Field label={tUi('OA_ORG_PROFILE_CIN')} hint={tUi('PA_WIZARD_CIN_HINT')}>
                 <input className={inp} value={data.cin} onChange={set('cin')}
                   placeholder="U72900MH2010PTC123456" maxLength={21} />
               </Field>
-              <Field label="GSTIN" hint="15-character GST Identification Number">
+              <Field label={tUi('OA_ORG_PROFILE_GSTIN')} hint={tUi('PA_WIZARD_GSTIN_HINT')}>
                 <input className={inp} value={data.gstin} onChange={set('gstin')}
                   placeholder="27AABCT1234A1ZA" maxLength={15} />
               </Field>
-              <Field label="Company PAN" hint="Entity PAN — 10 characters. Required for Form 16 generation.">
+              <Field label={tUi('OA_ORG_PROFILE_COMPANY_PAN')} hint={tUi('PA_WIZARD_PAN_HINT')}>
                 <input className={inp} value={data.pan_entity} onChange={set('pan_entity')}
                   placeholder="AABCT1234A" maxLength={10} />
               </Field>
-              <Field label="TAN" hint="Tax Deduction Account Number — for TDS filings">
+              <Field label={tUi('OA_ORG_PROFILE_TAN')} hint={tUi('PA_WIZARD_TAN_HINT')}>
                 <input className={inp} value={data.tan} onChange={set('tan')}
                   placeholder="MUMТ12345A" maxLength={10} />
               </Field>
-              <Field label="Date of Incorporation">
+              <Field label={tUi('OA_ORG_PROFILE_INCORPORATION_DATE')}>
                 <input type="date" className={inp} value={data.incorporation_date}
                   onChange={set('incorporation_date')} />
               </Field>
-              <Field label="ROC Jurisdiction" hint="Registrar of Companies office">
+              <Field label={tUi('OA_ORG_PROFILE_ROC')} hint={tUi('PA_WIZARD_ROC_HINT')}>
                 <select className={sel} value={data.roc_jurisdiction} onChange={set('roc_jurisdiction')}>
-                  <option value="">Select ROC</option>
+                  <option value="">{tUi('PA_WIZARD_SELECT_ROC')}</option>
                   {ROC_OPTIONS.map(r => <option key={r} value={r}>{r}</option>)}
                 </select>
               </Field>
@@ -412,11 +415,11 @@ export function CreateTenantWizard() {
         {/* ── STEP 1: Addresses & Contacts ───────────────────────────────── */}
         {step === 1 && (
           <>
-            <StepHeading icon={MapPin} title="Addresses & Contacts"
-              subtitle="Registered office address, corporate office, and primary SPOC" />
+            <StepHeading icon={MapPin} title={tUi('PA_WIZARD_STEP_ADDRESS')}
+              subtitle={tUi('PA_WIZARD_STEP1_SUB')} />
 
             <AddressBlock
-              label="Registered Office Address"
+              label={tUi('OA_ORG_PROFILE_REG_OFFICE')}
               value={data.reg_address}
               onChange={v => setData(d => ({ ...d, reg_address: v }))}
             />
@@ -426,13 +429,13 @@ export function CreateTenantWizard() {
                 <input type="checkbox" checked={data.corp_address_same}
                   onChange={toggle('corp_address_same')}
                   className="rounded border-slate-300 text-amber-500 focus:ring-amber-400" />
-                <span className="text-slate-700">Corporate / Head Office is same as Registered Office</span>
+                <span className="text-slate-700">{tUi('PA_WIZARD_CORP_SAME_LABEL')}</span>
               </label>
             </div>
 
             {!data.corp_address_same && (
               <AddressBlock
-                label="Corporate / Head Office Address"
+                label={tUi('OA_ORG_PROFILE_CORP_OFFICE')}
                 value={data.corp_address}
                 onChange={v => setData(d => ({ ...d, corp_address: v }))}
               />
@@ -440,25 +443,25 @@ export function CreateTenantWizard() {
 
             <div className="border-t border-slate-100 pt-4 space-y-3">
               <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide">
-                Primary Contact (Authorised SPOC)
+                {tUi('PA_WIZARD_PRIMARY_CONTACT_LABEL')}
               </p>
               <div className="grid grid-cols-2 gap-4">
-                <Field label="Full Name" required>
+                <Field label={tUi('OA_ORG_PROFILE_FULL_NAME')} required>
                   <input className={inp} value={data.primary_contact.name}
                     onChange={e => setData(d => ({ ...d, primary_contact: { ...d.primary_contact, name: e.target.value } }))}
                     placeholder="Priya Sharma" />
                 </Field>
-                <Field label="Designation" required>
+                <Field label={tUi('OA_ORG_PROFILE_DESIGNATION')} required>
                   <input className={inp} value={data.primary_contact.designation}
                     onChange={e => setData(d => ({ ...d, primary_contact: { ...d.primary_contact, designation: e.target.value } }))}
-                    placeholder="CHRO / HR Head / IT Head" />
+                    placeholder={tUi('PA_WIZARD_DESIGNATION_PLACEHOLDER')} />
                 </Field>
-                <Field label="Work Email" required>
+                <Field label={tUi('OA_ORG_PROFILE_WORK_EMAIL')} required>
                   <input type="email" className={inp} value={data.primary_contact.email}
                     onChange={e => setData(d => ({ ...d, primary_contact: { ...d.primary_contact, email: e.target.value } }))}
                     placeholder="priya@company.in" />
                 </Field>
-                <Field label="Mobile" required>
+                <Field label={tUi('OA_ORG_PROFILE_MOBILE')} required>
                   <input className={inp} value={data.primary_contact.mobile}
                     onChange={e => setData(d => ({ ...d, primary_contact: { ...d.primary_contact, mobile: e.target.value } }))}
                     placeholder="+91 98765 43210" />
@@ -467,8 +470,8 @@ export function CreateTenantWizard() {
             </div>
 
             <div className="border-t border-slate-100 pt-4">
-              <Field label="First OA-Admin Email" required
-                hint="Temporary credentials for first portal login will be sent here. Must match the corporate domain.">
+              <Field label={tUi('PA_WIZARD_ADMIN_EMAIL_LABEL')} required
+                hint={tUi('PA_WIZARD_ADMIN_EMAIL_HINT')}>
                 <input type="email" className={inp} value={data.first_oa_admin_email}
                   onChange={set('first_oa_admin_email')}
                   placeholder="admin@company.in" />
@@ -480,33 +483,31 @@ export function CreateTenantWizard() {
         {/* ── STEP 2: Data Protection (DPDP) ─────────────────────────────── */}
         {step === 2 && (
           <>
-            <StepHeading icon={Shield} title="Data Protection & DPDP Compliance"
-              subtitle="Mandatory under Digital Personal Data Protection Act 2023 (S. 8 & 13)" />
+            <StepHeading icon={Shield} title={tUi('PA_WIZARD_STEP2_TITLE')}
+              subtitle={tUi('PA_WIZARD_STEP2_SUB')} />
 
             <div className="bg-sky-50 border border-sky-200 rounded-xl px-4 py-3 flex gap-2">
               <Info size={14} className="text-sky-600 flex-shrink-0 mt-0.5" />
               <p className="text-xs text-sky-700">
-                The DPDP Act 2023 requires every Data Fiduciary to designate a Data Protection Officer
-                and a Grievance Officer. These contacts are displayed to employees within the PRANA app
-                for raising data-related concerns.
+                {tUi('PA_WIZARD_DPDP_INFO')}
               </p>
             </div>
 
             <div className="grid grid-cols-2 gap-4">
-              <Field label="DPO (Data Protection Officer) Name" required>
+              <Field label={tUi('PA_WIZARD_DPO_NAME_LABEL')} required>
                 <input className={inp} value={data.dpo_name} onChange={set('dpo_name')}
-                  placeholder="Full name" />
+                  placeholder={tUi('OA_ORG_PROFILE_FULL_NAME_PLACEHOLDER')} />
               </Field>
-              <Field label="DPO Email" required>
+              <Field label={tUi('OA_ORG_PROFILE_DPO_EMAIL')} required>
                 <input type="email" className={inp} value={data.dpo_email} onChange={set('dpo_email')}
                   placeholder="dpo@company.in" />
               </Field>
-              <Field label="Grievance Officer Name" required
-                hint="May be the same person as DPO">
+              <Field label={tUi('OA_ORG_PROFILE_GRIEVANCE_NAME')} required
+                hint={tUi('PA_WIZARD_GRIEVANCE_NAME_HINT')}>
                 <input className={inp} value={data.grievance_officer_name}
-                  onChange={set('grievance_officer_name')} placeholder="Full name" />
+                  onChange={set('grievance_officer_name')} placeholder={tUi('OA_ORG_PROFILE_FULL_NAME_PLACEHOLDER')} />
               </Field>
-              <Field label="Grievance Officer Email" required>
+              <Field label={tUi('OA_ORG_PROFILE_GRIEVANCE_EMAIL')} required>
                 <input type="email" className={inp} value={data.grievance_officer_email}
                   onChange={set('grievance_officer_email')} placeholder="grievance@company.in" />
               </Field>
@@ -514,7 +515,7 @@ export function CreateTenantWizard() {
 
             <div className="border-t border-slate-100 pt-4 space-y-3">
               <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide">
-                Agreements & Declarations
+                {tUi('PA_WIZARD_AGREEMENTS_LABEL')}
               </p>
 
               <label className={`flex items-start gap-3 p-4 border rounded-xl cursor-pointer transition-colors
@@ -523,13 +524,10 @@ export function CreateTenantWizard() {
                   className="mt-0.5 rounded border-slate-300 text-emerald-500 focus:ring-emerald-400" />
                 <div>
                   <p className="text-sm font-medium text-slate-800">
-                    Data Processing Agreement (DPA) v1.0 <span className="text-red-500">*</span>
+                    {tUi('PA_WIZARD_DPA_TITLE')} <span className="text-red-500">*</span>
                   </p>
                   <p className="text-xs text-slate-500 mt-0.5">
-                    The organisation accepts that PRANA will process employee documents solely for the
-                    purpose of vault creation and career insight generation. Raw personal data (PAN, salary
-                    figures) is never stored in PRANA's database — only derived insights are persisted.
-                    Processing is restricted to ap-south-1 / ap-south-2 (India) per DPDP Act S.17.
+                    {tUi('PA_WIZARD_DPA_BODY')}
                   </p>
                 </div>
               </label>
@@ -541,12 +539,10 @@ export function CreateTenantWizard() {
                   className="mt-0.5 rounded border-slate-300 text-emerald-500 focus:ring-emerald-400" />
                 <div>
                   <p className="text-sm font-medium text-slate-800">
-                    Purpose Limitation Declaration <span className="text-red-500">*</span>
+                    {tUi('PA_WIZARD_PURPOSE_TITLE')} <span className="text-red-500">*</span>
                   </p>
                   <p className="text-xs text-slate-500 mt-0.5">
-                    Documents pushed to PRANA will be used exclusively for employee vault, career insights,
-                    and DPDP-mandated disclosure. No cross-purpose use, third-party sharing, or marketing
-                    profiling is permitted without explicit employee consent under DPDP Act S.6.
+                    {tUi('PA_WIZARD_PURPOSE_BODY')}
                   </p>
                 </div>
               </label>
@@ -557,67 +553,67 @@ export function CreateTenantWizard() {
         {/* ── STEP 3: Technical Configuration ─────────────────────────────── */}
         {step === 3 && (
           <>
-            <StepHeading icon={Users} title="Technical Configuration"
-              subtitle="Domain, identity key, data residency, integration method" />
+            <StepHeading icon={Users} title={tUi('PA_WIZARD_STEP_TECH')}
+              subtitle={tUi('PA_WIZARD_STEP3_SUB')} />
 
             <div className="grid grid-cols-2 gap-4">
-              <Field label="Corporate Domain" required hint="e.g. company.in — must match OA-Admin email domain">
+              <Field label={tUi('PA_WIZARD_DOMAIN_LABEL')} required hint={tUi('PA_WIZARD_DOMAIN_HINT')}>
                 <input className={inp} value={data.domain} onChange={set('domain')}
                   placeholder="company.in" />
               </Field>
-              <Field label="Additional Allowed Domains"
-                hint="Comma-separated subsidiary / group domains">
+              <Field label={tUi('PA_WIZARD_ADDL_DOMAINS_LABEL')}
+                hint={tUi('PA_WIZARD_ADDL_DOMAINS_HINT')}>
                 <input className={inp} value={data.additional_domains}
                   onChange={set('additional_domains')}
                   placeholder="subsidiary.in, group.com" />
               </Field>
-              <Field label="Primary State" required hint="Indian state for geo-affinity routing & compliance">
+              <Field label={tUi('PA_WIZARD_PRIMARY_STATE_LABEL')} required hint={tUi('PA_WIZARD_PRIMARY_STATE_HINT')}>
                 <select className={sel} value={data.primary_state} onChange={set('primary_state')}>
-                  <option value="">Select state</option>
+                  <option value="">{tUi('OA_ORG_PROFILE_SELECT_STATE')}</option>
                   {STATES.map(st => <option key={st} value={st}>{st}</option>)}
                 </select>
               </Field>
-              <Field label="Employee Identifier Type (NIK)" required
-                hint="How employees are deduplicated across tenants">
+              <Field label={tUi('PA_WIZARD_NIK_LABEL')} required
+                hint={tUi('PA_WIZARD_NIK_HINT')}>
                 <select className={sel} value={data.nik_type} onChange={set('nik_type')}>
-                  <option value="PAN">PAN (Permanent Account Number) — recommended</option>
-                  <option value="PASSPORT">Passport Number (for foreign employees)</option>
+                  <option value="PAN">{tUi('PA_WIZARD_NIK_PAN_OPTION')}</option>
+                  <option value="PASSPORT">{tUi('PA_WIZARD_NIK_PASSPORT_OPTION')}</option>
                 </select>
               </Field>
-              <Field label="Data Residency Region" required
-                hint="IMMUTABLE after provisioning — all documents stored in this region">
+              <Field label={tUi('PA_WIZARD_REGION_LABEL')} required
+                hint={tUi('PA_WIZARD_REGION_HINT')}>
                 <select className={sel} value={data.home_region} onChange={set('home_region')}>
-                  <option value="ap-south-1">ap-south-1 — AWS Mumbai (recommended)</option>
-                  <option value="ap-south-2">ap-south-2 — AWS Hyderabad</option>
+                  <option value="ap-south-1">{tUi('PA_WIZARD_REGION_MUMBAI_OPTION')}</option>
+                  <option value="ap-south-2">{tUi('PA_WIZARD_REGION_HYDERABAD_OPTION')}</option>
                 </select>
               </Field>
-              <Field label="HRMS / Payroll Platform">
+              <Field label={tUi('OA_ORG_PROFILE_HRMS_PLATFORM_LABEL')}>
                 <select className={sel} value={data.hrms_system} onChange={set('hrms_system')}>
-                  <option value="">Not integrated / Unknown</option>
+                  <option value="">{tUi('PA_WIZARD_HRMS_NOT_INTEGRATED')}</option>
                   {HRMS_OPTIONS.map(h => <option key={h} value={h}>{h}</option>)}
                 </select>
               </Field>
-              <Field label="Document Ingestion Method" required>
+              <Field label={tUi('OA_ORG_PROFILE_INGESTION_METHOD_LABEL')} required>
                 <select className={sel} value={data.document_ingestion_method}
                   onChange={set('document_ingestion_method')}>
-                  <option value="PORTAL_UPLOAD">Portal Upload (OA team uploads via web portal)</option>
-                  <option value="HRMS_API">HRMS API Push (automated via API key)</option>
-                  <option value="BOTH">Both (portal + API)</option>
+                  <option value="PORTAL_UPLOAD">{tUi('PA_WIZARD_PORTAL_UPLOAD_OPTION')}</option>
+                  <option value="HRMS_API">{tUi('PA_WIZARD_HRMS_API_OPTION')}</option>
+                  <option value="BOTH">{tUi('PA_WIZARD_BOTH_OPTION')}</option>
                 </select>
               </Field>
-              <Field label="Employee Self-Upload Policy" required
-                hint="Whether employees can upload their own documents via the PRANA app">
+              <Field label={tUi('PA_WIZARD_SELF_UPLOAD_LABEL')} required
+                hint={tUi('PA_WIZARD_SELF_UPLOAD_HINT')}>
                 <select className={sel} value={data.self_upload_policy}
                   onChange={set('self_upload_policy')}>
-                  <option value="ALLOWED">Allowed — employee can upload any document</option>
-                  <option value="ALLOWED_WITH_WARNING">Allowed with warning — shown "Unverified" badge</option>
-                  <option value="BLOCKED_ON_OFFICE_NETWORK">Blocked on office network / VPN</option>
-                  <option value="BLOCKED_ENTIRELY">Blocked entirely (BFSI / regulated sector)</option>
+                  <option value="ALLOWED">{tUi('PA_WIZARD_SELF_UPLOAD_ALLOWED')}</option>
+                  <option value="ALLOWED_WITH_WARNING">{tUi('PA_WIZARD_SELF_UPLOAD_WARNING')}</option>
+                  <option value="BLOCKED_ON_OFFICE_NETWORK">{tUi('PA_WIZARD_SELF_UPLOAD_BLOCKED_OFFICE')}</option>
+                  <option value="BLOCKED_ENTIRELY">{tUi('PA_WIZARD_SELF_UPLOAD_BLOCKED_ALL')}</option>
                 </select>
               </Field>
               <div className="col-span-2">
-                <Field label="Office IP Ranges (CIDR)"
-                  hint="Used for self-upload geo-restriction. Comma-separated CIDR blocks, e.g. 203.0.113.0/24">
+                <Field label={tUi('PA_WIZARD_IP_RANGES_LABEL')}
+                  hint={tUi('PA_WIZARD_IP_RANGES_HINT')}>
                   <input className={inp} value={data.office_ip_ranges}
                     onChange={set('office_ip_ranges')}
                     placeholder="203.0.113.0/24, 198.51.100.0/24" />
@@ -630,52 +626,52 @@ export function CreateTenantWizard() {
         {/* ── STEP 4: Workforce & Contract ─────────────────────────────────── */}
         {step === 4 && (
           <>
-            <StepHeading icon={Briefcase} title="Workforce Profile & Contract"
-              subtitle="Headcount, payroll configuration, SLA tier, and contract terms" />
+            <StepHeading icon={Briefcase} title={tUi('PA_WIZARD_STEP_WORKFORCE')}
+              subtitle={tUi('PA_WIZARD_STEP4_SUB')} />
 
             <div className="grid grid-cols-2 gap-4">
-              <Field label="Industry / Sector">
+              <Field label={tUi('OA_ORG_PROFILE_INDUSTRY_LABEL')}>
                 <select className={sel} value={data.industry} onChange={set('industry')}>
-                  <option value="">Select industry</option>
+                  <option value="">{tUi('OA_ORG_PROFILE_SELECT_INDUSTRY')}</option>
                   {INDUSTRIES.map(i => <option key={i} value={i}>{i}</option>)}
                 </select>
               </Field>
-              <Field label="Employee Headcount Band" required>
+              <Field label={tUi('OA_ORG_PROFILE_HEADCOUNT_LABEL')} required>
                 <select className={sel} value={data.employee_headcount_band}
                   onChange={set('employee_headcount_band')}>
-                  <option value="">Select band</option>
+                  <option value="">{tUi('OA_ORG_PROFILE_SELECT_BAND')}</option>
                   {['1-50','51-200','201-500','501-2000','2001-10000','10000+'].map(b =>
-                    <option key={b} value={b}>{b} employees</option>
+                    <option key={b} value={b}>{b} {tUi('OA_ORG_PROFILE_EMPLOYEES_SUFFIX')}</option>
                   )}
                 </select>
               </Field>
-              <Field label="Payroll Frequency">
+              <Field label={tUi('OA_ORG_PROFILE_PAYROLL_FREQ_LABEL')}>
                 <select className={sel} value={data.payroll_frequency}
                   onChange={set('payroll_frequency')}>
-                  <option value="MONTHLY">Monthly (standard India)</option>
-                  <option value="BI_MONTHLY">Bi-monthly</option>
-                  <option value="WEEKLY">Weekly</option>
+                  <option value="MONTHLY">{tUi('PA_WIZARD_PAYROLL_MONTHLY_STD')}</option>
+                  <option value="BI_MONTHLY">{tUi('OA_ORG_PROFILE_BI_MONTHLY')}</option>
+                  <option value="WEEKLY">{tUi('OA_ORG_PROFILE_WEEKLY')}</option>
                 </select>
               </Field>
-              <Field label="Fiscal Year Start">
+              <Field label={tUi('OA_ORG_PROFILE_FISCAL_YEAR_LABEL')}>
                 <select className={sel} value={data.fiscal_year_start}
                   onChange={set('fiscal_year_start')}>
-                  <option value="APRIL">April (India standard)</option>
-                  <option value="JANUARY">January (foreign subsidiary)</option>
-                  <option value="OTHER">Other</option>
+                  <option value="APRIL">{tUi('OA_ORG_PROFILE_APRIL_STANDARD')}</option>
+                  <option value="JANUARY">{tUi('PA_WIZARD_FISCAL_JAN_FOREIGN')}</option>
+                  <option value="OTHER">{tUi('OA_ORG_PROFILE_OTHER')}</option>
                 </select>
               </Field>
-              <Field label="Historical Document Push Window"
-                hint="How many months back the employer can push historical documents">
+              <Field label={tUi('PA_WIZARD_PUSH_WINDOW_LABEL')}
+                hint={tUi('PA_WIZARD_PUSH_WINDOW_HINT')}>
                 <select className={sel} value={String(data.push_window_months)}
                   onChange={e => setData(d => ({ ...d, push_window_months: Number(e.target.value) }))}>
-                  <option value="3">3 months</option>
-                  <option value="6">6 months (default)</option>
-                  <option value="9">9 months</option>
-                  <option value="12">12 months</option>
+                  <option value="3">{tUi('OA_ORG_PROFILE_MONTHS_3')}</option>
+                  <option value="6">{tUi('OA_ORG_PROFILE_MONTHS_6_DEFAULT')}</option>
+                  <option value="9">{tUi('OA_ORG_PROFILE_MONTHS_9')}</option>
+                  <option value="12">{tUi('OA_ORG_PROFILE_MONTHS_12')}</option>
                 </select>
               </Field>
-              <Field label="Default Language">
+              <Field label={tUi('OA_ORG_PROFILE_DEFAULT_LANG_LABEL')}>
                 <select className={sel} value={data.default_language}
                   onChange={set('default_language')}>
                   {[['en','English'],['hi','Hindi'],['mr','Marathi'],['ta','Tamil'],
@@ -687,41 +683,41 @@ export function CreateTenantWizard() {
 
             <div className="border-t border-slate-100 pt-4 space-y-4">
               <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide">
-                Storage & SLA (PA-Managed)
+                {tUi('PA_WIZARD_STORAGE_SLA_LABEL')}
               </p>
               <div className="grid grid-cols-2 gap-4">
-                <Field label="Storage Quota (GB)" required>
+                <Field label={tUi('OA_ORG_PROFILE_STORAGE_QUOTA')} required>
                   <input type="number" className={inp} value={data.storage_quota_gb}
                     onChange={setNum('storage_quota_gb')} min={10} max={10000} step={10} />
                 </Field>
-                <Field label="SLA Tier" required hint="Exception resolution SLA commitment">
+                <Field label={tUi('OA_ORG_PROFILE_SLA_TIER')} required hint={tUi('PA_WIZARD_SLA_TIER_HINT')}>
                   <select className={sel} value={data.sla_tier} onChange={set('sla_tier')}>
-                    <option value="STANDARD">Standard — p95 resolution in 24 hours</option>
-                    <option value="PRIORITY">Priority — p95 resolution in 4 hours</option>
-                    <option value="ENTERPRISE">Enterprise — p95 resolution in 1 hour + CSM</option>
+                    <option value="STANDARD">{tUi('PA_WIZARD_SLA_STANDARD')}</option>
+                    <option value="PRIORITY">{tUi('PA_WIZARD_SLA_PRIORITY')}</option>
+                    <option value="ENTERPRISE">{tUi('PA_WIZARD_SLA_ENTERPRISE')}</option>
                   </select>
                 </Field>
-                <Field label="Onboarding Tier">
+                <Field label={tUi('OA_ORG_PROFILE_ONBOARDING_TIER')}>
                   <select className={sel} value={data.onboarding_tier}
                     onChange={set('onboarding_tier')}>
-                    <option value="SELF_SERVICE">Self-service (tenant configures independently)</option>
-                    <option value="ASSISTED">Assisted (PA-led onboarding call)</option>
-                    <option value="ENTERPRISE">Enterprise (dedicated CSM assigned)</option>
+                    <option value="SELF_SERVICE">{tUi('PA_WIZARD_ONBOARD_SELF_SERVICE')}</option>
+                    <option value="ASSISTED">{tUi('PA_WIZARD_ONBOARD_ASSISTED')}</option>
+                    <option value="ENTERPRISE">{tUi('PA_WIZARD_ONBOARD_ENTERPRISE')}</option>
                   </select>
                 </Field>
-                <Field label="Contract Type">
+                <Field label={tUi('OA_ORG_PROFILE_CONTRACT_TYPE')}>
                   <select className={sel} value={data.contract_type}
                     onChange={set('contract_type')}>
-                    <option value="MONTHLY">Monthly</option>
-                    <option value="ANNUAL">Annual</option>
-                    <option value="MULTI_YEAR">Multi-year</option>
+                    <option value="MONTHLY">{tUi('OA_ORG_PROFILE_MONTHLY')}</option>
+                    <option value="ANNUAL">{tUi('PA_WIZARD_CONTRACT_ANNUAL')}</option>
+                    <option value="MULTI_YEAR">{tUi('PA_WIZARD_CONTRACT_MULTI_YEAR')}</option>
                   </select>
                 </Field>
                 <div className="col-span-2">
-                  <Field label="Account Manager (PRANA staff)"
-                    hint="Internal PRANA account manager assigned to this tenant">
+                  <Field label={tUi('OA_ORG_PROFILE_ACCOUNT_MANAGER')}
+                    hint={tUi('PA_WIZARD_ACCOUNT_MANAGER_HINT')}>
                     <input className={inp} value={data.account_manager}
-                      onChange={set('account_manager')} placeholder="Name of PRANA CSM / AM" />
+                      onChange={set('account_manager')} placeholder={tUi('PA_WIZARD_ACCOUNT_MANAGER_PLACEHOLDER')} />
                   </Field>
                 </div>
               </div>
@@ -729,14 +725,14 @@ export function CreateTenantWizard() {
 
             {/* Review summary */}
             <div className="border-t border-slate-100 pt-4 space-y-2">
-              <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide">Review Summary</p>
+              <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide">{tUi('PA_WIZARD_REVIEW_SUMMARY_TITLE')}</p>
               <div className="bg-slate-50 rounded-xl p-4 text-xs text-slate-600 space-y-1">
-                <p><span className="font-medium text-slate-800">Organisation:</span> {data.tenant_name || '—'} ({data.entity_type || '—'})</p>
-                <p><span className="font-medium text-slate-800">Domain:</span> {data.domain || '—'} · Region: {data.home_region}</p>
-                <p><span className="font-medium text-slate-800">State:</span> {data.primary_state || '—'} · NIK: {data.nik_type}</p>
-                <p><span className="font-medium text-slate-800">First OA-Admin:</span> {data.first_oa_admin_email || '—'}</p>
-                <p><span className="font-medium text-slate-800">DPO:</span> {data.dpo_name || '—'} · DPA: {data.dpa_accepted ? '✓ Accepted' : '✗ Pending'}</p>
-                <p><span className="font-medium text-slate-800">Storage:</span> {data.storage_quota_gb} GB · SLA: {data.sla_tier}</p>
+                <p><span className="font-medium text-slate-800">{tUi('PA_WIZARD_REVIEW_ORG_LABEL')}</span> {data.tenant_name || '—'} ({data.entity_type || '—'})</p>
+                <p><span className="font-medium text-slate-800">{tUi('PA_WIZARD_REVIEW_DOMAIN_LABEL')}</span> {data.domain || '—'} · {tUi('PA_WIZARD_REVIEW_REGION_LABEL')} {data.home_region}</p>
+                <p><span className="font-medium text-slate-800">{tUi('PA_WIZARD_REVIEW_STATE_LABEL')}</span> {data.primary_state || '—'} · {tUi('PA_WIZARD_REVIEW_NIK_LABEL')} {data.nik_type}</p>
+                <p><span className="font-medium text-slate-800">{tUi('PA_WIZARD_REVIEW_ADMIN_LABEL')}</span> {data.first_oa_admin_email || '—'}</p>
+                <p><span className="font-medium text-slate-800">{tUi('PA_WIZARD_REVIEW_DPO_LABEL')}</span> {data.dpo_name || '—'} · {tUi('PA_WIZARD_REVIEW_DPA_LABEL')} {data.dpa_accepted ? tUi('PA_WIZARD_DPA_ACCEPTED_MARK') : tUi('PA_WIZARD_DPA_PENDING_MARK')}</p>
+                <p><span className="font-medium text-slate-800">{tUi('PA_WIZARD_REVIEW_STORAGE_LABEL')}</span> {data.storage_quota_gb} GB · {tUi('PA_WIZARD_REVIEW_SLA_LABEL')} {data.sla_tier}</p>
               </div>
             </div>
           </>
@@ -750,14 +746,14 @@ export function CreateTenantWizard() {
           disabled={step === 0}
           className="flex items-center gap-1 px-4 py-2 text-sm font-medium text-slate-600
                      border border-slate-200 rounded-lg hover:bg-slate-50 disabled:opacity-40">
-          <ChevronLeft size={14}/> Back
+          <ChevronLeft size={14}/> {tUi('PA_WIZARD_BACK_BTN')}
         </button>
 
         {step < 4 ? (
           <button onClick={next}
             className="flex items-center gap-1 px-5 py-2 text-sm font-semibold text-white
                        bg-amber-500 rounded-lg hover:bg-amber-600">
-            Next <ChevronRight size={14}/>
+            {tUi('PA_WIZARD_NEXT_BTN')} <ChevronRight size={14}/>
           </button>
         ) : (
           <button onClick={submit}
@@ -765,14 +761,14 @@ export function CreateTenantWizard() {
             className="flex items-center gap-2 px-6 py-2 text-sm font-semibold text-white
                        bg-emerald-600 rounded-lg hover:bg-emerald-700 disabled:opacity-50">
             <Check size={14}/>
-            {createMutation.isPending ? 'Creating…' : 'Create Tenant & Send Credentials'}
+            {createMutation.isPending ? tUi('PA_WIZARD_CREATING') : tUi('PA_WIZARD_CREATE_BTN')}
           </button>
         )}
       </div>
 
       {createMutation.isError && (
         <p className="text-xs text-red-600 text-center">
-          Failed to create tenant. Check all fields and try again.
+          {tUi('PA_WIZARD_CREATE_FAILED')}
         </p>
       )}
     </div>

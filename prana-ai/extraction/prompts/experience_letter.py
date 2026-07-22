@@ -15,10 +15,10 @@ designation          — Designation / role held
 department           — Department (if mentioned)
 employer_name        — Issuing company name
 date_of_joining      — Date of joining (YYYY-MM-DD)
-last_working_day     — Last working day (YYYY-MM-DD)
+date_of_leaving      — Last working day (YYYY-MM-DD)
 letter_date          — Date the letter was issued (YYYY-MM-DD)
-total_experience     — Total duration stated (e.g. "3 years 4 months")
-conduct_remark       — Conduct / performance remark if stated
+tenure_text          — Total duration stated (e.g. "3 years 4 months")
+conduct              — Conduct / performance remark if stated
 
 RETURN FORMAT (JSON only):
 {{
@@ -27,9 +27,9 @@ RETURN FORMAT (JSON only):
   "department":       {{"value": null, "confidence": 0.0}},
   "employer_name":    {{"value": null, "confidence": 0.0}},
   "date_of_joining":  {{"value": null, "confidence": 0.0}},
-  "last_working_day": {{"value": null, "confidence": 0.0}},
+  "date_of_leaving":  {{"value": null, "confidence": 0.0}},
   "letter_date":      {{"value": null, "confidence": 0.0}},
-  "total_experience": {{"value": null, "confidence": 0.0}},
-  "conduct_remark":   {{"value": null, "confidence": 0.0}},
+  "tenure_text":      {{"value": null, "confidence": 0.0}},
+  "conduct":          {{"value": null, "confidence": 0.0}},
   "overall_confidence": 0.0
 }}"""

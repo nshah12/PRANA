@@ -19,6 +19,8 @@ def _make_kms():
     kms = MagicMock()
     kms.wrap_dek = MagicMock(return_value=b"encrypted_dek")
     kms.unwrap_dek = MagicMock(return_value=b"\x00" * 32)
+    kms.encrypt_value = MagicMock(return_value="kms-ciphertext-blob")
+    kms.decrypt_value = MagicMock(return_value="+919876543210")
     return kms
 
 
@@ -171,3 +173,107 @@ async def test_create_never_stores_raw_nik_in_db():
 
     all_calls = str(db.execute.call_args_list)
     assert raw_nik not in all_calls, "Raw NIK/PAN passed to DB execute — must never store plaintext"
+
+
+# -- Login credential provisioning ----------------------------------------------
+
+@pytest.mark.asyncio
+async def test_create_generates_temp_password_when_mobile_provided():
+    """A brand-new employee_user row with a mobile supplied at push time must get
+    a real password_hash + force_reset=TRUE, same pattern as TenantService.activate()'s
+    first OA-Admin — otherwise the employee has no way to ever log in."""
+    db = _make_db(eu_exists=False)
+    db.fetchrow = AsyncMock(side_effect=[None, {"tenant_name": "Acme Corp"}])
+    kms = _make_kms()
+    svc = _make_svc(db, kms=kms)
+
+    result = await svc.create(
+        nik="ABCDE1234F", tenant_id="tenant-001", emp_id_org=None,
+        full_name="Test Employee", designation=None, department=None, grade=None,
+        location=None, employment_type="PERMANENT", cost_centre=None, uan=None,
+        doj=datetime.date(2023, 6, 1), created_by="admin-001",
+        kek_arn="arn:aws:kms:ap-south-1:123:key/test",
+        mobile="+919876543210",
+        auth_kek_arn="arn:aws:kms:ap-south-1:123:key/platform-auth",
+    )
+
+    assert result["temp_password"] is not None
+    insert_call = next(c for c in db.execute.call_args_list if "INSERT INTO employee_user" in c.args[0])
+    assert "password_hash" in insert_call.args[0]
+    assert "force_reset" in insert_call.args[0]
+    # mobile is never stored in plaintext (schema.sql employee_user, 2026-07-18) —
+    # only mobile_token (HMAC) + enc_mobile (real KMS ciphertext under the
+    # platform auth CMK, not any tenant KEK or static local secret) are persisted.
+    assert "mobile_token" in insert_call.args[0]
+    assert "enc_mobile" in insert_call.args[0]
+    assert "+919876543210" not in insert_call.args, "raw mobile must never reach the INSERT"
+    kms.encrypt_value.assert_called_once_with("+919876543210", "arn:aws:kms:ap-south-1:123:key/platform-auth")
+    from services.encryption_service import compute_mobile_token
+    expected_token = compute_mobile_token("+919876543210", "test_secret_32chars_padding_pad1")
+    assert expected_token in insert_call.args
+    assert "kms-ciphertext-blob" in insert_call.args   # kms.encrypt_value's mocked return
+
+
+@pytest.mark.asyncio
+async def test_create_raises_if_mobile_given_without_auth_kek_arn():
+    """auth_kek_arn is required whenever mobile is provided — a caller forgetting to
+    pass it must fail loudly, not silently store an unencrypted or missing mobile."""
+    db = _make_db(eu_exists=False)
+    svc = _make_svc(db)
+
+    with pytest.raises(ValueError, match="auth_kek_arn"):
+        await svc.create(
+            nik="ABCDE1234F", tenant_id="tenant-001", emp_id_org=None,
+            full_name="Test Employee", designation=None, department=None, grade=None,
+            location=None, employment_type="PERMANENT", cost_centre=None, uan=None,
+            doj=datetime.date(2023, 6, 1), created_by="admin-001",
+            kek_arn="arn:aws:kms:ap-south-1:123:key/test",
+            mobile="+919876543210",
+        )
+
+
+@pytest.mark.asyncio
+async def test_create_no_temp_password_when_no_contact_info():
+    """Unchanged prior behaviour: an employee created with no mobile/email stays
+    PENDING_ACTIVATION with no password — chk_eu_login_handle (schema.sql) requires
+    exactly that combination."""
+    db = _make_db(eu_exists=False)
+    svc = _make_svc(db)
+
+    result = await svc.create(
+        nik="ABCDE1234F", tenant_id="tenant-001", emp_id_org=None,
+        full_name="Test Employee", designation=None, department=None, grade=None,
+        location=None, employment_type="PERMANENT", cost_centre=None, uan=None,
+        doj=datetime.date(2023, 6, 1), created_by="admin-001",
+        kek_arn="arn:aws:kms:ap-south-1:123:key/test",
+    )
+
+    assert result["temp_password"] is None
+    insert_call = next(c for c in db.execute.call_args_list if "INSERT INTO employee_user" in c.args[0])
+    assert "password_hash" not in insert_call.args[0]
+
+
+@pytest.mark.asyncio
+async def test_create_does_not_regenerate_password_for_existing_employee_user():
+    """Dedup path: a second tenant onboarding the same physical employee (same
+    pan_token) must reuse the existing employee_user row untouched — never
+    overwrite an existing person's credentials just because this call happened
+    to include a mobile."""
+    db = _make_db(eu_exists=True)
+    db.fetchrow = AsyncMock(side_effect=[
+        {"employee_user_id": "eu-uuid-existing"},
+        {"tenant_name": "Acme Corp"},
+    ])
+    svc = _make_svc(db)
+
+    result = await svc.create(
+        nik="ABCDE1234F", tenant_id="tenant-002", emp_id_org="EMP002",
+        full_name="Rahul Sharma", designation=None, department=None, grade=None,
+        location=None, employment_type="PERMANENT", cost_centre=None, uan=None,
+        doj=datetime.date(2022, 1, 15), created_by="admin-001",
+        kek_arn="arn:aws:kms:ap-south-1:123:key/test",
+        mobile="+919876543210",
+    )
+
+    assert result["temp_password"] is None
+    assert not any("INSERT INTO employee_user" in c.args[0] for c in db.execute.call_args_list)

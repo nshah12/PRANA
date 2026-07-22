@@ -29,7 +29,10 @@ from dependencies import AuthUser, DbConn, Employee
 from services.password_service import verify_password, hash_password, needs_rehash
 from services.totp_service import TOTPService
 from services.session_service import SessionService
-from services.encryption_service import aes_encrypt, aes_decrypt
+from services.encryption_service import compute_mobile_token
+from errors import PranaError
+from messages import SuccessCode, success_response
+from limiter import limiter
 
 router = APIRouter()
 
@@ -64,8 +67,8 @@ class ConsentIn(BaseModel):
     step_token: str
 
 class DeviceRegisterIn(BaseModel):
-    platform: str         # ANDROID | IOS
-    device_name: Optional[str] = None
+    platform: str              # ANDROID | IOS
+    public_key: str            # WebAuthn/FIDO2 public key — required by device_credential schema
     device_fingerprint: Optional[str] = None
     push_token: Optional[str] = None
 
@@ -76,19 +79,24 @@ class RefreshIn(BaseModel):
 # ── Helpers ───────────────────────────────────────────────────────────────────
 
 def _get_client_ip(request: Request) -> str:
-    forwarded = request.headers.get("X-Forwarded-For")
-    return forwarded.split(",")[0].strip() if forwarded else request.client.host
+    # Spoof-resistant (H3): trust only the hop our proxy appended, not the leftmost.
+    from lib.client_ip import get_client_ip
+    return get_client_ip(request, request.app.state.settings.trusted_proxy_count)
 
 
 def _set_refresh_cookie(response: Response, refresh_token: str, max_age: int) -> None:
+    from config import get_settings
+    is_dev = get_settings().app_env == "development"
     response.set_cookie(
         key="prana_refresh",
         value=refresh_token,
         httponly=True,
-        secure=True,
-        samesite="strict",
+        secure=not is_dev,   # False in dev (HTTP localhost), True in prod (HTTPS)
+        samesite="lax" if is_dev else "strict",
         max_age=max_age,
-        path="/auth/employee/refresh",
+        # In dev, use "/" so Vite proxy (/api/auth/employee/refresh) still sends the cookie.
+        # In prod, scope to the exact path for security.
+        path="/" if is_dev else "/auth/employee/refresh",
     )
 
 
@@ -114,27 +122,47 @@ async def _make_step_token(redis, user_id: str, pan_token: str, next_step: str, 
 async def _consume_step_token(redis, token: str, expected_next: str) -> dict:
     raw = await redis.get(f"step:{token}")
     if not raw:
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="STEP_TOKEN_EXPIRED")
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail=PranaError.STEP_TOKEN_EXPIRED)
     data = json.loads(raw)
     if data.get("next") != expected_next:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="INVALID_STEP")
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=PranaError.INVALID_STEP)
     await redis.delete(f"step:{token}")
     return data
 
 
 async def _peek_step_token(redis, token: str, expected_next: str) -> dict:
-    """Read without deleting — used when we reissue a new step token for the next stage."""
+    """Read without deleting — caller issues a new step token before this one is consumed."""
     raw = await redis.get(f"step:{token}")
     if not raw:
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="STEP_TOKEN_EXPIRED")
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail=PranaError.STEP_TOKEN_EXPIRED)
     data = json.loads(raw)
     if data.get("next") != expected_next:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="INVALID_STEP")
-    await redis.delete(f"step:{token}")
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=PranaError.INVALID_STEP)
     return data
 
 
 async def _issue_jwt(request: Request, response: Response, db, user_id: str, ip: str) -> dict:
+    jwt_ttl = 60
+    refresh_ttl = 7
+    try:
+        rows = await db.fetch(
+            "SELECT config_key, config_value FROM platform_config WHERE config_key IN ('jwt_ttl_minutes','refresh_token_ttl_days')"
+        )
+        for r in (rows or []):
+            if r["config_key"] == "jwt_ttl_minutes":
+                jwt_ttl = int(r["config_value"])
+            elif r["config_key"] == "refresh_token_ttl_days":
+                refresh_ttl = int(r["config_value"])
+    except Exception as exc:
+        from services.error_observability_service import ErrorObservabilityService
+        try:
+            await ErrorObservabilityService(db).record(
+                exc=exc, source="HTTP", source_detail="_issue_jwt:platform_config_read",
+            )
+        except Exception:
+            pass
+        # use defaults if config unavailable
+
     session_svc = SessionService(db, request.app.state.jwt_service)
     tokens = await session_svc.create(
         user_type="employee",
@@ -143,8 +171,8 @@ async def _issue_jwt(request: Request, response: Response, db, user_id: str, ip:
         role=None,
         ip_address=ip,
         user_agent=request.headers.get("User-Agent", ""),
-        jwt_ttl_minutes=60,
-        refresh_ttl_days=7,
+        jwt_ttl_minutes=jwt_ttl,
+        refresh_ttl_days=refresh_ttl,
         max_concurrent=5,
     )
     await db.execute(
@@ -167,6 +195,7 @@ async def _get_totp_lock_threshold(db) -> int:
 # ── Step 1: Password login ────────────────────────────────────────────────────
 
 @router.post("/login", status_code=status.HTTP_200_OK)
+@limiter.limit("10/minute")   # H1: throttle password/OTP spraying per client IP
 async def login(body: LoginIn, request: Request, db: DbConn):
     """
     Factor 1: identifier + password.
@@ -178,12 +207,20 @@ async def login(body: LoginIn, request: Request, db: DbConn):
       biometric       — proceed to biometric (mobile, if enrolled)
     """
     col, value = _normalise_identifier(body.identifier)
-    row = await db.fetchrow(
-        f"SELECT employee_user_id, pan_token, password_hash, status, force_reset, "
-        f"totp_configured_at, consent_status, failed_totp_count "
-        f"FROM employee_user WHERE {col} = $1",
-        value,
-    )
+    _COLS = "employee_user_id, pan_token, password_hash, status, force_reset, totp_configured_at, consent_status, failed_totp_count"
+    if col == "email":
+        row = await db.fetchrow(
+            "SELECT employee_user_id, pan_token, password_hash, status, force_reset, totp_configured_at, consent_status, failed_totp_count FROM employee_user WHERE email = $1",
+            value,
+        )
+    else:
+        # mobile is never stored in plaintext (schema.sql employee_user, 2026-07-18) —
+        # mobile_token is the deterministic HMAC lookup key.
+        mobile_token = compute_mobile_token(value, request.app.state.settings.platform_hmac_secret)
+        row = await db.fetchrow(
+            "SELECT employee_user_id, pan_token, password_hash, status, force_reset, totp_configured_at, consent_status, failed_totp_count FROM employee_user WHERE mobile_token = $1",
+            mobile_token,
+        )
 
     # Constant-time guard: always hash compare even if user not found
     dummy_hash = "$argon2id$v=19$m=65536,t=2,p=2$AAAAAAAAAAAAAAAA$AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA"
@@ -192,18 +229,33 @@ async def login(body: LoginIn, request: Request, db: DbConn):
     valid = verify_password(body.password, candidate_hash)
 
     if not row or not valid:
+        # Log every failed attempt, known identifier or not — matching the pattern
+        # routers/auth_oa.py already uses. Without this, brute-force/enumeration
+        # against non-existent accounts left zero audit trail, and was invisible to
+        # the BRUTE_FORCE anomaly detector that reads from this table.
+        await db.execute(
+            "INSERT INTO login_attempt_log (user_type,user_id,attempt_type,outcome,failure_reason,ip_address,entry_point) "
+            "VALUES ('employee',$1,'PASSWORD','FAILED',$2,$3::inet,'PORTAL')",
+            row["employee_user_id"] if row else None,
+            "WRONG_PASSWORD" if row else "UNKNOWN_USER",
+            _get_client_ip(request),
+        )
         if row:
-            await db.execute(
-                "INSERT INTO login_attempt_log (user_type,user_id,attempt_type,outcome,failure_reason,ip_address,entry_point) "
-                "VALUES ('employee',$1,'PASSWORD','FAILED','WRONG_PASSWORD',$2::inet,'PORTAL')",
-                row["employee_user_id"], _get_client_ip(request),
-            )
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="INVALID_CREDENTIALS")
+            kafka = getattr(request.app.state, "kafka_producer", None)
+            if kafka:
+                await kafka.auth_event({
+                    "event_type": "USER_LOGIN_FAILED",
+                    "user_id":    str(row["employee_user_id"]),
+                    "user_type":  "employee",
+                    "reason":     "WRONG_PASSWORD",
+                    "ip_address": _get_client_ip(request),
+                })
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail=PranaError.INVALID_CREDENTIALS)
 
     if row["status"] == "LOCKED":
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="ACCOUNT_LOCKED")
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=PranaError.ACCOUNT_LOCKED)
     if row["status"] in ("SUSPENDED", "PENDING_ACTIVATION"):
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="ACCOUNT_NOT_ACTIVE")
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=PranaError.ACCOUNT_NOT_ACTIVE)
 
     user_id = str(row["employee_user_id"])
     pan_token = row["pan_token"]
@@ -236,7 +288,7 @@ async def login(body: LoginIn, request: Request, db: DbConn):
     # Check biometric eligibility (mobile only — device_id supplied in request)
     if body.device_id:
         device = await db.fetchrow(
-            "SELECT device_id FROM device_registration WHERE device_id=$1 "
+            "SELECT device_credential_id FROM device_credential WHERE device_fingerprint_hash=$1 "
             "AND employee_user_id=$2 AND biometric_enrolled=TRUE AND revoked=FALSE",
             body.device_id, user_id,
         )
@@ -251,6 +303,7 @@ async def login(body: LoginIn, request: Request, db: DbConn):
 # ── Step 2a: TOTP verification ────────────────────────────────────────────────
 
 @router.post("/totp", status_code=status.HTTP_200_OK)
+@limiter.limit("10/minute")   # H1: throttle TOTP brute-force per client IP
 async def verify_totp(body: TOTPVerifyIn, request: Request, response: Response, db: DbConn):
     """Factor 2: TOTP code. Issues JWT on success."""
     redis = request.app.state.redis
@@ -262,33 +315,68 @@ async def verify_totp(body: TOTPVerifyIn, request: Request, response: Response, 
         user_id,
     )
     if not row or not row["totp_secret_enc"]:
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="TOTP_NOT_CONFIGURED")
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail=PranaError.TOTP_NOT_CONFIGURED)
     if row["status"] == "LOCKED":
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="ACCOUNT_LOCKED")
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=PranaError.ACCOUNT_LOCKED)
 
+    from services.encryption_service import resolve_platform_auth_kek_arn
     totp_svc = TOTPService()
-    dev_dek = b"\x00" * 32  # DEV: placeholder. Prod: unwrap from KMS.
-    valid = totp_svc.verify(body.code, row["totp_secret_enc"], dev_dek)
+    kek_arn = resolve_platform_auth_kek_arn(request.app.state.settings)
+    secret = request.app.state.kms_service.decrypt_value(row["totp_secret_enc"], kek_arn)
+    valid = totp_svc.verify(body.code, secret)
 
     lock_threshold = await _get_totp_lock_threshold(db)
 
     if not valid:
-        new_count = row["failed_totp_count"] + 1
+        # Atomic increment (H5) — avoids read-modify-write races on concurrent attempts.
+        new_count = await db.fetchval(
+            "UPDATE employee_user SET failed_totp_count = failed_totp_count + 1 "
+            "WHERE employee_user_id=$1 RETURNING failed_totp_count",
+            user_id,
+        )
         if new_count >= lock_threshold:
             await db.execute(
-                "UPDATE employee_user SET status='LOCKED', failed_totp_count=$2 WHERE employee_user_id=$1",
-                user_id, new_count,
+                "UPDATE employee_user SET status='LOCKED' WHERE employee_user_id=$1", user_id,
             )
-            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="ACCOUNT_LOCKED")
-        await db.execute(
-            "UPDATE employee_user SET failed_totp_count=$2 WHERE employee_user_id=$1",
-            user_id, new_count,
-        )
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="INVALID_TOTP")
+            kafka = getattr(request.app.state, "kafka_producer", None)
+            if kafka:
+                await kafka.auth_event({
+                    "event_type": "TOTP_FAILED",
+                    "user_id":    user_id,
+                    "user_type":  "employee",
+                    "fail_count": new_count,
+                    "locked":     True,
+                    "ip_address": _get_client_ip(request),
+                })
+            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=PranaError.ACCOUNT_LOCKED)
+        kafka = getattr(request.app.state, "kafka_producer", None)
+        if kafka:
+            await kafka.auth_event({
+                "event_type": "TOTP_FAILED",
+                "user_id":    user_id,
+                "user_type":  "employee",
+                "fail_count": new_count,
+                "locked":     False,
+                "ip_address": _get_client_ip(request),
+            })
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail=PranaError.INVALID_TOTP)
+
+    # Replay protection: a valid code may be presented only once within its window.
+    from services.totp_service import consume_totp_code
+    if not await consume_totp_code(request.app.state.redis, "employee", user_id, body.code):
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail=PranaError.INVALID_TOTP)
 
     await db.execute(
         "UPDATE employee_user SET failed_totp_count=0 WHERE employee_user_id=$1", user_id,
     )
+    kafka = getattr(request.app.state, "kafka_producer", None)
+    if kafka:
+        await kafka.auth_event({
+            "event_type": "SESSION_CREATED",
+            "user_id":    user_id,
+            "user_type":  "employee",
+            "ip_address": _get_client_ip(request),
+        })
     return await _issue_jwt(request, response, db, user_id, _get_client_ip(request))
 
 
@@ -305,15 +393,15 @@ async def verify_biometric(body: BiometricIn, request: Request, response: Respon
     user_id = data["user_id"]
 
     device = await db.fetchrow(
-        "SELECT device_id FROM device_registration WHERE device_id=$1 "
+        "SELECT device_credential_id FROM device_credential WHERE device_fingerprint_hash=$1 "
         "AND employee_user_id=$2 AND biometric_enrolled=TRUE AND revoked=FALSE",
         body.device_id, user_id,
     )
     if not device:
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="DEVICE_NOT_ENROLLED")
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail=PranaError.DEVICE_NOT_ENROLLED)
 
     await db.execute(
-        "UPDATE device_registration SET last_used_at=NOW() WHERE device_id=$1", body.device_id,
+        "UPDATE device_credential SET last_used_at=NOW() WHERE device_fingerprint_hash=$1", body.device_id,
     )
     return await _issue_jwt(request, response, db, user_id, _get_client_ip(request))
 
@@ -332,7 +420,7 @@ async def setup_password(body: PasswordChangeIn, request: Request, db: DbConn):
     pan_token = data["pan_token"]
 
     if len(body.new_password) < 8:
-        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail="PASSWORD_TOO_SHORT")
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=PranaError.PASSWORD_TOO_SHORT)
 
     new_hash = hash_password(body.new_password)
     await db.execute(
@@ -366,30 +454,34 @@ async def setup_totp_init(body: TOTPInitIn, request: Request, db: DbConn):
     redis = request.app.state.redis
     raw = await redis.get(f"step:{body.step_token}")
     if not raw:
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="STEP_TOKEN_EXPIRED")
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail=PranaError.STEP_TOKEN_EXPIRED)
     data = json.loads(raw)
     if data.get("next") != "totp_setup":
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="INVALID_STEP")
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=PranaError.INVALID_STEP)
 
+    from services.encryption_service import resolve_platform_auth_kek_arn
     totp_svc = TOTPService()
-    dev_dek = b"\x00" * 32  # DEV placeholder
+    kms = request.app.state.kms_service
+    kek_arn = resolve_platform_auth_kek_arn(request.app.state.settings)
 
     # Generate new secret only if not already staged in a previous init call
     existing = await db.fetchval(
         "SELECT totp_secret_enc FROM employee_user WHERE employee_user_id=$1", data["user_id"],
     )
+    # Cosmetic label only — mobile is no longer stored in plaintext (schema.sql
+    # employee_user, 2026-07-18); email (if set) or user_id is enough here.
     row = await db.fetchrow(
-        "SELECT email, mobile FROM employee_user WHERE employee_user_id=$1", data["user_id"],
+        "SELECT email FROM employee_user WHERE employee_user_id=$1", data["user_id"],
     )
-    account_label = row["email"] or row["mobile"] or data["user_id"]
+    account_label = (row["email"] if row else None) or data["user_id"]
 
     if existing and existing.startswith("STAGED:"):
         # Re-use the previously staged secret (idempotent re-init)
         encrypted = existing[7:]
-        secret_b32 = aes_decrypt(encrypted, dev_dek)
+        secret_b32 = kms.decrypt_value(encrypted, kek_arn)
     else:
         secret_b32 = totp_svc.generate_secret()
-        encrypted = aes_encrypt(secret_b32, dev_dek)
+        encrypted = kms.encrypt_value(secret_b32, kek_arn)
         # Stage the encrypted secret temporarily (not yet confirmed)
         await db.execute(
             "UPDATE employee_user SET totp_secret_enc=$2 WHERE employee_user_id=$1",
@@ -397,7 +489,7 @@ async def setup_totp_init(body: TOTPInitIn, request: Request, db: DbConn):
         )
 
     uri = totp_svc.provisioning_uri(secret_b32, account_label, issuer="PRANA")
-    return {"provisioning_uri": uri}
+    return {"provisioning_uri": uri, "secret_key": secret_b32}
 
 
 # ── Setup: TOTP confirm ───────────────────────────────────────────────────────
@@ -414,15 +506,17 @@ async def setup_totp_confirm(body: TOTPConfirmIn, request: Request, db: DbConn):
         "SELECT totp_secret_enc, consent_status FROM employee_user WHERE employee_user_id=$1", user_id,
     )
     if not row or not row["totp_secret_enc"] or not row["totp_secret_enc"].startswith("STAGED:"):
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="TOTP_INIT_REQUIRED")
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=PranaError.TOTP_INIT_REQUIRED)
 
+    from services.encryption_service import resolve_platform_auth_kek_arn
     encrypted = row["totp_secret_enc"][7:]
     totp_svc = TOTPService()
-    dev_dek = b"\x00" * 32
+    kek_arn = resolve_platform_auth_kek_arn(request.app.state.settings)
+    secret = request.app.state.kms_service.decrypt_value(encrypted, kek_arn)
 
-    valid = totp_svc.verify(body.code, encrypted, dev_dek)
+    valid = totp_svc.verify(body.code, secret)
     if not valid:
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="INVALID_TOTP_CODE")
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail=PranaError.INVALID_TOTP_CODE)
 
     # Confirm: remove STAGED prefix, set totp_configured_at
     await db.execute(
@@ -459,17 +553,18 @@ async def register_device(body: DeviceRegisterIn, request: Request, db: DbConn,
                            current: Employee):
     """Register a mobile device. Returns device_id for subsequent biometric enrollment."""
     if body.platform not in ("ANDROID", "IOS"):
-        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail="INVALID_PLATFORM")
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=PranaError.INVALID_PLATFORM)
 
     device_id = await db.fetchval(
         """
-        INSERT INTO device_registration
-          (employee_user_id, platform, device_name, device_fingerprint, push_token)
+        INSERT INTO device_credential
+          (employee_user_id, platform, device_fingerprint_hash, push_token, public_key)
         VALUES ($1, $2, $3, $4, $5)
-        RETURNING device_id
+        ON CONFLICT (public_key) DO UPDATE SET last_used_at=NOW()
+        RETURNING device_credential_id
         """,
-        current.user_id, body.platform, body.device_name,
-        body.device_fingerprint, body.push_token,
+        current.user_id, body.platform, body.device_fingerprint,
+        body.push_token, body.public_key,
     )
     return {"device_id": str(device_id)}
 
@@ -480,14 +575,14 @@ async def enroll_biometric(device_id: UUID, request: Request, db: DbConn,
     """Mark device as biometric-enrolled. Employee must already be authenticated."""
     updated = await db.fetchval(
         """
-        UPDATE device_registration SET biometric_enrolled=TRUE, enrolled_at=NOW()
-        WHERE device_id=$1 AND employee_user_id=$2 AND revoked=FALSE
-        RETURNING device_id
+        UPDATE device_credential SET biometric_enrolled=TRUE
+        WHERE device_credential_id=$1 AND employee_user_id=$2 AND revoked=FALSE
+        RETURNING device_credential_id
         """,
         device_id, current.user_id,
     )
     if not updated:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="DEVICE_NOT_FOUND")
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=PranaError.DEVICE_NOT_FOUND)
     return {"enrolled": True}
 
 
@@ -496,7 +591,7 @@ async def deregister_device(device_id: UUID, request: Request, db: DbConn,
                              current: Employee):
     """Revoke a device — biometric login from it will stop working immediately."""
     await db.execute(
-        "UPDATE device_registration SET revoked=TRUE WHERE device_id=$1 AND employee_user_id=$2",
+        "UPDATE device_credential SET revoked=TRUE WHERE device_credential_id=$1 AND employee_user_id=$2",
         device_id, current.user_id,
     )
     return {"revoked": True}
@@ -509,7 +604,7 @@ async def refresh(request: Request, response: Response, db: DbConn):
     """Silent token refresh — reads refresh token from httpOnly cookie only."""
     refresh_token = request.cookies.get("prana_refresh")
     if not refresh_token:
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="NO_REFRESH_TOKEN")
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail=PranaError.NO_REFRESH_TOKEN)
 
     session_svc = SessionService(db, request.app.state.jwt_service)
     tokens = await session_svc.rotate_refresh(
@@ -517,7 +612,7 @@ async def refresh(request: Request, response: Response, db: DbConn):
         ip_address=_get_client_ip(request),
     )
     if not tokens:
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="REFRESH_INVALID")
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail=PranaError.REFRESH_INVALID)
 
     _set_refresh_cookie(response, tokens["refresh_token"], max_age=7 * 86400)
     return {"access_token": tokens["access_token"], "expires_at": tokens["expires_at"]}
@@ -529,4 +624,4 @@ async def logout(request: Request, response: Response, db: DbConn,
     session_svc = SessionService(db, request.app.state.jwt_service)
     await session_svc.revoke(current.session_id, reason="LOGOUT")
     response.delete_cookie("prana_refresh", path="/auth/employee/refresh")
-    return {"message": "Logged out"}
+    return {"message": SuccessCode.LOGOUT_SUCCESS}

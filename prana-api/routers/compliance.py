@@ -1,17 +1,18 @@
-"""
+﻿"""
 Compliance / DPDP Act 2023 employee-facing endpoints.
 
-POST /vault/compliance/erasure          — request account deletion (triggers ErasureConfirmationWorkflow)
-POST /vault/compliance/erasure/cancel   — cancel erasure during cooling-off window
-POST /vault/compliance/export           — request data export (triggers DataExportWorkflow)
-POST /vault/compliance/consent/withdraw — withdraw processing consent
-POST /vault/compliance/consent/grant    — re-grant consent
-POST /vault/compliance/grievance        — file a grievance
-GET  /vault/compliance/grievances       — list employee's grievances
+POST /vault/compliance/erasure          â€” request account deletion (triggers ErasureConfirmationWorkflow)
+POST /vault/compliance/erasure/cancel   â€” cancel erasure during cooling-off window
+POST /vault/compliance/export           â€” request data export (triggers DataExportWorkflow)
+POST /vault/compliance/consent/withdraw â€” withdraw processing consent
+POST /vault/compliance/consent/grant    â€” re-grant consent
+POST /vault/compliance/grievance        â€” file a grievance
+GET  /vault/compliance/grievances       â€” list employee's grievances
 
 All routes require employee JWT. employee_user_id always from JWT claims.
 """
 import uuid
+from messages import SuccessCode, success_response
 import json
 import logging
 import datetime
@@ -21,45 +22,35 @@ from fastapi import APIRouter, Depends, HTTPException, Request, status
 from pydantic import BaseModel, Field
 
 from dependencies import require_employee, DbConn
+from errors import PranaError
 
 log = logging.getLogger(__name__)
 router = APIRouter()
 Employee = Depends(require_employee)
 
 
-# ── Erasure ───────────────────────────────────────────────────────────────────
+# â”€â”€ Erasure â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 @router.post("/erasure", status_code=status.HTTP_202_ACCEPTED)
 async def request_erasure(request: Request, db: DbConn, current=Employee):
     """
     Start 30-day erasure cooling-off window.
-    Triggers ErasureConfirmationWorkflow — employee can cancel within 30 days.
+    Triggers ErasureConfirmationWorkflow â€” employee can cancel within 30 days.
     """
     workflow_id = f"erasure-{current.user_id}"
 
     # WorkflowConsumer starts ErasureConfirmationWorkflow on seeing ERASURE_REQUESTED
     kafka = getattr(request.app.state, "kafka_producer", None)
     if kafka:
-        await kafka.publish("prana.ingest.events", {
+        await kafka.compliance_event({
             "event_type": "ERASURE_REQUESTED",
-            "event_id": str(uuid.uuid4()),
-            "occurred_at": datetime.datetime.utcnow().isoformat(),
             "employee_user_id": str(current.user_id),
             "tenant_id": str(current.tenant_id) if current.tenant_id else None,
             "workflow_id": workflow_id,
-        }, key=str(current.user_id))
-        # Audit via separate topic — AuditConsumer writes to audit_event table
-        await kafka.publish("prana.audit.events", {
-            "event_type": "ERASURE_REQUESTED",
-            "event_id": str(uuid.uuid4()),
-            "occurred_at": datetime.datetime.utcnow().isoformat(),
-            "actor_user_id": str(current.user_id),
-            "actor_type": "employee",
-            "workflow_id": workflow_id,
-        }, key=str(current.user_id))
+        })
 
     return {
-        "message": "Erasure request received. Your account will be deleted in 30 days unless you cancel.",
+        "message": SuccessCode.ERASURE_REQUESTED,
         "cancel_before_days": 30,
         "workflow_id": workflow_id,
     }
@@ -75,26 +66,24 @@ async def cancel_erasure(request: Request, db: DbConn, current=Employee):
             await handle.signal("cancel_erasure")
         except Exception as exc:
             log.warning("Could not cancel erasure workflow: %s", exc)
-            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="NO_PENDING_ERASURE")
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=PranaError.NO_PENDING_ERASURE)
 
     kafka = getattr(request.app.state, "kafka_producer", None)
     if kafka:
-        await kafka.publish("prana.audit.events", {
+        await kafka.compliance_event({
             "event_type": "ERASURE_CANCELLED",
-            "event_id": str(uuid.uuid4()),
-            "occurred_at": datetime.datetime.utcnow().isoformat(),
-            "actor_user_id": str(current.user_id),
-            "actor_type": "employee",
-        }, key=str(current.user_id))
-    return {"message": "Erasure cancelled. Your account is safe."}
+            "employee_user_id": str(current.user_id),
+            "tenant_id": str(current.tenant_id) if current.tenant_id else None,
+        })
+    return {"message": SuccessCode.ERASURE_CANCELLED}
 
 
-# ── Data export ───────────────────────────────────────────────────────────────
+# â”€â”€ Data export â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 @router.post("/export", status_code=status.HTTP_202_ACCEPTED)
 async def request_export(request: Request, db: DbConn, current=Employee):
     """
-    Trigger DataExportWorkflow — packages all metadata as encrypted ZIP.
+    Trigger DataExportWorkflow â€” packages all metadata as encrypted ZIP.
     Download link delivered within 24 hours (DPDP mandates 30 days; we target <24h).
     """
     workflow_id = f"export-{current.user_id}-{uuid.uuid4().hex[:8]}"
@@ -102,29 +91,20 @@ async def request_export(request: Request, db: DbConn, current=Employee):
     # WorkflowConsumer starts DataExportWorkflow on seeing DATA_EXPORT_REQUESTED
     kafka = getattr(request.app.state, "kafka_producer", None)
     if kafka:
-        await kafka.publish("prana.ingest.events", {
+        await kafka.compliance_event({
             "event_type": "DATA_EXPORT_REQUESTED",
-            "event_id": str(uuid.uuid4()),
-            "occurred_at": datetime.datetime.utcnow().isoformat(),
             "employee_user_id": str(current.user_id),
+            "tenant_id": str(current.tenant_id) if current.tenant_id else None,
             "workflow_id": workflow_id,
-        }, key=str(current.user_id))
-        await kafka.publish("prana.audit.events", {
-            "event_type": "DATA_EXPORT_REQUESTED",
-            "event_id": str(uuid.uuid4()),
-            "occurred_at": datetime.datetime.utcnow().isoformat(),
-            "actor_user_id": str(current.user_id),
-            "actor_type": "employee",
-            "workflow_id": workflow_id,
-        }, key=str(current.user_id))
+        })
 
     return {
-        "message": "Export request received. A download link will be sent to your registered number within 24 hours.",
+        "message": SuccessCode.EXPORT_REQUESTED,
         "workflow_id": workflow_id,
     }
 
 
-# ── Consent ───────────────────────────────────────────────────────────────────
+# â”€â”€ Consent â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 @router.post("/consent/withdraw", status_code=status.HTTP_200_OK)
 async def withdraw_consent(request: Request, db: DbConn, current=Employee):
@@ -133,59 +113,97 @@ async def withdraw_consent(request: Request, db: DbConn, current=Employee):
     New documents pushed by employers will not be processed.
     """
     await db.execute(
-        "UPDATE employee_user SET status='CONSENT_WITHDRAWN', updated_at=NOW() WHERE employee_user_id=$1",
+        "UPDATE employee_user SET consent_status='WITHDRAWN' WHERE employee_user_id=$1",
         current.user_id,
     )
     kafka = getattr(request.app.state, "kafka_producer", None)
     if kafka:
-        await kafka.publish("prana.audit.events", {
+        await kafka.compliance_event({
             "event_type": "CONSENT_WITHDRAWN",
-            "event_id": str(uuid.uuid4()),
-            "occurred_at": datetime.datetime.utcnow().isoformat(),
-            "actor_user_id": str(current.user_id),
-            "actor_type": "employee",
-        }, key=str(current.user_id))
-    return {"message": "Consent withdrawn. PRANA will not process new documents from your employers."}
+            "employee_user_id": str(current.user_id),
+            "tenant_id": str(current.tenant_id) if current.tenant_id else None,
+        })
+    return {"message": SuccessCode.CONSENT_WITHDRAWN}
+
+
+class ConsentGrantBody(BaseModel):
+    notice_version: str = "1.0"
+    notice_language: Optional[str] = None   # falls back to Accept-Language header
+    notice_hash: Optional[str] = None       # SHA-256 of the notice text shown to employee
 
 
 @router.post("/consent/grant", status_code=status.HTTP_200_OK)
-async def grant_consent(request: Request, db: DbConn, current=Employee):
-    """Re-grant processing consent after a previous withdrawal."""
+async def grant_consent(
+    request: Request,
+    db: DbConn,
+    current=Employee,
+    body: ConsentGrantBody = ConsentGrantBody(),
+):
+    """
+    Re-grant processing consent after a previous withdrawal.
+    Persists the language and hash of the notice text shown — DPDP §5(3) audit proof.
+    """
+    # Resolve notice_language: body > Accept-Language header > default 'en'
+    lang = body.notice_language
+    if not lang:
+        lang = (request.headers.get("accept-language") or "en").split(",")[0].split(";")[0].strip()[:5]
+
     await db.execute(
-        "UPDATE employee_user SET status='ACTIVE', updated_at=NOW() WHERE employee_user_id=$1",
+        "UPDATE employee_user SET consent_status='GRANTED' WHERE employee_user_id=$1",
         current.user_id,
     )
+
+    # DPDP §5(3): record exactly which notice version and language the employee agreed to
+    await db.execute(
+        """
+        INSERT INTO employee_consent
+          (employee_user_id, tenant_id, purpose, is_active, consent_version,
+           notice_language, notice_hash, updated_at)
+        VALUES ($1, $2, 'processing', TRUE, $3, $4, $5, NOW())
+        ON CONFLICT (employee_user_id, COALESCE(tenant_id, '00000000-0000-0000-0000-000000000000'::uuid), purpose)
+        DO UPDATE SET is_active = TRUE,
+                      consent_version = EXCLUDED.consent_version,
+                      notice_language = EXCLUDED.notice_language,
+                      notice_hash     = EXCLUDED.notice_hash,
+                      updated_at      = NOW()
+        """,
+        current.user_id,
+        current.tenant_id,
+        body.notice_version,
+        lang,
+        body.notice_hash,
+    )
+
     kafka = getattr(request.app.state, "kafka_producer", None)
     if kafka:
-        await kafka.publish("prana.audit.events", {
+        await kafka.compliance_event({
             "event_type": "CONSENT_GRANTED",
-            "event_id": str(uuid.uuid4()),
-            "occurred_at": datetime.datetime.utcnow().isoformat(),
-            "actor_user_id": str(current.user_id),
-            "actor_type": "employee",
-        }, key=str(current.user_id))
-    return {"message": "Consent granted. PRANA will process documents pushed by your employers."}
+            "employee_user_id": str(current.user_id),
+            "tenant_id": str(current.tenant_id) if current.tenant_id else None,
+            "notice_version": body.notice_version,
+            "notice_language": lang,
+        })
+    return {"message": SuccessCode.CONSENT_GRANTED}
 
 
-# ── Consent status ────────────────────────────────────────────────────────────
+# â”€â”€ Consent status â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 @router.get("/consent")
 async def get_consent_status(db: DbConn, current=Employee):
     row = await db.fetchrow(
-        "SELECT status, updated_at FROM employee_user WHERE employee_user_id=$1",
+        "SELECT consent_status FROM employee_user WHERE employee_user_id=$1",
         current.user_id,
     )
     if not row:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND)
-    granted = row["status"] == "ACTIVE"
+    granted = row["consent_status"] == "GRANTED"
     return {
         "consent_granted": granted,
-        "status": row["status"],
-        "updated_at": row["updated_at"].isoformat() if row["updated_at"] else None,
+        "consent_status": row["consent_status"],
     }
 
 
-# ── Grievance ─────────────────────────────────────────────────────────────────
+# â”€â”€ Grievance â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 class GrievanceIn(BaseModel):
     category: str = Field(..., description="WRONG_DOCUMENT | DATA_ERROR | ACCESS_DENIED | OTHER")
@@ -200,7 +218,7 @@ async def file_grievance(
     current=Employee,
 ):
     """
-    File a DPDP grievance. Triggers GrievanceWorkflow — 30-day SLA, escalates to PA on breach.
+    File a DPDP grievance. Triggers GrievanceWorkflow â€” 30-day SLA, escalates to PA on breach.
     """
     grievance_id = str(uuid.uuid4())
 
@@ -208,8 +226,8 @@ async def file_grievance(
     await db.execute(
         """
         INSERT INTO dpdp_grievance
-          (grievance_id, employee_user_id, tenant_id, category, description, status, filed_at)
-        VALUES ($1, $2, $3, $4, $5, 'OPEN', NOW())
+          (grievance_id, employee_user_id, tenant_id, grievance_type, category, description, status, raised_at)
+        VALUES ($1, $2, $3, $4, $4, $5, 'RAISED', NOW())
         """,
         grievance_id, current.user_id,
         str(current.tenant_id) if current.tenant_id else None,
@@ -219,19 +237,16 @@ async def file_grievance(
     # WorkflowConsumer starts GrievanceWorkflow on seeing GRIEVANCE_FILED
     kafka = getattr(request.app.state, "kafka_producer", None)
     if kafka:
-        await kafka.publish("prana.ingest.events", {
+        await kafka.compliance_event({
             "event_type": "GRIEVANCE_FILED",
-            "event_id": str(uuid.uuid4()),
-            "occurred_at": datetime.datetime.utcnow().isoformat(),
-            "grievance_id": grievance_id,
             "employee_user_id": str(current.user_id),
             "tenant_id": str(current.tenant_id) if current.tenant_id else None,
+            "grievance_id": grievance_id,
             "category": body.category,
-            "description": body.description,
             "workflow_id": f"grievance-{grievance_id}",
-        }, key=str(current.user_id))
+        })
 
-    return {"grievance_id": grievance_id, "status": "OPEN", "sla_days": 30}
+    return {"grievance_id": grievance_id, "status": "RAISED", "sla_days": 30}
 
 
 @router.get("/grievances")
@@ -239,10 +254,11 @@ async def list_grievances(db: DbConn, current=Employee):
     rows = await db.fetch(
         """
         SELECT grievance_id, category, description, status,
-               filed_at, resolved_at, resolution_note
+               raised_at, resolved_at, resolution_note
         FROM dpdp_grievance
         WHERE employee_user_id=$1
-        ORDER BY filed_at DESC
+        ORDER BY raised_at DESC
+        LIMIT 100
         """,
         current.user_id,
     )
@@ -253,10 +269,11 @@ async def list_grievances(db: DbConn, current=Employee):
                 "category": r["category"],
                 "description": r["description"],
                 "status": r["status"],
-                "filed_at": r["filed_at"].isoformat() if r["filed_at"] else None,
+                "filed_at": r["raised_at"].isoformat() if r["raised_at"] else None,
                 "resolved_at": r["resolved_at"].isoformat() if r["resolved_at"] else None,
                 "resolution_note": r["resolution_note"],
             }
             for r in rows
         ]
     }
+

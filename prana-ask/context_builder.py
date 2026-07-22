@@ -128,12 +128,13 @@ class ContextBuilder:
             rows = await self._db.fetch(
                 """SELECT d.doc_type,
                           COUNT(*) AS count,
-                          MIN(d.document_date) AS earliest,
-                          MAX(d.document_date) AS latest
+                          MIN(d.doc_period) AS earliest,
+                          MAX(d.doc_period) AS latest
                    FROM document d
                    JOIN employee_master em ON em.employee_uuid = d.employee_uuid
                    WHERE em.employee_user_id = $1
                      AND d.pipeline_status = 'ROUTED'
+                     AND d.is_deleted = FALSE
                    GROUP BY d.doc_type
                    ORDER BY d.doc_type""",
                 employee_user_id,

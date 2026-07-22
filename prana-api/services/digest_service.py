@@ -59,7 +59,9 @@ def validate_window(
     """
     now = datetime.datetime.now(datetime.timezone.utc)
 
-    if to_dt > now + datetime.timedelta(minutes=1):
+    # to_dt is an exclusive upper bound (start of the day after to_date), so allow
+    # up to 1 full day + 1 minute of slack before raising the future-date error.
+    if to_dt > now + datetime.timedelta(days=1, minutes=1):
         raise ValueError({
             "error": "DATE_RANGE_FUTURE",
             "message": "to_date cannot be in the future.",

@@ -8,6 +8,7 @@ import { useState, useRef, useEffect } from 'react'
 import { Send, Loader2, ShieldCheck } from 'lucide-react'
 import { api } from '@/lib/api'
 import { useEmpAuthStore } from '@/store/empAuth'
+import { tUi } from '@/i18n'
 
 interface Message { id: string; role: 'user' | 'assistant'; text: string }
 
@@ -27,7 +28,7 @@ export function EmpAsk() {
   const [messages, setMessages] = useState<Message[]>([
     {
       id: '0', role: 'assistant',
-      text: `Hi ${name}! I've processed your documents.\n\nI surface insights, spot discrepancies, and check readiness — your raw figures stay private. Ask me anything about your career documents.`,
+      text: tUi('EMP_ASK_GREETING', { name }),
     },
   ])
   const [input, setInput] = useState('')
@@ -49,10 +50,10 @@ export function EmpAsk() {
     } catch (e: any) {
       const status = e.response?.status
       const fallback = status === 429
-        ? "You've reached the Ask PRANA limit for this hour. Try again later."
+        ? tUi('EMP_ASK_ERR_RATE_LIMIT')
         : status === 504
-        ? "The AI is taking longer than expected. Please try again."
-        : "Something went wrong. Please try again."
+        ? tUi('EMP_ASK_ERR_TIMEOUT')
+        : tUi('EMP_ASK_ERR_GENERIC')
       setMessages(prev => [...prev, { id: (Date.now()+1).toString(), role: 'assistant', text: fallback }])
     } finally { setThinking(false) }
   }
@@ -65,12 +66,12 @@ export function EmpAsk() {
           <span className="text-emerald-950 font-bold text-sm">✦</span>
         </div>
         <div>
-          <p className="text-white font-semibold text-sm">Ask PRANA</p>
-          <p className="text-slate-400 text-xs">insights only · figures stay private</p>
+          <p className="text-white font-semibold text-sm">{tUi('EMP_ASK_HEADER_TITLE')}</p>
+          <p className="text-slate-400 text-xs">{tUi('EMP_ASK_HEADER_SUB')}</p>
         </div>
         <div className="ml-auto bg-emerald-500/10 border border-emerald-500/20 rounded-full px-3 py-1 flex items-center gap-1.5">
           <ShieldCheck size={11} className="text-emerald-400" />
-          <span className="text-emerald-400 text-[10px]">No raw figures ever shown</span>
+          <span className="text-emerald-400 text-[10px]">{tUi('EMP_ASK_NO_RAW_FIGURES')}</span>
         </div>
       </div>
 
@@ -100,7 +101,7 @@ export function EmpAsk() {
             </div>
             <div className="bg-white border border-slate-200 rounded-2xl rounded-bl-sm px-4 py-3 flex items-center gap-2">
               <Loader2 size={14} className="animate-spin text-indigo-500" />
-              <span className="text-slate-400 text-sm">Analysing documents…</span>
+              <span className="text-slate-400 text-sm">{tUi('EMP_ASK_THINKING')}</span>
             </div>
           </div>
         )}
@@ -108,7 +109,7 @@ export function EmpAsk() {
         {/* Suggestions (first message only) */}
         {messages.length === 1 && (
           <div className="space-y-2 mt-2">
-            <p className="text-xs font-medium text-slate-400 uppercase tracking-wide">Suggested</p>
+            <p className="text-xs font-medium text-slate-400 uppercase tracking-wide">{tUi('EMP_ASK_SUGGESTED_LABEL')}</p>
             <div className="flex flex-wrap gap-2">
               {SUGGESTIONS.map(s => (
                 <button key={s} onClick={() => send(s)}
@@ -129,7 +130,7 @@ export function EmpAsk() {
           value={input}
           onChange={e => setInput(e.target.value)}
           onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); send() } }}
-          placeholder="Ask about consistency, readiness, growth…"
+          placeholder={tUi('EMP_ASK_INPUT_PLACEHOLDER')}
           rows={1}
           className="flex-1 resize-none border border-slate-200 rounded-xl px-4 py-2.5 text-sm outline-none focus:border-indigo-400 max-h-32"
           style={{ overflowY: input.split('\n').length > 3 ? 'auto' : 'hidden' }}
