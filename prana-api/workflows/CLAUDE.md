@@ -80,22 +80,43 @@ class InterruptibleTimerWorkflow:
 
 ### Pattern 3 — Temporal Schedule (replaces cron)
 Created once at service startup (idempotent). Cadence read from `platform_config` at creation time, updatable via Temporal API — no redeployment.
+
+Corrected 2026-07-22: the previous version of this example was itself wrong in three
+ways that got copy-pasted into `system_health.py`/`audit_integrity.py`/`error_threshold.py`/
+`hrms_sync_schedule.py` and went undetected because none of their tests actually called
+the function (source-inspection tests only) — `Schedule`/`ScheduleSpec`/
+`ScheduleActionStartWorkflow`/etc. live in `temporalio.client`, not `temporalio.common`;
+`ScheduleActionStartWorkflow` requires a non-empty `id=`; and `Schedule` has no
+`with_spec()` method — `ScheduleHandle.update()` takes an
+`updater(ScheduleUpdateInput) -> ScheduleUpdate` callable, not a `Schedule -> Schedule`
+lambda. Verify against the installed `temporalio` SDK before copying this again.
 ```python
+import dataclasses
+from temporalio.client import (
+    Schedule, ScheduleSpec, ScheduleIntervalSpec, ScheduleActionStartWorkflow, ScheduleUpdate,
+)
+from temporalio.service import RPCError
+
 async def ensure_schedule(client: Client, config: ConfigService):
     interval = await config.get_int("platform_summary_interval_minutes")
-    handle = client.get_schedule_handle("platform-summary")
+    schedule_id = "platform-summary"
+    new_spec = ScheduleSpec(intervals=[ScheduleIntervalSpec(every=timedelta(minutes=interval))])
     try:
+        handle = client.get_schedule_handle(schedule_id)
         await handle.describe()
-        await handle.update(lambda s: s.with_spec(
-            ScheduleSpec(intervals=[ScheduleIntervalSpec(every=timedelta(minutes=interval))])
-        ))
+        async def _updater(inp):
+            return ScheduleUpdate(schedule=dataclasses.replace(inp.description.schedule, spec=new_spec))
+        await handle.update(_updater)
     except RPCError:  # does not exist — create
-        await client.create_schedule("platform-summary",
-            Schedule(action=ScheduleAction(workflow=PlatformSummaryWorkflow),
-                     spec=ScheduleSpec(intervals=[ScheduleIntervalSpec(every=timedelta(minutes=interval))]))
+        await client.create_schedule(schedule_id,
+            Schedule(action=ScheduleActionStartWorkflow(
+                         PlatformSummaryWorkflow.run, id=f"{schedule_id}-run", task_queue="analytics-queue"),
+                     spec=new_spec)
         )
 ```
-**Used by:** PlatformSummaryWorkflow, DigestWorkflow (weekly/monthly), KMSHealthCheckWorkflow, StorageQuotaCheckWorkflow, ClamAVUpdateWorkflow, RetentionWorkflow, SystemHealthWorkflow, AuditIntegrityVerificationWorkflow, ErrorThresholdEvaluationWorkflow
+**Used by (documented — see NOTE on registration status below):** PlatformSummaryWorkflow, DigestWorkflow (weekly/monthly), KMSHealthCheckWorkflow, StorageQuotaCheckWorkflow, ClamAVUpdateWorkflow, RetentionWorkflow, SystemHealthWorkflow, AuditIntegrityVerificationWorkflow, ErrorThresholdEvaluationWorkflow
+
+**NOTE (found 2026-07-22, NOT yet fixed):** only `SystemHealthWorkflow`, `AuditIntegrityVerificationWorkflow`, and `ErrorThresholdEvaluationWorkflow` actually have an `ensure_*_schedule()` call wired into `main.py`'s startup. `PlatformSummaryWorkflow`, `DigestWorkflow`, `KMSHealthCheckWorkflow`, `StorageQuotaCheckWorkflow`, `ClamAVUpdateWorkflow`, and `RetentionWorkflow` are registered on their task queues in `worker.py` (so a worker *can* run them) but have **no schedule-registration code anywhere** — `compliance.py`'s comment on `RetentionWorkflow` claims one is "created at startup by worker.py ensure_schedules()", but no such function exists in `worker.py`. None of these six ever fire automatically as things stand.
 
 ### Pattern 4 — Continue-As-New (perpetual)
 For workflows that run forever without unbounded history. Restart with fresh state at `RENEW_THRESHOLD`.
