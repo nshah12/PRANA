@@ -11,7 +11,7 @@ GET  /employees/{uuid}/history — field change history
 import csv
 import io
 from datetime import date
-from messages import SuccessCode, success_response
+from messages import SuccessCode
 from typing import Optional
 from fastapi import APIRouter, Depends, File, HTTPException, Request, UploadFile, status
 from pydantic import BaseModel
