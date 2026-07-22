@@ -591,11 +591,12 @@ async def test_list_account_locks_queries_real_columns(client, mock_db):
     account_type/account_id, which don't exist and would 500 in production.
     """
     _set_auth(client)
+    client.app.state.kms_service.decrypt_value = MagicMock(return_value="+919000000001")
     mock_db.fetch.return_value = [{
         "event_id": "event-uuid-001", "user_type": "employee", "user_id": "emp-uuid-001",
         "lock_reason": "POLICY_LOCK", "locked_at": datetime.datetime(2026, 6, 19, tzinfo=datetime.timezone.utc),
         "scheduled_unlock_at": None, "failed_attempt_count": 5, "last_failed_ip": None,
-        "identifier": "+919000000001",
+        "emp_enc_mobile": "kms-ciphertext-blob", "oa_email": None,
     }]
 
     resp = await client.get("/v1/ciso/account-locks", headers=AUTH_HEADER)
