@@ -111,6 +111,29 @@ async def start_retention_workflow(params: dict) -> None:
         if "already exists" not in str(exc).lower():
             raise
 
+@activity.defn(name="start_push_window_expiry_workflow")
+async def start_push_window_expiry_workflow(params: dict) -> None:
+    """Starts the independent PushWindowExpiryWorkflow (30-day employer push
+    grace period, then close_push_window). Detached, same shape as
+    start_retention_workflow right above — must outlive EmployeeExitWorkflow."""
+    from temporalio.client import Client as TemporalClient
+
+    from config import get_settings
+
+    settings = get_settings()
+    client = await TemporalClient.connect(settings.temporal_host)
+    employee_uuid = params["employee_uuid"]
+    try:
+        await client.start_workflow(
+            "PushWindowExpiryWorkflow",
+            {"tenant_id": params.get("tenant_id"), "employee_uuid": employee_uuid},
+            id=f"push-window-expiry-{employee_uuid}",
+            task_queue="admin-queue",
+        )
+    except Exception as exc:
+        if "already exists" not in str(exc).lower():
+            raise
+
 @activity.defn(name="close_push_window")
 async def close_push_window(params: dict) -> None:
     import asyncpg
@@ -303,12 +326,20 @@ class EmployeeExitWorkflow:
             notify_exit_employee, params,
             start_to_close_timeout=timedelta(minutes=5), retry_policy=_RETRY,
         )
+        await self._start_detached_followups(params)
+        await workflow.execute_activity(
+            send_alumni_consent_prompt, params,
+            start_to_close_timeout=timedelta(minutes=5), retry_policy=_RETRY,
+        )
+
+    async def _start_detached_followups(self, params: dict) -> None:
+        """Independent, longer-lived workflows that must outlive this one."""
         await workflow.execute_activity(
             start_retention_workflow, params,
             start_to_close_timeout=timedelta(minutes=5), retry_policy=_RETRY,
         )
         await workflow.execute_activity(
-            send_alumni_consent_prompt, params,
+            start_push_window_expiry_workflow, params,
             start_to_close_timeout=timedelta(minutes=5), retry_policy=_RETRY,
         )
 

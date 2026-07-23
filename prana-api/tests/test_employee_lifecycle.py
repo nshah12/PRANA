@@ -20,6 +20,7 @@ from workflows.employee_lifecycle import (
     freeze_employee_vault,
     notify_exit_employee,
     start_retention_workflow,
+    start_push_window_expiry_workflow,
     close_push_window,
     provision_vault,
     send_vault_welcome,
@@ -53,10 +54,44 @@ def test_employee_exit_workflow_is_thin_shell():
 
 
 def test_employee_exit_workflow_calls_freeze_and_notify():
-    source = inspect.getsource(EmployeeExitWorkflow.run)
+    run_source = inspect.getsource(EmployeeExitWorkflow.run)
     for name in ("freeze_employee_vault", "notify_exit_employee",
-                 "start_retention_workflow", "send_alumni_consent_prompt"):
-        assert name in source
+                 "_start_detached_followups", "send_alumni_consent_prompt"):
+        assert name in run_source
+    followups_source = inspect.getsource(EmployeeExitWorkflow._start_detached_followups)
+    assert "start_retention_workflow" in followups_source
+
+
+def test_employee_exit_workflow_starts_push_window_expiry():
+    """Regression: PushWindowExpiryWorkflow's own docstring says the employer
+    push window closes 30 days post-exit, but nothing anywhere started this
+    workflow (same detached-start shape as start_retention_workflow, right next
+    to it in this file) — close_push_window was only ever reachable from
+    inside this never-started workflow, so employer pushes never actually
+    stopped after the grace period."""
+    source = inspect.getsource(EmployeeExitWorkflow._start_detached_followups)
+    assert "start_push_window_expiry_workflow" in source
+
+
+@pytest.mark.asyncio
+async def test_start_push_window_expiry_workflow_starts_on_admin_queue():
+    with patch("temporalio.client.Client.connect", new_callable=AsyncMock) as mock_connect:
+        mock_client = AsyncMock()
+        mock_connect.return_value = mock_client
+        await start_push_window_expiry_workflow({"employee_uuid": "emp-12", "tenant_id": "t-1"})
+    call = mock_client.start_workflow.call_args
+    assert call.args[0] == "PushWindowExpiryWorkflow"
+    assert call.kwargs["id"] == "push-window-expiry-emp-12"
+    assert call.kwargs["task_queue"] == "admin-queue"
+
+
+@pytest.mark.asyncio
+async def test_start_push_window_expiry_workflow_is_idempotent():
+    with patch("temporalio.client.Client.connect", new_callable=AsyncMock) as mock_connect:
+        mock_client = AsyncMock()
+        mock_client.start_workflow.side_effect = Exception("Workflow already exists")
+        mock_connect.return_value = mock_client
+        await start_push_window_expiry_workflow({"employee_uuid": "emp-13", "tenant_id": "t-1"})  # must not raise
 
 
 # ── PushWindowExpiryWorkflow ──────────────────────────────────────────────────
