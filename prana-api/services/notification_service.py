@@ -10,9 +10,12 @@ from enum import Enum
 from typing import Any, Optional
 
 import asyncpg
+import redis.asyncio as redis
 
 from config import Settings, get_settings
 from messages import NotificationTemplate
+from services.circuit_breaker import CircuitBreaker
+from services.config_service import ConfigService
 from services.email_service import EmailService
 
 log = logging.getLogger(__name__)
@@ -86,9 +89,16 @@ def _build_email_body(template_id: str, template_data: dict[str, Any]) -> str:
 
 
 class NotificationService:
-    def __init__(self, db: asyncpg.Connection, settings: Optional[Settings] = None) -> None:
+    def __init__(
+        self,
+        db: asyncpg.Connection,
+        settings: Optional[Settings] = None,
+        redis_client: Optional[redis.Redis] = None,
+    ) -> None:
         self._db = db
-        self._email = EmailService(settings or get_settings())
+        config = ConfigService(db, redis_client)
+        breaker = CircuitBreaker(redis_client, config)
+        self._email = EmailService(settings or get_settings(), config, breaker)
 
     async def notify(
         self,
@@ -137,10 +147,11 @@ class NotificationService:
             if not recipient_email:
                 log.warning("EMAIL channel requested but no recipient_email event_type=%s", event_type)
                 return
-            sent, error_message = self._send_email(
+            sent, error_message = await self._send_email(
                 to=recipient_email,
                 subject=_SUBJECT_MAP.get(template_id, "PRANA Notification"),
                 body=_build_email_body(template_id, template_data),
+                tenant_id=tenant_id,
             )
             status = "SENT" if sent else "FAILED"
 
@@ -226,10 +237,12 @@ class NotificationService:
     # Internal helpers
     # -----------------------------------------------------------------------
 
-    def _send_email(self, *, to: str, subject: str, body: str) -> tuple[bool, Optional[str]]:
-        # Delegates to EmailService — provider (SES today, SMTP/SendGrid
-        # tomorrow) is selected by settings.email_provider, never hardcoded here.
-        return self._email.send_email(to=to, subject=subject, body=body)
+    async def _send_email(
+        self, *, to: str, subject: str, body: str, tenant_id: Optional[str] = None,
+    ) -> tuple[bool, Optional[str]]:
+        # Delegates to EmailService — vendor chain (SES, SMTP/SendGrid, ...)
+        # is config-driven (email_vendor_chain), never hardcoded here.
+        return await self._email.send_email(to=to, subject=subject, body=body, tenant_id=tenant_id)
 
     async def _is_suppressed(self, email: str) -> bool:
         row = await self._db.fetchrow(

@@ -61,10 +61,14 @@ GROUP_ID = "prana-notif-consumer"
 
 
 class NotifConsumer:
-    def __init__(self, settings: Settings, db_pool: Optional[asyncpg.Pool] = None, kms_service=None) -> None:
+    def __init__(
+        self, settings: Settings, db_pool: Optional[asyncpg.Pool] = None,
+        kms_service=None, redis=None,
+    ) -> None:
         self._settings = settings
         self._db_pool = db_pool
         self._kms = kms_service
+        self._redis = redis
         self._consumer = AIOKafkaConsumer(
             "prana.notifications",
             bootstrap_servers=settings.kafka_bootstrap_servers,
@@ -83,7 +87,7 @@ class NotifConsumer:
                 etype = event.get("event_type")
                 try:
                     async with self._db_pool.acquire() as conn:
-                        svc   = NotificationService(db=conn)
+                        svc   = NotificationService(db=conn, settings=self._settings, redis_client=self._redis)
                         isvc  = IncidentService(db=conn)
                         await self._dispatch(event, etype, svc, isvc, conn)
                 except Exception as exc:

@@ -1,16 +1,17 @@
 """
-Email dispatch via AWS SES or generic SMTP — selected per environment.
+Email dispatch via a config-driven vendor chain (SES, SMTP, ...) with
+automatic per-vendor failover — vendor order comes entirely from
+platform_config/tenant_config's `email_vendor_chain` (never hardcoded), and
+a vendor that's failed repeatedly is skipped via CircuitBreaker until it
+recovers. See prana-docs/COMMUNICATION_HUB_ARCHITECTURE.md §4.
 
-Provider selection:
-  settings.email_provider = "ses" | "smtp" | "dev"
+Dev mode (settings.email_provider="dev"): logs to console, bypasses the
+vendor chain entirely — no Redis/DB dependency needed for local dev, same
+convention already used by SMSService/KMSService endpoint overrides.
 
-Dev mode: logs the email to console only. Never sends a real email.
 All providers use the same interface: send_email(to, subject, body) -> (sent, error).
-
-Switching providers (e.g. to SendGrid, or any other SMTP-speaking service)
-needs no code change — set email_provider="smtp" and the smtp_* settings.
-Callers (NotificationService) depend only on this interface, never on boto3
-or smtplib directly.
+Callers (NotificationService, CommunicationHubConsumer) depend only on this
+interface, never on boto3 or smtplib directly.
 """
 import logging
 import smtplib
@@ -21,26 +22,53 @@ from typing import Optional
 import boto3
 
 from config import Settings
+from services.circuit_breaker import CircuitBreaker
+from services.config_service import ConfigService
 
 log = logging.getLogger(__name__)
 
+CHANNEL = "email"
+
 
 class EmailService:
-    def __init__(self, settings: Settings) -> None:
+    def __init__(self, settings: Settings, config: ConfigService, breaker: CircuitBreaker) -> None:
         self._settings = settings
+        self._config = config
+        self._breaker = breaker
         self._provider = getattr(settings, "email_provider", "dev")
 
-    def send_email(self, *, to: str, subject: str, body: str) -> tuple[bool, Optional[str]]:
+    async def send_email(
+        self, *, to: str, subject: str, body: str, tenant_id: Optional[str] = None,
+    ) -> tuple[bool, Optional[str]]:
         if self._provider == "dev":
             log.info("[DEV EMAIL] to=%s subject=%s", to, subject)
             return True, None
-        if self._provider == "ses":
+
+        chain = await self._config.get_list(f"{CHANNEL}_vendor_chain", tenant_id)
+        if not chain:
+            log.error("No %s_vendor_chain configured — cannot send email to=%s", CHANNEL, to)
+            return False, "no email vendor chain configured"
+
+        last_error: Optional[str] = None
+        for vendor in chain:
+            if await self._breaker.is_open(CHANNEL, vendor):
+                log.warning("Circuit open for email vendor=%s — skipping", vendor)
+                continue
+            sent, error = self._dispatch(vendor, to, subject, body)
+            if sent:
+                await self._breaker.record_success(CHANNEL, vendor)
+                return True, None
+            last_error = error
+            await self._breaker.record_failure(CHANNEL, vendor, tenant_id)
+        return False, last_error or "all email vendors in chain exhausted"
+
+    def _dispatch(self, vendor: str, to: str, subject: str, body: str) -> tuple[bool, Optional[str]]:
+        if vendor == "ses":
             return self._ses(to, subject, body)
-        elif self._provider == "smtp":
+        elif vendor == "smtp":
             return self._smtp(to, subject, body)
-        else:
-            log.warning("Unknown email provider %s — dropping email to=%s", self._provider, to)
-            return False, f"unknown email provider {self._provider}"
+        log.warning("Unknown email vendor %s — skipping", vendor)
+        return False, f"unknown email vendor {vendor}"
 
     def _ses(self, to: str, subject: str, body: str) -> tuple[bool, Optional[str]]:
         """AWS SES SendEmail. Sync boto3 call — same pattern already used for
@@ -71,7 +99,7 @@ class EmailService:
 
     def _smtp(self, to: str, subject: str, body: str) -> tuple[bool, Optional[str]]:
         """Generic SMTP — SendGrid, Postmark, Mailgun, or any other
-        SMTP-speaking provider. Selected via email_provider="smtp"."""
+        SMTP-speaking provider. Selected via a "smtp" entry in the vendor chain."""
         s = self._settings
         msg = MIMEMultipart()
         msg["From"] = s.smtp_from

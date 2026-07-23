@@ -21,6 +21,7 @@ from unittest.mock import AsyncMock, MagicMock, patch, call
 
 import pytest
 
+from config import Settings
 from services.notification_service import NotificationService, Channel, RecipientType
 
 
@@ -39,7 +40,7 @@ def mock_db():
 @pytest.fixture
 def mock_email():
     m = MagicMock()
-    m.send_email.return_value = (True, None)
+    m.send_email = AsyncMock(return_value=(True, None))
     return m
 
 
@@ -253,6 +254,39 @@ async def test_notify_anomaly_p2_only_bell(svc, mock_db):
     called_str = str(mock_notify.call_args_list)
     assert "EMAIL" not in called_str
     assert "PORTAL_BELL" in called_str
+
+
+# ---------------------------------------------------------------------------
+# 7. Real constructor wiring (not the mock_email override) — confirms
+#    NotificationService actually builds a working EmailService(ConfigService,
+#    CircuitBreaker) chain, not just that the interface is call-compatible.
+# ---------------------------------------------------------------------------
+
+@pytest.mark.asyncio
+async def test_notification_service_wires_real_email_service_dev_mode(mock_db):
+    """No _email override here — exercises the real constructor path end to
+    end (dev provider short-circuits before touching Config/CircuitBreaker,
+    so this doesn't need a live Redis)."""
+    settings = Settings(
+        app_env="test", db_host="localhost", db_port=5433,
+        platform_hmac_secret="test_secret_32chars_padding_pad1",
+        kafka_bootstrap_servers="localhost:9092", redis_url="redis://localhost:6379/15",
+        email_provider="dev",
+    )
+    svc = NotificationService(db=mock_db, settings=settings, redis_client=None)
+
+    await svc.notify(
+        tenant_id="tenant-001",
+        event_type="DOC_ROUTED",
+        recipient_id="emp-uuid-001",
+        recipient_type=RecipientType.EMPLOYEE,
+        recipient_email="emp@example.com",
+        channel=Channel.EMAIL,
+        template_id="DOC_ROUTED",
+        template_data={"doc_type": "SALARY_SLIP"},
+    )
+    sql, *args = mock_db.execute.call_args[0]
+    assert "SENT" in args or any("SENT" in str(a) for a in args)
 
 
 @pytest.mark.asyncio

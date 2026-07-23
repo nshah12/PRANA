@@ -81,16 +81,22 @@ async def test_create_share_token_delegates_to_share_service():
 
 @pytest.mark.asyncio
 async def test_send_share_otp_dispatches_via_sms_service():
-    with patch("services.sms_service.SMSService.send_otp", new_callable=AsyncMock) as mock_send:
-        await send_share_otp({"recipient_mobile": "+919000000001", "otp": "123456"})
-    mock_send.assert_awaited_once_with("+919000000001", "123456")
+    fake_redis = MagicMock()
+    fake_redis.aclose = AsyncMock()
+    with patch("asyncpg.connect", new_callable=AsyncMock), \
+         patch("redis.asyncio.from_url", return_value=fake_redis), \
+         patch("services.sms_service.SMSService.send_otp", new_callable=AsyncMock) as mock_send:
+        await send_share_otp({"recipient_mobile": "+919000000001", "otp": "123456", "tenant_id": "t-1"})
+    mock_send.assert_awaited_once_with("+919000000001", "123456", tenant_id="t-1")
 
 
 @pytest.mark.asyncio
 async def test_send_share_otp_noop_without_mobile_or_otp():
-    with patch("services.sms_service.SMSService.send_otp", new_callable=AsyncMock) as mock_send:
+    with patch("asyncpg.connect", new_callable=AsyncMock) as mock_connect, \
+         patch("services.sms_service.SMSService.send_otp", new_callable=AsyncMock) as mock_send:
         await send_share_otp({"otp": "123456"})
     mock_send.assert_not_awaited()
+    mock_connect.assert_not_awaited()   # early-return must skip DB/Redis connect entirely
 
 
 @pytest.mark.asyncio

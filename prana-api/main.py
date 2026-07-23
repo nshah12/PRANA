@@ -381,7 +381,7 @@ async def lifespan(app: FastAPI):
             AuditConsumer(settings, app.state.db_pool, immudb_service=app.state.immudb_service),
             WorkflowConsumer(settings, app.state.temporal_client, app.state.db_pool),
             SSEFanoutConsumer(settings, app.state.redis),
-            NotifConsumer(settings, app.state.db_pool, kms_service=app.state.kms_service),
+            NotifConsumer(settings, app.state.db_pool, kms_service=app.state.kms_service, redis=app.state.redis),
             AnalyticsConsumer(settings, app.state.temporal_client, app.state.redis),
             CacheInvalidationConsumer(settings, app.state.redis, pod_id=pod_id),
             # Domain event consumers

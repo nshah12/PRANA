@@ -80,14 +80,31 @@ async def send_share_otp(params: dict) -> None:
     A Temporal activity (unlike an HTTP handler) is the right place for this —
     it gets retry/backoff/timeout for free, matching the "durable delivery"
     intent already used by WebhookDeliveryWorkflow/NotificationDeliveryWorkflow."""
+    import asyncpg
+    import redis.asyncio as redis_async
+
     from config import get_settings
+    from services.circuit_breaker import CircuitBreaker
+    from services.config_service import ConfigService
     from services.sms_service import SMSService
 
     mobile = params.get("recipient_mobile")
     otp = params.get("otp")
     if not mobile or not otp:
         return
-    await SMSService(get_settings()).send_otp(mobile, otp)
+
+    settings = get_settings()
+    db = await asyncpg.connect(settings.db_dsn)
+    rdb = redis_async.from_url(settings.redis_url)
+    try:
+        config = ConfigService(db, rdb)
+        breaker = CircuitBreaker(rdb, config)
+        await SMSService(settings, config, breaker).send_otp(
+            mobile, otp, tenant_id=params.get("tenant_id"),
+        )
+    finally:
+        await db.close()
+        await rdb.aclose()
 
 @activity.defn(name="notify_share_accessed")
 async def notify_share_accessed(params: dict) -> None:
