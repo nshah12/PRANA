@@ -10,13 +10,12 @@ from enum import Enum
 from typing import Any, Optional
 
 import asyncpg
-import boto3
 
+from config import Settings, get_settings
 from messages import NotificationTemplate
+from services.email_service import EmailService
 
 log = logging.getLogger(__name__)
-
-_SRC = "noreply@prana.in"
 
 _BANNED_TEMPLATE_KEYS = {
     "pan", "enc_pan", "nik", "pan_token",
@@ -87,9 +86,9 @@ def _build_email_body(template_id: str, template_data: dict[str, Any]) -> str:
 
 
 class NotificationService:
-    def __init__(self, db: asyncpg.Connection) -> None:
+    def __init__(self, db: asyncpg.Connection, settings: Optional[Settings] = None) -> None:
         self._db = db
-        self._ses = boto3.client("ses", region_name="ap-south-1")
+        self._email = EmailService(settings or get_settings())
 
     async def notify(
         self,
@@ -228,20 +227,9 @@ class NotificationService:
     # -----------------------------------------------------------------------
 
     def _send_email(self, *, to: str, subject: str, body: str) -> tuple[bool, Optional[str]]:
-        try:
-            self._ses.send_email(
-                Source=_SRC,
-                Destination={"ToAddresses": [to]},
-                Message={
-                    "Subject": {"Data": subject},
-                    "Body": {"Text": {"Data": body}},
-                },
-            )
-            log.info("SES sent to=%s subject=%s", to, subject)
-            return True, None
-        except Exception as exc:
-            log.exception("SES failed to=%s", to)
-            return False, str(exc)
+        # Delegates to EmailService — provider (SES today, SMTP/SendGrid
+        # tomorrow) is selected by settings.email_provider, never hardcoded here.
+        return self._email.send_email(to=to, subject=subject, body=body)
 
     async def _is_suppressed(self, email: str) -> bool:
         row = await self._db.fetchrow(

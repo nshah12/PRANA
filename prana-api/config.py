@@ -147,7 +147,13 @@ class Settings(BaseSettings):
     s3_access_key_id:    str = ""          # MinIO root user (overrides aws_access_key_id for S3)
     s3_secret_access_key: str = ""         # MinIO root password
 
-    # SMTP / email (dev: leave host empty → logs OTP to console instead of sending)
+    # Email gateway — selectable per environment via env var, same pattern as
+    # sms_provider below. "dev" logs to console instead of sending.
+    email_provider:    str = "dev"          # dev | ses | smtp
+    ses_endpoint_url:  str = ""             # e.g. "http://localhost:4566" for LocalStack dev; empty = real AWS SES
+
+    # SMTP fallback provider (used when email_provider="smtp" — e.g. SendGrid,
+    # or any other SMTP-speaking service, so switching off SES needs no code change)
     smtp_host:     str  = ""                          # e.g. "smtp.sendgrid.net"
     smtp_port:     int  = 587
     smtp_user:     str  = ""

@@ -339,6 +339,7 @@ services:
       AI_SERVICE_URL: http://prana-ai:8001
       ASK_SERVICE_URL: http://prana-ask:8002
       SMS_PROVIDER: dev
+      EMAIL_PROVIDER: dev
       JWT_PUBLIC_KEY_PATH: /keys/jwt_public.pem
       JWT_PRIVATE_KEY_PATH: /keys/jwt_private.pem
       # Provisioned once via scripts/bootstrap_platform_auth_kek.py against LocalStack KMS.

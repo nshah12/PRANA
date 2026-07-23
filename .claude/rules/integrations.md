@@ -63,20 +63,37 @@ HRMS systems have retry logic. Make endpoints idempotent:
 
 ---
 
-## Email Integration (AWS SES)
+## Email Integration
+
+### Provider: selected per environment — AWS SES or SMTP
+- `settings.email_provider` = `"ses"` | `"smtp"` | `"dev"` — an env var, not a hardcoded
+  choice, same pattern as `sms_provider` above. `"smtp"` works with SendGrid, Postmark,
+  Mailgun, or any other SMTP-speaking provider via `smtp_host`/`smtp_port`/`smtp_user`/
+  `smtp_password` — swapping off SES needs a config change, not a code change.
+- Implementation: `prana-api/services/email_service.py`'s `EmailService.send_email(to,
+  subject, body)` — the one interface every caller (`NotificationService`) depends on.
+  Never call `boto3.client("ses", ...)` or `smtplib` directly from anywhere else.
+- Dev mode (`email_provider="dev"`): logs the email instead of sending. Never sends a
+  real email.
+- SES sending identity: verify domain `prana.in` in ap-south-1
 
 ### Who sends what
 | Trigger | Template | Recipient |
 |---------|---------|-----------|
-| OA user created | `OA_WELCOME` | New OA user (work email) |
-| Document routed | `DOC_ROUTED` | Employee (personal email if provided) |
-| Exception raised | `EXCEPTION_ALERT` | OA-Operator |
-| Elevation approved | `ELEVATION_APPROVED` | OA-Operator |
+| OA user created / tenant provisioned | `OA_WELCOME` | New OA user (work email) |
+| First-ever document routed for an employee (vault activation) | `VAULT_WELCOME` | Employee |
+| Exception raised | `EXCEPTION_ALERT` | Every active OA-Admin |
+| Elevation approved / denied | `ELEVATION_APPROVED` / `ELEVATION_DENIED` | The requesting OA-Operator |
 | DPDP erasure complete | `ERASURE_COMPLETE` | Employee |
 
+Full trigger → recipient → subject matrix (all 23 `NotificationTemplate` members):
+`prana-docs/wireframes/notification_incident_matrix.html`.
+Note: a document simply finishing processing (`DOC_ROUTED`) does **not** send an
+email — only push + WhatsApp to the employee, by design.
+
 - All email dispatch via `NotifConsumer` — NEVER directly in HTTP handler
-- Template IDs in `platform_config` — never hardcode template strings in code
-- SES sending identity: verify domain `prana.in` in ap-south-1
+- Template IDs are `NotificationTemplate` enum members in `prana-api/messages.py` —
+  never hardcode template strings in code
 - Bounce/complaint handling: SES SNS → webhook → flag employee email as invalid
 
 ### Never send to

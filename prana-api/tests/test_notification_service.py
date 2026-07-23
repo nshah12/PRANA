@@ -37,14 +37,16 @@ def mock_db():
 
 
 @pytest.fixture
-def mock_ses():
-    return MagicMock()
+def mock_email():
+    m = MagicMock()
+    m.send_email.return_value = (True, None)
+    return m
 
 
 @pytest.fixture
-def svc(mock_db, mock_ses):
+def svc(mock_db, mock_email):
     s = NotificationService(db=mock_db)
-    s._ses = mock_ses
+    s._email = mock_email
     return s
 
 
@@ -92,8 +94,9 @@ async def test_notify_portal_bell_status_sent(svc, mock_db):
 # ---------------------------------------------------------------------------
 
 @pytest.mark.asyncio
-async def test_notify_email_calls_ses(svc, mock_ses, mock_db):
-    """EMAIL channel must call SES send_email."""
+async def test_notify_email_calls_ses(svc, mock_email, mock_db):
+    """EMAIL channel must call EmailService.send_email (SES today, whatever
+    provider is configured tomorrow — NotificationService never knows)."""
     await svc.notify(
         tenant_id="tenant-001",
         event_type="ANOMALY_DETECTED",
@@ -104,17 +107,14 @@ async def test_notify_email_calls_ses(svc, mock_ses, mock_db):
         template_id="ANOMALY_P1_ALERT",
         template_data={"rule_name": "BULK_ACCESS", "severity": "P1", "detected_at": "2026-06-19T10:00:00Z"},
     )
-    mock_ses.send_email.assert_called_once()
-    call_kwargs = mock_ses.send_email.call_args[1] if mock_ses.send_email.call_args[1] else {}
-    dest = mock_ses.send_email.call_args[0][0] if mock_ses.send_email.call_args[0] else call_kwargs.get("Destination", {})
-    # Recipient email must be in the call
-    call_str = str(mock_ses.send_email.call_args)
-    assert "ciso@corp.in" in call_str
+    mock_email.send_email.assert_called_once()
+    call_kwargs = mock_email.send_email.call_args.kwargs
+    assert call_kwargs["to"] == "ciso@corp.in"
 
 
 @pytest.mark.asyncio
-async def test_notify_email_no_ses_when_no_email(svc, mock_ses, mock_db):
-    """EMAIL channel without recipient_email must not call SES."""
+async def test_notify_email_no_ses_when_no_email(svc, mock_email, mock_db):
+    """EMAIL channel without recipient_email must not call EmailService."""
     await svc.notify(
         tenant_id="tenant-001",
         event_type="ANOMALY_DETECTED",
@@ -125,7 +125,7 @@ async def test_notify_email_no_ses_when_no_email(svc, mock_ses, mock_db):
         template_id="ANOMALY_P1_ALERT",
         template_data={},
     )
-    mock_ses.send_email.assert_not_called()
+    mock_email.send_email.assert_not_called()
 
 
 # ---------------------------------------------------------------------------
@@ -171,7 +171,7 @@ async def test_notify_template_data_has_no_salary(svc, mock_db):
 # ---------------------------------------------------------------------------
 
 @pytest.mark.asyncio
-async def test_notify_email_suppressed_when_bounced(svc, mock_db, mock_ses):
+async def test_notify_email_suppressed_when_bounced(svc, mock_db, mock_email):
     """If recipient email has bounced, EMAIL channel must be suppressed."""
     # mock_db.fetchrow returns a bounce record for this email
     mock_db.fetchrow.return_value = {"email": "bounced@corp.in"}
@@ -187,7 +187,7 @@ async def test_notify_email_suppressed_when_bounced(svc, mock_db, mock_ses):
         template_data={"doc_type": "SALARY_SLIP"},
         check_suppression=True,
     )
-    mock_ses.send_email.assert_not_called()
+    mock_email.send_email.assert_not_called()
     # notification_log status must be SUPPRESSED
     sql, *args = mock_db.execute.call_args[0]
     assert "SUPPRESSED" in args or any("SUPPRESSED" in str(a) for a in args)
@@ -198,8 +198,8 @@ async def test_notify_email_suppressed_when_bounced(svc, mock_db, mock_ses):
 # ---------------------------------------------------------------------------
 
 @pytest.mark.asyncio
-async def test_notify_portal_bell_no_ses(svc, mock_db, mock_ses):
-    """PORTAL_BELL channel must write notification_log but never call SES."""
+async def test_notify_portal_bell_no_ses(svc, mock_db, mock_email):
+    """PORTAL_BELL channel must write notification_log but never call EmailService."""
     await svc.notify(
         tenant_id="tenant-001",
         event_type="ANOMALY_DETECTED",
@@ -210,7 +210,7 @@ async def test_notify_portal_bell_no_ses(svc, mock_db, mock_ses):
         template_id="ANOMALY_P2_ALERT",
         template_data={"rule_name": "DUPLICATE_DOC"},
     )
-    mock_ses.send_email.assert_not_called()
+    mock_email.send_email.assert_not_called()
     mock_db.execute.assert_called_once()
 
 
