@@ -35,7 +35,8 @@ TAG_LABELS = {
     "v1:hrms-admin": "HRMS Definitions (PA)", "v1:hrms-config": "HRMS Config (OA)",
     "v1:hrms-webhook": "HRMS Webhook (inbound)", "v1:ingest": "Document Ingest (HRMS)",
     "v1:labour-law": "Labour Law / Statutory", "v1:manifests": "Doc Manifests",
-    "v1:org": "Org / OA Users", "v1:share": "Document Sharing", "v1:vault": "Employee Vault",
+    "v1:org": "Org / OA Users", "v1:public": "Public (v1)", "v1:share": "Document Sharing",
+    "v1:vault": "Employee Vault", "v1:checklist": "Go-Live Checklist",
     "internal": "Internal (prana-ai only)",
 }
 

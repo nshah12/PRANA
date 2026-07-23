@@ -263,7 +263,7 @@
   <div class="eyebrow">Architecture Reference — Confidential</div>
   <h1>PRANA — HRMS Integration Strategy</h1>
   <div class="subtitle">Three integration modes for getting employer documents into the PRANA career vault. All modes feed the same Kafka ingest pipeline from <code>DOC_INGESTED</code> onward.</div>
-  <div class="meta">Version 1.0 &nbsp;·&nbsp; June 2026 &nbsp;·&nbsp; prana-docs/HRMS_Integration_Strategy.html</div>
+  <div class="meta">Version 1.0 &nbsp;·&nbsp; June 2026 &nbsp;·&nbsp; prana-docs/HRMS_Integration_Strategy.html &nbsp;·&nbsp; Updated 2026-07-23: scheduled sync reliability fix (Mode 1)</div>
 </header>
 
 <main>
@@ -307,7 +307,7 @@
     <div class="submode-card">
       <div class="tag">Pull (Primary)</div>
       <h4>Scheduled Pull</h4>
-      <p><code>HRMSPullWorkflow</code> (Temporal) runs per-tenant on schedule. Delta pull via <code>last_pulled_at</code> cursor. Authenticate → list employees → list new docs → download → ingest.</p>
+      <p><code>HRMSSyncWorkflow</code> (Temporal) runs per-connector on a real Temporal Schedule — one schedule per ACTIVE connector, created by <code>HRMSSyncScheduleWorkflow</code> with cron cadence from <code>pull_schedule</code> config. Authenticate → list employees → list new docs → download → ingest. Manual trigger via <code>POST /v1/hrms/config/{connector_id}/sync</code>, dispatched on the <code>hrms-queue</code> task queue.</p>
     </div>
     <div class="submode-card">
       <div class="tag green">Push</div>
@@ -343,6 +343,25 @@
     <span class="key">async def</span> list_documents(emp_id, since) <span class="arrow">→</span> <span class="val">list[dict]</span>
     <span class="key">async def</span> download_document(doc_url, token) <span class="arrow">→</span> <span class="val">bytes</span>
     </div>
+  </div>
+
+  <div class="card">
+    <h3>Scheduled Sync Reliability (fixed 2026-07-23)</h3>
+    <div class="flow-box">
+      <span class="comment">// Previously: HRMSSyncScheduleWorkflow's Temporal Schedule creation was a placeholder</span><br>
+      <span class="comment">// dict, not a real client.create_schedule() call, so periodic HRMS pulls never ran.</span><br>
+      <span class="comment">// The manual sync trigger also targeted task queue "prana-analytics", which no worker polls.</span><br>
+      <br>
+      HRMSSyncScheduleWorkflow <span class="arrow">→</span> real Temporal Schedule per ACTIVE connector
+      (<span class="val">hrms-sync-{connector_id}</span>, cron = tenant's <span class="val">pull_schedule</span>)
+      <span class="arrow">→</span> fires <span class="key">HRMSSyncWorkflow</span> on <span class="val">hrms-queue</span><br>
+      <br>
+      hrms_config.py create / pause / resume <span class="arrow">→</span> kafka.integration_event(<span class="val">HRMS_CONNECTOR_STATUS_CHANGED</span>)
+      <span class="arrow">→</span> IntegrationConsumer <span class="arrow">→</span> starts or refreshes that connector's schedule<br>
+      Manual "Sync now" (<span class="val">POST /v1/hrms/config/{id}/sync</span>) now dispatches on <span class="val">hrms-queue</span>
+      (previously the unpolled <span class="val">"prana-analytics"</span> queue)
+    </div>
+    <p style="font-size:12px;color:var(--gray-600);margin-top:12px;">Pausing or resuming a connector in the Portal now actually starts and stops its periodic sync — it did not before this fix.</p>
   </div>
 
   <div class="card">

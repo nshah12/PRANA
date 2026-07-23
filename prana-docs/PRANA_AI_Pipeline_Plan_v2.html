@@ -2544,6 +2544,24 @@
           </code>
           , scoped to tenants he has approved. Plaintext PAN is never used in this query. Org-level isolation is enforced at query time, not at storage time.
         </div>
+        <div class="callout callout-blue">
+          <strong>
+            Routing trigger:
+          </strong>
+          prana-ai has no Kafka credentials by design, so it does not publish events directly. After the ROUTED state is committed to its own DB, prana-ai calls prana-api's
+          <code style="font-family:var(--mono);color:var(--blue);">
+            /internal/pipeline/routed
+          </code>
+          endpoint (VPC-internal HTTP, per
+          <code style="font-family:var(--mono);color:var(--blue);">
+            PRANA_API_INTERNAL_URL
+          </code>
+          ) — prana-api is the one that actually publishes DOC_ROUTED to
+          <code style="font-family:var(--mono);color:var(--blue);">
+            prana.pipeline.events
+          </code>
+          , fanning out to the browser (SSE), VaultCompletenessWorkflow, and vault_health analytics. If this document is the employee's first-ever ROUTED document (no prior ROUTED document exists for their employee_uuid), the same call also publishes VAULT_ACTIVATED, which triggers VaultActivationWorkflow to provision the vault and send the one-time welcome notification.
+        </div>
         <div style="margin-top:2rem;">
           <h3 style="font-family:var(--mono);font-size:13px;color:var(--text);margin-bottom:1rem;">
             Immutable Document Metadata Tag (applied to every routed document)

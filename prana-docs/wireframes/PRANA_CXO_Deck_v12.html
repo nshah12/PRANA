@@ -438,11 +438,11 @@
   <div style="position:absolute;right:44px;top:80px;width:240px;background:#fff;border-radius:16px;padding:20px 18px;border:1.5px solid #e2e8f0;box-shadow:0 4px 20px rgba(0,0,0,0.07);z-index:3">
     <div style="font-size:10px;font-weight:800;letter-spacing:0.1em;text-transform:uppercase;color:#94a3b8;margin-bottom:14px">Platform at a Glance</div>
     <div style="display:flex;flex-direction:column;gap:7px">
-      <div style="display:flex;justify-content:space-between;align-items:center;padding-bottom:7px;border-bottom:1px solid #f1f5f9"><span style="font-size:11.5px;color:#334155">REST API Endpoints</span><span style="font-size:19px;font-weight:900;color:#1d4ed8">215+</span></div>
-      <div style="display:flex;justify-content:space-between;align-items:center;padding-bottom:7px;border-bottom:1px solid #f1f5f9"><span style="font-size:11.5px;color:#334155">Kafka Topics</span><span style="font-size:19px;font-weight:900;color:#f59e0b">30+</span></div>
+      <div style="display:flex;justify-content:space-between;align-items:center;padding-bottom:7px;border-bottom:1px solid #f1f5f9"><span style="font-size:11.5px;color:#334155">REST API Endpoints</span><span style="font-size:19px;font-weight:900;color:#1d4ed8">302</span></div>
+      <div style="display:flex;justify-content:space-between;align-items:center;padding-bottom:7px;border-bottom:1px solid #f1f5f9"><span style="font-size:11.5px;color:#334155">Kafka Topics</span><span style="font-size:19px;font-weight:900;color:#f59e0b">21</span></div>
       <div style="display:flex;justify-content:space-between;align-items:center;padding-bottom:7px;border-bottom:1px solid #f1f5f9"><span style="font-size:11.5px;color:#334155">Webhooks</span><span style="font-size:19px;font-weight:900;color:#06b6d4">20+</span></div>
       <div style="display:flex;justify-content:space-between;align-items:center;padding-bottom:7px;border-bottom:1px solid #f1f5f9"><span style="font-size:11.5px;color:#334155">HRMS Integrations</span><span style="font-size:19px;font-weight:900;color:#10b981">10+</span></div>
-      <div style="display:flex;justify-content:space-between;align-items:center;padding-bottom:7px;border-bottom:1px solid #f1f5f9"><span style="font-size:11.5px;color:#334155">Temporal Workflows</span><span style="font-size:19px;font-weight:900;color:#7c3aed">53</span></div>
+      <div style="display:flex;justify-content:space-between;align-items:center;padding-bottom:7px;border-bottom:1px solid #f1f5f9"><span style="font-size:11.5px;color:#334155">Temporal Workflows</span><span style="font-size:19px;font-weight:900;color:#7c3aed">59</span></div>
       <div style="display:flex;justify-content:space-between;align-items:center;padding-bottom:7px;border-bottom:1px solid #f1f5f9"><span style="font-size:11.5px;color:#334155">AI Pipeline Stages</span><span style="font-size:19px;font-weight:900;color:#059669">6</span></div>
       <div style="display:flex;justify-content:space-between;align-items:center"><span style="font-size:11.5px;color:#334155">DPDP Rights Covered</span><span style="font-size:19px;font-weight:900;color:#ef4444">5</span></div>
     </div>
@@ -523,7 +523,7 @@
           <div class="acl"><div class="acl-dot"></div><div class="acl-txt">Per-employee DEK encryption</div></div>
           <div class="acl"><div class="acl-dot"></div><div class="acl-txt">Employer push &#8594; vault ownership</div></div>
           <div class="acl"><div class="acl-dot"></div><div class="acl-txt">AI pipeline &#183; 6 stages</div></div>
-          <div class="acl"><div class="acl-dot"></div><div class="acl-txt">53 Temporal workflows</div></div>
+          <div class="acl"><div class="acl-dot"></div><div class="acl-txt">59 Temporal workflows</div></div>
           <div class="acl"><div class="acl-dot"></div><div class="acl-txt">All 5 DPDP rights built in</div></div>
         </div>
       </div>
@@ -767,7 +767,7 @@
         <div class="enc-row"><div class="el">&#128274;</div><div class="er"><div class="en">enc_pan &#8212; Format-Preserving Encryption per Employee</div><div class="ed">FF3-1 FPE(PAN, employee_DEK) &#183; reversible &#183; stored encrypted &#183; never plaintext in DB</div></div></div>
         <div class="enc-row"><div class="el">&#128477;</div><div class="er"><div class="en">enc_dek &#8212; AWS KMS Envelope Encryption</div><div class="ed">KMS_Encrypt(DEK, tenant_KEK) &#183; customer-managed CMK &#183; ap-south-1 &#183; per-employee DEK</div></div></div>
         <div class="enc-row"><div class="el">&#128196;</div><div class="er"><div class="en">Document Bytes &#8212; AES-256 + Application Layer</div><div class="ed">S3 SSE at rest &#183; per-employee DEK app-layer encryption &#183; in-memory decryption only</div></div></div>
-        <div class="enc-row"><div class="el">&#128273;</div><div class="er"><div class="en">Passwords Argon2id &#183; TOTP AES-256-GCM</div><div class="ed">Argon2id: time=2, memory=65536, parallelism=2 &#183; TOTP secret encrypted separately</div></div></div>
+        <div class="enc-row"><div class="el">&#128273;</div><div class="er"><div class="en">Passwords Argon2id &#183; TOTP &amp; Mobile via AWS KMS</div><div class="ed">Argon2id: time=2, memory=65536, parallelism=2 &#183; TOTP secret &amp; mobile number encrypted with a dedicated platform-wide auth CMK</div></div></div>
       </div>
     </div>
     <div style="width:300px;display:flex;flex-direction:column;gap:12px">
@@ -916,13 +916,13 @@
             <div class="t-node"><div class="ni">&#128187;</div><div class="nt">Employer Portal</div></div>
           </div>
         </div>
-        <div style="display:flex;justify-content:center;color:#94a3b8;font-size:17px;padding:4px 0">&#8597; FastAPI + Kong API Gateway &#8212; 9 Service Domains &#8597;</div>
+        <div style="display:flex;justify-content:center;color:#94a3b8;font-size:17px;padding:4px 0">&#8597; FastAPI + Kong API Gateway &#8212; 32 Routers &#183; 44 Services &#8597;</div>
         <div class="arch-tier at-mid">
           <div class="tier-label tl-g">&#9889; Processing Layer &#8212; Event-driven, workflow-orchestrated</div>
           <div class="tier-nodes">
-            <div class="t-node"><div class="ni">&#128232;</div><div class="nt">Apache Kafka 5 Topics</div></div>
+            <div class="t-node"><div class="ni">&#128232;</div><div class="nt">Apache Kafka 21 Topics</div></div>
             <div class="t-arr">&#8594;</div>
-            <div class="t-node"><div class="ni">&#9201;</div><div class="nt">Temporal 53 Workflows</div></div>
+            <div class="t-node"><div class="ni">&#9201;</div><div class="nt">Temporal 59 Workflows</div></div>
             <div class="t-arr">&#8594;</div>
             <div class="t-node"><div class="ni">&#129302;</div><div class="nt">AI Pipeline 6 Stages</div></div>
             <div class="t-arr">&#8594;</div>
@@ -935,7 +935,7 @@
         <div class="arch-tier at-bot">
           <div class="tier-label tl-p">&#128452; Data Layer &#8212; Encrypted, distributed, immutable</div>
           <div class="tier-nodes">
-            <div class="t-node"><div class="ni">&#128451;</div><div class="nt">YugabyteDB 26 tables</div></div>
+            <div class="t-node"><div class="ni">&#128451;</div><div class="nt">YugabyteDB 70+ tables</div></div>
             <div class="t-arr">&#183;</div>
             <div class="t-node"><div class="ni">&#9889;</div><div class="nt">Redis CRDT Cache</div></div>
             <div class="t-arr">&#183;</div>
@@ -953,9 +953,9 @@
       <div style="font-size:10.5px;font-weight:800;letter-spacing:0.1em;text-transform:uppercase;color:var(--muted);margin-bottom:2px">Infrastructure</div>
       <div class="infra-row"><div class="ir-dot" style="background:#f59e0b"></div><div><div class="ir-t">AWS MSK &#183; KRaft &#183; MirrorMaker 2</div><div class="ir-s">Kafka &#183; Both regions &#183; Bidirectional sync</div></div></div>
       <div class="infra-row"><div class="ir-dot" style="background:#2563eb"></div><div><div class="ir-t">ElastiCache Global Datastore CRDT</div><div class="ir-s">Redis &#183; Active-active &#183; Sub-10ms</div></div></div>
-      <div class="infra-row"><div class="ir-dot" style="background:#10b981"></div><div><div class="ir-t">YugabyteDB &#183; 26 tables &#183; 256 tablets</div><div class="ir-s">ap-south-1 + ap-south-2 dual-region</div></div></div>
+      <div class="infra-row"><div class="ir-dot" style="background:#10b981"></div><div><div class="ir-t">YugabyteDB &#183; 70+ tables &#183; 256 tablets</div><div class="ir-s">ap-south-1 + ap-south-2 dual-region</div></div></div>
       <div class="infra-row"><div class="ir-dot" style="background:#8b5cf6"></div><div><div class="ir-t">AWS KMS &#183; Customer-Managed CMK</div><div class="ir-s">ap-south-1 &#183; Tenant KEK + Platform secret</div></div></div>
-      <div class="infra-row"><div class="ir-dot" style="background:#06b6d4"></div><div><div class="ir-t">Temporal Cloud &#8212; 53 workflows</div><div class="ir-s">5 task queues &#183; mTLS &#183; Zero polling</div></div></div>
+      <div class="infra-row"><div class="ir-dot" style="background:#06b6d4"></div><div><div class="ir-t">Temporal Cloud &#8212; 59 workflows</div><div class="ir-s">5 task queues &#183; mTLS &#183; Zero polling</div></div></div>
       <div class="infra-row"><div class="ir-dot" style="background:#ef4444"></div><div><div class="ir-t">Apache Iceberg on S3</div><div class="ir-s">7-year audit retention &#183; Court-admissible</div></div></div>
       <div style="padding:12px 14px;background:#eff6ff;border:1.5px solid #bfdbfe;border-radius:10px;">
         <div style="font-size:10.5px;font-weight:800;letter-spacing:0.1em;text-transform:uppercase;color:#1d4ed8;margin-bottom:6px">Scale Targets &#127919;</div>

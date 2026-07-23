@@ -10,22 +10,33 @@
   Reference widget for the CISO Weekly / Monthly / Quarterly digest.
   Designed for: TechServe India (2,000 employees, 7 months live on PRANA).
 
-  When implementing in production:
+  Current production state (verified against prana-api/routers/ciso.py and
+  prana-api/services/digest_service.py, 2026-07-23):
 
-  API endpoints:
-    GET /v1/analytics/digest/ciso/weekly?tenant_id=...
-    GET /v1/analytics/digest/ciso/monthly?tenant_id=...&month=YYYY-MM
-    GET /v1/analytics/digest/ciso/quarterly?tenant_id=...&quarter=YYYY-QN
-    POST /v1/analytics/digest/export { role:"ciso", period, format:"pdf" }
+  API endpoints (tenant_id is derived from the caller's JWT — never a query param):
+    GET /v1/ciso/digest/weekly     (optional ?from=&to= override the default 7-day window)
+    GET /v1/ciso/digest/monthly    (default 30-day window)
+    GET /v1/ciso/digest/quarterly  (default 91-day window)
+    GET /v1/ciso/digest/settings   — read this tenant's InfoSec digest config
+    PUT /v1/ciso/digest/settings   — save config (tenant_config row, key=digest_ciso_config)
+  No PDF export endpoint and no test-send endpoint exist yet on the CISO
+  router (CHRO's router has POST /v1/chro/digest/weekly/send-test; CFO/CISO
+  don't have an equivalent). The "Export"/"Review" CTAs below are illustrative.
 
-  Data sources (prana-db/schema.sql):
-    Total accesses:     document_access_log WHERE tenant_id=$1 AND period
-    Anomalies:          anomaly_event WHERE tenant_id=$1 AND period
-    Force-logouts:      audit_event WHERE action='SESSION_REVOKED' AND reason='ANOMALY'
-    Share tokens:       share_token WHERE tenant_id=$1 AND period
-    Accounts locked:    account_status_event WHERE event_type='POLICY_LOCK' AND period
-    DPDP requests:      dpdp_grievance WHERE tenant_id=$1 AND period
-    Heatmap:            document_access_log GROUP BY EXTRACT(HOUR FROM accessed_at)
+  Data sources actually wired into DigestService.build_ciso_digest today:
+    Total accesses:     document_access_log WHERE tenant_id=$1 AND accessed_at IN window
+    Anomalies:          anomaly_event WHERE tenant_id=$1 AND detected_at IN window
+    Force-logouts:      audit_event WHERE event_type='SESSION_REVOKED' (not action=/reason=)
+    Share tokens:       document_access_log WHERE access_channel='SHARE_LINK'
+                        (counted from access log, not a direct share_token table query)
+    Access by channel:  document_access_log GROUP BY access_channel
+    Incidents list:     anomaly_event (anomaly_id, rule_name, severity, status, acknowledged_at)
+
+  Not yet part of the real digest payload (present here as UI reference only,
+  not implemented in build_ciso_digest): Accounts locked (account_status_event),
+  DPDP requests (dpdp_grievance), and the hourly access heatmap. The
+  account_status_event / dpdp_grievance tables do exist in schema.sql — the
+  digest service just doesn't query them yet.
 
   Access heatmap note:
     Weekly view only — shows access distribution by hour across Mon–Sun.

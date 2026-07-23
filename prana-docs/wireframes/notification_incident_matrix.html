@@ -59,7 +59,7 @@
 <body>
 
 <h1>PRANA — Notification &amp; Incident Matrix</h1>
-<p class="subtitle">Who gets notified · Which channel · Where stored · How incidents are generated · SLAs &nbsp;|&nbsp; Last updated: 2026-06-19 &nbsp;|&nbsp; Status: <span style="color:#4ade80;font-weight:600">APPROVED &amp; IMPLEMENTED</span></p>
+<p class="subtitle">Who gets notified · Which channel · Where stored · How incidents are generated · SLAs &nbsp;|&nbsp; Last updated: 2026-07-23 &nbsp;|&nbsp; Status: <span style="color:#4ade80;font-weight:600">APPROVED &amp; IMPLEMENTED</span></p>
 
 <div class="tabs">
   <div class="tab active" onclick="sw('sec')">Security → CISO</div>
@@ -177,8 +177,8 @@
       <td>CSAM detected</td>
       <td>CSAMReportingWorkflow</td>
       <td>PA only</td>
-      <td><span class="ch email">Email</span><span class="ch sms">SMS</span></td>
-      <td class="yes">YES</td>
+      <td><span class="ch email">Email</span><span class="ch sms">SMS</span><br><small style="color:var(--muted)"><code>CSAM_ALERT</code> template defined, not yet wired to a trigger — see Templates tab</small></td>
+      <td class="no">NO <small style="color:var(--muted)">(not yet triggered)</small></td>
       <td class="yes">YES — P0</td>
       <td>Immediate</td>
     </tr>
@@ -283,8 +283,8 @@
       <td>Weekly/Monthly digest ready</td>
       <td>DigestWorkflow</td>
       <td>CHRO / CFO / CISO (per config)</td>
-      <td><span class="ch email">Email (PDF)</span></td>
-      <td class="yes">YES</td>
+      <td><span class="ch email">Email (PDF)</span><br><small style="color:var(--muted)"><code>DIGEST_WEEKLY</code> template defined, not yet wired to a trigger — see Templates tab</small></td>
+      <td class="no">NO <small style="color:var(--muted)">(not yet triggered)</small></td>
       <td class="no">NO</td>
       <td>Scheduled</td>
     </tr>
@@ -400,8 +400,8 @@
     <tr>
       <td>CSAM detected</td>
       <td>CSAMReportingWorkflow</td>
-      <td><span class="ch email">Email</span><span class="ch sms">SMS</span></td>
-      <td class="yes">YES</td>
+      <td><span class="ch email">Email</span><span class="ch sms">SMS</span><br><small style="color:var(--muted)"><code>CSAM_ALERT</code> template defined, not yet wired to a trigger — see Templates tab</small></td>
+      <td class="no">NO <small style="color:var(--muted)">(not yet triggered)</small></td>
       <td class="yes">YES — P0, immediate</td>
     </tr>
     <tr>
@@ -490,7 +490,8 @@
         Auto-create <code>incident</code> row → assign to CISO + PA<br>
         Email + SMS dispatched immediately<br><br>
         <b>T+30 min:</b> If not resolved → SMS escalation to PA + CISO<br>
-        <b>T+2 hr:</b> <code>incident.status = ESCALATED</code>, PA notified again
+        <b>T+2 hr:</b> <code>incident.status = ESCALATED</code>, PA notified again<br><br>
+        <small style="color:var(--muted)">Note (2026-07-23): the <code>CSAM_ALERT</code> notification template has a subject line defined but is not yet triggered by any code path — the incident-row/SLA mechanics above are independent of that; see Templates tab.</small>
       </div>
     </div>
     <div class="box" style="border-left: 3px solid #d97706">
@@ -683,29 +684,48 @@
 
 <!-- ── Templates ─────────────────────────────────────────────────────────── -->
 <div id="templates" class="panel">
+  <p style="margin-bottom:10px;color:var(--muted);font-size:11px">
+    <code>NotificationTemplate</code> is a formal <code>StrEnum</code> in <code>prana-api/messages.py</code> — 23 members, one per row below.
+    Every member is required to have a matching subject line in <code>notification_service.py</code>'s <code>_SUBJECT_MAP</code>
+    (enforced by <code>tests/test_messages.py::test_every_notification_template_has_a_subject_line</code>); a template with no
+    entry there silently falls back to the generic subject "PRANA Notification" on every real email send.
+  </p>
   <table>
-    <tr><th>template_id</th><th>Recipient</th><th>Channel</th><th>Variables (no PII)</th></tr>
-    <tr><td><code>OA_WELCOME</code></td><td>New OA user</td><td>Email</td><td>name, org_name, login_url</td></tr>
-    <tr><td><code>EXCEPTION_ALERT</code></td><td>OA-Operator / OA-Admin</td><td>Email + Bell</td><td>document_id, exception_type, sla_hours</td></tr>
-    <tr><td><code>ELEVATION_APPROVED</code></td><td>OA-Operator</td><td>Email</td><td>duration_hours, expires_at</td></tr>
-    <tr><td><code>ELEVATION_DENIED</code></td><td>OA-Operator</td><td>Email</td><td>reason</td></tr>
-    <tr><td><code>ANOMALY_P0_ALERT</code></td><td>CISO + PA</td><td>Email + SMS</td><td>rule_name, severity, detected_at, tenant_name</td></tr>
-    <tr><td><code>ANOMALY_P1_ALERT</code></td><td>CISO</td><td>Email + Bell</td><td>rule_name, severity, detected_at</td></tr>
-    <tr><td><code>ANOMALY_P2_ALERT</code></td><td>CISO</td><td>Bell only</td><td>rule_name</td></tr>
-    <tr><td><code>ACCOUNT_LOCKED</code></td><td>CISO / OA-Admin</td><td>Email + Bell</td><td>locked_user_email, lock_reason</td></tr>
-    <tr><td><code>DOC_ROUTED</code></td><td>Employee</td><td>Push + WhatsApp</td><td>doc_type, employer_name</td></tr>
-    <tr><td><code>SHARE_ACCESSED</code></td><td>Employee</td><td>Email</td><td>recipient_name, accessed_at, share_expires_at</td></tr>
-    <tr><td><code>ERASURE_COMPLETE</code></td><td>Employee</td><td>Email</td><td>request_date, completion_date</td></tr>
-    <tr><td><code>EXPORT_READY</code></td><td>Employee</td><td>Email</td><td>download_url, expires_at</td></tr>
-    <tr><td><code>DIGEST_WEEKLY</code></td><td>CHRO / CFO / CISO</td><td>Email</td><td>period, key_metrics (no raw ₹ or PAN)</td></tr>
-    <tr><td><code>INCIDENT_CREATED</code></td><td>CISO / PA</td><td>Email</td><td>incident_id, severity, title, sla_deadline</td></tr>
-    <tr><td><code>INCIDENT_SLA_BREACH</code></td><td>PA</td><td>Email + SMS</td><td>incident_id, hours_overdue</td></tr>
-    <tr><td><code>CSAM_ALERT</code></td><td>PA</td><td>Email + SMS</td><td>tenant_name, doc_ref (encrypted, no content)</td></tr>
+    <tr><th>template_id</th><th>Recipient</th><th>Channel</th><th>Status</th><th>Variables (no PII)</th></tr>
+    <tr><td><code>OA_WELCOME</code></td><td>New OA user</td><td>Email</td><td class="yes">Active</td><td>name, org_name, login_url</td></tr>
+    <tr><td><code>EXCEPTION_ALERT</code></td><td>OA-Operator / OA-Admin</td><td>Email + Bell</td><td class="yes">Active</td><td>document_id, exception_type, sla_hours</td></tr>
+    <tr><td><code>ELEVATION_APPROVED</code></td><td>OA-Operator</td><td>Email</td><td class="yes">Active</td><td>duration_hours, expires_at</td></tr>
+    <tr><td><code>ELEVATION_DENIED</code></td><td>OA-Operator</td><td>Email</td><td class="yes">Active</td><td>reason</td></tr>
+    <tr><td><code>ANOMALY_P0_ALERT</code></td><td>CISO + PA</td><td>Email + SMS</td><td class="yes">Active</td><td>rule_name, severity, detected_at, tenant_name</td></tr>
+    <tr><td><code>ANOMALY_P1_ALERT</code></td><td>CISO</td><td>Email + Bell</td><td class="yes">Active</td><td>rule_name, severity, detected_at</td></tr>
+    <tr><td><code>ANOMALY_P2_ALERT</code></td><td>CISO</td><td>Bell only</td><td class="yes">Active</td><td>rule_name</td></tr>
+    <tr><td><code>ACCOUNT_LOCKED</code></td><td>CISO / OA-Admin</td><td>Email + Bell</td><td class="yes">Active</td><td>locked_user_email, lock_reason</td></tr>
+    <tr><td><code>CROSS_TENANT_UPLOAD_ALERT</code> <span class="ch p0">NEW</span></td><td>Tenant CISO + all active PA Admins</td><td>Email + Bell (CISO), Email (PA)</td><td class="yes">Active</td><td>document_id, anomaly_id, owner_tenant_id</td></tr>
+    <tr><td><code>AUDIT_INTEGRITY_MISMATCH</code> <span class="ch p0">NEW</span></td><td>All active PA Admins (platform-level)</td><td>Email</td><td class="yes">Active</td><td>checked_count, mismatched_count, unverified_count</td></tr>
+    <tr><td><code>DOC_ROUTED</code></td><td>Employee</td><td>Push + WhatsApp</td><td class="yes">Active</td><td>doc_type, employer_name</td></tr>
+    <tr><td><code>SHARE_ACCESSED</code></td><td>Employee</td><td>Email</td><td class="yes">Active</td><td>recipient_name, accessed_at, share_expires_at</td></tr>
+    <tr><td><code>VAULT_WELCOME</code> <span class="ch p0">NEW</span></td><td>Employee</td><td>SMS (primary) + Email (if present)</td><td class="yes">Active</td><td>&mdash; (template_data empty)</td></tr>
+    <tr><td><code>VAULT_WELCOME_REJOIN</code> <span class="ch p0">NEW</span></td><td>Employee</td><td>SMS (primary) + Email (if present)</td><td class="yes">Active</td><td>&mdash; (template_data empty)</td></tr>
+    <tr><td><code>ERASURE_COMPLETE</code></td><td>Employee</td><td>Email</td><td class="yes">Active</td><td>request_date, completion_date</td></tr>
+    <tr><td><code>EXPORT_READY</code></td><td>Employee</td><td>Email</td><td class="yes">Active</td><td>download_url, expires_at</td></tr>
+    <tr><td><code>EMPLOYEE_CREDENTIALS_ISSUED</code> <span class="ch p0">NEW</span></td><td>Employee</td><td>SMS (primary) + Email (if present)</td><td class="yes">Active</td><td>&mdash; (template_data empty)</td></tr>
+    <tr><td><code>STORAGE_EXPANSION_REQUESTED</code> <span class="ch p0">NEW</span></td><td>All active PA Admins (platform-level)</td><td>Email</td><td class="yes">Active</td><td>tenant_id, request_id, current_gb, requested_gb</td></tr>
+    <tr><td><code>ONBOARDING_REVIEW_SLA_BREACH</code> <span class="ch p0">NEW</span></td><td>All active PA Admins (platform-level)</td><td>Email</td><td class="yes">Active</td><td>tenant_id</td></tr>
+    <tr><td><code>DIGEST_WEEKLY</code></td><td>CHRO / CFO / CISO</td><td>Email</td><td class="no">Planned &mdash; not yet triggered</td><td>period, key_metrics (no raw ₹ or PAN)</td></tr>
+    <tr><td><code>INCIDENT_CREATED</code></td><td>CISO / PA</td><td>Email</td><td class="no">Planned &mdash; not yet triggered</td><td>incident_id, severity, title, sla_deadline</td></tr>
+    <tr><td><code>INCIDENT_SLA_BREACH</code></td><td>PA</td><td>Email + SMS</td><td class="no">Planned &mdash; not yet triggered</td><td>incident_id, hours_overdue</td></tr>
+    <tr><td><code>CSAM_ALERT</code></td><td>PA</td><td>Email + SMS</td><td class="no">Planned &mdash; not yet triggered</td><td>tenant_name, doc_ref (encrypted, no content)</td></tr>
   </table>
-  <p style="margin-top:10px;color:var(--muted);font-size:10px">All template_ids are stored in <code>platform_config</code> — never hardcoded in service code. Privacy guard in <code>NotificationService.notify()</code> rejects any <code>template_data</code> containing PAN, NIK, or raw salary keys.</p>
+  <p style="margin-top:10px;color:var(--muted);font-size:10px">
+    "Planned &mdash; not yet triggered" = the enum member has a subject line in <code>_SUBJECT_MAP</code>, so a subject exists if it were ever sent,
+    but no code path currently calls <code>NotificationService.notify()</code> with that <code>template_id</code>
+    (<code>NotifConsumer._dispatch()</code> has no case for it). Each needs its own trigger-point decision before it goes live &mdash; not a wiring bug to fix blindly.
+  </p>
+  <p style="margin-top:6px;color:var(--muted);font-size:10px"><b>Fixed 2026-07-23:</b> <code>CROSS_TENANT_UPLOAD_ALERT</code> and <code>AUDIT_INTEGRITY_MISMATCH</code> were both actively sending real emails but had no entry in <code>_SUBJECT_MAP</code>, so every one of those emails silently used the generic "PRANA Notification" subject instead of a proper one. Both now have real subject lines (see rows above).</p>
+  <p style="margin-top:6px;color:var(--muted);font-size:10px">All template_ids are stored in <code>platform_config</code> &mdash; never hardcoded in service code. Privacy guard in <code>NotificationService.notify()</code> rejects any <code>template_data</code> containing PAN, NIK, or raw salary keys.</p>
 </div>
 
-<p class="stamp">PRANA Platform · prana-docs/wireframes/notification_incident_matrix.html · Generated 2026-06-19 · Approved &amp; implemented</p>
+<p class="stamp">PRANA Platform · prana-docs/wireframes/notification_incident_matrix.html · Generated 2026-06-19 · Updated 2026-07-23 (NotificationTemplate enum sync + subject-line fix) · Approved &amp; implemented</p>
 
 <script>
 function sw(name) {

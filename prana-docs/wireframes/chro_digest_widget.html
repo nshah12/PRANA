@@ -10,17 +10,25 @@
   Reference widget for the Weekly / Monthly / Quarterly digest email/dashboard.
   Designed for: TechServe India (2,000 employees, 7 months live on PRANA).
 
-  When implementing in production:
-  - Replace static DATA object with API calls to prana-api analytics endpoints
-  - Weekly:    GET /v1/analytics/digest/weekly?tenant_id=...
-  - Monthly:   GET /v1/analytics/digest/monthly?tenant_id=...&month=YYYY-MM
-  - Quarterly: GET /v1/analytics/digest/quarterly?tenant_id=...&quarter=YYYY-QN
-  - Export CTA: POST /v1/analytics/digest/export { period, format: "pdf"|"xlsx" }
-  - Stat cards, bar charts, and alert rows all map to real DB columns (see prana-db/schema.sql)
-  - vault_health_score table → completeness bars
-  - document table → doc type breakdown bars
-  - exception_queue table → alert rows
-  - audit_event table → alumni self-serve count
+  Current production state (verified against prana-api/routers/chro.py and
+  prana-api/services/digest_service.py, 2026-07-23) — replace the static DATA
+  object with these real endpoints (tenant_id comes from the caller's JWT,
+  never a query param):
+  - Weekly:    GET /v1/chro/digest/weekly     (optional ?from=&to=, else last 7 days)
+  - Monthly:   GET /v1/chro/digest/monthly    (default 30-day window)
+  - Quarterly: GET /v1/chro/digest/quarterly  (default 91-day window)
+  - Settings:  GET/PUT /v1/chro/digest/settings (tenant_config row, key=digest_chro_config)
+  - Test send: POST /v1/chro/digest/weekly/send-test (weekly only — no monthly/
+    quarterly test-send exists yet)
+  - There is no PDF/xlsx export endpoint — the "Export for townhall" CTA below
+    is illustrative, not a shipped feature
+  - Stat cards, bar charts, and alert rows map to DigestService.build_chro_digest():
+  - employee_master.vault_completeness (AVG, WHERE status='ACTIVE') → completeness bars
+    (there is no separate vault_health_score table read here, though that table exists in schema.sql)
+  - document table (pipeline_status='ROUTED') → doc type breakdown bars
+  - document table (pipeline_status='EXCEPTION') → exceptions_open
+    (not the exception_queue table, though that table also exists in schema.sql)
+  - audit_event WHERE actor_type='ALUMNI' AND event_type='DOCUMENT_ACCESS' → alumni self-serve count
 
   Colors used:
   - Indigo #4F46E5  — primary accent, active tab, CTA bar

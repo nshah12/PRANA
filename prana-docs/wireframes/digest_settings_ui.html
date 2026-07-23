@@ -10,33 +10,59 @@
   Reference widget for CHRO / CFO / CISO digest configuration page.
   Each role owner configures their own digest independently.
 
-  When implementing in production:
+  Current production state (verified against prana-api/services/digest_service.py,
+  prana-api/routers/{chro,cfo,ciso}.py, and prana-api/workflows/intelligence.py,
+  2026-07-23) — corrected from an earlier draft of this comment that predated
+  the actual implementation and described a design that was never built:
 
   Config storage:
-    tenant_config rows (one per digest type per tenant):
+    tenant_config rows (one per digest type per tenant) — DigestService._CONFIG_KEY:
       config_key = "digest_chro_config" | "digest_cfo_config" | "digest_ciso_config"
-      config_value = JSON:
+      config_value = JSON (DigestService._DEFAULT_CONFIG shape):
         {
-          "recipients": [{ "email": "...", "name": "...", "role": "..." }],
-          "weekly":     { "on": true,  "day": "Monday", "time": "08:00" },
-          "monthly":    { "on": true,  "date": 1 },
-          "quarterly":  { "on": true },
-          "format":     "email_only" | "email_pdf",
-          "sections":   ["Vault completeness", "Headcount movement", ...]
+          "recipients": ["email@example.com", ...],          // plain email strings, not objects
+          "schedules": {
+            "weekly":    { "enabled": false, "day": "MON", "time": "08:00" },
+            "monthly":   { "enabled": false, "day_of_month": 1, "time": "08:00" },
+            "quarterly": { "enabled": false, "time": "08:00" }
+          },
+          "sections":   [],
+          "format":     "email" | "email_pdf",                // not "email_only"
+          "active":     false
         }
 
-  Portal endpoints:
-    GET  /v1/settings/digest/:type          → read current config
-    PUT  /v1/settings/digest/:type          → save config → triggers DigestWorkflow reschedule
-    POST /v1/settings/digest/:type/test     → send test email immediately
+  Portal endpoints (role-scoped routers, NOT a generic /v1/settings/digest/:type):
+    GET  /v1/chro/digest/settings   (also /v1/cfo/... and /v1/ciso/...)
+    PUT  /v1/chro/digest/settings   → DigestService.save_config() — an UPSERT into
+                                       tenant_config. It does NOT signal or reschedule
+                                       any Temporal workflow (see below).
+    POST /v1/chro/digest/weekly/send-test → queues an immediate test email.
+                                       CHRO-only today — CFO and CISO routers have
+                                       no test-send endpoint, and even CHRO's only
+                                       covers the weekly cadence (no monthly/quarterly
+                                       test-send). The "Send test digest now" button
+                                       below is illustrative for CFO/CISO.
 
-  Temporal workflow:
-    DigestWorkflow (one instance per tenant per digest type)
-    Workflow ID: "digest-{type}-{tenant_id}"  e.g. "digest-chro-tenant-001"
-    On config save → signal DigestWorkflow with new schedule
-    Workflow fires on schedule → DigestService.build_digest()
-    → publishes to prana.notifications topic
-    → NotifConsumer → AWS SES → all configured recipients
+  Temporal workflow — DigestWorkflow (workflows/intelligence.py, Pattern 3 — Temporal
+  Schedule, analytics-queue). This is NOT one instance per tenant:
+    - Exactly two global Schedules are registered once at prana-api startup:
+      schedule_id "digest-weekly" and "digest-monthly" (cron from
+      platform_config.digest_weekly_cron / digest_monthly_cron via
+      ensure_digest_schedules() — idempotent create-or-update, Asia/Kolkata tz).
+    - Fixed 2026-07-23: previously there was no schedule-registration code at all for
+      this workflow despite it being registered on its task queue, so it silently
+      never ran on its own. It now actually fires on schedule.
+    - There is no quarterly Temporal Schedule. Quarterly digest data is available
+      on demand via GET .../digest/quarterly, but nothing sends it automatically —
+      the "Auto · first Monday of quarter" label in the quarterly row below
+      describes an intended, not yet implemented, behavior.
+    - Saving digest settings does NOT signal DigestWorkflow and does NOT create a
+      per-tenant workflow — it only updates that tenant's tenant_config row, which
+      the per-tenant recipients/sections/format/enabled flags feed into when the
+      global schedule's activities build and send each tenant's digest.
+    - Workflow fires on schedule → build_weekly_digest/build_monthly_digest activity
+      → send_digest_email activity (publishes via kafka/producer.py, NotifConsumer
+      → AWS SES → configured recipients).
 
   Who can access which settings page:
     CHRO tab   → oa_user WHERE role = 'CHRO'
@@ -209,7 +235,7 @@ function render() {
           <div style="font-size:13px;font-weight:500;color:#0F172A;">Quarterly board digest</div>
           <div style="font-size:11px;color:#94A3B8;">Board-grade — growth, compliance score, cost savings, DPDP</div>
         </div>
-        ${c.quarterly.on ? `<span style="font-size:11px;color:#94A3B8;">Auto · first Monday of quarter</span>` : ""}
+        ${c.quarterly.on ? `<span style="font-size:11px;color:#94A3B8;">Planned · auto-send not yet built (data available on demand)</span>` : ""}
       </div>
     </div>`;
 
@@ -239,7 +265,9 @@ function render() {
 
   const savedBanner = state.saved ? `
     <div style="padding:10px 14px;background:#DCFCE7;border-top:0.5px solid #BBF7D0;font-size:12px;color:#166534;display:flex;align-items:center;gap:6px;">
-      ✓ Saved — DigestWorkflow updated. Next delivery: ${c.weekly.on ? c.weekly.day+" at "+c.weekly.time : "per your schedule"}.
+      ✓ Saved — recipients/sections/format updated. Delivery still runs on the
+      platform-wide weekly/monthly schedule (not a per-tenant reschedule) —
+      ${c.weekly.on ? "you'll be included at the next weekly run" : "enable weekly/monthly above to receive it"}.
     </div>` : "";
 
   r.innerHTML = `

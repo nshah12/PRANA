@@ -10,21 +10,31 @@
   Reference widget for the CFO Weekly / Monthly / Quarterly digest.
   Designed for: TechServe India (2,000 employees, 7 months live on PRANA).
 
-  When implementing in production:
+  Current production state (verified against prana-api/routers/cfo.py and
+  prana-api/services/digest_service.py, 2026-07-23):
 
-  API endpoints:
-    GET /v1/analytics/digest/cfo/weekly?tenant_id=...
-    GET /v1/analytics/digest/cfo/monthly?tenant_id=...&month=YYYY-MM
-    GET /v1/analytics/digest/cfo/quarterly?tenant_id=...&quarter=YYYY-QN
-    POST /v1/analytics/digest/export { role:"cfo", period, format:"pdf"|"xlsx" }
+  API endpoints (tenant_id is derived from the caller's JWT — never a query param):
+    GET /v1/cfo/digest/weekly     (optional ?from=&to= override the default 7-day window)
+    GET /v1/cfo/digest/monthly    (default 30-day window)
+    GET /v1/cfo/digest/quarterly  (default 91-day window)
+    GET /v1/cfo/digest/settings   — read this tenant's CFO digest config
+    PUT /v1/cfo/digest/settings   — save config (tenant_config row, key=digest_cfo_config)
+  No PDF/xlsx export endpoint exists yet for the CFO digest, and there is no
+  test-send endpoint on the CFO router (CHRO's router has
+  POST /v1/chro/digest/weekly/send-test; CFO/CISO don't). The "Export" CTA
+  below is illustrative of an intended feature, not a shipped one.
 
-  Data sources (prana-db/schema.sql):
-    Headcount:          employee_master WHERE is_active=TRUE
-    Attrition:          career_event WHERE event_type='EXIT' AND period
+  Data sources (prana-db/schema.sql, via DigestService.build_cfo_digest):
+    Headcount:          employee_master WHERE status='ACTIVE'  (status is an enum column —
+                         ACTIVE | ALUMNI | DEACTIVATED — there is no is_active boolean)
+    Attrition/joiners:  career_event WHERE event_type='EXITED' / 'JOINED' AND event_date IN window
     Document compliance: document WHERE doc_type IN ('SALARY_SLIP','FORM_16','OFFER_LETTER','PF_STATEMENT')
-    Anomalies pending:  anomaly_event WHERE acknowledged_by IS NULL AND role_scope='CFO'
-    Cost indicators:    Computed — headcount × avg CTC from tenant_config.avg_ctc_estimate
-    Alumni self-serve:  audit_event WHERE actor_type='ALUMNI' AND action='SELF_SERVE'
+    Anomalies pending:  anomaly_event WHERE acknowledged_by IS NULL AND status='OPEN'
+                         (anomaly_event has no role_scope column)
+    Cost indicators:    Computed — headcount × tenant_config.avg_ctc_estimate /
+                         replacement_cost_estimate / headcount_budget
+    Alumni self-serve:  not part of the CFO digest payload today — that field
+                         (audit_event WHERE actor_type='ALUMNI') is CHRO-only
 
   Color: #0891B2 (teal/cyan — CFO brand)
 
