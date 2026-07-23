@@ -29,8 +29,8 @@ async def test_oa_user_created_publishes_welcome_email(consumer):
     mock_kafka = AsyncMock()
     with patch("kafka.consumers.oa_user_consumer.get_kafka_producer", new=AsyncMock(return_value=mock_kafka)):
         await consumer._dispatch("OA_USER_CREATED", event)
-    mock_kafka.notify_email.assert_awaited_once()
-    notif = mock_kafka.notify_email.call_args[0][0]
+    mock_kafka.communication_requested.assert_awaited_once()
+    notif = mock_kafka.communication_requested.call_args[0][0]
     assert notif["template_id"] == "OA_WELCOME"
     assert notif["recipient_id"] == "u-1"
     # Regression: this used to put the login_url payload under a "payload" key,
@@ -48,8 +48,8 @@ async def test_oa_welcome_resent_publishes_welcome_email(consumer):
     mock_kafka = AsyncMock()
     with patch("kafka.consumers.oa_user_consumer.get_kafka_producer", new=AsyncMock(return_value=mock_kafka)):
         await consumer._dispatch("OA_WELCOME_RESENT", event)
-    mock_kafka.notify_email.assert_awaited_once()
-    notif = mock_kafka.notify_email.call_args[0][0]
+    mock_kafka.communication_requested.assert_awaited_once()
+    notif = mock_kafka.communication_requested.call_args[0][0]
     assert notif["template_id"] == "OA_WELCOME"
     assert notif["recipient_id"] == "u-1"
     assert notif["recipient_email"] == "bounced@co.com"
@@ -97,15 +97,18 @@ async def test_elevation_denied_no_longer_sends_email_directly(consumer):
 
 
 @pytest.mark.asyncio
-async def test_elevation_expired_sends_bell_not_email(consumer):
+async def test_elevation_expired_requests_notification(consumer):
+    """ELEVATION_EXPIRED now goes through communication_requested() —
+    CommunicationHubConsumer resolves the channel (portal_bell by default,
+    notification_channel_policy) rather than this consumer hardcoding it."""
     event = {"event_type": "ELEVATION_EXPIRED", "oa_user_id": "u-4",
              "requestor_id": "u-4", "elevation_id": "e-2", "tenant_id": "t-1"}
     mock_kafka = AsyncMock()
     with patch("kafka.consumers.oa_user_consumer.get_kafka_producer", new=AsyncMock(return_value=mock_kafka)):
         await consumer._dispatch("ELEVATION_EXPIRED", event)
-    mock_kafka.notify_bell.assert_awaited_once()
-    mock_kafka.notify_email.assert_not_awaited()
-    notif = mock_kafka.notify_bell.call_args[0][0]
+    mock_kafka.communication_requested.assert_awaited_once()
+    notif = mock_kafka.communication_requested.call_args[0][0]
+    assert notif["template_id"] == "ELEVATION_EXPIRED"
     # Regression: this used to put duration_hours under a "payload" key that
     # BellConsumer/NotificationService never read.
     assert notif["template_data"] == {"elevation_id": "e-2", "duration_hours": None}

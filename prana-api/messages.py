@@ -245,11 +245,12 @@ class NotificationTemplate(StrEnum):
     a template with no subject line silently falls back to a generic "PRANA
     Notification" subject on every email send.
 
-    A few members (CSAM_ALERT, INCIDENT_CREATED, INCIDENT_SLA_BREACH,
-    DIGEST_WEEKLY) have a defined subject line but are not yet triggered by any
-    code path — planned, not wired. Not a wiring bug to fix blindly: each needs
-    its own trigger-point decision, same as the workflow gaps in
-    gap_dead_workflows_2026_07 memory.
+    A few members (CSAM_ALERT, INCIDENT_CREATED, INCIDENT_SLA_BREACH) have a
+    defined subject line but are not yet triggered by any code path —
+    planned, not wired. Not a wiring bug to fix blindly: each needs its own
+    trigger-point decision, same as the workflow gaps in
+    gap_dead_workflows_2026_07 memory. (DIGEST_WEEKLY/DIGEST_MONTHLY ARE
+    triggered — DigestWorkflow, workflows/intelligence.py.)
     """
     # ── Anomaly / security ───────────────────────────────────────────────────
     ANOMALY_P0_ALERT            = "ANOMALY_P0_ALERT"
@@ -276,6 +277,7 @@ class NotificationTemplate(StrEnum):
     # ── Elevation ─────────────────────────────────────────────────────────────
     ELEVATION_APPROVED          = "ELEVATION_APPROVED"
     ELEVATION_DENIED            = "ELEVATION_DENIED"
+    ELEVATION_EXPIRED           = "ELEVATION_EXPIRED"
 
     # ── Onboarding / accounts ─────────────────────────────────────────────────
     OA_WELCOME                  = "OA_WELCOME"
@@ -285,12 +287,20 @@ class NotificationTemplate(StrEnum):
     INCIDENT_CREATED            = "INCIDENT_CREATED"
     INCIDENT_SLA_BREACH         = "INCIDENT_SLA_BREACH"
 
-    # ── Digest (planned, not yet triggered) ──────────────────────────────────
+    # ── Digest — DigestWorkflow (workflows/intelligence.py), weekly + monthly
+    # Temporal schedules, both real and actively triggered ────────────────────
     DIGEST_WEEKLY                = "DIGEST_WEEKLY"
+    DIGEST_MONTHLY                = "DIGEST_MONTHLY"
 
     # ── Platform operations ───────────────────────────────────────────────────
     STORAGE_EXPANSION_REQUESTED    = "STORAGE_EXPANSION_REQUESTED"
     ONBOARDING_REVIEW_SLA_BREACH   = "ONBOARDING_REVIEW_SLA_BREACH"
+
+    # ── Statutory compliance ───────────────────────────────────────────────────
+    OBLIGATION_DUE                 = "OBLIGATION_DUE"
+
+    # ── Alumni network ──────────────────────────────────────────────────────
+    ALUMNI_OUTREACH_RECEIVED       = "ALUMNI_OUTREACH_RECEIVED"
 
 
 def success_response(code: SuccessCode, **kwargs) -> dict:

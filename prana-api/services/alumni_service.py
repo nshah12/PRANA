@@ -434,27 +434,22 @@ class AlumniService:
         )
 
         if self._kafka:
-            await self._kafka.notify_bell({
-                "event_type":   "ALUMNI_OUTREACH_RECEIVED",
-                "recipient_id": employee_user_id,
-                "outreach_id":  str(outreach_id),
-                "subject":      subject,
-            })
-            # EmailConsumer requires recipient_email and template_id or it
-            # silently skips — employee_user.email is plaintext, direct lookup.
+            # EmailConsumer requires recipient_email or it silently skips —
+            # employee_user.email is plaintext, direct lookup. CommunicationHubConsumer
+            # resolves ALUMNI_OUTREACH_RECEIVED's policy (portal_bell + email) and
+            # fans out to both from this one request.
             email = await self._db.fetchval(
                 "SELECT email FROM employee_user WHERE employee_user_id=$1", employee_user_id,
             )
-            email_notif = {
+            await self._kafka.communication_requested({
                 "event_type":    "ALUMNI_OUTREACH_RECEIVED",
                 "recipient_id":  employee_user_id,
+                "recipient_type": "EMPLOYEE",
+                "recipient_email": email,
                 "template_id":   "ALUMNI_OUTREACH_RECEIVED",
-                "outreach_id":   str(outreach_id),
-                "template_data": {"subject": subject},
-            }
-            if email:
-                email_notif["recipient_email"] = email
-            await self._kafka.notify_email(email_notif)
+                "tenant_id":     tenant_id,
+                "template_data": {"subject": subject, "outreach_id": str(outreach_id)},
+            })
         return {"outreach_id": str(outreach_id), "status": "SENT"}
 
     async def list_sent_outreach(

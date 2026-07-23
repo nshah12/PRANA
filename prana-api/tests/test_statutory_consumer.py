@@ -24,13 +24,13 @@ def consumer(db_pool):
 
 
 @pytest.mark.asyncio
-async def test_obligation_due_notifies_chro_and_cfo_via_bell(consumer, db_pool):
+async def test_obligation_due_notifies_chro_and_cfo(consumer, db_pool):
     event = {"event_type": "OBLIGATION_DUE", "tenant_id": "t-1",
              "obligation_id": "ob-1", "act": "EPF_ACT", "due_date": "2026-07-15"}
     mock_kafka = AsyncMock()
     with patch("kafka.consumers.statutory_consumer.get_kafka_producer", new=AsyncMock(return_value=mock_kafka)):
         await consumer._dispatch("OBLIGATION_DUE", event)
-    assert mock_kafka.notify_bell.await_count == 2  # CHRO + CFO
+    assert mock_kafka.communication_requested.await_count == 2  # CHRO + CFO
 
 
 @pytest.mark.asyncio
@@ -70,7 +70,7 @@ async def test_bell_notification_has_correct_payload(consumer, db_pool):
     mock_kafka = AsyncMock()
     with patch("kafka.consumers.statutory_consumer.get_kafka_producer", new=AsyncMock(return_value=mock_kafka)):
         await consumer._dispatch("OBLIGATION_DUE", event)
-    notif = mock_kafka.notify_bell.call_args[0][0]
+    notif = mock_kafka.communication_requested.call_args[0][0]
     assert notif["template_id"] == "OBLIGATION_DUE"
     # Regression: this used to put the content under a "payload" key that
     # BellConsumer/NotificationService never read — the bell fired with empty content.

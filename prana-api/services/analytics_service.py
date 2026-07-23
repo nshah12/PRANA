@@ -110,13 +110,14 @@ class AnalyticsService:
                 notif = {
                     "event_type": f"DIGEST_{digest_type.upper()}",
                     "recipient_id": recipient_id,
+                    "recipient_type": "OA_USER",
                     "template_id": f"DIGEST_{digest_type.upper()}",
                     "tenant_id": tenant_id,
                     "template_data": payload.get("content", {}),
                 }
                 if email:
                     notif["recipient_email"] = email
-                await self._kafka.notify_email(notif)
+                await self._kafka.communication_requested(notif)
 
     # ── PeerBenchmarkWorkflow ─────────────────────────────────────────────────
 

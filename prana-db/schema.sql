@@ -1918,9 +1918,15 @@ CREATE UNIQUE INDEX IF NOT EXISTS uidx_channel_policy_tenant ON notification_cha
   WHERE tenant_id IS NOT NULL;
 CREATE INDEX IF NOT EXISTS idx_channel_policy_template ON notification_channel_policy(template_id);
 
--- Seed platform-default policy for all 23 NotificationTemplate members, derived
+-- Seed platform-default policy for all 27 NotificationTemplate members, derived
 -- 1:1 from today's real inline decisions in notif_consumer.py (cross-checked
--- against prana-docs/wireframes/notification_incident_matrix.html).
+-- against prana-docs/wireframes/notification_incident_matrix.html). The last 4
+-- (ELEVATION_EXPIRED, DIGEST_MONTHLY, OBLIGATION_DUE, ALUMNI_OUTREACH_RECEIVED)
+-- were added when migrating their call sites to communication_requested() —
+-- previously real template_ids used in code but missing from the enum/policy
+-- entirely (Phase 4, COMMUNICATION_HUB_ARCHITECTURE.md §7 step 3), channel
+-- choice matches exactly what each site's old notify_bell()/notify_email()
+-- call(s) already did.
 INSERT INTO notification_channel_policy (tenant_id, template_id, channels) VALUES
   (NULL, 'ANOMALY_P0_ALERT',             ARRAY['email','portal_bell']),
   (NULL, 'ANOMALY_P1_ALERT',             ARRAY['email','portal_bell']),
@@ -1944,7 +1950,11 @@ INSERT INTO notification_channel_policy (tenant_id, template_id, channels) VALUE
   (NULL, 'INCIDENT_SLA_BREACH',          ARRAY['email']),
   (NULL, 'DIGEST_WEEKLY',                ARRAY['email']),
   (NULL, 'STORAGE_EXPANSION_REQUESTED',  ARRAY['email']),
-  (NULL, 'ONBOARDING_REVIEW_SLA_BREACH', ARRAY['email'])
+  (NULL, 'ONBOARDING_REVIEW_SLA_BREACH', ARRAY['email']),
+  (NULL, 'ELEVATION_EXPIRED',            ARRAY['portal_bell']),
+  (NULL, 'DIGEST_MONTHLY',               ARRAY['email']),
+  (NULL, 'OBLIGATION_DUE',               ARRAY['portal_bell']),
+  (NULL, 'ALUMNI_OUTREACH_RECEIVED',     ARRAY['portal_bell','email'])
 ON CONFLICT DO NOTHING;
 
 -- ============================================================

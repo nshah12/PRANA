@@ -135,14 +135,13 @@ async def test_send_outreach_success():
         subject="We'd love to reconnect", body_text="Hi Priya, would you consider rejoining?",
     )
     assert result.get("error") is None
-    kafka.notify_bell.assert_called_once()
-    kafka.notify_email.assert_called_once()
+    kafka.communication_requested.assert_called_once()
     # Regression: EmailConsumer requires recipient_email AND template_id or it
-    # silently skips — this used to publish neither, so outreach emails
-    # (and their unread portal-bell counterpart's email fallback) never sent.
-    email_notif = kafka.notify_email.call_args[0][0]
-    assert email_notif["recipient_email"] == "priya@example.com"
-    assert email_notif["template_id"] == "ALUMNI_OUTREACH_RECEIVED"
+    # silently skips — this used to publish neither on the email side (and used
+    # two separate raw publishes instead of one policy-driven request).
+    notif = kafka.communication_requested.call_args[0][0]
+    assert notif["recipient_email"] == "priya@example.com"
+    assert notif["template_id"] == "ALUMNI_OUTREACH_RECEIVED"
 
 @pytest.mark.asyncio
 async def test_send_outreach_no_consent():

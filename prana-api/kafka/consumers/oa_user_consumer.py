@@ -15,8 +15,10 @@ Events handled:
                               this to TOPIC_NOTIF, where CommunicationHubConsumer._handle_elevation
                               (resolves oa_user.email) sends the email
   ELEVATION_DENIED         → same as above
-  ELEVATION_EXPIRED        → notify requestor (bell) — the one elevation outcome
-                              CommunicationHubConsumer doesn't handle, so this consumer owns it
+  ELEVATION_EXPIRED        → requests notification for the requestor via
+                              kafka.communication_requested() — CommunicationHubConsumer
+                              resolves the channel(s) via notification_channel_policy
+                              (portal_bell by default) and fans out
   ROLE_CHANGED             → audit (fanned out to prana.audit.events by
                               kafka.oa_user_event() already — nothing to do here for
                               that part) + PRIVILEGE_ESCALATION detection: publishes
@@ -122,17 +124,18 @@ class OAUserConsumer:
     async def _notify_welcome(self, event: dict) -> None:
         try:
             kafka = await get_kafka_producer()
-            await kafka.notify_email({
+            await kafka.communication_requested({
                 "event_type":    "OA_WELCOME",
                 "recipient_id":  event.get("oa_user_id"),
+                "recipient_type": "OA_USER",
                 "recipient_email": event.get("email"),
                 "template_id":   "OA_WELCOME",
                 "tenant_id":     event.get("tenant_id"),
                 "template_data": {"login_url": event.get("login_url", "https://prana.in/org/login")},
             })
-            log.info("OAUserConsumer: published OA_WELCOME email oa_user_id=%s", event.get("oa_user_id"))
+            log.info("OAUserConsumer: requested OA_WELCOME notification oa_user_id=%s", event.get("oa_user_id"))
         except Exception:
-            log.exception("OAUserConsumer: failed to publish OA_WELCOME email")
+            log.exception("OAUserConsumer: failed to request OA_WELCOME notification")
 
     async def _detect_privilege_escalation(self, event: dict) -> None:
         old_role = event.get("old_role")
@@ -172,13 +175,14 @@ class OAUserConsumer:
         template_data = {"elevation_id": event.get("elevation_id"), "duration_hours": event.get("duration_hours")}
         try:
             kafka = await get_kafka_producer()
-            await kafka.notify_bell({
+            await kafka.communication_requested({
                 "event_type":    "ELEVATION_EXPIRED",
                 "recipient_id":  recipient_id,
+                "recipient_type": "OA_USER",
                 "template_id":   "ELEVATION_EXPIRED",
                 "tenant_id":     event.get("tenant_id"),
                 "template_data": template_data,
             })
-            log.info("OAUserConsumer: published ELEVATION_EXPIRED notification recipient=%s", recipient_id)
+            log.info("OAUserConsumer: requested ELEVATION_EXPIRED notification recipient=%s", recipient_id)
         except Exception:
-            log.exception("OAUserConsumer: failed to publish ELEVATION_EXPIRED notification")
+            log.exception("OAUserConsumer: failed to request ELEVATION_EXPIRED notification")

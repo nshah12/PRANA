@@ -156,12 +156,12 @@ async def test_send_digest_email_notifies_each_recipient():
         tenant_id="t-1", digest_type="weekly",
         data={"chro": {"recipients": ["chro-1", "chro-2"], "content": {"a": 1}}},
     )
-    assert kafka.notify_email.await_count == 2
+    assert kafka.communication_requested.await_count == 2
     # Regression: EmailConsumer requires recipient_email or it silently skips —
     # this used to publish only a bare recipient_id (an oa_user_id) with no email
     # lookup at all, so every digest email was dropped. Content also used to sit
     # under a dead "payload" key that EmailConsumer/NotificationService never read.
-    first_call = kafka.notify_email.call_args_list[0][0][0]
+    first_call = kafka.communication_requested.call_args_list[0][0][0]
     assert first_call["recipient_email"] == "chro@acme.example"
     assert first_call["template_data"] == {"a": 1}
     assert "payload" not in first_call
@@ -176,8 +176,8 @@ async def test_send_digest_email_skips_recipient_email_gracefully_when_not_found
         tenant_id="t-1", digest_type="weekly",
         data={"chro": {"recipients": ["chro-gone"], "content": {}}},
     )
-    kafka.notify_email.assert_awaited_once()
-    assert "recipient_email" not in kafka.notify_email.call_args[0][0]
+    kafka.communication_requested.assert_awaited_once()
+    assert "recipient_email" not in kafka.communication_requested.call_args[0][0]
 
 
 # ── peer benchmark ───────────────────────────────────────────────────────────

@@ -98,14 +98,15 @@ class StatutoryConsumer:
         try:
             kafka = await get_kafka_producer()
             for row in rows:
-                await kafka.notify_bell({
+                await kafka.communication_requested({
                     "event_type":    "OBLIGATION_DUE",
                     "recipient_id":  str(row["oa_user_id"]),
+                    "recipient_type": "OA_USER",
                     "template_id":   "OBLIGATION_DUE",
                     "tenant_id":     tenant_id,
                     "template_data": payload,
                 })
-            log.info("StatutoryConsumer: published OBLIGATION_DUE bell notifications tenant_id=%s count=%d",
+            log.info("StatutoryConsumer: requested OBLIGATION_DUE notifications tenant_id=%s count=%d",
                      tenant_id, len(rows))
         except Exception:
-            log.exception("StatutoryConsumer: failed to publish obligation_due notifications")
+            log.exception("StatutoryConsumer: failed to request obligation_due notifications")

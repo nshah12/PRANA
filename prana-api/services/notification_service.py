@@ -59,6 +59,10 @@ _SUBJECT_MAP: dict[str, str] = {
     NotificationTemplate.EMPLOYEE_CREDENTIALS_ISSUED: "Your PRANA account is ready — set up your login",
     NotificationTemplate.STORAGE_EXPANSION_REQUESTED: "PRANA: Tenant storage expansion request awaiting review",
     NotificationTemplate.ONBOARDING_REVIEW_SLA_BREACH: "PRANA: Onboarding review SLA breached — action required",
+    NotificationTemplate.ELEVATION_EXPIRED:      "PRANA: Your elevation access has expired",
+    NotificationTemplate.DIGEST_MONTHLY:         "Your PRANA monthly digest is ready",
+    NotificationTemplate.OBLIGATION_DUE:         "PRANA: Statutory obligation due soon",
+    NotificationTemplate.ALUMNI_OUTREACH_RECEIVED: "You've received a message via PRANA Alumni Network",
 }
 
 
