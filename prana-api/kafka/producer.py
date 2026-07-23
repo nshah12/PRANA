@@ -146,6 +146,12 @@ class KafkaPub:
         NotifConsumer._handle_employee_welcome turns this into an actual SMS/email."""
         await self.publish(TOPIC_NOTIF, event, key=event.get("recipient_id", event.get("tenant_id")))
 
+    async def share_accessed(self, event: dict) -> None:
+        """SHARE_ACCESSED — notifies the document owner (employee) their share
+        was viewed. NotifConsumer._handle_dpdp_employee turns this into an email
+        via the existing SHARE_ACCESSED template."""
+        await self.publish(TOPIC_NOTIF, event, key=event.get("employee_user_id", event.get("tenant_id")))
+
     # ── Tenant events ─────────────────────────────────────────────────────────
 
     # TENANT_PROVISIONED needs the first OA-Admin notified by email (welcome + temp

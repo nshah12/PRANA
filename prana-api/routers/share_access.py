@@ -145,6 +145,14 @@ async def serve_shared_document(
 
         await share_svc.increment_views(token)
 
+    kafka = getattr(request.app.state, "kafka_producer", None)
+    if kafka:
+        await kafka.share_accessed({
+            "event_type": "SHARE_ACCESSED",
+            "employee_user_id": str(info["employee_user_id"]),
+            "tenant_id": info.get("tenant_id"),
+        })
+
     from routers.vault import _apply_watermark
     watermarked = _apply_watermark(plaintext, str(info["employee_user_id"]))
 

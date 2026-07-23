@@ -93,6 +93,35 @@ async def test_share_document_response_is_watermarked(client, mock_db, mock_redi
     assert "application/pdf" in resp.headers.get("content-type", "")
 
 
+# -- SHARE_ACCESSED notification ------------------------------------------------
+# Regression: DocumentShareWorkflow's notify_share_accessed activity — the only
+# code path that ever published SHARE_ACCESSED — is never reachable, since
+# nothing starts that workflow (the real OTP-verify/serve flow is fully
+# synchronous HTTP + Redis, per document-sharing.md). Employees have never
+# actually been notified when their shared document was viewed.
+
+@pytest.mark.asyncio
+async def test_share_document_view_publishes_share_accessed_notification(client, mock_db, mock_redis):
+    mock_svc = MagicMock()
+    mock_svc.validate_token = AsyncMock(return_value=_make_share_info(otp_required=False))
+    mock_svc.increment_views = AsyncMock()
+
+    mock_vault_svc = MagicMock()
+    mock_vault_svc.get_document_bytes = AsyncMock(return_value=(b"%PDF-1.4 minimal", "SALARY_SLIP"))
+
+    with patch("routers.share_access.ShareService", return_value=mock_svc), \
+         patch("routers.share_access.VaultService", return_value=mock_vault_svc), \
+         patch("routers.share_access.boto3"), \
+         patch("routers.vault._apply_watermark", return_value=b"%PDF-1.4 watermarked"):
+
+        await client.get("/v1/s/test-token-abc/doc/doc-uuid-001")
+
+    client.app.state.kafka_producer.share_accessed.assert_awaited_once()
+    event = client.app.state.kafka_producer.share_accessed.await_args.args[0]
+    assert event["event_type"] == "SHARE_ACCESSED"
+    assert event["employee_user_id"] == "emp-uuid-001"
+
+
 # -- Access log with IP --------------------------------------------------------
 
 @pytest.mark.asyncio

@@ -41,6 +41,17 @@ async def test_onboarding_review_sla_breach_reaches_notif_topic():
 
 
 @pytest.mark.asyncio
+async def test_share_accessed_reaches_notif_topic():
+    """Regression: routers/share_access.py's serve_shared_document previously had
+    no way to notify the document owner their share was viewed except a raw
+    kafka.publish() call (KAFKA-01 violation) — this domain helper replaces it."""
+    pub = _make_pub()
+    await pub.share_accessed({"event_type": "SHARE_ACCESSED", "employee_user_id": "emp-1"})
+    topics = [c.args[0] for c in pub.publish.call_args_list]
+    assert TOPIC_NOTIF in topics
+
+
+@pytest.mark.asyncio
 async def test_worker_crashed_does_not_reach_notif_topic():
     """Ops-only events (PagerDuty/Slack territory) must not also spam PA email."""
     pub = _make_pub()
