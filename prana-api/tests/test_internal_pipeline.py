@@ -161,6 +161,100 @@ def test_routed_tolerates_manifest_usage_bump_failure(client, mock_db, mock_kafk
     mock_kafka.doc_routed.assert_called_once()
 
 
+def test_routed_publishes_vault_activated_on_first_activation(client, mock_db, mock_kafka):
+    """
+    is_first_activation=True means this is the employee's first-ever routed
+    document — VaultActivationWorkflow (employee_consumer.py's VAULT_ACTIVATED
+    case) provisions the vault and sends the welcome notification, but nothing
+    published this event before this fix.
+    """
+    conn = AsyncMock()
+    conn.execute = AsyncMock()
+    acquire_ctx = MagicMock()
+    acquire_ctx.__aenter__ = AsyncMock(return_value=conn)
+    acquire_ctx.__aexit__ = AsyncMock(return_value=False)
+    mock_db.acquire = MagicMock(return_value=acquire_ctx)
+    mock_kafka.doc_routed = AsyncMock()
+    mock_kafka.employee_event = AsyncMock()
+
+    resp = client.post("/internal/pipeline/routed",
+                       headers=INTERNAL_HEADERS,
+                       json={
+                           "document_id":          "doc-1",
+                           "tenant_id":            "t-1",
+                           "employee_uuid":        "emp-1",
+                           "employee_user_id":     "emp-user-1",
+                           "pan_token":            "abc123",
+                           "doc_type":             "SALARY_SLIP",
+                           "resolution_method":    "PAN_EXACT",
+                           "resolution_confidence": 0.99,
+                           "is_first_activation":  True,
+                       })
+    assert resp.status_code == 200
+    mock_kafka.employee_event.assert_called_once_with({
+        "event_type":       "VAULT_ACTIVATED",
+        "employee_uuid":    "emp-1",
+        "employee_user_id": "emp-user-1",
+        "tenant_id":        "t-1",
+    })
+
+
+def test_routed_skips_vault_activated_when_not_first(client, mock_db, mock_kafka):
+    conn = AsyncMock()
+    conn.execute = AsyncMock()
+    acquire_ctx = MagicMock()
+    acquire_ctx.__aenter__ = AsyncMock(return_value=conn)
+    acquire_ctx.__aexit__ = AsyncMock(return_value=False)
+    mock_db.acquire = MagicMock(return_value=acquire_ctx)
+    mock_kafka.doc_routed = AsyncMock()
+    mock_kafka.employee_event = AsyncMock()
+
+    resp = client.post("/internal/pipeline/routed",
+                       headers=INTERNAL_HEADERS,
+                       json={
+                           "document_id":          "doc-2",
+                           "tenant_id":            "t-1",
+                           "employee_uuid":        "emp-1",
+                           "employee_user_id":     "emp-user-1",
+                           "pan_token":            "abc123",
+                           "doc_type":             "FORM_16",
+                           "resolution_method":    "PAN_EXACT",
+                           "resolution_confidence": 0.99,
+                           "is_first_activation":  False,
+                       })
+    assert resp.status_code == 200
+    mock_kafka.employee_event.assert_not_called()
+
+
+def test_routed_vault_activated_failure_does_not_fail_callback(client, mock_db, mock_kafka):
+    """A VAULT_ACTIVATED publish failure must never fail the routed callback —
+    DOC_ROUTED (already published) must not be rolled back by this."""
+    conn = AsyncMock()
+    conn.execute = AsyncMock()
+    acquire_ctx = MagicMock()
+    acquire_ctx.__aenter__ = AsyncMock(return_value=conn)
+    acquire_ctx.__aexit__ = AsyncMock(return_value=False)
+    mock_db.acquire = MagicMock(return_value=acquire_ctx)
+    mock_kafka.doc_routed = AsyncMock()
+    mock_kafka.employee_event = AsyncMock(side_effect=Exception("kafka down"))
+
+    resp = client.post("/internal/pipeline/routed",
+                       headers=INTERNAL_HEADERS,
+                       json={
+                           "document_id":          "doc-1",
+                           "tenant_id":            "t-1",
+                           "employee_uuid":        "emp-1",
+                           "employee_user_id":     "emp-user-1",
+                           "pan_token":            "abc123",
+                           "doc_type":             "SALARY_SLIP",
+                           "resolution_method":    "PAN_EXACT",
+                           "resolution_confidence": 0.99,
+                           "is_first_activation":  True,
+                       })
+    assert resp.status_code == 200
+    mock_kafka.doc_routed.assert_called_once()
+
+
 def test_routed_rejects_without_header(client):
     resp = client.post("/internal/pipeline/routed", json={
         "document_id": "doc-1", "tenant_id": "t-1",

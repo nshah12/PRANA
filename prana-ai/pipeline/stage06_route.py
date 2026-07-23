@@ -5,10 +5,12 @@ If exception needed: create exception_queue row, set pipeline_status=EXCEPTION.
 """
 import json
 import logging
+import os
 from datetime import datetime, timezone
 from typing import Optional
 
 import asyncpg
+import httpx
 
 from insights.benchmark_service import BenchmarkService
 from manifest.manifest_client import ManifestClient
@@ -65,10 +67,9 @@ _SAFE_METADATA_FIELDS = {
 class Stage06Route:
 
     def __init__(self, db: asyncpg.Connection, benchmark_svc: BenchmarkService,
-                 kafka_producer=None, manifest_client: Optional[ManifestClient] = None):
+                 manifest_client: Optional[ManifestClient] = None):
         self._db = db
         self._benchmark = benchmark_svc
-        self._kafka = kafka_producer  # optional: AiPipelineClient or aiokafka producer
         self._manifests = manifest_client  # optional — None falls back to static allowlist only
 
     async def _effective_safe_fields(self, tenant_id: str, doc_type: str) -> set[str]:
@@ -175,29 +176,54 @@ class Stage06Route:
                 message=f"ROUTED transaction failed for doc={document_id}: {exc}",
             ) from exc
 
-        # Publish DOC_ROUTED to prana.pipeline.events AFTER the transaction commits.
-        # Consumers: SSEFanoutConsumer (browser update), AnalyticsConsumer (vault health),
-        # WorkflowConsumer (VaultCompletenessWorkflow trigger).
-        # Fire-and-forget: a publish failure must not roll back the DB transaction.
-        if self._kafka:
-            try:
-                await self._kafka.publish(
-                    "prana.pipeline.events",
-                    {
-                        "event_type":   "DOC_ROUTED",
-                        "document_id":  document_id,
-                        "tenant_id":    tenant_id,
-                        "employee_uuid": employee_uuid,
-                        "pan_token":    pan_token,
-                        "doc_type":     doc_type,
-                        "doc_period":   doc_period,
-                        "pipeline_status": "ROUTED",
-                    },
-                    key=document_id,
+        # This employee's first-ever ROUTED document == first-time vault activation
+        # (employee_master rows are created earlier via HRMS sync; the vault has no
+        # dedicated "activated" column, so "any other ROUTED document already exists"
+        # is the signal). Checked post-commit so it reflects the row we just wrote.
+        is_first_activation = await self._db.fetchval(
+            """
+            SELECT NOT EXISTS(
+              SELECT 1 FROM document
+              WHERE employee_uuid=$1 AND pipeline_status='ROUTED' AND is_deleted=FALSE
+                AND document_id != $2
+            )
+            """,
+            employee_uuid, document_id,
+        )
+
+        # Notify prana-api AFTER the transaction commits — prana-ai has no Kafka
+        # credentials (internal-service-calls.md), so the actual DOC_ROUTED publish
+        # (and, on first activation, VAULT_ACTIVATED) happens in prana-api's
+        # /internal/pipeline/routed handler. Fire-and-forget: a notify failure must
+        # not roll back the DB transaction already committed above.
+        await self._notify_routed({
+            "document_id":           document_id,
+            "tenant_id":             tenant_id,
+            "employee_uuid":         employee_uuid,
+            "employee_user_id":      employee_user_id,
+            "pan_token":             pan_token,
+            "doc_type":              doc_type,
+            "doc_period":            doc_period,
+            "resolution_method":     resolution_method,
+            "resolution_confidence": resolution_confidence,
+            "is_first_activation":   is_first_activation,
+        })
+
+    async def _notify_routed(self, payload: dict) -> None:
+        try:
+            base_url = os.environ["PRANA_API_INTERNAL_URL"].rstrip("/")
+            async with httpx.AsyncClient(timeout=10) as client:
+                resp = await client.post(
+                    f"{base_url}/internal/pipeline/routed",
+                    json=payload,
+                    headers={"X-Internal-Service": "prana-ai"},
                 )
-            except Exception:
-                log.exception("DOC_ROUTED Kafka publish failed doc=%s — DB already committed",
-                              document_id)
+                resp.raise_for_status()
+        except Exception:
+            log.exception(
+                "notify /internal/pipeline/routed failed doc=%s — DB already committed",
+                payload.get("document_id"),
+            )
 
     async def raise_exception(
         self,

@@ -374,6 +374,7 @@ services:
     environment:
       <<: *prana-env
       PRANA_AI_SECRET: dev-secret
+      PRANA_API_INTERNAL_URL: http://prana-api:8000
       LLM_BASE_URL: http://ollama:11434/v1
       EXTRACTION_LLM_MODEL: qwen2.5:14b
       EMBEDDING_BASE_URL: http://ollama:11434/v1

@@ -53,11 +53,13 @@ class RoutedPayload(BaseModel):
     document_id:          str
     tenant_id:            str
     employee_uuid:        str
+    employee_user_id:     Optional[str] = None
     pan_token:            str
     doc_type:             str
     doc_period:           Optional[str] = None
     resolution_method:    str
     resolution_confidence: float
+    is_first_activation:  bool = False
 
 
 class ExceptionPayload(BaseModel):
@@ -101,6 +103,9 @@ async def pipeline_routed(payload: RoutedPayload, request: Request):
       - SSEFanoutConsumer → browser update
       - WorkflowConsumer  → VaultCompletenessWorkflow
       - AnalyticsConsumer → vault_health_score update
+    On is_first_activation, also publishes VAULT_ACTIVATED — triggers
+    employee_consumer.py's VaultActivationWorkflow (provisions the vault,
+    sends the welcome notification).
     """
     db = request.app.state.db_pool
     kafka = getattr(request.app.state, "kafka_producer", None)
@@ -154,6 +159,18 @@ async def pipeline_routed(payload: RoutedPayload, request: Request):
             )
         except Exception:
             log.exception("DOC_ROUTED publish failed doc=%s", payload.document_id)
+
+        if payload.is_first_activation:
+            try:
+                await kafka.employee_event({
+                    "event_type":       "VAULT_ACTIVATED",
+                    "employee_uuid":    payload.employee_uuid,
+                    "employee_user_id": payload.employee_user_id,
+                    "tenant_id":        payload.tenant_id,
+                })
+            except Exception:
+                log.exception("VAULT_ACTIVATED publish failed doc=%s employee_uuid=%s",
+                              payload.document_id, payload.employee_uuid)
 
     return {"accepted": True}
 

@@ -31,37 +31,61 @@ def test_stage06_sets_pipeline_status_to_routed():
         "designation is ordinary metadata and must be in the safe allowlist"
 
 
-def test_stage06_publishes_doc_routed_to_kafka():
-    # Stage06 publishes DOC_ROUTED to prana.pipeline.events AFTER the DB transaction commits.
-    # Consumers: SSEFanoutConsumer → browser SSE, AnalyticsConsumer → vault health,
-    # WorkflowConsumer → VaultCompletenessWorkflow.
+def test_stage06_notifies_prana_api_of_routing():
+    # Stage06 must NOT publish to Kafka directly (prana-ai has no Kafka credentials —
+    # see internal-service-calls.md). It notifies prana-api's /internal/pipeline/routed
+    # callback (the one sanctioned VPC-internal bypass), which does the actual
+    # DOC_ROUTED publish. AFTER the DB transaction commits.
     src = inspect.getsource(Stage06Route.route)
-    assert "DOC_ROUTED" in src, \
-        "Stage06.route must publish DOC_ROUTED event to Kafka after the DB transaction commits"
-    assert "prana.pipeline.events" in src, \
-        "Stage06 must publish to prana.pipeline.events (not prana.ingest.events)"
     assert "career_event" in src, \
         "Stage06 must also insert a career_event row"
+    assert "self._kafka" not in src, \
+        "Stage06 must not hold a Kafka producer — prana-ai has no Kafka credentials " \
+        "(internal-service-calls.md). Dead kafka_producer param/code must be removed, " \
+        "not just unused."
+    src_notify = inspect.getsource(Stage06Route._notify_routed)
+    assert "/internal/pipeline/routed" in src_notify
+    assert "X-Internal-Service" in src_notify
 
 
 @pytest.mark.asyncio
-async def test_stage06_kafka_publish_fires_after_db_commit():
-    """Kafka publish must be OUTSIDE the transaction block — fire-and-forget after commit."""
+async def test_stage06_notify_fires_after_db_commit_with_first_activation_flag(monkeypatch):
+    """Internal-service HTTP notify must be OUTSIDE the transaction block — fire-and-forget
+    after commit — and must tell prana-api whether this is the employee's first-ever
+    routed document (so prana-api can publish VAULT_ACTIVATED)."""
+    monkeypatch.setenv("PRANA_API_INTERNAL_URL", "http://prana-api.prod.internal:8000")
+
     mock_db = AsyncMock()
-    mock_db.fetchval.return_value = "emp-user-001"
+    mock_db.fetchval.side_effect = ["emp-user-001", True]  # employee_user_id, then is_first_activation
     mock_tx = MagicMock()
     mock_tx.__aenter__ = AsyncMock(return_value=mock_tx)
     mock_tx.__aexit__ = AsyncMock(return_value=False)
     mock_db.transaction = MagicMock(return_value=mock_tx)
 
-    mock_kafka = AsyncMock()
     mock_benchmark = AsyncMock()
     mock_benchmark.build_career_context = AsyncMock(return_value={})
 
     _EMP_UUID = "12345678-1234-5678-1234-567812345678"
     _TENANT_UUID = "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee"
 
-    svc = Stage06Route(db=mock_db, benchmark_svc=mock_benchmark, kafka_producer=mock_kafka)
+    svc = Stage06Route(db=mock_db, benchmark_svc=mock_benchmark)
+
+    captured = {}
+
+    class _FakeResp:
+        def raise_for_status(self): pass
+
+    class _FakeClient:
+        async def __aenter__(self): return self
+        async def __aexit__(self, *a): return False
+        async def post(self, url, json, headers, timeout=None):
+            captured["url"] = url
+            captured["json"] = json
+            captured["headers"] = headers
+            return _FakeResp()
+
+    monkeypatch.setattr("pipeline.stage06_route.httpx.AsyncClient", lambda *a, **kw: _FakeClient())
+
     await svc.route(
         document_id="doc-001", tenant_id=_TENANT_UUID,
         employee_uuid=_EMP_UUID, pan_token="pan-tok-001",
@@ -71,36 +95,47 @@ async def test_stage06_kafka_publish_fires_after_db_commit():
         s3_key="t/e/SALARY_SLIP/2025-05_doc-001.pdf",
     )
 
-    mock_kafka.publish.assert_called_once()
-    topic, payload = mock_kafka.publish.call_args[0]
-    assert topic == "prana.pipeline.events"
-    assert payload["event_type"] == "DOC_ROUTED"
+    assert captured["url"] == "http://prana-api.prod.internal:8000/internal/pipeline/routed"
+    assert captured["headers"] == {"X-Internal-Service": "prana-ai"}
+    payload = captured["json"]
     assert payload["document_id"] == "doc-001"
-    assert payload["pipeline_status"] == "ROUTED"
-    # Raw salary must NOT be in the Kafka payload
+    assert payload["employee_uuid"] == _EMP_UUID
+    assert payload["employee_user_id"] == "emp-user-001"
+    assert payload["is_first_activation"] is True
+    # Raw salary must NOT be in the outbound payload
     assert "gross_salary" not in payload
 
 
 @pytest.mark.asyncio
-async def test_stage06_kafka_failure_does_not_rollback_db():
-    """If Kafka publish fails, the DB transaction must already be committed — no rollback."""
+async def test_stage06_notify_failure_does_not_rollback_db(monkeypatch):
+    """If the internal-service HTTP call fails, the DB transaction must already be
+    committed — no rollback, and no exception propagates."""
+    monkeypatch.setenv("PRANA_API_INTERNAL_URL", "http://prana-api.prod.internal:8000")
+
     mock_db = AsyncMock()
-    mock_db.fetchval.return_value = "emp-user-001"
+    mock_db.fetchval.side_effect = ["emp-user-001", False]
     mock_tx = MagicMock()
     mock_tx.__aenter__ = AsyncMock(return_value=mock_tx)
     mock_tx.__aexit__ = AsyncMock(return_value=False)
     mock_db.transaction = MagicMock(return_value=mock_tx)
 
-    mock_kafka = AsyncMock()
-    mock_kafka.publish = AsyncMock(side_effect=Exception("Kafka broker unreachable"))
     mock_benchmark = AsyncMock()
     mock_benchmark.build_career_context = AsyncMock(return_value={})
 
     _EMP_UUID = "12345678-1234-5678-1234-567812345678"
     _TENANT_UUID = "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee"
 
-    svc = Stage06Route(db=mock_db, benchmark_svc=mock_benchmark, kafka_producer=mock_kafka)
-    # Must not raise — Kafka failure is logged and swallowed
+    svc = Stage06Route(db=mock_db, benchmark_svc=mock_benchmark)
+
+    class _FakeClient:
+        async def __aenter__(self): return self
+        async def __aexit__(self, *a): return False
+        async def post(self, *a, **kw):
+            raise Exception("prana-api unreachable")
+
+    monkeypatch.setattr("pipeline.stage06_route.httpx.AsyncClient", lambda *a, **kw: _FakeClient())
+
+    # Must not raise — notify failure is logged and swallowed
     await svc.route(
         document_id="doc-002", tenant_id=_TENANT_UUID,
         employee_uuid=_EMP_UUID, pan_token="pan-tok-001",
@@ -108,7 +143,7 @@ async def test_stage06_kafka_failure_does_not_rollback_db():
         extracted_fields={}, resolution_method="PAN_TOKEN_EXACT", resolution_confidence=0.95,
         s3_key="t/e/FORM_16/FY2024-25_doc-002.pdf",
     )
-    # DB transaction was entered (committed before Kafka was called)
+    # DB transaction was entered (committed before the HTTP call was made)
     mock_db.transaction.assert_called_once()
 
 
@@ -143,7 +178,7 @@ async def test_stage06_unknown_field_is_stripped_by_default():
     _EMP_UUID = "12345678-1234-5678-1234-567812345678"
     _TENANT_UUID = "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee"
 
-    svc = Stage06Route(db=mock_db, benchmark_svc=mock_benchmark, kafka_producer=None)
+    svc = Stage06Route(db=mock_db, benchmark_svc=mock_benchmark)
     await svc.route(
         document_id="doc-003", tenant_id=_TENANT_UUID,
         employee_uuid=_EMP_UUID, pan_token="pan-tok-001",
