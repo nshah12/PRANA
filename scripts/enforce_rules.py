@@ -201,6 +201,76 @@ def check_temporal_rules(service_root: Path):
 # ──────────────────────────────────────────────────────────────
 # DEPLOY-01: cross-service imports
 # ──────────────────────────────────────────────────────────────
+# ──────────────────────────────────────────────────────────────
+# COMM-01: Communication Hub — no channel vendor bypass
+#
+# prana-docs/COMMUNICATION_HUB_ARCHITECTURE.md §6. Nothing outside the
+# channel adapter services may call a channel vendor SDK/API or construct
+# EmailService/SMSService/WhatsAppService/IVRService directly, and nothing
+# outside CommunicationHubConsumer may publish straight to a channel topic
+# via notify_email()/notify_sms()/notify_whatsapp()/notify_bell()/notify_ivr().
+# Both close the same hole: a caller deciding the channel itself instead of
+# asking the Hub (NotificationTemplate + notification_channel_policy).
+# ──────────────────────────────────────────────────────────────
+COMM01_ADAPTER_FILES = {
+    "email_service.py", "sms_service.py", "whatsapp_service.py", "ivr_service.py",
+}
+COMM01_CONSTRUCTION_ALLOWED_FILES = COMM01_ADAPTER_FILES | {
+    "email_consumer.py", "sms_consumer.py", "whatsapp_consumer.py", "ivr_consumer.py",
+    # Narrow, deliberate remaining EmailService caller: platform_ops_service.py's
+    # NotificationDeliveryWorkflow activities (Temporal-driven delivery, not the
+    # Kafka Hub) — see notification_service.py's module docstring.
+    "notification_service.py",
+    # vault_shares.py's send_share_otp activity: the share-link OTP is an ad-hoc
+    # code generated inline by DocumentShareWorkflow, not a NotificationTemplate +
+    # recipient the Hub should route — it's Temporal-driven delivery (retry/backoff
+    # via the activity), same category as notification_service.py above.
+    "vault_shares.py",
+}
+COMM01_HUB_FILE = "communication_hub_consumer.py"
+
+COMM01_VENDOR_SDK_PATTERN = re.compile(
+    r'boto3\.client\(\s*["\'](?:ses|sns)["\']'
+    r'|graph\.facebook\.com'
+    r'|api\.exotel\.com'
+    r'|ozonetel\.com'
+    r'|api\.msg91\.com'
+)
+COMM01_CONSTRUCTION_PATTERN = re.compile(
+    r'\b(?:EmailService|SMSService|WhatsAppService|IVRService)\s*\('
+)
+COMM01_CHANNEL_PUBLISH_PATTERN = re.compile(
+    r'\.(?:notify_email|notify_sms|notify_whatsapp|notify_bell|notify_ivr)\s*\('
+)
+
+def check_comm01_rules(service_root: Path):
+    for py in service_root.rglob("*.py"):
+        rel_parts = py.relative_to(service_root).parts
+        if rel_parts[0] in {"tests", "scripts"} or "__pycache__" in rel_parts:
+            continue
+        src = py.read_text(encoding="utf-8", errors="ignore")
+        for i, line in enumerate(src.splitlines(), 1):
+            if "noqa: COMM-01" in line:
+                continue
+
+            if py.name not in COMM01_ADAPTER_FILES and COMM01_VENDOR_SDK_PATTERN.search(line):
+                err("COMM-01", f"{py.relative_to(ROOT)}:{i}",
+                    "direct channel-vendor SDK/API call outside its adapter service — "
+                    "SES/SNS/WABA/Exotel/Ozonetel/MSG91 calls belong only in "
+                    "services/{email,sms,whatsapp,ivr}_service.py")
+
+            if py.name not in COMM01_CONSTRUCTION_ALLOWED_FILES and COMM01_CONSTRUCTION_PATTERN.search(line):
+                err("COMM-01", f"{py.relative_to(ROOT)}:{i}",
+                    "EmailService/SMSService/WhatsAppService/IVRService constructed outside "
+                    "the Hub's channel consumers — publish kafka.communication_requested() instead")
+
+            if py.name != COMM01_HUB_FILE and COMM01_CHANNEL_PUBLISH_PATTERN.search(line):
+                err("COMM-01", f"{py.relative_to(ROOT)}:{i}",
+                    "direct publish to a channel topic outside CommunicationHubConsumer — "
+                    "use kafka.communication_requested(), the Hub resolves the channel(s) via "
+                    "notification_channel_policy")
+
+
 def check_deploy_rules():
     for service, forbidden in [
         (PRANA_AI, ["prana_api", "prana_ask"]),
@@ -512,6 +582,7 @@ for svc in [PRANA_API, PRANA_AI, PRANA_ASK]:
 check_api_rules(PRANA_API)
 check_kafka_rules(PRANA_API)
 check_temporal_rules(PRANA_API)
+check_comm01_rules(PRANA_API)
 check_deploy_rules()
 check_internal_call_rules()
 check_frontend_rules()
