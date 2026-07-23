@@ -35,6 +35,13 @@ class ConfigService:
         val = await self.get(key, tenant_id)
         return val.lower() == "true" if val is not None else None
 
+    async def get_list(self, key: str, tenant_id: Optional[str] = None) -> Optional[list]:
+        """Ordered lists (vendor chains, etc.) are stored as a JSON array string
+        in config_value (value_type='STRING') — same tenant→platform resolution
+        as get(), just JSON-decoded."""
+        val = await self.get(key, tenant_id)
+        return json.loads(val) if val is not None else None
+
     async def invalidate(self, key: str, tenant_id: Optional[str] = None) -> None:
         """Call after OA-Admin or PA updates a config value."""
         cache_key = f"cfg:{tenant_id or 'platform'}:{key}"

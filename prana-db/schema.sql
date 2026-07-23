@@ -1037,7 +1037,17 @@ INSERT INTO platform_config (config_key, config_value, value_type, description, 
   ('policy_lock_default_hours',          '24',          'DURATION_HOURS',    'PolicyLockWorkflow default lock duration when auto-lock is enabled', '1', '168'),
   ('platform_anomaly_check_minutes',     '5',           'DURATION_MINUTES',  'AnomalyDetectionWorkflow batch-scan interval', '1', '60'),
   ('pipeline_max_duration_hours',        '4',           'DURATION_HOURS',    'BatchTimeoutMonitorWorkflow: per-file ceiling before a document is marked a straggler', '1', '24'),
-  ('batch_max_duration_hours',           '24',          'DURATION_HOURS',    'BatchProgressWorkflow: whole-batch ceiling before remaining unfinished files are marked stragglers', '1', '168');
+  ('batch_max_duration_hours',           '24',          'DURATION_HOURS',    'BatchProgressWorkflow: whole-batch ceiling before remaining unfinished files are marked stragglers', '1', '168'),
+  -- Communication Hub — ordered vendor fallback chains, JSON array in a STRING
+  -- value (ConfigService.get_list() decodes it). See
+  -- prana-docs/COMMUNICATION_HUB_ARCHITECTURE.md §4. Tenant overrides go in
+  -- tenant_config with the same key, same JSON-array shape.
+  ('email_vendor_chain',    '["ses"]',                  'STRING', 'Ordered email vendor fallback chain (JSON array)', NULL, NULL),
+  ('sms_vendor_chain',      '["aws","exotel","msg91"]', 'STRING', 'Ordered SMS vendor fallback chain (JSON array)', NULL, NULL),
+  ('whatsapp_vendor_chain', '["waba"]',                 'STRING', 'Ordered WhatsApp vendor fallback chain (JSON array) — single vendor for v1', NULL, NULL),
+  ('ivr_vendor_chain',      '["exotel","ozonetel"]',    'STRING', 'Ordered IVR vendor fallback chain (JSON array)', NULL, NULL),
+  ('comm_circuit_breaker_failure_threshold', '5',  'INTEGER', 'Consecutive vendor failures before its circuit breaker opens', '1', '20'),
+  ('comm_circuit_breaker_open_seconds',      '60', 'INTEGER', 'How long a tripped circuit breaker stays open before the vendor is retried', '10', '3600');
 
 CREATE TABLE tenant_config (
   tenant_id     UUID         NOT NULL REFERENCES tenant(tenant_id),
@@ -1875,6 +1885,66 @@ INSERT INTO setup_checklist_item (tenant_id, item_key, title, description, displ
    'Confirm each document type''s field manifest has been reviewed and any tenant-custom fields tagged safe/unsafe.', 20, TRUE),
   (NULL, 'DPA_ACCEPTED', 'Data Processing Agreement accepted',
    'Confirm the organisation has accepted PRANA''s current Data Processing Agreement.', 30, TRUE)
+ON CONFLICT DO NOTHING;
+
+-- ============================================================
+-- LAYER 17: COMMUNICATION HUB — CHANNEL POLICY
+-- ============================================================
+-- Which channel(s) does each NotificationTemplate use? Previously scattered as
+-- inline per-handler decisions across kafka/consumers/notif_consumer.py (~15
+-- hardcoded methods) plus several call sites that picked a channel themselves
+-- and published straight to a per-channel topic, bypassing any central
+-- decision entirely. This table is the single source of truth
+-- CommunicationHubConsumer reads instead. See
+-- prana-docs/COMMUNICATION_HUB_ARCHITECTURE.md.
+--
+-- Same single-table, nullable-tenant_id, partial-unique-index shape as
+-- setup_checklist_item above — not platform_config/tenant_config's two-table
+-- split, since a plain scalar TEXT column can't hold an ordered channel list
+-- cleanly. tenant_id IS NULL = platform default; a tenant-specific row (if
+-- present) overrides it entirely — override, not setup_checklist_item's
+-- additive union.
+CREATE TABLE IF NOT EXISTS notification_channel_policy (
+  policy_id     UUID         PRIMARY KEY DEFAULT gen_random_uuid(),
+  template_id   VARCHAR(60)  NOT NULL,     -- NotificationTemplate member, e.g. 'ANOMALY_P0_ALERT'
+  tenant_id     UUID         REFERENCES tenant(tenant_id) ON DELETE CASCADE,  -- NULL = platform default
+  channels      TEXT[]       NOT NULL,     -- e.g. ARRAY['email','portal_bell']
+  updated_by    UUID,
+  updated_at    TIMESTAMPTZ  NOT NULL DEFAULT NOW()
+);
+CREATE UNIQUE INDEX IF NOT EXISTS uidx_channel_policy_platform ON notification_channel_policy(template_id)
+  WHERE tenant_id IS NULL;
+CREATE UNIQUE INDEX IF NOT EXISTS uidx_channel_policy_tenant ON notification_channel_policy(template_id, tenant_id)
+  WHERE tenant_id IS NOT NULL;
+CREATE INDEX IF NOT EXISTS idx_channel_policy_template ON notification_channel_policy(template_id);
+
+-- Seed platform-default policy for all 23 NotificationTemplate members, derived
+-- 1:1 from today's real inline decisions in notif_consumer.py (cross-checked
+-- against prana-docs/wireframes/notification_incident_matrix.html).
+INSERT INTO notification_channel_policy (tenant_id, template_id, channels) VALUES
+  (NULL, 'ANOMALY_P0_ALERT',             ARRAY['email','portal_bell']),
+  (NULL, 'ANOMALY_P1_ALERT',             ARRAY['email','portal_bell']),
+  (NULL, 'ANOMALY_P2_ALERT',             ARRAY['portal_bell']),
+  (NULL, 'ACCOUNT_LOCKED',               ARRAY['email','portal_bell']),
+  (NULL, 'CROSS_TENANT_UPLOAD_ALERT',    ARRAY['email','portal_bell']),
+  (NULL, 'AUDIT_INTEGRITY_MISMATCH',     ARRAY['email']),
+  (NULL, 'CSAM_ALERT',                   ARRAY['email']),
+  (NULL, 'DOC_ROUTED',                   ARRAY['push','whatsapp']),
+  (NULL, 'SHARE_ACCESSED',               ARRAY['email']),
+  (NULL, 'VAULT_WELCOME',                ARRAY['sms','email']),
+  (NULL, 'VAULT_WELCOME_REJOIN',         ARRAY['sms','email']),
+  (NULL, 'ERASURE_COMPLETE',             ARRAY['email']),
+  (NULL, 'EXPORT_READY',                 ARRAY['email']),
+  (NULL, 'EXCEPTION_ALERT',              ARRAY['email','portal_bell']),
+  (NULL, 'ELEVATION_APPROVED',           ARRAY['email']),
+  (NULL, 'ELEVATION_DENIED',             ARRAY['email']),
+  (NULL, 'OA_WELCOME',                   ARRAY['email']),
+  (NULL, 'EMPLOYEE_CREDENTIALS_ISSUED',  ARRAY['sms','email']),
+  (NULL, 'INCIDENT_CREATED',             ARRAY['email']),
+  (NULL, 'INCIDENT_SLA_BREACH',          ARRAY['email']),
+  (NULL, 'DIGEST_WEEKLY',                ARRAY['email']),
+  (NULL, 'STORAGE_EXPANSION_REQUESTED',  ARRAY['email']),
+  (NULL, 'ONBOARDING_REVIEW_SLA_BREACH', ARRAY['email'])
 ON CONFLICT DO NOTHING;
 
 -- ============================================================

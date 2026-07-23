@@ -171,6 +171,28 @@ class Settings(BaseSettings):
     msg91_auth_key:     str = ""
     msg91_template_id:  str = ""
 
+    # WhatsApp — Communication Hub channel (prana-docs/COMMUNICATION_HUB_ARCHITECTURE.md).
+    # Meta Cloud API (WABA) shape — the one real option for most Indian deployments,
+    # single-vendor chain for v1 (see §10 "out of scope"). "dev" logs to console.
+    whatsapp_provider:              str = "dev"     # dev | waba
+    whatsapp_waba_token:            str = ""        # Bearer token (Meta Cloud API access token)
+    whatsapp_waba_phone_number_id:  str = ""        # Meta Cloud API phone_number_id (in the send-message URL path)
+    whatsapp_waba_api_version:      str = "v20.0"   # Graph API version
+
+    # IVR — new Communication Hub channel, Exotel + Ozonetel (both configurable,
+    # ordered via ivr_vendor_chain in platform_config/tenant_config). "dev" logs
+    # to console. Exotel IVR shares exotel_sid/api_key/api_token with SMS above
+    # (same account) — only the flow reference is IVR-specific. Ozonetel is a
+    # separate vendor account entirely.
+    ivr_provider:            str = "dev"    # dev | exotel | ozonetel (informational — real
+                                             # selection is per-message via ivr_vendor_chain)
+    exotel_ivr_flow_id:      str = ""       # Exotel "Applet"/ExoML flow the call connects to
+    ozonetel_api_key:        str = ""
+    ozonetel_username:       str = ""
+    ozonetel_campaign_id:    str = ""       # verify exact param names against Ozonetel's current
+                                             # outbound-voice API docs before enabling in production —
+                                             # not independently verified against live vendor docs here
+
     # NCMEC CyberTipline — mandatory CSAM reporting (POCSO Act + IT Act). Empty
     # ncmec_report_url = dev mode: logs instead of calling out (see sms_provider
     # "dev" for the same pattern). Must be set in production — this is a legal
