@@ -525,7 +525,7 @@ async def notify_overdue_obligations(params: dict) -> None:
         await svc.notify_overdue_obligations(tenant_id=tenant_id, count=count)
     finally:
         await db.close()
-    # Publish to prana.notifications so NotifConsumer dispatches CHRO alert
+    # Publish to prana.notifications so CommunicationHubConsumer dispatches CHRO alert
     kafka = await get_kafka_producer()
     await kafka.publish(
         "prana.notifications",

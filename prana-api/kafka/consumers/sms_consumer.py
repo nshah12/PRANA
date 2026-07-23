@@ -1,9 +1,11 @@
 """
 SMSConsumer — prana.notifications.sms
 
-Dispatches SMS via MSG91 (primary) / Exotel (fallback).
-Respects DND opt-out stored in employee_user.phone_opt_out.
-Rate limit enforced via Redis before dispatch (3 OTP per 10 min already in CacheService).
+Real channel adapter: calls SMSService.send() directly (config-driven vendor
+chain — AWS SNS/Exotel/MSG91 — + circuit breaker, see services/sms_service.py)
+and writes notification_log itself. No longer routes through
+NotificationService.notify() (which stubbed SMS entirely — see
+prana-docs/COMMUNICATION_HUB_ARCHITECTURE.md §1, §7 step 4).
 """
 import json
 import logging
@@ -13,15 +15,21 @@ import asyncpg
 from aiokafka import AIOKafkaConsumer
 
 from config import Settings
-from services.notification_service import NotificationService, Channel, RecipientType
+from services.circuit_breaker import CircuitBreaker
+from services.config_service import ConfigService
+from services.notification_log import write_notification_log
+from services.notification_service import _SUBJECT_MAP
+from services.sms_service import SMSService
 
 log = logging.getLogger(__name__)
 GROUP_ID = "prana-sms-consumer"
 
 
 class SMSConsumer:
-    def __init__(self, settings: Settings, db_pool: Optional[asyncpg.Pool] = None) -> None:
+    def __init__(self, settings: Settings, db_pool: Optional[asyncpg.Pool] = None, redis=None) -> None:
+        self._settings = settings
         self._pool = db_pool
+        self._redis = redis
         self._consumer = AIOKafkaConsumer(
             "prana.notifications.sms",
             bootstrap_servers=settings.kafka_bootstrap_servers,
@@ -54,21 +62,33 @@ class SMSConsumer:
         if not phone or not template_id:
             log.warning("SMSConsumer: missing phone or template_id event_type=%s", event.get("event_type"))
             return
-        await self._send_sms(phone, template_id, event)
-
-    async def _send_sms(self, phone: str, template_id: str, event: dict) -> None:
         if not self._pool:
             return
         async with self._pool.acquire() as conn:
-            svc = NotificationService(db=conn)
-            await svc.notify(
+            config  = ConfigService(conn, self._redis)
+            breaker = CircuitBreaker(self._redis, config)
+            sms_svc = SMSService(self._settings, config, breaker)
+
+            template_data = event.get("template_data") or {}
+            body = _SUBJECT_MAP.get(template_id, "PRANA Notification")
+            sent, error = await sms_svc.send(
+                to=phone, body=body, tenant_id=event.get("tenant_id"),
+            )
+            await write_notification_log(
+                conn,
                 tenant_id=event.get("tenant_id"),
                 event_type=event.get("event_type", "SMS"),
                 recipient_id=str(event.get("recipient_id", "")),
-                recipient_type=RecipientType(event.get("recipient_type", "employee")),
+                recipient_type=str(event.get("recipient_type", "EMPLOYEE")).upper(),
                 recipient_phone=phone,
-                channel=Channel.SMS,
+                channel="SMS",
                 template_id=template_id,
-                template_data=event.get("template_data") or {},
+                template_data=template_data,
+                status="SENT" if sent else "FAILED",
+                error_message=error,
             )
-            log.info("SMSConsumer: dispatched %s → %s", template_id, phone[:6] + "****")
+            masked = phone[:6] + "****"
+            if sent:
+                log.info("SMSConsumer: dispatched %s → %s", template_id, masked)
+            else:
+                log.error("SMSConsumer: dispatch failed %s → %s error=%s", template_id, masked, error)

@@ -119,7 +119,7 @@ async def test_record_returns_error_id():
     db.execute = AsyncMock()
 
     svc = ErrorObservabilityService(db)
-    error_id = await svc.record(exc=_boom(), source="KAFKA_CONSUMER", source_detail="NotifConsumer")
+    error_id = await svc.record(exc=_boom(), source="KAFKA_CONSUMER", source_detail="CommunicationHubConsumer")
 
     assert error_id  # non-empty string
 

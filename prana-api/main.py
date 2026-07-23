@@ -18,7 +18,7 @@ from kafka.producer import KafkaPub, set_kafka_producer
 from kafka.consumers.audit_consumer import AuditConsumer
 from kafka.consumers.workflow_consumer import WorkflowConsumer
 from kafka.consumers.sse_fanout_consumer import SSEFanoutConsumer
-from kafka.consumers.notif_consumer import NotifConsumer
+from kafka.consumers.communication_hub_consumer import CommunicationHubConsumer
 from kafka.consumers.analytics_consumer import AnalyticsConsumer
 from kafka.consumers.cache_invalidation_consumer import CacheInvalidationConsumer
 from kafka.consumers.compliance_consumer import ComplianceConsumer
@@ -32,6 +32,7 @@ from kafka.consumers.email_consumer import EmailConsumer
 from kafka.consumers.sms_consumer import SMSConsumer
 from kafka.consumers.push_consumer import PushConsumer
 from kafka.consumers.whatsapp_consumer import WhatsAppConsumer
+from kafka.consumers.ivr_consumer import IVRConsumer
 from kafka.consumers.bell_consumer import BellConsumer
 from kafka.consumers.integration_consumer import IntegrationConsumer
 from kafka.consumers.platform_consumer import PlatformConsumer
@@ -381,7 +382,7 @@ async def lifespan(app: FastAPI):
             AuditConsumer(settings, app.state.db_pool, immudb_service=app.state.immudb_service),
             WorkflowConsumer(settings, app.state.temporal_client, app.state.db_pool),
             SSEFanoutConsumer(settings, app.state.redis),
-            NotifConsumer(settings, app.state.db_pool, kms_service=app.state.kms_service, redis=app.state.redis),
+            CommunicationHubConsumer(settings, app.state.db_pool, kms_service=app.state.kms_service),
             AnalyticsConsumer(settings, app.state.temporal_client, app.state.redis),
             CacheInvalidationConsumer(settings, app.state.redis, pod_id=pod_id),
             # Domain event consumers
@@ -394,10 +395,11 @@ async def lifespan(app: FastAPI):
             StatutoryConsumer(settings, db_pool=app.state.db_pool, temporal_client=app.state.temporal_client),
             SecurityConsumer(settings, db_pool=app.state.db_pool, temporal_client=app.state.temporal_client, redis=app.state.redis),
             # Notification channel consumers
-            EmailConsumer(settings, app.state.db_pool),
-            SMSConsumer(settings, app.state.db_pool),
+            EmailConsumer(settings, app.state.db_pool, redis=app.state.redis),
+            SMSConsumer(settings, app.state.db_pool, redis=app.state.redis),
             PushConsumer(settings, app.state.db_pool),
-            WhatsAppConsumer(settings, app.state.db_pool),
+            WhatsAppConsumer(settings, app.state.db_pool, redis=app.state.redis),
+            IVRConsumer(settings, app.state.db_pool, redis=app.state.redis),
             BellConsumer(settings, app.state.db_pool, app.state.redis),
             # Integration & platform consumers
             IntegrationConsumer(settings, app.state.db_pool, kafka, temporal_client=app.state.temporal_client),

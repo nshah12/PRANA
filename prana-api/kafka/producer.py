@@ -45,6 +45,13 @@ TOPIC_NOTIF_SMS      = "prana.notifications.sms"
 TOPIC_NOTIF_PUSH     = "prana.notifications.push"
 TOPIC_NOTIF_WA       = "prana.notifications.whatsapp"
 TOPIC_NOTIF_BELL     = "prana.notifications.portal_bell"
+TOPIC_NOTIF_IVR      = "prana.notifications.ivr"
+
+# Communication Hub intake topic — the one entrypoint any producer (consumer,
+# service, Temporal activity) should use to trigger a notification. Replaces
+# prana.notifications "in spirit" (prana-docs/COMMUNICATION_HUB_ARCHITECTURE.md
+# §2.1) — the old topic stays alive until every existing producer migrates.
+TOPIC_COMM           = "prana.communications.events"
 
 
 class KafkaPub:
@@ -142,20 +149,20 @@ class KafkaPub:
     async def employee_credentials_issued(self, event: dict) -> None:
         """EMPLOYEE_CREDENTIALS_ISSUED — fired only when EmployeeService.create()
         generated a real temp password (employer supplied mobile/email at push
-        time). Goes to TOPIC_NOTIF, same as doc_routed()'s NotifConsumer fan-out —
-        NotifConsumer._handle_employee_welcome turns this into an actual SMS/email."""
+        time). Goes to TOPIC_NOTIF, same as doc_routed()'s CommunicationHubConsumer fan-out —
+        CommunicationHubConsumer._handle_employee_welcome turns this into an actual SMS/email."""
         await self.publish(TOPIC_NOTIF, event, key=event.get("recipient_id", event.get("tenant_id")))
 
     async def share_accessed(self, event: dict) -> None:
         """SHARE_ACCESSED — notifies the document owner (employee) their share
-        was viewed. NotifConsumer._handle_dpdp_employee turns this into an email
+        was viewed. CommunicationHubConsumer._handle_dpdp_employee turns this into an email
         via the existing SHARE_ACCESSED template."""
         await self.publish(TOPIC_NOTIF, event, key=event.get("employee_user_id", event.get("tenant_id")))
 
     # ── Tenant events ─────────────────────────────────────────────────────────
 
     # TENANT_PROVISIONED needs the first OA-Admin notified by email (welcome + temp
-    # password) — dual-published to TOPIC_NOTIF so NotifConsumer's _handle_welcome fires.
+    # password) — dual-published to TOPIC_NOTIF so CommunicationHubConsumer's _handle_welcome fires.
     _TENANT_EVENTS_NEEDING_NOTIFY = {"TENANT_PROVISIONED"}
 
     async def tenant_event(self, event: dict) -> None:
@@ -176,7 +183,7 @@ class KafkaPub:
     # ── OA user events ────────────────────────────────────────────────────────
 
     # ELEVATION_APPROVED/DENIED need a real human (the requestor) notified by email —
-    # dual-published to TOPIC_NOTIF so NotifConsumer's _handle_elevation fires.
+    # dual-published to TOPIC_NOTIF so CommunicationHubConsumer's _handle_elevation fires.
     # ELEVATION_EXPIRED (bell, handled directly by OAUserConsumer) and OA_USER_CREATED
     # (welcome email, also sent directly by OAUserConsumer) are deliberately excluded —
     # dual-publishing either would double-send.
@@ -226,7 +233,7 @@ class KafkaPub:
     # ── Platform / ops events ─────────────────────────────────────────────────
 
     # Platform events that need a real human (PA) notified, not just ops/PagerDuty
-    # alerting — dual-published to TOPIC_NOTIF so NotifConsumer's "fan out to every
+    # alerting — dual-published to TOPIC_NOTIF so CommunicationHubConsumer's "fan out to every
     # active PA Admin" handlers (mirroring _handle_audit_integrity_mismatch) fire.
     _PLATFORM_EVENTS_NEEDING_PA_NOTIFY = {"STORAGE_EXPANSION_REQUESTED", "ONBOARDING_REVIEW_SLA_BREACH"}
 
@@ -259,6 +266,18 @@ class KafkaPub:
 
     async def notify_bell(self, event: dict) -> None:
         await self.publish(TOPIC_NOTIF_BELL, event, key=event.get("recipient_id", event.get("tenant_id")))
+
+    async def notify_ivr(self, event: dict) -> None:
+        await self.publish(TOPIC_NOTIF_IVR, event, key=event.get("recipient_id", event.get("tenant_id")))
+
+    # ── Communication Hub entrypoint ──────────────────────────────────────────
+
+    async def communication_requested(self, event: dict) -> None:
+        """The one way any caller should trigger a notification — names a
+        NotificationTemplate + recipient, never a channel. CommunicationHubConsumer
+        looks up notification_channel_policy and fans out to the decided channel(s).
+        See prana-docs/COMMUNICATION_HUB_ARCHITECTURE.md §2."""
+        await self.publish(TOPIC_COMM, event, key=event.get("recipient_id", event.get("tenant_id")))
 
 
 # ── Module-level factory (used by Temporal activities outside app lifecycle) ──

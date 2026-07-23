@@ -149,6 +149,45 @@ async def test_sms_returns_false_when_chain_not_configured():
     assert "chain" in error
 
 
+# ---------------------------------------------------------------------------
+# Generic send() — for template-based notifications (VAULT_WELCOME, etc.),
+# not OTP. Same vendor-chain/circuit-breaker machinery as send_otp, just an
+# arbitrary message body instead of a hardcoded OTP phrase.
+# ---------------------------------------------------------------------------
+
+@pytest.mark.asyncio
+async def test_sms_generic_send_dev_mode():
+    svc = SMSService(_settings(provider="dev"), _config(), _breaker())
+    with patch("services.sms_service.boto3.client") as mock_boto:
+        sent, error = await svc.send(to="+919876543210", body="Your PRANA vault is ready")
+    mock_boto.assert_not_called()
+    assert sent is True
+
+
+@pytest.mark.asyncio
+async def test_sms_generic_send_dispatches_body_text_via_chain():
+    config = _config(chain=["aws"])
+    svc = SMSService(_settings(provider="aws"), config, _breaker())
+    with patch("services.sms_service.boto3.client") as mock_boto:
+        mock_client = MagicMock()
+        mock_boto.return_value = mock_client
+        sent, error = await svc.send(to="+919876543210", body="Your PRANA vault is ready")
+
+    config.get_list.assert_called_once_with("sms_vendor_chain", None)
+    call_kwargs = mock_client.publish.call_args.kwargs
+    assert call_kwargs["Message"] == "Your PRANA vault is ready"
+    assert sent is True
+
+
+@pytest.mark.asyncio
+async def test_sms_generic_send_passes_tenant_id_through():
+    config = _config(chain=["aws"])
+    svc = SMSService(_settings(provider="aws"), config, _breaker())
+    with patch("services.sms_service.boto3.client"):
+        await svc.send(to="+919876543210", body="Hi", tenant_id="tenant-001")
+    config.get_list.assert_called_once_with("sms_vendor_chain", "tenant-001")
+
+
 @pytest.mark.asyncio
 async def test_sms_otp_value_never_logged(caplog):
     """OTP code must never appear in log records — only in the outbound message body."""

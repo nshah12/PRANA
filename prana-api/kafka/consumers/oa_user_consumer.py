@@ -12,11 +12,11 @@ Events handled:
   OA_USER_LOCKED           → start PolicyLockWorkflow
   ELEVATION_REQUESTED      → audit (workflow already started in HTTP handler)
   ELEVATION_APPROVED       → no action here — kafka.oa_user_event() dual-publishes
-                              this to TOPIC_NOTIF, where NotifConsumer._handle_elevation
+                              this to TOPIC_NOTIF, where CommunicationHubConsumer._handle_elevation
                               (resolves oa_user.email) sends the email
   ELEVATION_DENIED         → same as above
   ELEVATION_EXPIRED        → notify requestor (bell) — the one elevation outcome
-                              NotifConsumer doesn't handle, so this consumer owns it
+                              CommunicationHubConsumer doesn't handle, so this consumer owns it
   ROLE_CHANGED             → audit (fanned out to prana.audit.events by
                               kafka.oa_user_event() already — nothing to do here for
                               that part) + PRIVILEGE_ESCALATION detection: publishes
@@ -108,10 +108,10 @@ class OAUserConsumer:
 
         elif etype in ("ELEVATION_APPROVED", "ELEVATION_DENIED"):
             # No email here — kafka.oa_user_event() dual-publishes these two event
-            # types to TOPIC_NOTIF, where NotifConsumer._handle_elevation (already
+            # types to TOPIC_NOTIF, where CommunicationHubConsumer._handle_elevation (already
             # correct: resolves oa_user.email, uses template_data) owns the send.
             # Sending from both places would double-notify the requestor.
-            log.debug("OAUserConsumer: %s email handled by NotifConsumer via TOPIC_NOTIF dual-publish", etype)
+            log.debug("OAUserConsumer: %s email handled by CommunicationHubConsumer via TOPIC_NOTIF dual-publish", etype)
 
         elif etype == "ROLE_CHANGED":
             await self._detect_privilege_escalation(event)

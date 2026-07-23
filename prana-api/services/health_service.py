@@ -93,7 +93,7 @@ class HealthService:
     async def _notify_pa(self, service: str, severity: str, incident_id: str, detail: str) -> None:
         """
         Write a notification audit event. PA sees it in the portal immediately.
-        In production this also sends email/SMS via NotifConsumer reading prana.notifications.
+        In production this also sends email/SMS via CommunicationHubConsumer reading prana.notifications.
         """
         try:
             await self._db.execute(

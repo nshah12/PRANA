@@ -1,7 +1,15 @@
 """
 NotificationService — writes notification_log and dispatches via channel.
 
-Called exclusively by NotifConsumer — never from HTTP handlers.
+As of the Communication Hub redesign (prana-docs/COMMUNICATION_HUB_ARCHITECTURE.md),
+CommunicationHubConsumer and the per-channel consumers (EmailConsumer,
+SMSConsumer, WhatsAppConsumer, IVRConsumer) no longer call notify() —
+they publish/consume via Kafka and dispatch through {Channel}Service directly,
+using services/notification_log.py for the notification_log write.
+notify()/notify_anomaly() remain here for their one real remaining caller,
+services/platform_ops_service.py's NotificationDeliveryWorkflow activities
+(a Temporal-driven delivery path, separate from the Kafka Hub) — never call
+this from HTTP handlers.
 Privacy guards: template_data must not contain PAN or raw salary keys.
 """
 import json

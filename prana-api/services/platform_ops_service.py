@@ -10,7 +10,7 @@ registered in worker.py but nothing anywhere calls start_workflow for either —
 real webhook retry already happens ad-hoc in kafka/consumers/integration_consumer.py
 (against a table, api_ingest_log, that doesn't actually exist — see the
 separately-flagged bug), and real notification delivery already happens via
-NotifConsumer -> NotificationService directly. Both activities below are real
+CommunicationHubConsumer -> NotificationService directly. Both activities below are real
 and correct so the workflows work if something starts them, but neither is
 currently reachable in production.
 """

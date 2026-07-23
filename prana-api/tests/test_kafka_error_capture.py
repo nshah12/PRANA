@@ -25,13 +25,13 @@ async def test_records_via_error_observability_service_when_pool_present():
     ))
 
     await record_consumer_error(
-        db_pool, consumer_name="NotifConsumer", exc=_boom(),
+        db_pool, consumer_name="CommunicationHubConsumer", exc=_boom(),
         event_type="ANOMALY_DETECTED", event_id="evt-1",
     )
 
     insert_calls = [c for c in mock_db.execute.call_args_list if "INSERT INTO error_event" in c.args[0]]
     assert len(insert_calls) == 1
-    assert "NotifConsumer" in insert_calls[0].args
+    assert "CommunicationHubConsumer" in insert_calls[0].args
     assert "evt-1" in insert_calls[0].args
 
 

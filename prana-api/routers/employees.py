@@ -92,7 +92,7 @@ def _svc(request: Request, db: DbConn) -> EmployeeService:
 async def _publish_credentials_issued(kafka, *, employee_user_id: str, tenant_id: str) -> None:
     """Fires only when EmployeeService.create() actually generated a temp password
     (i.e. the employer supplied mobile/email at push time). Never puts the plaintext
-    temp password in the event: same privacy call NotifConsumer._handle_welcome
+    temp password in the event: same privacy call CommunicationHubConsumer._handle_welcome
     already makes for OA's temp password."""
     if not kafka:
         return

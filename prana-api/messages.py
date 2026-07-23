@@ -9,7 +9,7 @@ Companion to errors.py. Together they cover every code the backend emits:
               → StatusCode          — pipeline_status display labels
               → NotificationTemplate — template_id for outbound notifications
                                        (email/SMS/WhatsApp/push/bell), consumed by
-                                       NotificationService._SUBJECT_MAP and NotifConsumer.
+                                       NotificationService._SUBJECT_MAP and CommunicationHubConsumer.
                                        Not cross-checked for uniqueness against the other
                                        enums below — a template intentionally shares its
                                        name with the SuccessCode/event_type for the same

@@ -362,7 +362,7 @@ class ComplianceService:
 
     async def notify_overdue_obligations(self, tenant_id: str, count: int) -> None:
         """
-        Publishes COMPLIANCE_OVERDUE_ALERT to prana.notifications so NotifConsumer
+        Publishes COMPLIANCE_OVERDUE_ALERT to prana.notifications so CommunicationHubConsumer
         sends an alert to the CHRO via email and portal bell.
         Caller (Temporal activity) provides the kafka producer via params.
         This method inserts the notification record in audit_event as a fallback

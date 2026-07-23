@@ -109,7 +109,7 @@ async def send_share_otp(params: dict) -> None:
 @activity.defn(name="notify_share_accessed")
 async def notify_share_accessed(params: dict) -> None:
     """Notifies the document owner (employee) their share was accessed —
-    routed through NotifConsumer's existing SHARE_ACCESSED template."""
+    routed through CommunicationHubConsumer's existing SHARE_ACCESSED template."""
     from kafka.producer import get_kafka_producer
 
     kafka = await get_kafka_producer()

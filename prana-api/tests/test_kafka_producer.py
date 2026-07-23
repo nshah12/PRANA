@@ -63,8 +63,8 @@ async def test_worker_crashed_does_not_reach_notif_topic():
 
 # ── oa_user_event() / tenant_event() dual-publish for notification-worthy events ──
 # Regression coverage for a confirmed gap: ELEVATION_APPROVED/DENIED and
-# TENANT_PROVISIONED never reached NotifConsumer (only TOPIC_OA_USERS/TOPIC_TENANT +
-# TOPIC_AUDIT), even though NotifConsumer's _handle_elevation/_handle_welcome are
+# TENANT_PROVISIONED never reached CommunicationHubConsumer (only TOPIC_OA_USERS/TOPIC_TENANT +
+# TOPIC_AUDIT), even though CommunicationHubConsumer's _handle_elevation/_handle_welcome are
 # fully correct, already-tested handlers for exactly these event types — they were
 # just unreachable dead code because nothing ever published there.
 
@@ -92,7 +92,7 @@ async def test_elevation_denied_reaches_notif_topic():
 @pytest.mark.asyncio
 async def test_elevation_expired_does_not_reach_notif_topic():
     """ELEVATION_EXPIRED stays a bell-only notification via OAUserConsumer — it
-    isn't handled by NotifConsumer, so dual-publishing it would be a no-op at best."""
+    isn't handled by CommunicationHubConsumer, so dual-publishing it would be a no-op at best."""
     pub = _make_pub()
     await pub.oa_user_event({"event_type": "ELEVATION_EXPIRED", "tenant_id": "t-1", "oa_user_id": "oa-1"})
     topics = [c.args[0] for c in pub.publish.call_args_list]

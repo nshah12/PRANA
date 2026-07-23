@@ -73,7 +73,7 @@ async def test_oa_user_locked_starts_policy_lock_workflow(consumer):
 
 @pytest.mark.asyncio
 async def test_elevation_approved_no_longer_sends_email_directly(consumer):
-    """ELEVATION_APPROVED/DENIED emails are now owned by NotifConsumer's
+    """ELEVATION_APPROVED/DENIED emails are now owned by CommunicationHubConsumer's
     _handle_elevation (already correct: looks up oa_user.email, uses
     template_data) — reachable because kafka.oa_user_event() dual-publishes
     these two event types to TOPIC_NOTIF. OAUserConsumer must not also send its

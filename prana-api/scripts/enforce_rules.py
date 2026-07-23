@@ -358,12 +358,12 @@ def check_no_audit_delete():
 check_no_audit_delete()
 
 # ── [SEC-05] No direct external HTTP calls from routers ──────────────────────
-# External calls (SMS, email, WhatsApp, EPFO) must go via Kafka → NotifConsumer.
+# External calls (SMS, email, WhatsApp, EPFO) must go via Kafka → CommunicationHubConsumer.
 # Exception: KMS and S3 are synchronous and allowed in handlers.
 scan_py(
     API_ROOT / "routers", "SEC-05",
     r'(requests\.(get|post|put|delete|patch)|aiohttp\.ClientSession|httpx\.(get|post|put|delete))',
-    "Direct external HTTP call in router. Must go through Kafka → NotifConsumer. "
+    "Direct external HTTP call in router. Must go through Kafka → CommunicationHubConsumer. "
     "Exception: KMS and S3 (sync, required for document handling).",
     exclude_pattern=r"(#\s*sec05-direct-ok|kms|s3|boto)",
 )

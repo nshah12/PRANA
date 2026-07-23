@@ -224,7 +224,7 @@ async def stage05_handle_cross_tenant_violation(params: dict) -> dict:
     1. Write anomaly_event (CROSS_TENANT_UPLOAD_ATTEMPT, CRITICAL/P0)
     2. Set document.pipeline_status = 'REJECTED'
     3. Publish to prana.audit.events → AuditConsumer writes audit_event
-    4. Publish to prana.notifications → NotifConsumer alerts Tenant CISO + PA Admin
+    4. Publish to prana.notifications → CommunicationHubConsumer alerts Tenant CISO + PA Admin
     """
     import asyncpg, uuid
     settings = get_settings()
@@ -281,7 +281,7 @@ async def stage05_handle_cross_tenant_violation(params: dict) -> dict:
                 "severity":            "CRITICAL",
             }, key=uploading_tenant_id)
 
-            # Alert Tenant CISO + PA Admin (email + bell, via NotifConsumer)
+            # Alert Tenant CISO + PA Admin (email + bell, via CommunicationHubConsumer)
             await kafka.publish("prana.notifications", {
                 "event_type":          "CROSS_TENANT_UPLOAD",
                 "document_id":         document_id,
@@ -811,7 +811,7 @@ async def provision_tenant(params: dict) -> dict:
     Full tenant provisioning:
       1. Create KMS KEK for tenant
       2. Create first OA-Admin account (force_reset=TRUE, temp password)
-      3. Publish TENANT_PROVISIONED to Kafka → NotifConsumer sends welcome email
+      3. Publish TENANT_PROVISIONED to Kafka → CommunicationHubConsumer sends welcome email
       4. Mark tenant ACTIVE
     """
     import asyncpg, uuid, datetime as _dt
@@ -890,7 +890,7 @@ async def provision_tenant(params: dict) -> dict:
                     "Kong consumer registration failed tenant=%s — retry via PA console", tenant_id
                 )
 
-        # 5. Publish to Kafka → NotifConsumer sends welcome email with temp password
+        # 5. Publish to Kafka → CommunicationHubConsumer sends welcome email with temp password
         try:
             from kafka.producer import KafkaPub
             kafka = KafkaPub(settings)

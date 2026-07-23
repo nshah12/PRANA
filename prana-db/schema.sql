@@ -1469,7 +1469,7 @@ CREATE TABLE IF NOT EXISTS notification_log (
   recipient_type   VARCHAR(20)  NOT NULL,     -- EMPLOYEE | OA_USER | PORTAL_ADMIN
   recipient_email  TEXT,
   recipient_phone  TEXT,
-  channel          VARCHAR(20)  NOT NULL,     -- EMAIL | SMS | WHATSAPP | PUSH | PORTAL_BELL
+  channel          VARCHAR(20)  NOT NULL,     -- EMAIL | SMS | WHATSAPP | PUSH | PORTAL_BELL | IVR
   template_id      VARCHAR(50)  NOT NULL,
   template_data    JSONB,
   status           VARCHAR(20)  NOT NULL DEFAULT 'QUEUED',  -- QUEUED | SENT | FAILED

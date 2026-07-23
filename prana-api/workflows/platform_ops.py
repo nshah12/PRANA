@@ -502,7 +502,7 @@ class NotificationDeliveryWorkflow:
     """
     Durable delivery of a notification (push / email / SMS) to an employee.
     Primary channel → fallback channel if primary fails.
-    Consumed by NotifConsumer from prana.notifications Kafka topic.
+    Consumed by CommunicationHubConsumer from prana.notifications Kafka topic.
     """
 
     @workflow.run
@@ -631,7 +631,7 @@ class OnboardingReviewSLAWorkflow:
     """
     Tracks Portal Admin review SLA for tenant onboarding applications.
     PA must approve or reject within domain_verification_max_hours (default 48).
-    On SLA breach: notifies every active PA Admin (email, via NotifConsumer's
+    On SLA breach: notifies every active PA Admin (email, via CommunicationHubConsumer's
     _handle_onboarding_review_sla_breach) — PRANA has no PA sub-hierarchy to
     escalate "up" to, so all active PAs are the escalation target.
     """

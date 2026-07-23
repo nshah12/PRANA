@@ -93,7 +93,7 @@ async def test_oa_user_email_domain_mismatch_rejected(client, mock_db):
 @pytest.mark.asyncio
 async def test_oa_user_welcome_email_dispatched_via_kafka(client, mock_db, mock_kafka):
     """On successful OA user creation, a welcome email event must be published to Kafka.
-    The NotifConsumer dispatches the actual email — not the HTTP handler directly.
+    The CommunicationHubConsumer dispatches the actual email — not the HTTP handler directly.
     """
     _set_auth(client, role="oa_admin", tenant_id="tenant-001")
     mock_db.fetchrow.return_value = {"domain": "acme.com"}

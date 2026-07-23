@@ -76,7 +76,7 @@ async def test_cross_tenant_violation_uses_policy_resolved_severity():
     # (which owns the CISO real-time SSE dashboard alert) subscribes only to
     # prana.security.events, so its CROSS_TENANT_UPLOAD_DETECTED branch was
     # permanently unreachable dead code and the live dashboard never got pinged
-    # (email+bell notification via NotifConsumer still worked independently).
+    # (email+bell notification via CommunicationHubConsumer still worked independently).
     topics_published = [c.args[0] for c in mock_kafka.publish.call_args_list]
     assert "prana.security.events" in topics_published
     security_call = next(c for c in mock_kafka.publish.call_args_list if c.args[0] == "prana.security.events")

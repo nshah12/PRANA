@@ -52,7 +52,7 @@ async def test_exact_match():
     db.fetch = AsyncMock(return_value=[_rule("ERROR_OBSERVABILITY", "EXACT", "AuthConsumer", "P1", 10)])
     svc = SeverityPolicyService(db)
     assert await svc.resolve_severity(domain="ERROR_OBSERVABILITY", value="AuthConsumer") == "P1"
-    assert await svc.resolve_severity(domain="ERROR_OBSERVABILITY", value="NotifConsumer") is None
+    assert await svc.resolve_severity(domain="ERROR_OBSERVABILITY", value="CommunicationHubConsumer") is None
 
 
 # ── resolve_severity — threshold semantics (the tricky part) ───────────────

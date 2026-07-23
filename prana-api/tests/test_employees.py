@@ -505,7 +505,7 @@ async def test_bulk_import_passes_mobile_email_columns_through(client, mock_db, 
 
 @pytest.mark.asyncio
 async def test_bulk_import_publishes_credentials_issued_when_temp_password_returned(client, mock_db, mock_kafka):
-    """Previously nothing ever published an event NotifConsumer could turn into a
+    """Previously nothing ever published an event CommunicationHubConsumer could turn into a
     notification for a newly-created employee — this closes that loop."""
     _set_auth(client, role="oa_admin", tenant_id="tenant-001")
     mock_db.fetchrow.return_value = {"kek_arn": "arn:aws:kms:ap-south-1:123:key/abc"}

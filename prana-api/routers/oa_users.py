@@ -151,7 +151,7 @@ async def resend_welcome_email(
     current=Depends(require_oa("oa_admin")),
 ):
     """Re-trigger the OA_WELCOME email for a user whose original email bounced —
-    via NotifConsumer/EmailConsumer, never sent directly from the HTTP handler."""
+    via CommunicationHubConsumer/EmailConsumer, never sent directly from the HTTP handler."""
     row = await db.fetchrow(
         "SELECT oa_user_id, email FROM oa_user WHERE oa_user_id = $1 AND tenant_id = $2",
         oa_user_id, current.tenant_id,

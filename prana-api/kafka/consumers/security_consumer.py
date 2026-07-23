@@ -94,7 +94,7 @@ class SecurityConsumer:
         prana-docs/SEVERITY_SLA_POLICY_DESIGN.md §4. Severity is trusted from the
         publisher if present (the anomaly-detection engine resolves it precisely
         with real occurrence/window context); otherwise resolved here via the
-        same shared policy lookup notif_consumer.py uses, so the two consumers
+        same shared policy lookup communication_hub_consumer.py uses, so the two consumers
         can no longer disagree on a default."""
         tenant_id = event.get("tenant_id")
         rule_name = event.get("rule_name") or event.get("anomaly_type") or "UNKNOWN_ANOMALY"
