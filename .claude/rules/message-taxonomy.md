@@ -24,7 +24,7 @@ Adding a new language = one new JSON file. Zero backend changes.
 | File | Contents | Who uses it |
 |------|----------|-------------|
 | `prana-api/errors.py` | `PranaError(StrEnum)` — ~85 error codes | All prana-api routers, prana-ask main.py |
-| `prana-api/messages.py` | `SuccessCode`, `InfoCode`, `ValidationCode`, `StatusCode` | All prana-api routers, Kafka consumers |
+| `prana-api/messages.py` | `SuccessCode`, `InfoCode`, `ValidationCode`, `StatusCode`, `NotificationTemplate` | All prana-api routers, Kafka consumers |
 | `prana-ai/pipeline/errors.py` | `PipelineError(StrEnum)` — ~80 pipeline stage error codes | prana-ai pipeline stages |
 | `prana-ask/errors.py` | `AskError(StrEnum)` — 7 codes | prana-ask main.py |
 | `prana-portal/src/i18n/en.json` | Master English locale — all ~280 codes | Portal (React) via t() |
@@ -64,6 +64,38 @@ return success_response(SuccessCode.MY_ACTION_DONE, extra_field=value)
 # 3. Add to both locale JSON files
 # "success": { "MY_ACTION_DONE": "Action completed successfully." }
 ```
+
+### New notification template in prana-api
+
+`NotificationTemplate` is a distinct family from the other four — it identifies
+outbound content for external channels (email/SMS/WhatsApp/push/portal bell),
+not an API response code the frontend maps via `t()`. It has no locale JSON
+entry — the "display text" is `notification_service.py`'s `_SUBJECT_MAP` (email
+subject) plus whatever the SES/SMS/push provider template renders, not
+`en.json`. Added 2026-07-23 — was previously bare string literals scattered
+across `notification_service.py`/`notif_consumer.py`, invisible to MSG-01/MSG-02
+and with no single place to see every template that exists.
+
+```python
+# 1. Add to messages.py
+class NotificationTemplate(StrEnum):
+    MY_NEW_TEMPLATE = "MY_NEW_TEMPLATE"
+
+# 2. Add its subject line to notification_service.py's _SUBJECT_MAP —
+#    enforced by tests/test_messages.py::test_every_notification_template_has_a_subject_line
+_SUBJECT_MAP = {
+    NotificationTemplate.MY_NEW_TEMPLATE: "Your PRANA ...",
+    ...
+}
+
+# 3. Use in NotifConsumer / NotificationService
+await svc.notify(..., template_id=NotificationTemplate.MY_NEW_TEMPLATE, ...)
+```
+
+Unlike the other 4 families, a `NotificationTemplate` member is allowed to
+share its name with a `SuccessCode`/Kafka `event_type` for the same underlying
+event (e.g. `ELEVATION_APPROVED` is both) — different namespace, same event
+name by design. `test_no_code_overlap_across_enums` does not include it.
 
 ### New error in prana-ai / prana-ask
 

@@ -50,6 +50,7 @@ import asyncpg
 from aiokafka import AIOKafkaConsumer
 
 from config import Settings
+from messages import NotificationTemplate
 from services.encryption_service import resolve_platform_auth_kek_arn
 from services.notification_service import NotificationService, Channel, RecipientType
 from services.incident_service import IncidentService
@@ -119,11 +120,11 @@ class NotifConsumer:
         elif etype == "CROSS_TENANT_UPLOAD":
             await self._handle_cross_tenant_upload(event, svc, conn)
         elif etype == "DPDP_ERASURE_DONE":
-            await self._handle_dpdp_employee(event, svc, conn, template_id="ERASURE_COMPLETE")
+            await self._handle_dpdp_employee(event, svc, conn, template_id=NotificationTemplate.ERASURE_COMPLETE)
         elif etype == "DPDP_EXPORT_READY":
-            await self._handle_dpdp_employee(event, svc, conn, template_id="EXPORT_READY")
+            await self._handle_dpdp_employee(event, svc, conn, template_id=NotificationTemplate.EXPORT_READY)
         elif etype == "SHARE_ACCESSED":
-            await self._handle_dpdp_employee(event, svc, conn, template_id="SHARE_ACCESSED")
+            await self._handle_dpdp_employee(event, svc, conn, template_id=NotificationTemplate.SHARE_ACCESSED)
         elif etype == "AUDIT_INTEGRITY_MISMATCH":
             await self._handle_audit_integrity_mismatch(event, svc, conn)
         elif etype in ("VAULT_WELCOME", "VAULT_WELCOME_REJOIN", "EMPLOYEE_CREDENTIALS_ISSUED"):
@@ -210,7 +211,7 @@ class NotifConsumer:
             recipient_id=emp_id,
             recipient_type=RecipientType.EMPLOYEE,
             channel=Channel.PUSH,
-            template_id="DOC_ROUTED",
+            template_id=NotificationTemplate.DOC_ROUTED,
             template_data={"doc_type": doc_type},
         )
         # WhatsApp cascade
@@ -221,7 +222,7 @@ class NotifConsumer:
             recipient_type=RecipientType.EMPLOYEE,
             recipient_phone=self._decrypt_mobile(row["enc_mobile"]),
             channel=Channel.WHATSAPP,
-            template_id="DOC_ROUTED",
+            template_id=NotificationTemplate.DOC_ROUTED,
             template_data={"doc_type": doc_type},
         )
 
@@ -246,7 +247,7 @@ class NotifConsumer:
                 recipient_type=RecipientType.OA_USER,
                 recipient_email=row["email"],
                 channel=Channel.EMAIL,
-                template_id="EXCEPTION_ALERT",
+                template_id=NotificationTemplate.EXCEPTION_ALERT,
                 template_data=template_data,
             )
             await svc.notify(
@@ -255,7 +256,7 @@ class NotifConsumer:
                 recipient_id=str(row["oa_user_id"]),
                 recipient_type=RecipientType.OA_USER,
                 channel=Channel.PORTAL_BELL,
-                template_id="EXCEPTION_ALERT",
+                template_id=NotificationTemplate.EXCEPTION_ALERT,
                 template_data=template_data,
             )
 
@@ -273,7 +274,8 @@ class NotifConsumer:
         if not row:
             return
 
-        template_id   = "ELEVATION_APPROVED" if approved else "ELEVATION_DENIED"
+        template_id   = (NotificationTemplate.ELEVATION_APPROVED if approved
+                          else NotificationTemplate.ELEVATION_DENIED)
         template_data = {"duration_hours": event.get("duration_hours", "")} if approved else {}
         event_type    = "ELEVATION_APPROVED" if approved else "ELEVATION_DENIED"
 
@@ -308,7 +310,7 @@ class NotifConsumer:
             recipient_type=RecipientType.OA_USER,
             recipient_email=recipient,
             channel=Channel.EMAIL,
-            template_id="OA_WELCOME",
+            template_id=NotificationTemplate.OA_WELCOME,
             template_data={"login_url": login_url},
         )
 
@@ -340,6 +342,11 @@ class NotifConsumer:
             log.warning("%s: no delivery channel for employee_user_id=%s", etype, emp_id)
             return
 
+        # etype is one of the 3 values this handler is dispatched for (see
+        # _dispatch's "in (...)" check above) — all 3 are real NotificationTemplate
+        # members, so this doubles as a defensive validation of that invariant.
+        template_id = NotificationTemplate(etype)
+
         if mobile:
             await svc.notify(
                 tenant_id=tenant_id,
@@ -348,7 +355,7 @@ class NotifConsumer:
                 recipient_type=RecipientType.EMPLOYEE,
                 recipient_phone=mobile,
                 channel=Channel.SMS,
-                template_id=etype,
+                template_id=template_id,
                 template_data={},
             )
         if row["email"]:
@@ -359,7 +366,7 @@ class NotifConsumer:
                 recipient_type=RecipientType.EMPLOYEE,
                 recipient_email=row["email"],
                 channel=Channel.EMAIL,
-                template_id=etype,
+                template_id=template_id,
                 template_data={},
             )
 
@@ -380,7 +387,7 @@ class NotifConsumer:
                 recipient_type=RecipientType.OA_USER,
                 recipient_email=ciso["email"],
                 channel=Channel.EMAIL,
-                template_id="ACCOUNT_LOCKED",
+                template_id=NotificationTemplate.ACCOUNT_LOCKED,
                 template_data=template_data,
             )
             await svc.notify(
@@ -389,7 +396,7 @@ class NotifConsumer:
                 recipient_id=str(ciso["oa_user_id"]),
                 recipient_type=RecipientType.OA_USER,
                 channel=Channel.PORTAL_BELL,
-                template_id="ACCOUNT_LOCKED",
+                template_id=NotificationTemplate.ACCOUNT_LOCKED,
                 template_data=template_data,
             )
 
@@ -416,7 +423,7 @@ class NotifConsumer:
                 recipient_type=RecipientType.OA_USER,
                 recipient_email=ciso["email"],
                 channel=Channel.EMAIL,
-                template_id="CROSS_TENANT_UPLOAD_ALERT",
+                template_id=NotificationTemplate.CROSS_TENANT_UPLOAD_ALERT,
                 template_data=template_data,
             )
             await svc.notify(
@@ -425,7 +432,7 @@ class NotifConsumer:
                 recipient_id=str(ciso["oa_user_id"]),
                 recipient_type=RecipientType.OA_USER,
                 channel=Channel.PORTAL_BELL,
-                template_id="CROSS_TENANT_UPLOAD_ALERT",
+                template_id=NotificationTemplate.CROSS_TENANT_UPLOAD_ALERT,
                 template_data=template_data,
             )
 
@@ -441,7 +448,7 @@ class NotifConsumer:
                 recipient_type=RecipientType.OA_USER,
                 recipient_email=pa["email"],
                 channel=Channel.EMAIL,
-                template_id="CROSS_TENANT_UPLOAD_ALERT",
+                template_id=NotificationTemplate.CROSS_TENANT_UPLOAD_ALERT,
                 template_data=template_data,
             )
 
@@ -466,7 +473,7 @@ class NotifConsumer:
                 recipient_type=RecipientType.OA_USER,
                 recipient_email=pa["email"],
                 channel=Channel.EMAIL,
-                template_id="AUDIT_INTEGRITY_MISMATCH",
+                template_id=NotificationTemplate.AUDIT_INTEGRITY_MISMATCH,
                 template_data=template_data,
             )
 
@@ -492,7 +499,7 @@ class NotifConsumer:
                 recipient_type=RecipientType.OA_USER,
                 recipient_email=pa["email"],
                 channel=Channel.EMAIL,
-                template_id="STORAGE_EXPANSION_REQUESTED",
+                template_id=NotificationTemplate.STORAGE_EXPANSION_REQUESTED,
                 template_data=template_data,
             )
 
@@ -513,7 +520,7 @@ class NotifConsumer:
                 recipient_type=RecipientType.OA_USER,
                 recipient_email=pa["email"],
                 channel=Channel.EMAIL,
-                template_id="ONBOARDING_REVIEW_SLA_BREACH",
+                template_id=NotificationTemplate.ONBOARDING_REVIEW_SLA_BREACH,
                 template_data=template_data,
             )
 

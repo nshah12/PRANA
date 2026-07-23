@@ -2,11 +2,18 @@
 PRANA API — full message taxonomy.
 
 Companion to errors.py. Together they cover every code the backend emits:
-  errors.py   → PranaError      — HTTP error detail codes (4xx / 5xx)
-  messages.py → SuccessCode     — success outcome codes  (2xx response bodies)
-              → InfoCode        — informational / progress codes (SSE, polling)
-              → ValidationCode  — form/field validation codes (422 bodies + frontend)
-              → StatusCode      — pipeline_status display labels
+  errors.py   → PranaError          — HTTP error detail codes (4xx / 5xx)
+  messages.py → SuccessCode         — success outcome codes  (2xx response bodies)
+              → InfoCode            — informational / progress codes (SSE, polling)
+              → ValidationCode      — form/field validation codes (422 bodies + frontend)
+              → StatusCode          — pipeline_status display labels
+              → NotificationTemplate — template_id for outbound notifications
+                                       (email/SMS/WhatsApp/push/bell), consumed by
+                                       NotificationService._SUBJECT_MAP and NotifConsumer.
+                                       Not cross-checked for uniqueness against the other
+                                       enums below — a template intentionally shares its
+                                       name with the SuccessCode/event_type for the same
+                                       underlying event (e.g. ELEVATION_APPROVED).
 
 Design rules (same as errors.py):
   - Values == names (code-as-string pattern)
@@ -226,6 +233,64 @@ class StatusCode(StrEnum):
     UNCLASSIFIED    = "UNCLASSIFIED"     # doc_type could not be auto-detected
     FAILED          = "FAILED"           # terminal — non-retryable error
     LEGAL_HOLD      = "LEGAL_HOLD"       # terminal — routing blocked by legal hold
+
+
+class NotificationTemplate(StrEnum):
+    """
+    template_id for outbound notifications (email/SMS/WhatsApp/push/portal bell).
+
+    Passed to NotificationService.notify(template_id=...). Every member must have
+    a matching entry in notification_service.py's _SUBJECT_MAP (enforced by
+    tests/test_messages.py::test_every_notification_template_has_a_subject_line) —
+    a template with no subject line silently falls back to a generic "PRANA
+    Notification" subject on every email send.
+
+    A few members (CSAM_ALERT, INCIDENT_CREATED, INCIDENT_SLA_BREACH,
+    DIGEST_WEEKLY) have a defined subject line but are not yet triggered by any
+    code path — planned, not wired. Not a wiring bug to fix blindly: each needs
+    its own trigger-point decision, same as the workflow gaps in
+    gap_dead_workflows_2026_07 memory.
+    """
+    # ── Anomaly / security ───────────────────────────────────────────────────
+    ANOMALY_P0_ALERT            = "ANOMALY_P0_ALERT"
+    ANOMALY_P1_ALERT            = "ANOMALY_P1_ALERT"
+    ANOMALY_P2_ALERT            = "ANOMALY_P2_ALERT"
+    ACCOUNT_LOCKED              = "ACCOUNT_LOCKED"
+    CROSS_TENANT_UPLOAD_ALERT   = "CROSS_TENANT_UPLOAD_ALERT"
+    AUDIT_INTEGRITY_MISMATCH    = "AUDIT_INTEGRITY_MISMATCH"
+    CSAM_ALERT                  = "CSAM_ALERT"           # planned, not yet triggered
+
+    # ── Document / vault ──────────────────────────────────────────────────────
+    DOC_ROUTED                  = "DOC_ROUTED"
+    SHARE_ACCESSED              = "SHARE_ACCESSED"
+    VAULT_WELCOME                = "VAULT_WELCOME"
+    VAULT_WELCOME_REJOIN         = "VAULT_WELCOME_REJOIN"
+
+    # ── DPDP ──────────────────────────────────────────────────────────────────
+    ERASURE_COMPLETE            = "ERASURE_COMPLETE"
+    EXPORT_READY                = "EXPORT_READY"
+
+    # ── Exceptions ────────────────────────────────────────────────────────────
+    EXCEPTION_ALERT             = "EXCEPTION_ALERT"
+
+    # ── Elevation ─────────────────────────────────────────────────────────────
+    ELEVATION_APPROVED          = "ELEVATION_APPROVED"
+    ELEVATION_DENIED            = "ELEVATION_DENIED"
+
+    # ── Onboarding / accounts ─────────────────────────────────────────────────
+    OA_WELCOME                  = "OA_WELCOME"
+    EMPLOYEE_CREDENTIALS_ISSUED = "EMPLOYEE_CREDENTIALS_ISSUED"
+
+    # ── Incidents (planned, not yet triggered) ───────────────────────────────
+    INCIDENT_CREATED            = "INCIDENT_CREATED"
+    INCIDENT_SLA_BREACH         = "INCIDENT_SLA_BREACH"
+
+    # ── Digest (planned, not yet triggered) ──────────────────────────────────
+    DIGEST_WEEKLY                = "DIGEST_WEEKLY"
+
+    # ── Platform operations ───────────────────────────────────────────────────
+    STORAGE_EXPANSION_REQUESTED    = "STORAGE_EXPANSION_REQUESTED"
+    ONBOARDING_REVIEW_SLA_BREACH   = "ONBOARDING_REVIEW_SLA_BREACH"
 
 
 def success_response(code: SuccessCode, **kwargs) -> dict:

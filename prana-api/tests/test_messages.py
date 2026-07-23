@@ -203,6 +203,67 @@ def test_success_response_message_is_string():
     assert isinstance(resp["message"], str)
 
 
+# ── NotificationTemplate ────────────────────────────────────────────────────
+# template_id for outbound notifications (email/SMS/WhatsApp/push/bell), sent via
+# NotificationService.notify(). Previously bare string literals scattered across
+# notification_service.py/notif_consumer.py with no enum — this closes that gap.
+# NOT included in test_no_code_overlap_across_enums below: a notification
+# template intentionally shares its name with the SuccessCode/event_type for the
+# same underlying event (e.g. ELEVATION_APPROVED is both the API success code and
+# the email template id for that event) — different namespace, same event name by
+# design, same as how Kafka event_type strings already aren't cross-checked either.
+
+def test_notification_template_exists():
+    from messages import NotificationTemplate
+    assert NotificationTemplate is not None
+
+
+def test_notification_template_is_str_enum():
+    from messages import NotificationTemplate
+    assert issubclass(NotificationTemplate, str)
+    assert isinstance(NotificationTemplate, EnumMeta)
+
+
+def test_notification_template_values_equal_names():
+    from messages import NotificationTemplate
+    for m in NotificationTemplate:
+        assert m.value == m.name, f"NotificationTemplate.{m.name} value mismatch"
+
+
+def test_notification_template_no_duplicates():
+    from messages import NotificationTemplate
+    values = [m.value for m in NotificationTemplate]
+    assert len(values) == len(set(values))
+
+
+@pytest.mark.parametrize("code", [
+    "ANOMALY_P0_ALERT", "ANOMALY_P1_ALERT", "ANOMALY_P2_ALERT",
+    "ACCOUNT_LOCKED", "CROSS_TENANT_UPLOAD_ALERT", "AUDIT_INTEGRITY_MISMATCH", "CSAM_ALERT",
+    "DOC_ROUTED", "SHARE_ACCESSED", "VAULT_WELCOME", "VAULT_WELCOME_REJOIN",
+    "ERASURE_COMPLETE", "EXPORT_READY",
+    "EXCEPTION_ALERT",
+    "ELEVATION_APPROVED", "ELEVATION_DENIED",
+    "OA_WELCOME", "EMPLOYEE_CREDENTIALS_ISSUED",
+    "INCIDENT_CREATED", "INCIDENT_SLA_BREACH",
+    "DIGEST_WEEKLY",
+    "STORAGE_EXPANSION_REQUESTED", "ONBOARDING_REVIEW_SLA_BREACH",
+])
+def test_notification_templates_present(code):
+    from messages import NotificationTemplate
+    assert hasattr(NotificationTemplate, code), f"NotificationTemplate.{code} missing"
+
+
+def test_every_notification_template_has_a_subject_line():
+    """_SUBJECT_MAP in notification_service.py must cover every enum member —
+    a template with no subject silently fell back to a generic 'PRANA
+    Notification' subject on every email send (this happened for real, for
+    CROSS_TENANT_UPLOAD_ALERT and AUDIT_INTEGRITY_MISMATCH, before this test)."""
+    from messages import NotificationTemplate
+    from services.notification_service import _SUBJECT_MAP
+    missing = [m.value for m in NotificationTemplate if m.value not in _SUBJECT_MAP]
+    assert not missing, f"No _SUBJECT_MAP entry for: {missing}"
+
+
 # ── Cross-taxonomy: no overlapping codes between enums ────────────────────────
 
 def test_no_code_overlap_across_enums():
