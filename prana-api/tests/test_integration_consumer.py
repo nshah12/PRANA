@@ -26,12 +26,16 @@ def consumer(db_pool):
 
 @pytest.mark.asyncio
 async def test_hrms_webhook_failed_increments_retry(consumer, db_pool):
+    """request_id must be present — routers/ingest.py now inserts the initial
+    api_ingest_log row and includes the same request_id here (see
+    tests/test_ingest_webhook_failed_retry_log.py for the publisher side)."""
     _, conn = db_pool
     conn.fetchrow.return_value = {"retry_count": 1}
     event = {"event_type": "HRMS_WEBHOOK_FAILED", "tenant_id": "t-1",
-             "filename": "salaryslip.pdf", "reason": "INVALID_FORMAT"}
+             "filename": "salaryslip.pdf", "reason": "INVALID_FORMAT", "request_id": "req-uuid-1"}
     await consumer._handle(event)
     conn.execute.assert_awaited()
+    assert conn.fetchrow.await_args.args[1] == "req-uuid-1"
 
 
 @pytest.mark.asyncio

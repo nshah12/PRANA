@@ -80,6 +80,23 @@ async def upload_documents(
         except HTTPException as e:
             errors.append({"filename": f.filename, "error": e.detail})
             results.append({"filename": f.filename, "error": e.detail})
+            request_id = str(uuid.uuid4())
+            try:
+                await db.execute(
+                    """
+                    INSERT INTO api_ingest_log (request_id, tenant_id, filename, reason)
+                    VALUES ($1, $2, $3, $4)
+                    """,
+                    request_id, current.tenant_id, f.filename, e.detail,
+                )
+            except Exception as exc:
+                from services.error_observability_service import ErrorObservabilityService
+                try:
+                    await ErrorObservabilityService(db).record(
+                        exc=exc, source="HTTP", source_detail="upload_documents:insert_api_ingest_log",
+                    )
+                except Exception:
+                    pass
             if kafka:
                 try:
                     await kafka.integration_event({
@@ -88,6 +105,7 @@ async def upload_documents(
                         "reason":     e.detail,
                         "filename":   f.filename,
                         "actor_id":   current.user_id,
+                        "request_id": request_id,
                     })
                 except Exception as exc:
                     from services.error_observability_service import ErrorObservabilityService

@@ -1338,6 +1338,22 @@ INSERT INTO platform_config (config_key, config_value, value_type, description, 
   ('statutory_compliance_check_hour', '30 0 * * *', 'CRON_EXPRESSION', 'StatutoryComplianceWorkflow per-tenant schedule cadence (daily, 00:30 IST) — see workflows/compliance.py.', NULL, NULL)
 ON CONFLICT (config_key) DO NOTHING;
 
+-- api_ingest_log — retry bookkeeping for rejected /v1/ingest/upload files.
+-- kafka/consumers/integration_consumer.py's _handle_hrms_failure looks up and
+-- increments retry_count by request_id; routers/ingest.py inserts the initial
+-- row (and includes the same request_id in the published HRMS_WEBHOOK_FAILED
+-- event) at rejection time.
+CREATE TABLE IF NOT EXISTS api_ingest_log (
+  request_id    UUID         PRIMARY KEY DEFAULT gen_random_uuid(),
+  tenant_id     UUID         REFERENCES tenant(tenant_id),
+  filename      TEXT,
+  reason        TEXT,
+  retry_count   SMALLINT     NOT NULL DEFAULT 0,
+  last_retry_at TIMESTAMPTZ,
+  created_at    TIMESTAMPTZ  NOT NULL DEFAULT NOW()
+);
+CREATE INDEX IF NOT EXISTS idx_api_ingest_log_tenant ON api_ingest_log(tenant_id, created_at DESC);
+
 -- ── HRMS connector definition (PA-level catalogue) — migration 029 ─────────
 CREATE TABLE IF NOT EXISTS hrms_connector_definition (
   connector_definition_id UUID         PRIMARY KEY DEFAULT gen_random_uuid(),
