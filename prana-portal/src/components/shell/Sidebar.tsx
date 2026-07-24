@@ -7,7 +7,7 @@ import {
   Settings, ShieldCheck, ShieldAlert, TrendingUp, BarChart3, Calendar,
   Lock, Unlock, Key, Activity, Globe, ChevronDown, ChevronRight,
   Building2, Zap, FileSearch, Bell, ClipboardList, MessageSquare, Handshake, Plug, KeyRound, GitMerge,
-  FileStack, CheckSquare,
+  FileStack, CheckSquare, Radio,
 } from 'lucide-react'
 import { useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
@@ -66,6 +66,7 @@ function navForRole(role: UserRole, base: string, counts: BadgeCounts = {}): Nav
           { label: tUi('NAV_DOCUMENT_FIELDS'),    to: `${base}/document-fields`, icon: <FileStack size={16}/> },
           { label: tUi('NAV_SETUP_CHECKLIST'),    to: `${base}/setup-checklist`, icon: <CheckSquare size={16}/> },
           { label: tUi('NAV_HRMS_INTEGRATION'),   to: `${base}/hrms`,            icon: <Plug size={16}/> },
+          { label: tUi('NAV_COMMUNICATIONS'),     to: `${base}/communications`,  icon: <Radio size={16}/> },
           { label: tUi('NAV_RESET_TOTP'),         to: `${base}/reset-totp`,      icon: <Lock size={16}/> },
           { label: tUi('NAV_RESET_PASSWORD'),     to: `${base}/reset-password`,  icon: <KeyRound size={16}/> },
         ],
@@ -151,6 +152,7 @@ function navForRole(role: UserRole, base: string, counts: BadgeCounts = {}): Nav
             { label: tUi('NAV_EXCEPTION_OVERVIEW'), to: `${base}/exceptions`,   icon: <AlertTriangle size={16}/>, ...(counts.exceptions ? { badge: { count: counts.exceptions, color: 'red' as const } } : {}) },
             { label: tUi('NAV_API_KEYS'),           to: `${base}/api-keys`,     icon: <Key size={16}/> },
             { label: tUi('NAV_HRMS_CONNECTORS'),    to: `${base}/hrms`,         icon: <Plug size={16}/> },
+            { label: tUi('NAV_COMMUNICATIONS'),     to: `${base}/communications`, icon: <Radio size={16}/> },
             { label: tUi('NAV_RATE_LIMITS'),        to: `${base}/rate-limits`,  icon: <BarChart3 size={16}/> },
           ],
         },

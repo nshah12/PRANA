@@ -85,6 +85,7 @@ import { AnomalyDetection }  from '@/pages/pa/AnomalyDetection'
 import { IncidentRegister }         from '@/pages/pa/IncidentRegister'
 import { SecurityIncidentRegister } from '@/pages/pa/SecurityIncidentRegister'
 import { IncidentPolicyConfig }     from '@/pages/pa/IncidentPolicyConfig'
+import { CommunicationSettings as PaCommunicationSettings } from '@/pages/pa/CommunicationSettings'
 import { PlatformDocumentFields }   from '@/pages/pa/PlatformDocumentFields'
 import { SetupChecklistTemplate }   from '@/pages/pa/SetupChecklistTemplate'
 import { PaNotificationLog }        from '@/pages/pa/PaNotificationLog'
@@ -130,6 +131,7 @@ import { Announcements }     from '@/pages/pa/Announcements'
 import { ContactInquiries }  from '@/pages/pa/ContactInquiries'
 import { HRMSCatalogue }    from '@/pages/pa/HRMSCatalogue'
 import { HRMSSettings }     from '@/pages/oa/HRMSSettings'
+import { CommunicationSettings as OaCommunicationSettings } from '@/pages/oa/CommunicationSettings'
 
 // Zustand's `persist` middleware rehydrates from localStorage asynchronously —
 // on first render after a page reload, `user` is still null even for an
@@ -318,6 +320,7 @@ export default function App() {
       <Route path="/org/reset-totp" element={<RequireAuth><PortalLayout><ResetTotp /></PortalLayout></RequireAuth>} />
       <Route path="/org/reset-password" element={<RequireAuth><PortalLayout><OaEmployeePasswordReset /></PortalLayout></RequireAuth>} />
       <Route path="/org/hrms"       element={<RequireAuth><PortalLayout><HRMSSettings /></PortalLayout></RequireAuth>} />
+      <Route path="/org/communications" element={<RequireAuth><PortalLayout><OaCommunicationSettings /></PortalLayout></RequireAuth>} />
       <Route path="/org/profile"    element={<RequireAuth><PortalLayout><OrgProfile /></PortalLayout></RequireAuth>} />
 
       {/* CHRO routes */}
@@ -378,6 +381,7 @@ export default function App() {
       <Route path="/admin/incidents"           element={<RequireAuth><PortalLayout><IncidentRegister /></PortalLayout></RequireAuth>} />
       <Route path="/admin/security-incidents" element={<RequireAuth><PortalLayout><SecurityIncidentRegister /></PortalLayout></RequireAuth>} />
       <Route path="/admin/incident-policy"    element={<RequireAuth><PortalLayout><IncidentPolicyConfig /></PortalLayout></RequireAuth>} />
+      <Route path="/admin/communications"     element={<RequireAuth><PortalLayout><PaCommunicationSettings /></PortalLayout></RequireAuth>} />
       <Route path="/admin/document-fields"    element={<RequireAuth><PortalLayout><PlatformDocumentFields /></PortalLayout></RequireAuth>} />
       <Route path="/admin/setup-checklist"    element={<RequireAuth><PortalLayout><SetupChecklistTemplate /></PortalLayout></RequireAuth>} />
       <Route path="/admin/notifications"      element={<RequireAuth><PortalLayout><PaNotificationLog /></PortalLayout></RequireAuth>} />
