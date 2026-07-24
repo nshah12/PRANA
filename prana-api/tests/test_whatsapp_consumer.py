@@ -15,6 +15,7 @@ def db_pool():
     pool = MagicMock()
     conn = AsyncMock()
     conn.fetchval = AsyncMock(return_value=False)  # whatsapp_opt_out = False by default
+    conn.fetch = AsyncMock(return_value=[])         # no DB-stored vendor credentials by default
     pool.acquire.return_value.__aenter__ = AsyncMock(return_value=conn)
     pool.acquire.return_value.__aexit__ = AsyncMock(return_value=False)
     return pool, conn
@@ -31,7 +32,7 @@ def consumer(db_pool):
         whatsapp_provider="waba",
     )
     pool, _ = db_pool
-    return WhatsAppConsumer(settings, db_pool=pool, redis=MagicMock())
+    return WhatsAppConsumer(settings, db_pool=pool, redis=MagicMock(), kms_service=MagicMock())
 
 
 @pytest.mark.asyncio
@@ -97,3 +98,27 @@ async def test_send_whatsapp_missing_phone_or_template_skips(consumer, db_pool):
     with patch("kafka.consumers.whatsapp_consumer.WhatsAppService.send", new=AsyncMock()) as mock_send:
         await consumer._send_whatsapp({"event_type": "DOC_ROUTED", "tenant_id": "t-1"})
     mock_send.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+async def test_whatsapp_dispatch_uses_db_stored_credentials_when_present(consumer, db_pool):
+    """A PA-entered credential must actually reach WhatsAppService, or editing
+    via the PA screen would be cosmetic — see prana-docs/COMMUNICATION_HUB_ARCHITECTURE.md §8.1."""
+    _, conn = db_pool
+    conn.fetch.return_value = [{"field_name": "whatsapp_waba_token", "enc_value": "ciphertext-1"}]
+    consumer._kms.decrypt_value = MagicMock(return_value="db-configured-waba-token")
+    event = {"event_type": "DOC_ROUTED", "recipient_id": "u-1", "recipient_phone": "+919876543210",
+             "template_id": "DOC_ROUTED", "tenant_id": "t-1", "template_data": {}}
+
+    captured = {}
+    def _capture_init(self, settings, config, breaker):
+        captured["settings"] = settings
+        self._settings = settings
+        self._config = config
+        self._breaker = breaker
+
+    with patch("kafka.consumers.whatsapp_consumer.WhatsAppService.__init__", _capture_init), \
+         patch("kafka.consumers.whatsapp_consumer.WhatsAppService.send", new=AsyncMock(return_value=(True, None))):
+        await consumer._send_whatsapp(event)
+
+    assert captured["settings"].whatsapp_waba_token == "db-configured-waba-token"

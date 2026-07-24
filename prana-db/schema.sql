@@ -1957,6 +1957,23 @@ INSERT INTO notification_channel_policy (tenant_id, template_id, channels) VALUE
   (NULL, 'ALUMNI_OUTREACH_RECEIVED',     ARRAY['portal_bell','email'])
 ON CONFLICT DO NOTHING;
 
+-- platform_vendor_credential — PA-only, platform-wide channel-vendor secrets
+-- (exotel_api_key, msg91_auth_key, whatsapp_waba_token, etc). enc_value is
+-- KMS ciphertext under the platform auth CMK (resolve_platform_auth_kek_arn) —
+-- same CMK/pattern as enc_mobile/totp_secret_enc, not a per-tenant KEK, since
+-- these are platform-owned secrets with no tenant context. Never queried by
+-- OA-Admin — no equivalent tenant-scoped table or route exists.
+-- See prana-docs/COMMUNICATION_HUB_ARCHITECTURE.md §8.1, services/communication_settings_service.py.
+CREATE TABLE IF NOT EXISTS platform_vendor_credential (
+  credential_id UUID         PRIMARY KEY DEFAULT gen_random_uuid(),
+  vendor        VARCHAR(30)  NOT NULL,
+  field_name    VARCHAR(60)  NOT NULL,
+  enc_value     TEXT         NOT NULL,
+  updated_by    UUID         REFERENCES portal_admin(pa_id),
+  updated_at    TIMESTAMPTZ  NOT NULL DEFAULT NOW()
+);
+CREATE UNIQUE INDEX IF NOT EXISTS uidx_vendor_credential ON platform_vendor_credential(vendor, field_name);
+
 -- ============================================================
 -- LAYER 14: SECURITY — LEAST-PRIVILEGE APPLICATION ROLE
 -- ============================================================

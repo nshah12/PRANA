@@ -12,6 +12,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 def db_pool():
     pool = MagicMock()
     conn = AsyncMock()
+    conn.fetch = AsyncMock(return_value=[])   # no DB-stored vendor credentials by default
     pool.acquire.return_value.__aenter__ = AsyncMock(return_value=conn)
     pool.acquire.return_value.__aexit__ = AsyncMock(return_value=False)
     return pool, conn
@@ -28,7 +29,7 @@ def consumer(db_pool):
         ivr_provider="exotel",
     )
     pool, _ = db_pool
-    return IVRConsumer(settings, db_pool=pool, redis=MagicMock())
+    return IVRConsumer(settings, db_pool=pool, redis=MagicMock(), kms_service=MagicMock())
 
 
 @pytest.mark.asyncio
@@ -76,3 +77,28 @@ async def test_ivr_send_failure_logs_failed_status_not_raise(consumer, db_pool):
         await consumer._handle(event)   # must not raise
     sql, *args = conn.execute.call_args[0]
     assert "FAILED" in args
+
+
+@pytest.mark.asyncio
+async def test_ivr_dispatch_uses_db_stored_credentials_when_present(consumer, db_pool):
+    """A PA-entered credential must actually reach IVRService, or editing via
+    the PA screen would be cosmetic — see prana-docs/COMMUNICATION_HUB_ARCHITECTURE.md §8.1."""
+    _, conn = db_pool
+    conn.fetch.return_value = [{"field_name": "ozonetel_api_key", "enc_value": "ciphertext-1"}]
+    consumer._kms.decrypt_value = MagicMock(return_value="db-configured-ozonetel-key")
+    event = {"event_type": "ANOMALY_P0_ALERT", "recipient_id": "ciso-1",
+             "recipient_phone": "+919876543210", "template_id": "ANOMALY_P0_ALERT",
+             "tenant_id": "t-1", "template_data": {}}
+
+    captured = {}
+    def _capture_init(self, settings, config, breaker):
+        captured["settings"] = settings
+        self._settings = settings
+        self._config = config
+        self._breaker = breaker
+
+    with patch("kafka.consumers.ivr_consumer.IVRService.__init__", _capture_init), \
+         patch("kafka.consumers.ivr_consumer.IVRService.send", new=AsyncMock(return_value=(True, None))):
+        await consumer._handle(event)
+
+    assert captured["settings"].ozonetel_api_key == "db-configured-ozonetel-key"

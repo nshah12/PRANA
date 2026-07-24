@@ -395,11 +395,11 @@ async def lifespan(app: FastAPI):
             StatutoryConsumer(settings, db_pool=app.state.db_pool, temporal_client=app.state.temporal_client),
             SecurityConsumer(settings, db_pool=app.state.db_pool, temporal_client=app.state.temporal_client, redis=app.state.redis),
             # Notification channel consumers
-            EmailConsumer(settings, app.state.db_pool, redis=app.state.redis),
-            SMSConsumer(settings, app.state.db_pool, redis=app.state.redis),
+            EmailConsumer(settings, app.state.db_pool, redis=app.state.redis, kms_service=app.state.kms_service),
+            SMSConsumer(settings, app.state.db_pool, redis=app.state.redis, kms_service=app.state.kms_service),
             PushConsumer(settings, app.state.db_pool),
-            WhatsAppConsumer(settings, app.state.db_pool, redis=app.state.redis),
-            IVRConsumer(settings, app.state.db_pool, redis=app.state.redis),
+            WhatsAppConsumer(settings, app.state.db_pool, redis=app.state.redis, kms_service=app.state.kms_service),
+            IVRConsumer(settings, app.state.db_pool, redis=app.state.redis, kms_service=app.state.kms_service),
             BellConsumer(settings, app.state.db_pool, app.state.redis),
             # Integration & platform consumers
             IntegrationConsumer(settings, app.state.db_pool, kafka, temporal_client=app.state.temporal_client),

@@ -19,6 +19,7 @@ call it either. A vendor-chain edit can take up to redis_config_ttl_seconds
 (5 min) to take effect. Pre-existing gap, not unique to this feature.
 """
 import json
+import logging
 from typing import Optional
 
 import asyncpg
@@ -26,12 +27,25 @@ import asyncpg
 from config import Settings
 from messages import NotificationTemplate
 
+log = logging.getLogger(__name__)
+
 VALID_CHANNELS = {"email", "sms", "whatsapp", "portal_bell", "ivr", "push"}
 CHANNEL_VENDORS = {
     "email": {"ses", "smtp"},
     "sms": {"aws", "exotel", "msg91"},
     "whatsapp": {"waba"},
     "ivr": {"exotel", "ozonetel"},
+}
+
+# PA-editable secret fields per vendor — the auth-relevant secrets only, not
+# every tunable (sender_id/template_id/flow_id/api_version/caller_id stay
+# env-configured). ses/aws_sns have no entry — IAM role, nothing to edit here.
+VENDOR_CREDENTIAL_FIELDS = {
+    "smtp":     ["smtp_host", "smtp_user", "smtp_password"],
+    "exotel":   ["exotel_sid", "exotel_api_key", "exotel_api_token"],
+    "msg91":    ["msg91_auth_key"],
+    "waba":     ["whatsapp_waba_token", "whatsapp_waba_phone_number_id"],
+    "ozonetel": ["ozonetel_api_key"],
 }
 
 
@@ -214,19 +228,81 @@ class CommunicationSettingsService:
         return {"channel": channel, "chain": vendors, "tenant_id": tenant_id}
 
     # -----------------------------------------------------------------------
-    # Vendor credential status — PA only, read-only, never exposes secrets
+    # Vendor credentials — PA only. Reads never expose secret values, only
+    # configuration status. Writes are KMS-encrypted (platform auth CMK, same
+    # as enc_mobile/totp_secret_enc) and Immudb-audited without the secret.
     # -----------------------------------------------------------------------
 
-    def get_vendor_credential_status(self, settings: Settings) -> dict:
-        return {
+    async def get_vendor_credential_status(self, settings: Settings) -> dict:
+        db_rows = await self._db.fetch("SELECT vendor, field_name FROM platform_vendor_credential")
+        db_configured: dict[str, set[str]] = {}
+        for r in db_rows:
+            db_configured.setdefault(r["vendor"], set()).add(r["field_name"])
+
+        env_configured = {
+            "smtp":     bool(settings.smtp_host),
+            "exotel":   bool(settings.exotel_sid and settings.exotel_api_key),
+            "msg91":    bool(settings.msg91_auth_key),
+            "waba":     bool(settings.whatsapp_waba_token and settings.whatsapp_waba_phone_number_id),
+            "ozonetel": bool(settings.ozonetel_api_key),
+        }
+
+        status = {
             # AWS SES/SNS commonly run under an IAM role in production (no
             # explicit key/secret needed) — cannot be verified from Settings
             # alone, so always reported as configured.
-            "ses":      {"configured": True},
-            "aws_sns":  {"configured": True},
-            "smtp":     {"configured": bool(settings.smtp_host)},
-            "exotel":   {"configured": bool(settings.exotel_sid and settings.exotel_api_key)},
-            "msg91":    {"configured": bool(settings.msg91_auth_key)},
-            "waba":     {"configured": bool(settings.whatsapp_waba_token and settings.whatsapp_waba_phone_number_id)},
-            "ozonetel": {"configured": bool(settings.ozonetel_api_key)},
+            "ses":     {"configured": True, "source": "env"},
+            "aws_sns": {"configured": True, "source": "env"},
         }
+        for vendor, env_ok in env_configured.items():
+            db_ok = vendor in db_configured
+            status[vendor] = {
+                "configured": db_ok or env_ok,
+                "source": "db" if db_ok else ("env" if env_ok else "none"),
+            }
+        return status
+
+    async def set_vendor_credential(
+        self, *, vendor: str, field_name: str, value: str, updated_by: str, kms, kek_arn: str,
+    ) -> None:
+        if vendor not in VENDOR_CREDENTIAL_FIELDS:
+            raise ValueError(f"UNKNOWN_VENDOR: {vendor}")
+        if field_name not in VENDOR_CREDENTIAL_FIELDS[vendor]:
+            raise ValueError(f"UNKNOWN_FIELD: {field_name} for vendor {vendor}")
+
+        enc_value = kms.encrypt_value(value, kek_arn)
+        await self._db.execute(
+            """
+            INSERT INTO platform_vendor_credential (vendor, field_name, enc_value, updated_by)
+            VALUES ($1, $2, $3, $4)
+            ON CONFLICT (vendor, field_name)
+            DO UPDATE SET enc_value = $3, updated_by = $4, updated_at = NOW()
+            """,
+            vendor, field_name, enc_value, updated_by,
+        )
+
+        from kafka.producer import get_kafka_producer
+        kafka = await get_kafka_producer()
+        await kafka.tenant_event({
+            "event_type": "COMM_VENDOR_CREDENTIAL_ROTATED",
+            "tenant_id": None,
+            "vendor": vendor,
+            "field_name": field_name,
+            "actor_id": updated_by,
+        })
+
+    async def get_effective_settings(self, base_settings: Settings, kms, kek_arn: str) -> Settings:
+        """Returns a copy of base_settings with any DB-stored (KMS-decrypted)
+        vendor credentials overlaid — the actual dispatch path channel
+        consumers use, so editing a credential via the PA screen genuinely
+        changes what the next send uses, not just what the screen displays."""
+        rows = await self._db.fetch("SELECT field_name, enc_value FROM platform_vendor_credential")
+        if not rows:
+            return base_settings
+        overrides = {}
+        for r in rows:
+            try:
+                overrides[r["field_name"]] = kms.decrypt_value(r["enc_value"], kek_arn)
+            except Exception:
+                log.exception("get_effective_settings: failed to decrypt field_name=%s — using env fallback", r["field_name"])
+        return base_settings.model_copy(update=overrides) if overrides else base_settings

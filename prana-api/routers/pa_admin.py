@@ -1595,10 +1595,36 @@ async def update_vendor_chain(channel: str, body: VendorChainUpdateIn, db: DbCon
 
 @router.get("/communications/vendor-credentials")
 async def get_vendor_credentials(db: DbConn, current=PA):
-    """Read-only configuration status per vendor — never exposes secret values.
-    Never exposed to OA-Admin at all (no equivalent org/ route)."""
+    """Configuration status per vendor — never exposes secret values, only
+    whether one is set and whether it came from env config or a PA-entered
+    DB-stored credential. Never exposed to OA-Admin at all (no equivalent
+    org/ route)."""
     from config import get_settings
+    from services.communication_settings_service import CommunicationSettingsService, VENDOR_CREDENTIAL_FIELDS
+    status_map = await CommunicationSettingsService(db).get_vendor_credential_status(get_settings())
+    return {"vendors": status_map, "editable_fields": VENDOR_CREDENTIAL_FIELDS}
+
+
+class VendorCredentialUpdateIn(BaseModel):
+    field_name: str
+    value: str = Field(min_length=1)
+
+
+@router.patch("/communications/vendor-credentials/{vendor}")
+async def update_vendor_credential(vendor: str, body: VendorCredentialUpdateIn, request: Request, db: DbConn, current=PA):
+    """KMS-encrypts under the platform auth CMK before storing — same pattern
+    as enc_mobile/totp_secret_enc. Never logs or echoes the plaintext value."""
     from services.communication_settings_service import CommunicationSettingsService
-    status_map = CommunicationSettingsService(db).get_vendor_credential_status(get_settings())
-    return {"vendors": status_map}
+    from services.encryption_service import resolve_platform_auth_kek_arn
+
+    kms = request.app.state.kms_service
+    kek_arn = resolve_platform_auth_kek_arn(request.app.state.settings)
+    try:
+        await CommunicationSettingsService(db).set_vendor_credential(
+            vendor=vendor, field_name=body.field_name, value=body.value,
+            updated_by=current.user_id, kms=kms, kek_arn=kek_arn,
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(exc)) from exc
+    return {"message": SuccessCode.COMM_VENDOR_CREDENTIAL_ROTATED, "vendor": vendor, "field_name": body.field_name}
 

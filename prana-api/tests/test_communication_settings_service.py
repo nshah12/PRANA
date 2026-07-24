@@ -6,7 +6,7 @@ NotificationTemplate) and vendor chains (per channel), tenant override with
 platform-default fallback — same resolution order as everywhere else in
 this codebase. Every write publishes an Immudb-audited tenant_event() (§9).
 """
-from unittest.mock import AsyncMock, patch
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
@@ -250,18 +250,23 @@ async def test_update_vendor_chain_publishes_immudb_audited_tenant_event():
 # Vendor credential status (PA only, read-only — never exposes secret values)
 # ---------------------------------------------------------------------------
 
-@pytest.mark.asyncio
-async def test_vendor_credential_status_never_includes_secret_values():
+def _settings(**overrides):
     from config import Settings
-    settings = Settings(
+    return Settings(
         app_env="test", db_host="localhost", db_port=5433,
         platform_hmac_secret="test_secret_32chars_padding_pad1",
         kafka_bootstrap_servers="localhost:9092", redis_url="redis://localhost:6379/15",
-        exotel_sid="SID1", exotel_api_key="super-secret-key",
-        msg91_auth_key="another-secret",
+        **overrides,
     )
-    svc = CommunicationSettingsService(_db())
-    status = svc.get_vendor_credential_status(settings)
+
+
+@pytest.mark.asyncio
+async def test_vendor_credential_status_never_includes_secret_values():
+    settings = _settings(exotel_sid="SID1", exotel_api_key="super-secret-key",
+                          msg91_auth_key="another-secret")
+    db = _db()
+    svc = CommunicationSettingsService(db)
+    status = await svc.get_vendor_credential_status(settings)
 
     dumped = str(status)
     assert "super-secret-key" not in dumped
@@ -272,13 +277,137 @@ async def test_vendor_credential_status_never_includes_secret_values():
 
 @pytest.mark.asyncio
 async def test_vendor_credential_status_reports_unconfigured_vendor():
-    from config import Settings
-    settings = Settings(
-        app_env="test", db_host="localhost", db_port=5433,
-        platform_hmac_secret="test_secret_32chars_padding_pad1",
-        kafka_bootstrap_servers="localhost:9092", redis_url="redis://localhost:6379/15",
-    )
-    svc = CommunicationSettingsService(_db())
-    status = svc.get_vendor_credential_status(settings)
+    settings = _settings()
+    db = _db()
+    svc = CommunicationSettingsService(db)
+    status = await svc.get_vendor_credential_status(settings)
     assert status["msg91"]["configured"] is False
     assert status["ozonetel"]["configured"] is False
+
+
+@pytest.mark.asyncio
+async def test_vendor_credential_status_reports_db_stored_credential_as_configured():
+    """A vendor with no env value but a DB-stored credential must still show
+    configured=True — the whole point of editing via the PA screen."""
+    settings = _settings()   # msg91_auth_key empty in env
+    db = _db()
+    db.fetch = AsyncMock(return_value=[{"vendor": "msg91", "field_name": "msg91_auth_key"}])
+    svc = CommunicationSettingsService(db)
+    status = await svc.get_vendor_credential_status(settings)
+    assert status["msg91"]["configured"] is True
+    assert status["msg91"]["source"] == "db"
+
+
+@pytest.mark.asyncio
+async def test_vendor_credential_status_source_is_env_when_only_env_set():
+    settings = _settings(exotel_sid="SID1", exotel_api_key="key")
+    db = _db()
+    svc = CommunicationSettingsService(db)
+    status = await svc.get_vendor_credential_status(settings)
+    assert status["exotel"]["source"] == "env"
+
+
+# ---------------------------------------------------------------------------
+# Vendor credential writes — PA only, KMS-encrypted, never plaintext-logged
+# ---------------------------------------------------------------------------
+
+def _kms():
+    kms = MagicMock()
+    kms.encrypt_value = MagicMock(return_value="kms-ciphertext-blob")
+    kms.decrypt_value = MagicMock(return_value="decrypted-secret-value")
+    return kms
+
+
+@pytest.mark.asyncio
+async def test_set_vendor_credential_rejects_unknown_vendor():
+    svc = CommunicationSettingsService(_db())
+    with pytest.raises(ValueError, match="UNKNOWN_VENDOR"):
+        await svc.set_vendor_credential(
+            vendor="carrier_pigeon", field_name="x", value="y",
+            updated_by="pa-1", kms=_kms(), kek_arn="arn:test",
+        )
+
+
+@pytest.mark.asyncio
+async def test_set_vendor_credential_rejects_unknown_field_for_vendor():
+    svc = CommunicationSettingsService(_db())
+    with pytest.raises(ValueError, match="UNKNOWN_FIELD"):
+        await svc.set_vendor_credential(
+            vendor="exotel", field_name="not_a_real_field", value="y",
+            updated_by="pa-1", kms=_kms(), kek_arn="arn:test",
+        )
+
+
+@pytest.mark.asyncio
+async def test_set_vendor_credential_encrypts_before_storing():
+    db = _db()
+    kms = _kms()
+    mock_kafka = AsyncMock()
+    with patch("kafka.producer.get_kafka_producer", new=AsyncMock(return_value=mock_kafka)):
+        svc = CommunicationSettingsService(db)
+        await svc.set_vendor_credential(
+            vendor="exotel", field_name="exotel_api_key", value="real-secret-value",
+            updated_by="pa-1", kms=kms, kek_arn="arn:test",
+        )
+
+    kms.encrypt_value.assert_called_once_with("real-secret-value", "arn:test")
+    db.execute.assert_awaited_once()
+    sql, *args = db.execute.call_args[0]
+    assert "platform_vendor_credential" in sql
+    assert "kms-ciphertext-blob" in args
+    assert "real-secret-value" not in args   # plaintext never reaches the DB write
+
+
+@pytest.mark.asyncio
+async def test_set_vendor_credential_publishes_immudb_audited_event_without_secret():
+    db = _db()
+    kms = _kms()
+    mock_kafka = AsyncMock()
+    with patch("kafka.producer.get_kafka_producer", new=AsyncMock(return_value=mock_kafka)):
+        svc = CommunicationSettingsService(db)
+        await svc.set_vendor_credential(
+            vendor="msg91", field_name="msg91_auth_key", value="real-secret-value",
+            updated_by="pa-1", kms=kms, kek_arn="arn:test",
+        )
+
+    mock_kafka.tenant_event.assert_awaited_once()
+    event = mock_kafka.tenant_event.call_args.args[0]
+    assert event["event_type"] == "COMM_VENDOR_CREDENTIAL_ROTATED"
+    assert event["vendor"] == "msg91"
+    assert event["field_name"] == "msg91_auth_key"
+    assert event["actor_id"] == "pa-1"
+    assert "real-secret-value" not in str(event)
+
+
+# ---------------------------------------------------------------------------
+# Effective settings — DB-stored credentials actually override env at
+# adapter-construction time, or editing via the PA screen would be cosmetic
+# ---------------------------------------------------------------------------
+
+@pytest.mark.asyncio
+async def test_get_effective_settings_overlays_db_stored_credentials():
+    base = _settings(exotel_api_key="env-value")
+    db = _db()
+    db.fetch = AsyncMock(return_value=[
+        {"field_name": "exotel_api_key", "enc_value": "ciphertext-1"},
+    ])
+    kms = _kms()
+    kms.decrypt_value = MagicMock(return_value="db-stored-value")
+    svc = CommunicationSettingsService(db)
+
+    effective = await svc.get_effective_settings(base, kms, "arn:test")
+
+    kms.decrypt_value.assert_called_once_with("ciphertext-1", "arn:test")
+    assert effective.exotel_api_key == "db-stored-value"
+    assert base.exotel_api_key == "env-value"   # original untouched
+
+
+@pytest.mark.asyncio
+async def test_get_effective_settings_falls_back_to_env_when_no_db_rows():
+    base = _settings(exotel_api_key="env-value")
+    db = _db()
+    db.fetch = AsyncMock(return_value=[])
+    svc = CommunicationSettingsService(db)
+
+    effective = await svc.get_effective_settings(base, _kms(), "arn:test")
+    assert effective.exotel_api_key == "env-value"

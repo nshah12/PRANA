@@ -19,7 +19,9 @@ from aiokafka import AIOKafkaConsumer
 
 from config import Settings
 from services.circuit_breaker import CircuitBreaker
+from services.communication_settings_service import CommunicationSettingsService
 from services.config_service import ConfigService
+from services.encryption_service import resolve_platform_auth_kek_arn
 from services.ivr_service import IVRService
 from services.notification_log import write_notification_log
 
@@ -28,10 +30,13 @@ GROUP_ID = "prana-ivr-consumer"
 
 
 class IVRConsumer:
-    def __init__(self, settings: Settings, db_pool: Optional[asyncpg.Pool] = None, redis=None) -> None:
+    def __init__(
+        self, settings: Settings, db_pool: Optional[asyncpg.Pool] = None, redis=None, kms_service=None,
+    ) -> None:
         self._settings = settings
         self._pool = db_pool
         self._redis = redis
+        self._kms = kms_service
         self._consumer = AIOKafkaConsumer(
             "prana.notifications.ivr",
             bootstrap_servers=settings.kafka_bootstrap_servers,
@@ -69,7 +74,13 @@ class IVRConsumer:
         async with self._pool.acquire() as conn:
             config   = ConfigService(conn, self._redis)
             breaker  = CircuitBreaker(self._redis, config)
-            ivr_svc  = IVRService(self._settings, config, breaker)
+            settings = self._settings
+            if self._kms:
+                kek_arn = resolve_platform_auth_kek_arn(self._settings)
+                settings = await CommunicationSettingsService(conn).get_effective_settings(
+                    self._settings, self._kms, kek_arn,
+                )
+            ivr_svc  = IVRService(settings, config, breaker)
 
             template_data = event.get("template_data") or {}
             sent, error = await ivr_svc.send(
