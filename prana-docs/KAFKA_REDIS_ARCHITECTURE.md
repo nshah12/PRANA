@@ -327,14 +327,15 @@ Every domain helper in `kafka/producer.py` publishes to its own per-domain topic
 | `share_event()` | Yes | `SHARE_CREATED`, `SHARE_REVOKED`, `SHARE_EXPIRED`, `SHARE_OTP_*` |
 | `auth_event()` | Yes | `SESSION_CREATED`, `LOGIN_SUCCESS`, `LOGIN_FAILED`, `TOTP_*`, `OTP_*` |
 | `employee_event()` | Yes | `EMPLOYEE_ONBOARDED/ACTIVATED/EXITED/REJOINED`, `EMPLOYEE_PASSWORD_RESET`, `EMPLOYEE_SESSIONS_REVOKED`, `EMPLOYEE_SHARES_REVOKED` |
-| `tenant_event()` | Yes | `TENANT_CREATED`, `TENANT_CONFIG_UPDATED`, `API_KEY_CREATED/REVOKED`, `KEK_ROTATED` |
+| `tenant_event()` | Yes | `TENANT_CREATED`, `TENANT_CONFIG_UPDATED`, `API_KEY_CREATED/REVOKED`, `KEK_ROTATED`, `COMM_CHANNEL_POLICY_UPDATED`, `COMM_VENDOR_CHAIN_UPDATED`, `SLA_POLICY_UPDATED`, `SEVERITY_RULE_CREATED/UPDATED` |
 | `oa_user_event()` | Yes | `OA_USER_CREATED`, `OA_USER_LOCKED`, `ELEVATION_APPROVED/DENIED/EXPIRED`, `OA_WELCOME_RESENT`, TOTP/password resets |
 | `compliance_event()` | Yes | `CONSENT_GRANTED/WITHDRAWN`, `ERASURE_*`, `CORRECTION_*`, `GRIEVANCE_*` |
 | `security_event()` | Yes | `ANOMALY_DETECTED`, `ACCOUNT_LOCKED`, `CROSS_TENANT_UPLOAD`, `CSAM_DETECTED` |
 | `statutory_event()` | Yes | `OBLIGATION_DUE/OVERDUE`, `PF_FILING_DUE`, `GRATUITY_*` |
 | `integration_event()` | Yes | `HRMS_WEBHOOK_*`, `EPFO_VERIFICATION_*`, `KMS_*`, `TEXTRACT_*` |
 | `platform_event()` | **No** | `WORKER_STARTED/CRASHED`, `HEALTH_CHECK_FAILED`, `DEPLOYMENT_*` — ops telemetry, no `TOPIC_AUDIT` publish at all |
-| `notify_email/sms/push/whatsapp/bell()` | **No** | Channel-specific dispatch only, no `TOPIC_AUDIT` publish |
+| `notify_email/sms/push/whatsapp/bell/ivr()` | **No** | Channel-specific dispatch only, no `TOPIC_AUDIT` publish — called only from `CommunicationHubConsumer` (COMM-01 enforced) |
+| `communication_requested()` | **No** | Intake only — publishes to `prana.communications.events`, no `TOPIC_AUDIT` publish. `CommunicationHubConsumer` reads it, resolves the channel via `notification_channel_policy`, and fans out to the (non-audited) channel topics above |
 | `cache_invalidate()` | **No** | Internal cache-signal only, no `TOPIC_AUDIT` publish |
 
 **The one carve-out:** `AuditConsumer._run_loop()` special-cases `event_type == "DOC_ACCESSED"`

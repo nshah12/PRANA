@@ -1040,7 +1040,8 @@ async def test_list_sla_policy_returns_items(client, mock_db):
 @pytest.mark.asyncio
 async def test_update_sla_policy_calls_service_with_current_user(client, mock_db):
     _set_pa_auth(client, pa_id="pa-uuid-777")
-    with patch(f"{SLA_SVC}.update_sla_policy", new_callable=AsyncMock) as mock_update:
+    with patch(f"{SLA_SVC}.update_sla_policy", new_callable=AsyncMock) as mock_update, \
+         patch("kafka.producer.get_kafka_producer", new=AsyncMock(return_value=AsyncMock())):
         mock_update.return_value = {"severity": "P1", "sla_minutes": 90,
                                      "auto_create_incident": True, "description": "x",
                                      "updated_by": "pa-uuid-777", "updated_at": None}
@@ -1056,6 +1057,31 @@ async def test_update_sla_policy_calls_service_with_current_user(client, mock_db
         severity="P1", sla_minutes=90, auto_create_incident=True,
         description=None, updated_by="pa-uuid-777",
     )
+
+
+@pytest.mark.asyncio
+async def test_update_sla_policy_publishes_immudb_audited_tenant_event(client, mock_db):
+    """Retrofit: sla-policy previously wrote no audit event at all — only
+    updated_by/updated_at columns, not tamper-evident. See
+    prana-docs/COMMUNICATION_HUB_ARCHITECTURE.md §10.3."""
+    _set_pa_auth(client, pa_id="pa-uuid-777")
+    mock_kafka = AsyncMock()
+    with patch(f"{SLA_SVC}.update_sla_policy", new_callable=AsyncMock) as mock_update, \
+         patch("kafka.producer.get_kafka_producer", new=AsyncMock(return_value=mock_kafka)):
+        mock_update.return_value = {"severity": "P1", "sla_minutes": 90,
+                                     "auto_create_incident": True, "description": "x",
+                                     "updated_by": "pa-uuid-777", "updated_at": None}
+        await client.patch(
+            "/admin/sla-policy/P1", headers=AUTH_HEADER,
+            json={"sla_minutes": 90, "auto_create_incident": True},
+        )
+
+    mock_kafka.tenant_event.assert_awaited_once()
+    event = mock_kafka.tenant_event.call_args.args[0]
+    assert event["event_type"] == "SLA_POLICY_UPDATED"
+    assert event["tenant_id"] is None
+    assert event["severity"] == "P1"
+    assert event["actor_id"] == "pa-uuid-777"
 
 
 @pytest.mark.asyncio
@@ -1090,7 +1116,8 @@ async def test_list_severity_rules_filters_by_domain_query_param(client, mock_db
 @pytest.mark.asyncio
 async def test_create_severity_rule_calls_service_with_current_user(client, mock_db):
     _set_pa_auth(client, pa_id="pa-uuid-777")
-    with patch(f"{SLA_SVC}.create_severity_rule", new_callable=AsyncMock) as mock_create:
+    with patch(f"{SLA_SVC}.create_severity_rule", new_callable=AsyncMock) as mock_create, \
+         patch("kafka.producer.get_kafka_producer", new=AsyncMock(return_value=AsyncMock())):
         mock_create.return_value = {"rule_id": "r-1", "domain": "ANOMALY_RULE", "match_type": "EXACT",
                                      "match_value": "NEW_RULE", "occurrence_threshold": 5,
                                      "occurrence_threshold_max": None, "window_minutes": 15,
@@ -1112,6 +1139,30 @@ async def test_create_severity_rule_calls_service_with_current_user(client, mock
 
 
 @pytest.mark.asyncio
+async def test_create_severity_rule_publishes_immudb_audited_tenant_event(client, mock_db):
+    _set_pa_auth(client, pa_id="pa-uuid-777")
+    mock_kafka = AsyncMock()
+    with patch(f"{SLA_SVC}.create_severity_rule", new_callable=AsyncMock) as mock_create, \
+         patch("kafka.producer.get_kafka_producer", new=AsyncMock(return_value=mock_kafka)):
+        mock_create.return_value = {"rule_id": "r-1", "domain": "ANOMALY_RULE", "match_type": "EXACT",
+                                     "match_value": "NEW_RULE", "occurrence_threshold": 5,
+                                     "occurrence_threshold_max": None, "window_minutes": 15,
+                                     "severity": "P2", "priority": 50, "is_active": True,
+                                     "description": None, "updated_by": "pa-uuid-777", "updated_at": None}
+        await client.post(
+            "/admin/severity-rules", headers=AUTH_HEADER,
+            json={"domain": "ANOMALY_RULE", "match_type": "EXACT", "match_value": "NEW_RULE",
+                  "occurrence_threshold": 5, "window_minutes": 15, "severity": "P2", "priority": 50},
+        )
+
+    mock_kafka.tenant_event.assert_awaited_once()
+    event = mock_kafka.tenant_event.call_args.args[0]
+    assert event["event_type"] == "SEVERITY_RULE_CREATED"
+    assert event["rule_id"] == "r-1"
+    assert event["actor_id"] == "pa-uuid-777"
+
+
+@pytest.mark.asyncio
 async def test_create_severity_rule_invalid_match_type_returns_422(client, mock_db):
     _set_pa_auth(client)
     with patch(f"{SLA_SVC}.create_severity_rule", new_callable=AsyncMock,
@@ -1126,7 +1177,8 @@ async def test_create_severity_rule_invalid_match_type_returns_422(client, mock_
 @pytest.mark.asyncio
 async def test_update_severity_rule_calls_service_with_current_user(client, mock_db):
     _set_pa_auth(client, pa_id="pa-uuid-777")
-    with patch(f"{SLA_SVC}.update_severity_rule", new_callable=AsyncMock) as mock_update:
+    with patch(f"{SLA_SVC}.update_severity_rule", new_callable=AsyncMock) as mock_update, \
+         patch("kafka.producer.get_kafka_producer", new=AsyncMock(return_value=AsyncMock())):
         mock_update.return_value = {"rule_id": "r-1", "domain": "ANOMALY_RULE", "match_type": "EXACT",
                                      "match_value": "BULK_DOC_ACCESS", "occurrence_threshold": 75,
                                      "occurrence_threshold_max": None, "window_minutes": 10,
@@ -1148,6 +1200,29 @@ async def test_update_severity_rule_calls_service_with_current_user(client, mock
 
 
 @pytest.mark.asyncio
+async def test_update_severity_rule_publishes_immudb_audited_tenant_event(client, mock_db):
+    _set_pa_auth(client, pa_id="pa-uuid-777")
+    mock_kafka = AsyncMock()
+    with patch(f"{SLA_SVC}.update_severity_rule", new_callable=AsyncMock) as mock_update, \
+         patch("kafka.producer.get_kafka_producer", new=AsyncMock(return_value=mock_kafka)):
+        mock_update.return_value = {"rule_id": "r-1", "domain": "ANOMALY_RULE", "match_type": "EXACT",
+                                     "match_value": "BULK_DOC_ACCESS", "occurrence_threshold": 75,
+                                     "occurrence_threshold_max": None, "window_minutes": 10,
+                                     "severity": "P1", "priority": 10, "is_active": False,
+                                     "description": None, "updated_by": "pa-uuid-777", "updated_at": None}
+        await client.patch(
+            "/admin/severity-rules/r-1", headers=AUTH_HEADER,
+            json={"occurrence_threshold": 75, "is_active": False},
+        )
+
+    mock_kafka.tenant_event.assert_awaited_once()
+    event = mock_kafka.tenant_event.call_args.args[0]
+    assert event["event_type"] == "SEVERITY_RULE_UPDATED"
+    assert event["rule_id"] == "r-1"
+    assert event["actor_id"] == "pa-uuid-777"
+
+
+@pytest.mark.asyncio
 async def test_update_severity_rule_unknown_id_returns_404(client, mock_db):
     _set_pa_auth(client)
     with patch(f"{SLA_SVC}.update_severity_rule", new_callable=AsyncMock,
@@ -1156,3 +1231,129 @@ async def test_update_severity_rule_unknown_id_returns_404(client, mock_db):
             "/admin/severity-rules/r-9", headers=AUTH_HEADER, json={"priority": 5},
         )
     assert resp.status_code == 404
+
+
+# ── Communication Hub settings — Channel Policy / Vendor Chains / Credentials ─
+# prana-docs/COMMUNICATION_HUB_ARCHITECTURE.md §8.1
+
+COMM_SVC = "services.communication_settings_service.CommunicationSettingsService"
+
+
+@pytest.mark.asyncio
+async def test_get_channel_policy_requires_portal_admin_role(client, mock_db):
+    _set_oa_auth(client)
+    resp = await client.get("/admin/communications/channel-policy", headers=AUTH_HEADER)
+    assert resp.status_code == 403
+
+
+@pytest.mark.asyncio
+async def test_get_channel_policy_returns_items(client, mock_db):
+    _set_pa_auth(client)
+    with patch(f"{COMM_SVC}.get_channel_policy", new_callable=AsyncMock) as mock_get:
+        mock_get.return_value = [
+            {"template_id": "OA_WELCOME", "channels": ["email"], "platform_channels": ["email"],
+             "is_tenant_override": False},
+        ]
+        resp = await client.get("/admin/communications/channel-policy", headers=AUTH_HEADER)
+
+    assert resp.status_code == 200
+    data = resp.json()
+    assert data["total"] == 1
+    assert data["items"][0]["template_id"] == "OA_WELCOME"
+    mock_get.assert_awaited_once_with(tenant_id=None)
+
+
+@pytest.mark.asyncio
+async def test_update_channel_policy_calls_service_with_current_user(client, mock_db):
+    _set_pa_auth(client, pa_id="pa-uuid-777")
+    with patch(f"{COMM_SVC}.update_channel_policy", new_callable=AsyncMock) as mock_update:
+        mock_update.return_value = {"template_id": "OA_WELCOME", "channels": ["email"], "tenant_id": None}
+        resp = await client.patch(
+            "/admin/communications/channel-policy/OA_WELCOME", headers=AUTH_HEADER,
+            json={"channels": ["email"]},
+        )
+
+    assert resp.status_code == 200
+    assert resp.json()["message"] == "COMM_CHANNEL_POLICY_UPDATED"
+    mock_update.assert_awaited_once_with(
+        template_id="OA_WELCOME", channels=["email"], tenant_id=None, updated_by="pa-uuid-777",
+    )
+
+
+@pytest.mark.asyncio
+async def test_update_channel_policy_invalid_channels_returns_422(client, mock_db):
+    _set_pa_auth(client)
+    with patch(f"{COMM_SVC}.update_channel_policy", new_callable=AsyncMock,
+               side_effect=ValueError("INVALID_CHANNELS: ['carrier_pigeon']")):
+        resp = await client.patch(
+            "/admin/communications/channel-policy/OA_WELCOME", headers=AUTH_HEADER,
+            json={"channels": ["carrier_pigeon"]},
+        )
+    assert resp.status_code == 422
+
+
+@pytest.mark.asyncio
+async def test_get_vendor_chains_requires_portal_admin_role(client, mock_db):
+    _set_oa_auth(client)
+    resp = await client.get("/admin/communications/vendor-chains", headers=AUTH_HEADER)
+    assert resp.status_code == 403
+
+
+@pytest.mark.asyncio
+async def test_get_vendor_chains_returns_items(client, mock_db):
+    _set_pa_auth(client)
+    with patch(f"{COMM_SVC}.get_vendor_chains", new_callable=AsyncMock) as mock_get:
+        mock_get.return_value = {"email": {"chain": ["ses"], "available_vendors": ["ses", "smtp"]}}
+        resp = await client.get("/admin/communications/vendor-chains", headers=AUTH_HEADER)
+
+    assert resp.status_code == 200
+    assert resp.json()["chains"]["email"]["chain"] == ["ses"]
+    mock_get.assert_awaited_once_with(tenant_id=None)
+
+
+@pytest.mark.asyncio
+async def test_update_vendor_chain_calls_service_with_current_user(client, mock_db):
+    _set_pa_auth(client, pa_id="pa-uuid-777")
+    with patch(f"{COMM_SVC}.update_vendor_chain", new_callable=AsyncMock) as mock_update:
+        mock_update.return_value = {"channel": "sms", "chain": ["msg91", "aws"], "tenant_id": None}
+        resp = await client.patch(
+            "/admin/communications/vendor-chains/sms", headers=AUTH_HEADER,
+            json={"vendors": ["msg91", "aws"]},
+        )
+
+    assert resp.status_code == 200
+    assert resp.json()["message"] == "COMM_VENDOR_CHAIN_UPDATED"
+    mock_update.assert_awaited_once_with(
+        channel="sms", vendors=["msg91", "aws"], tenant_id=None, updated_by="pa-uuid-777",
+    )
+
+
+@pytest.mark.asyncio
+async def test_update_vendor_chain_unknown_channel_returns_422(client, mock_db):
+    _set_pa_auth(client)
+    with patch(f"{COMM_SVC}.update_vendor_chain", new_callable=AsyncMock,
+               side_effect=ValueError("UNKNOWN_CHANNEL: carrier_pigeon")):
+        resp = await client.patch(
+            "/admin/communications/vendor-chains/carrier_pigeon", headers=AUTH_HEADER,
+            json={"vendors": ["x"]},
+        )
+    assert resp.status_code == 422
+
+
+@pytest.mark.asyncio
+async def test_get_vendor_credentials_requires_portal_admin_role(client, mock_db):
+    _set_oa_auth(client)
+    resp = await client.get("/admin/communications/vendor-credentials", headers=AUTH_HEADER)
+    assert resp.status_code == 403
+
+
+@pytest.mark.asyncio
+async def test_get_vendor_credentials_never_leaks_secrets(client, mock_db):
+    _set_pa_auth(client)
+    resp = await client.get("/admin/communications/vendor-credentials", headers=AUTH_HEADER)
+    assert resp.status_code == 200
+    body_text = resp.text
+    # Structural guarantee: response is status-only, never raw secret values
+    assert "configured" in body_text
+    for leaked_field in ("exotel_api_key", "msg91_auth_key", "whatsapp_waba_token"):
+        assert leaked_field not in body_text

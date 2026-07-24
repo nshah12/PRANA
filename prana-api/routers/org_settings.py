@@ -153,3 +153,55 @@ async def update_org_profile(body: UpdateOrgProfileIn, db: DbConn, current=OAAdm
             fields[key] = {k: v for k, v in fields[key].items() if v is not None}
     await svc.update_profile(current.tenant_id, current.user_id, **fields)
     return {"message": SuccessCode.PROFILE_UPDATED}
+
+
+# ── Communication Hub settings — see prana-docs/COMMUNICATION_HUB_ARCHITECTURE.md §8.2 ──
+# OA-Admin: tenant-scoped only. Editing writes a tenant_id override row, never the
+# platform default. No vendor-credential route here at all — OA-Admin never sees secrets.
+
+@router.get("/communications/channel-policy")
+async def get_org_channel_policy(db: DbConn, current=OAAdmin):
+    from services.communication_settings_service import CommunicationSettingsService
+    items = await CommunicationSettingsService(db).get_channel_policy(tenant_id=current.tenant_id)
+    return {"items": items, "total": len(items)}
+
+
+class OrgChannelPolicyUpdateIn(BaseModel):
+    channels: List[str]
+
+
+@router.patch("/communications/channel-policy/{template_id}")
+async def update_org_channel_policy(template_id: str, body: OrgChannelPolicyUpdateIn, db: DbConn, current=OAAdmin):
+    from services.communication_settings_service import CommunicationSettingsService
+    try:
+        result = await CommunicationSettingsService(db).update_channel_policy(
+            template_id=template_id, channels=body.channels,
+            tenant_id=current.tenant_id, updated_by=current.user_id,
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(exc)) from exc
+    return {"message": SuccessCode.COMM_CHANNEL_POLICY_UPDATED, "channel_policy": result}
+
+
+@router.get("/communications/vendor-chains")
+async def get_org_vendor_chains(db: DbConn, current=OAAdmin):
+    from services.communication_settings_service import CommunicationSettingsService
+    chains = await CommunicationSettingsService(db).get_vendor_chains(tenant_id=current.tenant_id)
+    return {"chains": chains}
+
+
+class OrgVendorChainUpdateIn(BaseModel):
+    vendors: List[str]
+
+
+@router.patch("/communications/vendor-chains/{channel}")
+async def update_org_vendor_chain(channel: str, body: OrgVendorChainUpdateIn, db: DbConn, current=OAAdmin):
+    from services.communication_settings_service import CommunicationSettingsService
+    try:
+        result = await CommunicationSettingsService(db).update_vendor_chain(
+            channel=channel, vendors=body.vendors,
+            tenant_id=current.tenant_id, updated_by=current.user_id,
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(exc)) from exc
+    return {"message": SuccessCode.COMM_VENDOR_CHAIN_UPDATED, "vendor_chain": result}

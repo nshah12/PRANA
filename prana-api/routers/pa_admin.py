@@ -1438,6 +1438,21 @@ async def update_sla_policy(severity: str, body: SlaPolicyUpdateIn, db: DbConn, 
         )
     except ValueError as exc:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
+
+    # Retrofit: this endpoint previously wrote no audit event at all — only
+    # updated_by/updated_at columns, not tamper-evident. See
+    # prana-docs/COMMUNICATION_HUB_ARCHITECTURE.md §10.3.
+    from kafka.producer import get_kafka_producer
+    kafka = await get_kafka_producer()
+    await kafka.tenant_event({
+        "event_type": "SLA_POLICY_UPDATED",
+        "tenant_id": None,
+        "severity": severity,
+        "sla_minutes": body.sla_minutes,
+        "auto_create_incident": body.auto_create_incident,
+        "actor_id": current.user_id,
+    })
+
     return {"message": SuccessCode.SLA_POLICY_UPDATED, "sla_policy": policy}
 
 
@@ -1474,6 +1489,20 @@ async def create_severity_rule(body: SeverityRuleCreateIn, db: DbConn, current=P
         )
     except ValueError as exc:
         raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(exc)) from exc
+
+    # Retrofit: see update_sla_policy's comment above — same pre-existing gap,
+    # same fix (prana-docs/COMMUNICATION_HUB_ARCHITECTURE.md §10.3).
+    from kafka.producer import get_kafka_producer
+    kafka = await get_kafka_producer()
+    await kafka.tenant_event({
+        "event_type": "SEVERITY_RULE_CREATED",
+        "tenant_id": None,
+        "rule_id": rule["rule_id"],
+        "domain": body.domain,
+        "severity": body.severity,
+        "actor_id": current.user_id,
+    })
+
     return {"message": SuccessCode.SEVERITY_RULE_CREATED, "severity_rule": rule}
 
 
@@ -1500,5 +1529,76 @@ async def update_severity_rule(rule_id: str, body: SeverityRuleUpdateIn, db: DbC
         )
     except ValueError as exc:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
+
+    # Retrofit: see update_sla_policy's comment above — same pre-existing gap,
+    # same fix (prana-docs/COMMUNICATION_HUB_ARCHITECTURE.md §10.3).
+    from kafka.producer import get_kafka_producer
+    kafka = await get_kafka_producer()
+    await kafka.tenant_event({
+        "event_type": "SEVERITY_RULE_UPDATED",
+        "tenant_id": None,
+        "rule_id": rule_id,
+        "actor_id": current.user_id,
+    })
+
     return {"message": SuccessCode.SEVERITY_RULE_UPDATED, "severity_rule": rule}
+
+
+# ── Communication Hub settings — see prana-docs/COMMUNICATION_HUB_ARCHITECTURE.md §8.1 ──
+# Platform Admin: full control, platform-wide (tenant_id IS NULL rows).
+
+@router.get("/communications/channel-policy")
+async def get_channel_policy(db: DbConn, current=PA):
+    from services.communication_settings_service import CommunicationSettingsService
+    items = await CommunicationSettingsService(db).get_channel_policy(tenant_id=None)
+    return {"items": items, "total": len(items)}
+
+
+class ChannelPolicyUpdateIn(BaseModel):
+    channels: list[str]
+
+
+@router.patch("/communications/channel-policy/{template_id}")
+async def update_channel_policy(template_id: str, body: ChannelPolicyUpdateIn, db: DbConn, current=PA):
+    from services.communication_settings_service import CommunicationSettingsService
+    try:
+        result = await CommunicationSettingsService(db).update_channel_policy(
+            template_id=template_id, channels=body.channels, tenant_id=None, updated_by=current.user_id,
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(exc)) from exc
+    return {"message": SuccessCode.COMM_CHANNEL_POLICY_UPDATED, "channel_policy": result}
+
+
+@router.get("/communications/vendor-chains")
+async def get_vendor_chains(db: DbConn, current=PA):
+    from services.communication_settings_service import CommunicationSettingsService
+    chains = await CommunicationSettingsService(db).get_vendor_chains(tenant_id=None)
+    return {"chains": chains}
+
+
+class VendorChainUpdateIn(BaseModel):
+    vendors: list[str]
+
+
+@router.patch("/communications/vendor-chains/{channel}")
+async def update_vendor_chain(channel: str, body: VendorChainUpdateIn, db: DbConn, current=PA):
+    from services.communication_settings_service import CommunicationSettingsService
+    try:
+        result = await CommunicationSettingsService(db).update_vendor_chain(
+            channel=channel, vendors=body.vendors, tenant_id=None, updated_by=current.user_id,
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(exc)) from exc
+    return {"message": SuccessCode.COMM_VENDOR_CHAIN_UPDATED, "vendor_chain": result}
+
+
+@router.get("/communications/vendor-credentials")
+async def get_vendor_credentials(db: DbConn, current=PA):
+    """Read-only configuration status per vendor — never exposes secret values.
+    Never exposed to OA-Admin at all (no equivalent org/ route)."""
+    from config import get_settings
+    from services.communication_settings_service import CommunicationSettingsService
+    status_map = CommunicationSettingsService(db).get_vendor_credential_status(get_settings())
+    return {"vendors": status_map}
 

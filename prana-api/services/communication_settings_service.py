@@ -1,0 +1,232 @@
+"""
+CommunicationSettingsService — backs the PA + OA-Admin Communication Settings
+screens (prana-docs/COMMUNICATION_HUB_ARCHITECTURE.md §8).
+
+Channel policy: per-NotificationTemplate channel set, tenant override with
+platform-default fallback (notification_channel_policy table, Phase 1).
+Vendor chains: per-channel ordered vendor list, same tenant->platform
+resolution (platform_config/tenant_config, Phase 1) — an OA-Admin can only
+choose among vendors PA has already enabled platform-wide (§8.2's "ceiling").
+
+Every write publishes an Immudb-audited kafka.tenant_event() (§9) — same
+pipeline (TOPIC_AUDIT -> AuditConsumer -> audit_event -> Immudb dual-write)
+already used for TENANT_CONFIG_UPDATED/KEK_ROTATED/etc, no new plumbing.
+
+Cache staleness note: platform_config/tenant_config writes here do not call
+ConfigService.invalidate() — matching every other existing config-writing
+endpoint in this codebase today (org_settings.py, chro.py), none of which
+call it either. A vendor-chain edit can take up to redis_config_ttl_seconds
+(5 min) to take effect. Pre-existing gap, not unique to this feature.
+"""
+import json
+from typing import Optional
+
+import asyncpg
+
+from config import Settings
+from messages import NotificationTemplate
+
+VALID_CHANNELS = {"email", "sms", "whatsapp", "portal_bell", "ivr", "push"}
+CHANNEL_VENDORS = {
+    "email": {"ses", "smtp"},
+    "sms": {"aws", "exotel", "msg91"},
+    "whatsapp": {"waba"},
+    "ivr": {"exotel", "ozonetel"},
+}
+
+
+class CommunicationSettingsService:
+    def __init__(self, db: asyncpg.Connection) -> None:
+        self._db = db
+
+    # -----------------------------------------------------------------------
+    # Channel policy
+    # -----------------------------------------------------------------------
+
+    async def get_channel_policy(self, tenant_id: Optional[str] = None) -> list[dict]:
+        platform_rows = await self._db.fetch(
+            "SELECT template_id, channels FROM notification_channel_policy WHERE tenant_id IS NULL"
+        )
+        platform_map = {r["template_id"]: list(r["channels"]) for r in platform_rows}
+
+        tenant_map: dict[str, list[str]] = {}
+        if tenant_id:
+            tenant_rows = await self._db.fetch(
+                "SELECT template_id, channels FROM notification_channel_policy WHERE tenant_id = $1",
+                tenant_id,
+            )
+            tenant_map = {r["template_id"]: list(r["channels"]) for r in tenant_rows}
+
+        items = []
+        for member in NotificationTemplate:
+            template_id = member.value
+            platform_channels = platform_map.get(template_id, [])
+            is_override = template_id in tenant_map
+            channels = tenant_map[template_id] if is_override else platform_channels
+            items.append({
+                "template_id": template_id,
+                "channels": channels,
+                "platform_channels": platform_channels,
+                "is_tenant_override": is_override,
+            })
+        return items
+
+    async def update_channel_policy(
+        self, *, template_id: str, channels: list[str], tenant_id: Optional[str], updated_by: str,
+    ) -> dict:
+        if template_id not in {m.value for m in NotificationTemplate}:
+            raise ValueError(f"UNKNOWN_TEMPLATE_ID: {template_id}")
+        invalid = set(channels) - VALID_CHANNELS
+        if invalid:
+            raise ValueError(f"INVALID_CHANNELS: {sorted(invalid)}")
+        if not channels:
+            raise ValueError("AT_LEAST_ONE_CHANNEL_REQUIRED")
+
+        if tenant_id:
+            old_row = await self._db.fetchrow(
+                "SELECT channels FROM notification_channel_policy "
+                "WHERE template_id = $1 AND tenant_id = $2",
+                template_id, tenant_id,
+            )
+        else:
+            old_row = await self._db.fetchrow(
+                "SELECT channels FROM notification_channel_policy "
+                "WHERE template_id = $1 AND tenant_id IS NULL",
+                template_id,
+            )
+        old_channels = list(old_row["channels"]) if old_row else []
+
+        if tenant_id:
+            await self._db.execute(
+                """
+                INSERT INTO notification_channel_policy (template_id, tenant_id, channels, updated_by)
+                VALUES ($1, $2, $3, $4)
+                ON CONFLICT (template_id, tenant_id) WHERE tenant_id IS NOT NULL
+                DO UPDATE SET channels = $3, updated_by = $4, updated_at = NOW()
+                """,
+                template_id, tenant_id, channels, updated_by,
+            )
+        else:
+            await self._db.execute(
+                """
+                INSERT INTO notification_channel_policy (template_id, tenant_id, channels, updated_by)
+                VALUES ($1, NULL, $2, $3)
+                ON CONFLICT (template_id) WHERE tenant_id IS NULL
+                DO UPDATE SET channels = $2, updated_by = $3, updated_at = NOW()
+                """,
+                template_id, channels, updated_by,
+            )
+
+        from kafka.producer import get_kafka_producer
+        kafka = await get_kafka_producer()
+        await kafka.tenant_event({
+            "event_type": "COMM_CHANNEL_POLICY_UPDATED",
+            "tenant_id": tenant_id,
+            "template_id": template_id,
+            "old_channels": old_channels,
+            "new_channels": channels,
+            "actor_id": updated_by,
+        })
+
+        return {"template_id": template_id, "channels": channels, "tenant_id": tenant_id}
+
+    # -----------------------------------------------------------------------
+    # Vendor chains
+    # -----------------------------------------------------------------------
+
+    async def _resolve_chain(self, key: str, tenant_id: Optional[str]) -> list[str]:
+        value = None
+        if tenant_id:
+            value = await self._db.fetchval(
+                "SELECT config_value FROM tenant_config WHERE tenant_id = $1 AND config_key = $2",
+                tenant_id, key,
+            )
+        if value is None:
+            value = await self._db.fetchval(
+                "SELECT config_value FROM platform_config WHERE config_key = $1", key,
+            )
+        return json.loads(value) if value else []
+
+    async def get_vendor_chains(self, tenant_id: Optional[str] = None) -> dict:
+        chains = {}
+        for channel in CHANNEL_VENDORS:
+            key = f"{channel}_vendor_chain"
+            chains[channel] = {
+                "chain": await self._resolve_chain(key, tenant_id),
+                "available_vendors": sorted(CHANNEL_VENDORS[channel]),
+            }
+        return chains
+
+    async def update_vendor_chain(
+        self, *, channel: str, vendors: list[str], tenant_id: Optional[str], updated_by: str,
+    ) -> dict:
+        if channel not in CHANNEL_VENDORS:
+            raise ValueError(f"UNKNOWN_CHANNEL: {channel}")
+        invalid = set(vendors) - CHANNEL_VENDORS[channel]
+        if invalid:
+            raise ValueError(f"INVALID_VENDORS: {sorted(invalid)}")
+        if not vendors:
+            raise ValueError("AT_LEAST_ONE_VENDOR_REQUIRED")
+
+        key = f"{channel}_vendor_chain"
+        if tenant_id:
+            # An OA-Admin can only choose among vendors PA already enabled
+            # platform-wide — §8.2's "ceiling".
+            platform_chain = await self._resolve_chain(key, None)
+            not_enabled = set(vendors) - set(platform_chain)
+            if not_enabled:
+                raise ValueError(f"VENDOR_NOT_ENABLED_BY_PLATFORM: {sorted(not_enabled)}")
+
+            await self._db.execute(
+                """
+                INSERT INTO tenant_config (tenant_id, config_key, config_value, updated_by)
+                VALUES ($1, $2, $3, $4)
+                ON CONFLICT (tenant_id, config_key)
+                DO UPDATE SET config_value = $3, updated_by = $4, updated_at = NOW()
+                """,
+                tenant_id, key, json.dumps(vendors), updated_by,
+            )
+        else:
+            # value_type is NOT NULL with no default — must be supplied even though
+            # ON CONFLICT always hits in practice (these 4 keys are always pre-seeded
+            # by schema.sql), because Postgres/Yugabyte validates the candidate row's
+            # constraints before checking for a conflict, not just on actual insert.
+            await self._db.execute(
+                """
+                INSERT INTO platform_config (config_key, config_value, value_type)
+                VALUES ($1, $2, 'STRING')
+                ON CONFLICT (config_key)
+                DO UPDATE SET config_value = $2, updated_by = $3, updated_at = NOW()
+                """,
+                key, json.dumps(vendors), updated_by,
+            )
+
+        from kafka.producer import get_kafka_producer
+        kafka = await get_kafka_producer()
+        await kafka.tenant_event({
+            "event_type": "COMM_VENDOR_CHAIN_UPDATED",
+            "tenant_id": tenant_id,
+            "channel": channel,
+            "new_chain": vendors,
+            "actor_id": updated_by,
+        })
+
+        return {"channel": channel, "chain": vendors, "tenant_id": tenant_id}
+
+    # -----------------------------------------------------------------------
+    # Vendor credential status — PA only, read-only, never exposes secrets
+    # -----------------------------------------------------------------------
+
+    def get_vendor_credential_status(self, settings: Settings) -> dict:
+        return {
+            # AWS SES/SNS commonly run under an IAM role in production (no
+            # explicit key/secret needed) — cannot be verified from Settings
+            # alone, so always reported as configured.
+            "ses":      {"configured": True},
+            "aws_sns":  {"configured": True},
+            "smtp":     {"configured": bool(settings.smtp_host)},
+            "exotel":   {"configured": bool(settings.exotel_sid and settings.exotel_api_key)},
+            "msg91":    {"configured": bool(settings.msg91_auth_key)},
+            "waba":     {"configured": bool(settings.whatsapp_waba_token and settings.whatsapp_waba_phone_number_id)},
+            "ozonetel": {"configured": bool(settings.ozonetel_api_key)},
+        }

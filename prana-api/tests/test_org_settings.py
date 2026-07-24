@@ -7,7 +7,7 @@ Covers:
   - Valid channel validation: only personal_email / work_email / sms accepted
   - GET /settings accessible to any OA role
 """
-from unittest.mock import AsyncMock, MagicMock
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
@@ -132,3 +132,91 @@ async def test_update_settings_happy_path(client, mock_db):
 
     assert resp.status_code == 200
     assert "message" in resp.json()
+
+
+# ── Communication Hub settings — see prana-docs/COMMUNICATION_HUB_ARCHITECTURE.md §8.2 ──
+# OA-Admin: tenant-scoped only. Editing writes a tenant_id override row, never the
+# platform default. No vendor-credential endpoint at all — OA-Admin never sees secrets.
+
+COMM_SVC = "services.communication_settings_service.CommunicationSettingsService"
+
+
+@pytest.mark.asyncio
+async def test_get_channel_policy_requires_oa_admin(client, mock_db):
+    _set_auth(client, role="oa_operator")
+    resp = await client.get("/v1/org/communications/channel-policy", headers=AUTH_HEADER)
+    assert resp.status_code == 403
+
+
+@pytest.mark.asyncio
+async def test_get_channel_policy_scoped_to_caller_tenant(client, mock_db):
+    _set_auth(client, role="oa_admin", tenant_id="tenant-001")
+    with patch(f"{COMM_SVC}.get_channel_policy", new_callable=AsyncMock) as mock_get:
+        mock_get.return_value = []
+        resp = await client.get("/v1/org/communications/channel-policy", headers=AUTH_HEADER)
+
+    assert resp.status_code == 200
+    mock_get.assert_awaited_once_with(tenant_id="tenant-001")
+
+
+@pytest.mark.asyncio
+async def test_update_channel_policy_writes_tenant_override_not_platform(client, mock_db):
+    _set_auth(client, role="oa_admin", tenant_id="tenant-001", user_id="oa-uuid-777")
+    with patch(f"{COMM_SVC}.update_channel_policy", new_callable=AsyncMock) as mock_update:
+        mock_update.return_value = {"template_id": "VAULT_WELCOME", "channels": ["email"], "tenant_id": "tenant-001"}
+        resp = await client.patch(
+            "/v1/org/communications/channel-policy/VAULT_WELCOME", headers=AUTH_HEADER,
+            json={"channels": ["email"]},
+        )
+
+    assert resp.status_code == 200
+    mock_update.assert_awaited_once_with(
+        template_id="VAULT_WELCOME", channels=["email"], tenant_id="tenant-001", updated_by="oa-uuid-777",
+    )
+
+
+@pytest.mark.asyncio
+async def test_get_vendor_chains_scoped_to_caller_tenant(client, mock_db):
+    _set_auth(client, role="oa_admin", tenant_id="tenant-001")
+    with patch(f"{COMM_SVC}.get_vendor_chains", new_callable=AsyncMock) as mock_get:
+        mock_get.return_value = {}
+        resp = await client.get("/v1/org/communications/vendor-chains", headers=AUTH_HEADER)
+
+    assert resp.status_code == 200
+    mock_get.assert_awaited_once_with(tenant_id="tenant-001")
+
+
+@pytest.mark.asyncio
+async def test_update_vendor_chain_writes_tenant_override(client, mock_db):
+    _set_auth(client, role="oa_admin", tenant_id="tenant-001", user_id="oa-uuid-777")
+    with patch(f"{COMM_SVC}.update_vendor_chain", new_callable=AsyncMock) as mock_update:
+        mock_update.return_value = {"channel": "sms", "chain": ["aws"], "tenant_id": "tenant-001"}
+        resp = await client.patch(
+            "/v1/org/communications/vendor-chains/sms", headers=AUTH_HEADER,
+            json={"vendors": ["aws"]},
+        )
+
+    assert resp.status_code == 200
+    mock_update.assert_awaited_once_with(
+        channel="sms", vendors=["aws"], tenant_id="tenant-001", updated_by="oa-uuid-777",
+    )
+
+
+@pytest.mark.asyncio
+async def test_update_vendor_chain_rejects_vendor_not_enabled_by_platform(client, mock_db):
+    _set_auth(client, role="oa_admin", tenant_id="tenant-001")
+    with patch(f"{COMM_SVC}.update_vendor_chain", new_callable=AsyncMock,
+               side_effect=ValueError("VENDOR_NOT_ENABLED_BY_PLATFORM: ['msg91']")):
+        resp = await client.patch(
+            "/v1/org/communications/vendor-chains/sms", headers=AUTH_HEADER,
+            json={"vendors": ["msg91"]},
+        )
+    assert resp.status_code == 422
+
+
+@pytest.mark.asyncio
+async def test_no_vendor_credentials_route_for_oa_admin(client, mock_db):
+    """OA-Admin never sees vendor secrets — no such route exists on this router."""
+    _set_auth(client, role="oa_admin")
+    resp = await client.get("/v1/org/communications/vendor-credentials", headers=AUTH_HEADER)
+    assert resp.status_code == 404
