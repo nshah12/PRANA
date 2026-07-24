@@ -4,8 +4,9 @@
  * (services/communication_settings_service.py). See
  * prana-docs/COMMUNICATION_HUB_ARCHITECTURE.md §8.1.
  * Three tabs: Channel Policy (per NotificationTemplate), Vendor Chains
- * (ordered fallback per channel), Vendor Credentials (read-only status —
- * never exposes secret values, never shown to OA-Admin at all).
+ * (ordered fallback per channel), Vendor Credentials (write-only rotation —
+ * a value can be set but is never displayed once saved; never shown to
+ * OA-Admin at all — no equivalent route exists on the org/ side).
  */
 import { useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
@@ -238,12 +239,27 @@ function VendorChainsTab() {
 }
 
 function VendorCredentialsTab() {
-  const { data, isLoading } = useQuery({
+  const qc = useQueryClient()
+  const [editField, setEditField] = useState<string | null>(null)   // `${vendor}:${field_name}`
+  const [value, setValue] = useState('')
+
+  const { data, isLoading, isError, refetch } = useQuery({
     queryKey: ['pa-comm-vendor-credentials'],
     queryFn: () => api.get('/admin/communications/vendor-credentials').then(r => r.data),
   })
 
-  const vendors: Record<string, { configured: boolean }> = data?.vendors ?? {}
+  const update = useMutation({
+    mutationFn: ({ vendor, fieldName }: { vendor: string; fieldName: string }) =>
+      api.patch(`/admin/communications/vendor-credentials/${vendor}`, { field_name: fieldName, value }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['pa-comm-vendor-credentials'] })
+      setEditField(null)
+      setValue('')
+    },
+  })
+
+  const vendors: Record<string, { configured: boolean; source: string }> = data?.vendors ?? {}
+  const editableFields: Record<string, string[]> = data?.editable_fields ?? {}
 
   if (isLoading) {
     return (
@@ -252,22 +268,86 @@ function VendorCredentialsTab() {
       </div>
     )
   }
+  if (isError) {
+    return (
+      <div className="flex flex-col items-center py-16 text-slate-400">
+        <p className="text-sm">{tUi('COMM_CREDENTIALS_LOAD_FAILED')}</p>
+        <button onClick={() => refetch()} className="mt-3 text-xs text-indigo-600 hover:underline">
+          {tUi('CFO_ATTRITION_RETRY')}
+        </button>
+      </div>
+    )
+  }
+
+  function startEdit(vendor: string, field: string) {
+    setEditField(`${vendor}:${field}`)
+    setValue('')
+  }
 
   return (
     <div className="space-y-3">
       <p className="text-xs text-slate-400">{tUi('COMM_CREDENTIALS_HINT')}</p>
       <div className="space-y-2">
         {Object.entries(vendors).map(([vendor, status]) => (
-          <div key={vendor} className="bg-white border border-slate-200 rounded-xl p-3 flex items-center justify-between">
-            <span className="text-xs font-mono text-slate-600">{vendor}</span>
-            {status.configured ? (
-              <span className="text-xs px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700 flex items-center gap-1">
-                <ShieldCheck size={12} /> {tUi('COMM_CONFIGURED_BADGE')}
-              </span>
-            ) : (
-              <span className="text-xs px-2 py-0.5 rounded-full bg-slate-100 text-slate-400 flex items-center gap-1">
-                <ShieldOff size={12} /> {tUi('COMM_NOT_CONFIGURED_BADGE')}
-              </span>
+          <div key={vendor} className="bg-white border border-slate-200 rounded-xl p-3 space-y-2">
+            <div className="flex items-center justify-between">
+              <span className="text-xs font-mono text-slate-600">{vendor}</span>
+              <div className="flex items-center gap-2">
+                {status.configured && (
+                  <span className="text-[10px] text-slate-400">
+                    {status.source === 'db' ? tUi('COMM_CRED_SOURCE_DB') : tUi('COMM_CRED_SOURCE_ENV')}
+                  </span>
+                )}
+                {status.configured ? (
+                  <span className="text-xs px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700 flex items-center gap-1">
+                    <ShieldCheck size={12} /> {tUi('COMM_CONFIGURED_BADGE')}
+                  </span>
+                ) : (
+                  <span className="text-xs px-2 py-0.5 rounded-full bg-slate-100 text-slate-400 flex items-center gap-1">
+                    <ShieldOff size={12} /> {tUi('COMM_NOT_CONFIGURED_BADGE')}
+                  </span>
+                )}
+              </div>
+            </div>
+
+            {(editableFields[vendor] ?? []).length > 0 && (
+              <div className="space-y-1.5 pt-2 border-t border-slate-100">
+                {editableFields[vendor].map(field => (
+                  <div key={field} className="flex items-center gap-2">
+                    <span className="text-[11px] font-mono text-slate-400 w-48 shrink-0 truncate">{field}</span>
+                    {editField === `${vendor}:${field}` ? (
+                      <>
+                        <input
+                          type="password"
+                          autoComplete="off"
+                          aria-label={field}
+                          value={value}
+                          onChange={e => setValue(e.target.value)}
+                          placeholder={tUi('COMM_CRED_VALUE_PLACEHOLDER')}
+                          className="flex-1 text-xs border border-slate-200 rounded-lg px-2 py-1"
+                        />
+                        <button
+                          onClick={() => update.mutate({ vendor, fieldName: field })}
+                          disabled={!value || update.isPending}
+                          className="text-xs px-2 py-1 bg-indigo-600 text-white rounded-lg disabled:opacity-50 shrink-0">
+                          {update.isPending ? '…' : tUi('PA_POLICY_SAVE')}
+                        </button>
+                        <button
+                          onClick={() => { setEditField(null); setValue('') }}
+                          className="text-xs px-2 py-1 border border-slate-200 rounded-lg text-slate-500 shrink-0">
+                          {tUi('CISO_SEC_INC_CANCEL')}
+                        </button>
+                      </>
+                    ) : (
+                      <button
+                        onClick={() => startEdit(vendor, field)}
+                        className="text-xs px-2 py-1 border border-slate-200 rounded-lg text-slate-500 hover:bg-slate-50 flex items-center gap-1 shrink-0">
+                        <Pencil size={10} /> {tUi('COMM_CRED_SET_BUTTON')}
+                      </button>
+                    )}
+                  </div>
+                ))}
+              </div>
             )}
           </div>
         ))}

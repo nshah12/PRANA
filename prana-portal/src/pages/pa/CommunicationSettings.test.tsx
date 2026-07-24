@@ -1,4 +1,4 @@
-import { render, screen, waitFor } from '@testing-library/react'
+import { render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
@@ -30,7 +30,15 @@ const CHAINS_MOCK = {
 }
 
 const CREDENTIALS_MOCK = {
-  vendors: { ses: { configured: true }, msg91: { configured: false } },
+  vendors: {
+    ses: { configured: true, source: 'env' },
+    smtp: { configured: false, source: 'none' },
+    msg91: { configured: false, source: 'none' },
+  },
+  editable_fields: {
+    smtp: ['smtp_host', 'smtp_user', 'smtp_password'],
+    msg91: ['msg91_auth_key'],
+  },
 }
 
 beforeEach(() => vi.clearAllMocks())
@@ -93,6 +101,75 @@ describe('CommunicationSettings (PA)', () => {
     await user.click(screen.getByRole('button', { name: /vendor credentials/i }))
     await waitFor(() => expect(screen.getByText('ses')).toBeInTheDocument())
     expect(screen.getByText('Configured')).toBeInTheDocument()
-    expect(screen.getByText('Not configured')).toBeInTheDocument()
+    expect(screen.getAllByText('Not configured').length).toBeGreaterThan(0)
+  })
+
+  it('shows a Set button for each editable field, none for vendors with no editable fields', async () => {
+    const user = userEvent.setup()
+    mockGet.mockImplementation((url: string) =>
+      url.includes('vendor-credentials') ? Promise.resolve({ data: CREDENTIALS_MOCK }) : Promise.resolve({ data: POLICY_MOCK }))
+    render(<CommunicationSettings />, { wrapper })
+    await waitFor(() => expect(screen.getByText('OA_WELCOME')).toBeInTheDocument())
+
+    await user.click(screen.getByRole('button', { name: /vendor credentials/i }))
+    await waitFor(() => expect(screen.getByText('smtp_host')).toBeInTheDocument())
+    expect(screen.getByText('smtp_user')).toBeInTheDocument()
+    expect(screen.getByText('smtp_password')).toBeInTheDocument()
+    expect(screen.getByText('msg91_auth_key')).toBeInTheDocument()
+    // ses has no editable_fields entry — no field rows, no Set button under it
+    expect(screen.getAllByRole('button', { name: /^set$/i }).length).toBe(4)
+  })
+
+  it('entering and saving a credential value never displays it, and calls the PATCH endpoint', async () => {
+    const user = userEvent.setup()
+    mockGet.mockImplementation((url: string) =>
+      url.includes('vendor-credentials') ? Promise.resolve({ data: CREDENTIALS_MOCK }) : Promise.resolve({ data: POLICY_MOCK }))
+    mockPatch.mockResolvedValue({ data: { message: 'COMM_VENDOR_CREDENTIAL_ROTATED', vendor: 'msg91', field_name: 'msg91_auth_key' } })
+    render(<CommunicationSettings />, { wrapper })
+    await waitFor(() => expect(screen.getByText('OA_WELCOME')).toBeInTheDocument())
+
+    await user.click(screen.getByRole('button', { name: /vendor credentials/i }))
+    await waitFor(() => expect(screen.getByText('msg91_auth_key')).toBeInTheDocument())
+
+    const msg91Row = screen.getByText('msg91_auth_key').closest('div')!
+    await user.click(within(msg91Row.parentElement!).getByRole('button', { name: /^set$/i }))
+
+    const input = screen.getByPlaceholderText('Enter new value')
+    expect(input).toHaveAttribute('type', 'password')
+    await user.type(input, 'real-secret-value-123')
+    await user.click(screen.getByRole('button', { name: /^save$/i }))
+
+    await waitFor(() => expect(mockPatch).toHaveBeenCalledWith(
+      '/admin/communications/vendor-credentials/msg91',
+      { field_name: 'msg91_auth_key', value: 'real-secret-value-123' },
+    ))
+    // Secret value never appears anywhere in the rendered DOM after save
+    expect(screen.queryByText('real-secret-value-123')).not.toBeInTheDocument()
+  })
+
+  it('save button is disabled until a value is entered', async () => {
+    const user = userEvent.setup()
+    mockGet.mockImplementation((url: string) =>
+      url.includes('vendor-credentials') ? Promise.resolve({ data: CREDENTIALS_MOCK }) : Promise.resolve({ data: POLICY_MOCK }))
+    render(<CommunicationSettings />, { wrapper })
+    await waitFor(() => expect(screen.getByText('OA_WELCOME')).toBeInTheDocument())
+
+    await user.click(screen.getByRole('button', { name: /vendor credentials/i }))
+    await waitFor(() => expect(screen.getByText('msg91_auth_key')).toBeInTheDocument())
+
+    const msg91Row = screen.getByText('msg91_auth_key').closest('div')!
+    await user.click(within(msg91Row.parentElement!).getByRole('button', { name: /^set$/i }))
+    expect(screen.getByRole('button', { name: /^save$/i })).toBeDisabled()
+  })
+
+  it('shows credential error state with retry on load failure', async () => {
+    const user = userEvent.setup()
+    mockGet.mockImplementation((url: string) =>
+      url.includes('vendor-credentials') ? Promise.reject(new Error('network down')) : Promise.resolve({ data: POLICY_MOCK }))
+    render(<CommunicationSettings />, { wrapper })
+    await waitFor(() => expect(screen.getByText('OA_WELCOME')).toBeInTheDocument())
+
+    await user.click(screen.getByRole('button', { name: /vendor credentials/i }))
+    await waitFor(() => expect(screen.getByText('Failed to load vendor credentials.')).toBeInTheDocument())
   })
 })
