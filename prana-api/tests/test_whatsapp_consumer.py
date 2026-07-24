@@ -76,6 +76,24 @@ async def test_send_whatsapp_calls_whatsapp_service(consumer, db_pool):
     assert call_kwargs["to"] == "+919876543210"
     assert call_kwargs["body"] == "DOC_ROUTED"
     assert call_kwargs["tenant_id"] == "t-1"
+    assert call_kwargs["template_params"] is None   # empty template_data -> no components
+
+
+@pytest.mark.asyncio
+async def test_send_whatsapp_passes_template_data_as_ordered_params(consumer, db_pool):
+    """Regression: template_data was fetched but discarded — any WABA template
+    with {{1}}/{{2}} placeholders sent with them unfilled. Values flow through
+    in template_data's insertion order, same order-preserving convention
+    _build_email_body already uses for email."""
+    _, conn = db_pool
+    event = {"event_type": "DOC_ROUTED", "recipient_id": "u-1", "recipient_phone": "+919876543210",
+             "template_id": "DOC_ROUTED", "tenant_id": "t-1",
+             "template_data": {"employee_name": "Priya", "doc_type": "Salary Slip"}}
+    with patch("kafka.consumers.whatsapp_consumer.WhatsAppService.send",
+               new=AsyncMock(return_value=(True, None))) as mock_send:
+        await consumer._send_whatsapp(event)
+    call_kwargs = mock_send.call_args.kwargs
+    assert call_kwargs["template_params"] == ["Priya", "Salary Slip"]
 
 
 @pytest.mark.asyncio

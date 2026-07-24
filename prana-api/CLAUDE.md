@@ -20,12 +20,13 @@ validate → S3 put → INSERT document row → kafka.publish(DOC_INGESTED) → 
 ```
 **No** `INSERT INTO audit_event` in HTTP handlers — AuditConsumer owns that.
 **No** `temporal.start_workflow()` in HTTP handlers — WorkflowConsumer owns that.
-**No** notification dispatch in HTTP handlers — NotifConsumer owns that.
+**No** notification dispatch in HTTP handlers — CommunicationHubConsumer owns that
+(publish `kafka.communication_requested()` instead — see `prana-docs/COMMUNICATION_HUB_ARCHITECTURE.md`).
 Exception: direct Temporal **signals** (exception_resolved, elevation_approved) are OK in handlers — they target a specific running workflow instance, not a fan-out.
 
 Full reference: `prana-docs/KAFKA_REDIS_ARCHITECTURE.md`
 
-## Kafka Topics (21 total)
+## Kafka Topics (23 total)
 | Topic | Partition Key | Consumer(s) |
 |-------|--------------|-------------|
 | `prana.ingest.events` | `tenant_id` | WorkflowConsumer, AuditConsumer |
@@ -42,13 +43,23 @@ Full reference: `prana-docs/KAFKA_REDIS_ARCHITECTURE.md`
 | `prana.integrations.events` | `tenant_id` | IntegrationConsumer, AuditConsumer |
 | `prana.platform.events` | `service` | PlatformConsumer, AuditConsumer |
 | `prana.audit.events` | `tenant_id` | AuditConsumer |
+| `prana.communications.events` | `recipient_id` | CommunicationHubConsumer (the intake topic for `kafka.communication_requested()` — see `prana-docs/COMMUNICATION_HUB_ARCHITECTURE.md` §2) |
+| `prana.notifications` | `tenant_id` | CommunicationHubConsumer (legacy rich-domain-event intake, retired once every existing producer moves to `communication_requested()`) |
 | `prana.notifications.email` | `recipient_id` | EmailConsumer |
 | `prana.notifications.sms` | `recipient_id` | SMSConsumer |
 | `prana.notifications.push` | `recipient_id` | PushConsumer |
 | `prana.notifications.whatsapp` | `recipient_id` | WhatsAppConsumer |
 | `prana.notifications.portal_bell` | `recipient_id` | BellConsumer |
+| `prana.notifications.ivr` | `recipient_id` | IVRConsumer |
+| `prana.cache.invalidation` | `tenant_id` | CacheInvalidationConsumer |
 
-Domain helpers in `kafka/producer.py`: `doc_ingested()`, `stage_changed()`, `doc_routed()`, `doc_accessed()`, `share_event()`, `employee_event()`, `tenant_event()`, `oa_user_event()`, `compliance_event()`, `auth_event()`, `security_event()`, `statutory_event()`, `integration_event()`, `platform_event()`, `notify_email()`, `notify_sms()`, `notify_push()`, `notify_whatsapp()`, `notify_bell()`
+Domain helpers in `kafka/producer.py`: `doc_ingested()`, `stage_changed()`, `doc_routed()`, `doc_accessed()`, `share_event()`, `employee_event()`, `tenant_event()`, `oa_user_event()`, `compliance_event()`, `auth_event()`, `security_event()`, `statutory_event()`, `integration_event()`, `platform_event()`, `communication_requested()`, `notify_email()`, `notify_sms()`, `notify_push()`, `notify_whatsapp()`, `notify_bell()`, `notify_ivr()`
+
+**Communication Hub note:** `notify_email()`/`notify_sms()`/`notify_whatsapp()`/`notify_bell()`/`notify_ivr()`
+are internal to `CommunicationHubConsumer` only — COMM-01 (`scripts/enforce_rules.py`)
+blocks any other caller. Anything that wants to trigger a notification calls
+`kafka.communication_requested()` and names a `NotificationTemplate` + recipient,
+never a channel — the Hub resolves the channel(s) via `notification_channel_policy`.
 
 Never call `kafka.publish("topic.name", {...})` directly — always use domain helpers.
 

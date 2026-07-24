@@ -103,8 +103,16 @@ class WhatsAppConsumer:
             wa_svc  = WhatsAppService(settings, config, breaker)
 
             template_data = event.get("template_data") or {}
+            # Ordered positional values for the WABA template's {{1}}, {{2}}, ...
+            # placeholders — same order-preserving convention _build_email_body
+            # already uses for email. The approved Meta template must be authored
+            # with its placeholders in this same order (whatever order the event
+            # publisher built template_data in) since there's no per-template
+            # variable-name registry to map against.
+            template_params = [str(v) for v in template_data.values()] or None
             sent, error = await wa_svc.send(
-                to=phone, body=template_id, tenant_id=event.get("tenant_id"),
+                to=phone, body=template_id, template_params=template_params,
+                tenant_id=event.get("tenant_id"),
             )
             await write_notification_log(
                 conn,

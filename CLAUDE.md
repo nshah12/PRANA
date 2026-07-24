@@ -53,10 +53,12 @@ All in `prana-docs/`:
 ## Event Streaming — Apache Kafka (DECIDED, NOT optional)
 - **AWS MSK · KRaft mode · Both regions · MirrorMaker 2 bidirectional sync**
 - Dev: `confluentinc/cp-kafka:7.6.1` container on `localhost:9092`
-- **21 topics** (12 partitions each) and **20 consumers** in `prana-api/kafka/consumers/`.
+- **23 topics** (12 partitions each) and **21 consumers** in `prana-api/kafka/consumers/`.
   The core five remain `AuditConsumer`, `WorkflowConsumer`, `SSEFanoutConsumer`,
-  `NotifConsumer`, `AnalyticsConsumer`; the rest are per-domain (auth/tenant/employee/
-  security/statutory/integration/platform) and per-channel (email/sms/push/whatsapp/bell).
+  `CommunicationHubConsumer` (renamed from `NotifConsumer` — see
+  `prana-docs/COMMUNICATION_HUB_ARCHITECTURE.md`), `AnalyticsConsumer`; the rest are
+  per-domain (auth/tenant/employee/security/statutory/integration/platform) and
+  per-channel (email/sms/push/whatsapp/portal_bell/ivr).
 - **HTTP handler contract:** validate → S3 put → 1 DB write → 1 Kafka publish → return 202. No audit writes, no workflow starts, no notifications in HTTP path.
 - **Authoritative topic/consumer list:** `prana-api/CLAUDE.md`. Full design: `prana-docs/KAFKA_REDIS_ARCHITECTURE.md`
 
