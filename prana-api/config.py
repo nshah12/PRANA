@@ -183,15 +183,14 @@ class Settings(BaseSettings):
     # ordered via ivr_vendor_chain in platform_config/tenant_config). "dev" logs
     # to console. Exotel IVR shares exotel_sid/api_key/api_token with SMS above
     # (same account) — only the flow reference is IVR-specific. Ozonetel is a
-    # separate vendor account entirely.
+    # separate vendor account entirely — outbound.php's documented params
+    # (api_key, phone_no, caller_id, outbound_version) verified against the
+    # vendor's own KooKoo API docs 2026-07-24, see services/ivr_service.py.
     ivr_provider:            str = "dev"    # dev | exotel | ozonetel (informational — real
                                              # selection is per-message via ivr_vendor_chain)
     exotel_ivr_flow_id:      str = ""       # Exotel "Applet"/ExoML flow the call connects to
     ozonetel_api_key:        str = ""
-    ozonetel_username:       str = ""
-    ozonetel_campaign_id:    str = ""       # verify exact param names against Ozonetel's current
-                                             # outbound-voice API docs before enabling in production —
-                                             # not independently verified against live vendor docs here
+    ozonetel_caller_id:      str = ""       # optional — your assigned Ozonetel caller-ID number
 
     # NCMEC CyberTipline — mandatory CSAM reporting (POCSO Act + IT Act). Empty
     # ncmec_report_url = dev mode: logs instead of calling out (see sms_provider

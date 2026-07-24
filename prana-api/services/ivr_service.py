@@ -4,17 +4,24 @@ IVR dispatch — Exotel and Ozonetel outbound-call APIs, both configurable via
 config-driven vendor-chain + circuit-breaker shape as every other channel
 adapter.
 
-`body` is the flow/campaign ID to play — neither vendor's outbound-call API
-accepts freeform text-to-speech content for a triggered notification call.
-If empty, each vendor falls back to its own configured default
-(exotel_ivr_flow_id / ozonetel_campaign_id).
+`body`'s meaning is vendor-dependent — the two vendors genuinely don't offer
+the same capability here:
+  - Exotel: `body` is a flow/Applet ID — Exotel's outbound-call API connects
+    the call to a pre-built ExoML flow, no freeform text accepted. Falls
+    back to exotel_ivr_flow_id if empty.
+  - Ozonetel (KooKoo): `body` is played as literal text-to-speech via the
+    documented `extra_data` playtext mechanism — this vendor's API genuinely
+    does accept freeform text for a triggered call, unlike Exotel.
 
 Dev mode (settings.ivr_provider="dev"): logs to console, bypasses the vendor
 chain entirely — same convention as every other channel adapter.
 
-Ozonetel's exact outbound-call param names are flagged unverified against
-live vendor docs (see config.py's ozonetel_* settings) — the call shape here
-is real and wired, not a stub, but confirm before enabling in production.
+Ozonetel's shape (endpoint, GET method, param names, XML response format) is
+verified against real docs.ozonetel.com / KooKoo documentation (2026-07-24) —
+see _ozonetel()'s docstring for the source. Note KooKoo's own documented
+constraints: standard accounts are capped at 50 outbound calls/day, and TRAI
+regulations block calls between 9pm-9am IST — neither is enforced here, both
+are the vendor's own limits to plan around operationally.
 """
 import logging
 from typing import Optional
@@ -89,22 +96,32 @@ class IVRService:
         log.info("Exotel IVR call initiated to=%s flow=%s", to, flow)
         return True, None
 
-    async def _ozonetel(self, to: str, campaign_id: str) -> tuple[bool, Optional[str]]:
+    async def _ozonetel(self, to: str, message: str) -> tuple[bool, Optional[str]]:
+        """Ozonetel/KooKoo outbound call — GET http://in1-cpaas.ozonetel.com/outbound/outbound.php,
+        api_key + phone_no required, outbound_version=2, extra_data carries a
+        <response><playtext>...</playtext><hangup/></response> XML block that's
+        read aloud via TTS. Success is reported in the XML body
+        (<status>queued</status>), not just the HTTP status — a 200 response can
+        still carry <status>error</status> (e.g. bad api_key). Documented at
+        docs.ozonetel.com's Outbound Call API / KooKoo docs, verified 2026-07-24."""
         s = self._settings
-        campaign = campaign_id or s.ozonetel_campaign_id
-        url = "https://in1-cpaas.ozonetel.com/ozonetel/outbound/call"
+        text = message or "You have a notification from PRANA."
+        extra_data = f"<response><playtext>{text}</playtext><hangup/></response>"
+        params: dict = {
+            "api_key": s.ozonetel_api_key,
+            "phone_no": to.lstrip("+"),
+            "outbound_version": "2",
+            "extra_data": extra_data,
+        }
+        if s.ozonetel_caller_id:
+            params["caller_id"] = s.ozonetel_caller_id
         async with httpx.AsyncClient(timeout=10) as client:
-            resp = await client.post(
-                url,
-                params={
-                    "apikey": s.ozonetel_api_key,
-                    "username": s.ozonetel_username,
-                    "campaign": campaign,
-                    "destination": to,
-                },
+            resp = await client.get(
+                "http://in1-cpaas.ozonetel.com/outbound/outbound.php",
+                params=params,
             )
-        if resp.status_code not in (200, 201):
-            log.error("Ozonetel IVR call failed to=%s status=%s", to, resp.status_code)
+        if resp.status_code != 200 or "<status>queued</status>" not in resp.text:
+            log.error("Ozonetel IVR call failed to=%s status=%s body=%s", to, resp.status_code, resp.text[:200])
             return False, f"ozonetel status {resp.status_code}"
-        log.info("Ozonetel IVR call initiated to=%s campaign=%s", to, campaign)
+        log.info("Ozonetel IVR call queued to=%s", to)
         return True, None

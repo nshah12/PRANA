@@ -2,9 +2,14 @@
 
 Exotel + Ozonetel outbound-call dispatch — same config-driven vendor-chain +
 circuit-breaker shape as every other channel adapter
-(prana-docs/COMMUNICATION_HUB_ARCHITECTURE.md §5). `body` is the flow/campaign
-ID to play, not freeform text-to-speech content — neither vendor's
-outbound-call API accepts that for a triggered notification call.
+(prana-docs/COMMUNICATION_HUB_ARCHITECTURE.md §5).
+
+Ozonetel's shape is verified against real docs.ozonetel.com / KooKoo
+documentation (2026-07-24): GET http://in1-cpaas.ozonetel.com/outbound/outbound.php
+with api_key, phone_no, outbound_version=2, extra_data (a <response> XML block —
+KooKoo's playtext mechanism genuinely does accept freeform TTS text, unlike
+Exotel, which only takes a flow/applet reference). Success is reported via
+<status>queued</status> in the XML body, not just HTTP 200.
 """
 from unittest.mock import AsyncMock, MagicMock, patch
 
@@ -30,8 +35,7 @@ def _settings(provider: str = "dev") -> Settings:
         exotel_sender_id="PRANA",
         exotel_ivr_flow_id="flow-001",
         ozonetel_api_key="oz-key",
-        ozonetel_username="oz-user",
-        ozonetel_campaign_id="camp-001",
+        ozonetel_caller_id="08040000000",
     )
 
 
@@ -48,6 +52,12 @@ def _breaker(open_vendors=None):
     b.record_failure = AsyncMock()
     b.record_success = AsyncMock()
     return b
+
+
+def _ozonetel_resp(status_code=200, body="<response><status>queued</status><message>abc-123</message></response>"):
+    resp = MagicMock(status_code=status_code)
+    resp.text = body
+    return resp
 
 
 @pytest.mark.asyncio
@@ -88,18 +98,17 @@ async def test_ivr_falls_over_to_ozonetel_after_exotel_fails():
     with patch("services.ivr_service.httpx.AsyncClient") as mock_httpx_cls:
         mock_http = AsyncMock()
         fail_resp = MagicMock(status_code=500)
-        ok_resp = MagicMock(status_code=200)
-        mock_http.post = AsyncMock(side_effect=[fail_resp, ok_resp])
+        mock_http.post = AsyncMock(return_value=fail_resp)
+        mock_http.get = AsyncMock(return_value=_ozonetel_resp())
         mock_httpx_cls.return_value.__aenter__.return_value = mock_http
 
-        sent, error = await svc.send(to="+919876543210", body="camp-override")
+        sent, error = await svc.send(to="+919876543210", body="Your PRANA document needs attention")
 
     assert sent is True
     breaker.record_failure.assert_called_once_with("ivr", "exotel", None)
     breaker.record_success.assert_called_once_with("ivr", "ozonetel")
-    # second call went to ozonetel's URL
-    second_call_url = mock_http.post.call_args_list[1].args[0]
-    assert "ozonetel" in second_call_url
+    ozonetel_call = mock_http.get.call_args
+    assert ozonetel_call.args[0] == "http://in1-cpaas.ozonetel.com/outbound/outbound.php"
 
 
 @pytest.mark.asyncio
@@ -107,14 +116,12 @@ async def test_ivr_skips_vendor_with_open_circuit():
     svc = IVRService(_settings(provider="exotel"), _config(chain=["exotel", "ozonetel"]), _breaker(open_vendors=["exotel"]))
     with patch("services.ivr_service.httpx.AsyncClient") as mock_httpx_cls:
         mock_http = AsyncMock()
-        mock_resp = MagicMock(status_code=200)
-        mock_http.post = AsyncMock(return_value=mock_resp)
+        mock_http.get = AsyncMock(return_value=_ozonetel_resp())
         mock_httpx_cls.return_value.__aenter__.return_value = mock_http
 
         sent, error = await svc.send(to="+919876543210", body="flow-001")
 
-    call_url = mock_http.post.call_args.args[0]
-    assert "ozonetel" in call_url
+    mock_http.get.assert_called_once()
     assert sent is True
 
 
@@ -140,3 +147,64 @@ async def test_ivr_falls_back_to_configured_flow_id_when_body_empty():
 
     call_data = mock_http.post.call_args.kwargs["data"]
     assert "flow-001" in call_data["Url"]
+
+
+# ── Ozonetel-specific: real, documented API shape ────────────────────────────
+
+@pytest.mark.asyncio
+async def test_ozonetel_dispatches_via_get_with_documented_params():
+    svc = IVRService(_settings(provider="ozonetel"), _config(chain=["ozonetel"]), _breaker())
+    with patch("services.ivr_service.httpx.AsyncClient") as mock_httpx_cls:
+        mock_http = AsyncMock()
+        mock_http.get = AsyncMock(return_value=_ozonetel_resp())
+        mock_httpx_cls.return_value.__aenter__.return_value = mock_http
+
+        sent, error = await svc.send(to="+919876543210", body="Your PRANA document needs attention")
+
+    call = mock_http.get.call_args
+    assert call.args[0] == "http://in1-cpaas.ozonetel.com/outbound/outbound.php"
+    params = call.kwargs["params"]
+    assert params["api_key"] == "oz-key"
+    assert params["phone_no"] == "919876543210"
+    assert params["outbound_version"] == "2"
+    assert params["caller_id"] == "08040000000"
+    assert "Your PRANA document needs attention" in params["extra_data"]
+    assert "<playtext>" in params["extra_data"]
+    assert sent is True
+    assert error is None
+
+
+@pytest.mark.asyncio
+async def test_ozonetel_http_200_with_xml_error_status_is_treated_as_failure():
+    """KooKoo can return HTTP 200 with <status>error</status> in the body —
+    checking only the HTTP status code would silently treat this as success."""
+    breaker = _breaker()
+    svc = IVRService(_settings(provider="ozonetel"), _config(chain=["ozonetel"]), breaker)
+    with patch("services.ivr_service.httpx.AsyncClient") as mock_httpx_cls:
+        mock_http = AsyncMock()
+        mock_http.get = AsyncMock(return_value=_ozonetel_resp(
+            status_code=200,
+            body="<response><status>error</status><message>Invalid api_key</message></response>",
+        ))
+        mock_httpx_cls.return_value.__aenter__.return_value = mock_http
+
+        sent, error = await svc.send(to="+919876543210", body="Hello")
+
+    assert sent is False
+    breaker.record_failure.assert_called_once_with("ivr", "ozonetel", None)
+
+
+@pytest.mark.asyncio
+async def test_ozonetel_omits_caller_id_when_not_configured():
+    settings = _settings(provider="ozonetel")
+    settings.ozonetel_caller_id = ""
+    svc = IVRService(settings, _config(chain=["ozonetel"]), _breaker())
+    with patch("services.ivr_service.httpx.AsyncClient") as mock_httpx_cls:
+        mock_http = AsyncMock()
+        mock_http.get = AsyncMock(return_value=_ozonetel_resp())
+        mock_httpx_cls.return_value.__aenter__.return_value = mock_http
+
+        await svc.send(to="+919876543210", body="Hello")
+
+    params = mock_http.get.call_args.kwargs["params"]
+    assert "caller_id" not in params
