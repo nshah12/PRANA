@@ -15,16 +15,24 @@ CREATE EXTENSION IF NOT EXISTS "vector";  -- pgvector for name_embedding VECTOR(
 CREATE TABLE employee_user (
   employee_user_id    UUID         PRIMARY KEY DEFAULT gen_random_uuid(),
   pan_token           VARCHAR(64)  NOT NULL UNIQUE,    -- HMAC-SHA256(NIK, platform_secret)
+  pan_token_version   SMALLINT     NOT NULL DEFAULT 1,  -- services/encryption_service.py's
+                       -- _PAN_TOKEN_ALGOS registry — allows key rotation without invalidating
+                       -- existing tokens. Was live in the DB and read/written by
+                       -- kms_rotation_service.py but missing from this file entirely until a
+                       -- real live run (2026-07-24) surfaced the drift.
   enc_pan             VARCHAR(20)  NOT NULL,            -- FF3-1 FPE(NIK, emp_DEK)
   enc_dek             TEXT         NOT NULL,            -- KMS_Encrypt(emp_DEK, tenant_KEK)
   mobile_token        VARCHAR(64)  UNIQUE,              -- HMAC-SHA256(mobile, platform_secret).
                        -- Deterministic lookup key for login-by-mobile — same role as
                        -- pan_token. Mobile itself is never stored in plaintext (2026-07-18).
-  enc_mobile          VARCHAR(100),                     -- KMSService.encrypt_value(mobile), ONE
+  enc_mobile          TEXT,                              -- KMSService.encrypt_value(mobile), ONE
                        -- platform-wide auth CMK (not a per-tenant KEK — mobile is a
                        -- tenant-agnostic login credential; see .claude/rules/security.md's
                        -- Encryption stack section). Decrypted only for display (own profile,
                        -- consented CHRO alumni export) or to actually place an SMS/WhatsApp send.
+                       -- TEXT not VARCHAR(100) — KMS ciphertext is variable-length and real
+                       -- output overflows a 100-char column (same lesson as totp_secret_enc,
+                       -- caught only by a real live run against real KMS, 2026-07-24).
   email               VARCHAR(254) UNIQUE,              -- Optional secondary login handle.
   password_hash       TEXT,                             -- Argon2id (time=2, mem=65536, p=2)
   totp_secret_enc     TEXT,                             -- KMSService.encrypt_value(base32 seed),
@@ -37,6 +45,11 @@ CREATE TABLE employee_user (
                        -- PENDING_ACTIVATION | ACTIVE | LOCKED | SUSPENDED | MERGED
   force_reset         BOOLEAN      DEFAULT FALSE,
   failed_totp_count   SMALLINT     DEFAULT 0,           -- Lock at 5
+  whatsapp_opt_out    BOOLEAN      NOT NULL DEFAULT FALSE, -- referenced by
+                       -- WhatsAppConsumer since Communication Hub Phase 3 but never
+                       -- added here — only caught by a real live run (2026-07-24),
+                       -- since unit tests mocked the column and never exercised the
+                       -- real query. No employee-facing endpoint sets this yet.
   last_login_at       TIMESTAMPTZ,
   activated_at        TIMESTAMPTZ,
   created_at          TIMESTAMPTZ  NOT NULL DEFAULT NOW(),

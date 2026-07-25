@@ -246,6 +246,57 @@ async def test_update_vendor_chain_publishes_immudb_audited_tenant_event():
     assert event["actor_id"] == "pa-1"
 
 
+@pytest.mark.asyncio
+async def test_update_vendor_chain_platform_edit_invalidates_every_cached_tenant_copy():
+    """Regression: a PA platform-default edit wrote platform_config but never
+    invalidated ConfigService's Redis cache — the real dispatch path
+    (email/sms/whatsapp/ivr_service.py's ConfigService.get_list()) could keep
+    serving the stale vendor chain for up to redis_config_ttl_seconds (5 min)
+    to every tenant without its own override. Found via a real live run
+    2026-07-24."""
+    db = _db()
+    mock_kafka = AsyncMock()
+    mock_config = AsyncMock()
+    with patch("kafka.producer.get_kafka_producer", new=AsyncMock(return_value=mock_kafka)), \
+         patch("services.communication_settings_service.ConfigService", return_value=mock_config):
+        svc = CommunicationSettingsService(db, redis_client=MagicMock())
+        await svc.update_vendor_chain(
+            channel="sms", vendors=["msg91", "aws"], tenant_id=None, updated_by="pa-1",
+        )
+    mock_config.invalidate_all.assert_awaited_once_with("sms_vendor_chain")
+    mock_config.invalidate.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+async def test_update_vendor_chain_tenant_edit_invalidates_only_that_tenant_key():
+    db = _db()
+    db.fetchval = AsyncMock(return_value='["aws", "msg91"]')
+    mock_kafka = AsyncMock()
+    mock_config = AsyncMock()
+    with patch("kafka.producer.get_kafka_producer", new=AsyncMock(return_value=mock_kafka)), \
+         patch("services.communication_settings_service.ConfigService", return_value=mock_config):
+        svc = CommunicationSettingsService(db, redis_client=MagicMock())
+        await svc.update_vendor_chain(
+            channel="sms", vendors=["msg91"], tenant_id="tenant-001", updated_by="oa-1",
+        )
+    mock_config.invalidate.assert_awaited_once_with("sms_vendor_chain", "tenant-001")
+    mock_config.invalidate_all.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+async def test_update_vendor_chain_skips_invalidation_without_redis_client():
+    """Backward-compatible: existing callers construct CommunicationSettingsService(db)
+    with no redis_client — must not crash, just skip cache invalidation."""
+    db = _db()
+    mock_kafka = AsyncMock()
+    with patch("kafka.producer.get_kafka_producer", new=AsyncMock(return_value=mock_kafka)):
+        svc = CommunicationSettingsService(db)  # no redis_client
+        result = await svc.update_vendor_chain(
+            channel="sms", vendors=["msg91"], tenant_id=None, updated_by="pa-1",
+        )
+    assert result["chain"] == ["msg91"]
+
+
 # ---------------------------------------------------------------------------
 # Vendor credential status (PA only, read-only — never exposes secret values)
 # ---------------------------------------------------------------------------

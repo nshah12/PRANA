@@ -298,8 +298,8 @@
     <tr>
       <td>Document routed to vault</td>
       <td>DocumentPipelineWorkflow</td>
-      <td><span class="ch push">Push</span><span class="ch wa">WhatsApp</span><span class="ch sms">SMS fallback</span></td>
-      <td class="yes">YES</td>
+      <td><span class="ch push">Push (stub)</span><span class="ch wa">WhatsApp</span><span class="ch sms">SMS fallback</span></td>
+      <td class="yes">Partial — WhatsApp/SMS only</td>
     </tr>
     <tr>
       <td>Share accessed by recipient</td>
@@ -310,14 +310,14 @@
     <tr>
       <td>Share about to expire (1 hr)</td>
       <td>ShareExpiryWorkflow</td>
-      <td><span class="ch push">Push</span></td>
-      <td class="yes">YES</td>
+      <td><span class="ch push">Push (stub)</span></td>
+      <td class="no">NO — no real channel wired (Push has no FCM/APNs backend)</td>
     </tr>
     <tr>
       <td>Share revoked</td>
       <td>ShareRevocationWorkflow</td>
-      <td><span class="ch push">Push</span><span class="ch email">Email</span></td>
-      <td class="yes">YES</td>
+      <td><span class="ch push">Push (stub)</span><span class="ch email">Email</span></td>
+      <td class="yes">Partial — Email only</td>
     </tr>
     <tr>
       <td>DPDP erasure complete</td>
@@ -702,7 +702,7 @@
     <tr><td><code>ACCOUNT_LOCKED</code></td><td>CISO / OA-Admin</td><td>Email + Bell</td><td class="yes">Active</td><td>locked_user_email, lock_reason</td></tr>
     <tr><td><code>CROSS_TENANT_UPLOAD_ALERT</code> <span class="ch p0">NEW</span></td><td>Tenant CISO + all active PA Admins</td><td>Email + Bell (CISO), Email (PA)</td><td class="yes">Active</td><td>document_id, anomaly_id, owner_tenant_id</td></tr>
     <tr><td><code>AUDIT_INTEGRITY_MISMATCH</code> <span class="ch p0">NEW</span></td><td>All active PA Admins (platform-level)</td><td>Email</td><td class="yes">Active</td><td>checked_count, mismatched_count, unverified_count</td></tr>
-    <tr><td><code>DOC_ROUTED</code></td><td>Employee</td><td>Push + WhatsApp</td><td class="yes">Active</td><td>doc_type, employer_name</td></tr>
+    <tr><td><code>DOC_ROUTED</code></td><td>Employee</td><td>Push (stub — no real FCM/APNs, see PushConsumer) + WhatsApp (real)</td><td class="yes">Partial — WhatsApp only</td><td>doc_type, employer_name</td></tr>
     <tr><td><code>SHARE_ACCESSED</code></td><td>Employee</td><td>Email</td><td class="yes">Active</td><td>recipient_name, accessed_at, share_expires_at</td></tr>
     <tr><td><code>VAULT_WELCOME</code> <span class="ch p0">NEW</span></td><td>Employee</td><td>SMS (primary) + Email (if present)</td><td class="yes">Active</td><td>&mdash; (template_data empty)</td></tr>
     <tr><td><code>VAULT_WELCOME_REJOIN</code> <span class="ch p0">NEW</span></td><td>Employee</td><td>SMS (primary) + Email (if present)</td><td class="yes">Active</td><td>&mdash; (template_data empty)</td></tr>

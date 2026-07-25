@@ -1582,10 +1582,10 @@ class VendorChainUpdateIn(BaseModel):
 
 
 @router.patch("/communications/vendor-chains/{channel}")
-async def update_vendor_chain(channel: str, body: VendorChainUpdateIn, db: DbConn, current=PA):
+async def update_vendor_chain(channel: str, body: VendorChainUpdateIn, request: Request, db: DbConn, current=PA):
     from services.communication_settings_service import CommunicationSettingsService
     try:
-        result = await CommunicationSettingsService(db).update_vendor_chain(
+        result = await CommunicationSettingsService(db, redis_client=request.app.state.redis).update_vendor_chain(
             channel=channel, vendors=body.vendors, tenant_id=None, updated_by=current.user_id,
         )
     except ValueError as exc:

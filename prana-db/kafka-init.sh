@@ -1,12 +1,16 @@
 #!/bin/sh
 set -e
 B=kafka:9093
-# Full 21-topic list, matching prana-api/kafka/producer.py's TOPIC_* constants
+# Full 23-topic list, matching prana-api/kafka/producer.py's TOPIC_* constants
 # exactly. This file previously created only 5 of the 21 -- the rest existed on
 # live dev Kafka only because they'd been created ad hoc at some point, and one
 # (prana.cache.invalidation) never was, silently hanging every OA-user-creation
 # request until traced back here. See prana-docs/PREPROD_TESTING_CHECKLIST.md
 # §0 for the pre-prod-time check this same class of gap requires.
+# 2026-07-24: the Communication Hub build added 2 more topics
+# (prana.communications.events, prana.notifications.ivr) here to producer.py
+# but not here -- the exact same class of gap this file's own history warns
+# about, caught by an actual live-run check rather than another silent miss.
 kafka-topics --bootstrap-server $B --create --if-not-exists --topic prana.ingest.events        --partitions 12 --replication-factor 1
 kafka-topics --bootstrap-server $B --create --if-not-exists --topic prana.pipeline.events       --partitions 12 --replication-factor 1
 kafka-topics --bootstrap-server $B --create --if-not-exists --topic prana.audit.events           --partitions 12 --replication-factor 1
@@ -28,4 +32,6 @@ kafka-topics --bootstrap-server $B --create --if-not-exists --topic prana.notifi
 kafka-topics --bootstrap-server $B --create --if-not-exists --topic prana.notifications.push       --partitions 12 --replication-factor 1
 kafka-topics --bootstrap-server $B --create --if-not-exists --topic prana.notifications.whatsapp     --partitions 12 --replication-factor 1
 kafka-topics --bootstrap-server $B --create --if-not-exists --topic prana.notifications.portal_bell   --partitions 12 --replication-factor 1
-echo "Kafka topics created (21/21)"
+kafka-topics --bootstrap-server $B --create --if-not-exists --topic prana.notifications.ivr         --partitions 12 --replication-factor 1
+kafka-topics --bootstrap-server $B --create --if-not-exists --topic prana.communications.events      --partitions 12 --replication-factor 1
+echo "Kafka topics created (23/23)"

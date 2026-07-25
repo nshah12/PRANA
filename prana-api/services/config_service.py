@@ -43,9 +43,21 @@ class ConfigService:
         return json.loads(val) if val is not None else None
 
     async def invalidate(self, key: str, tenant_id: Optional[str] = None) -> None:
-        """Call after OA-Admin or PA updates a config value."""
+        """Call after OA-Admin or PA updates a tenant-scoped config value —
+        clears only that tenant's own cache entry."""
         cache_key = f"cfg:{tenant_id or 'platform'}:{key}"
         await self._redis.delete(cache_key)
+
+    async def invalidate_all(self, key: str) -> None:
+        """Call after a PLATFORM-DEFAULT edit. Every tenant without its own
+        override caches the resolved fallback value under its own
+        cfg:{tenant_id}:{key} entry (see get()'s cache_key) — invalidate()
+        alone only clears cfg:platform:{key} and leaves every tenant's cached
+        fallback copy stale for up to cache_ttl. SCAN (not KEYS) — non-blocking,
+        safe at the platform's target scale (1 lakh orgs)."""
+        keys = [k async for k in self._redis.scan_iter(match=f"cfg:*:{key}")]
+        if keys:
+            await self._redis.delete(*keys)
 
     async def _resolve(self, key: str, tenant_id: Optional[str]) -> Optional[str]:
         if tenant_id:

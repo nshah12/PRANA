@@ -1,4 +1,5 @@
 import asyncio
+import logging
 from contextlib import asynccontextmanager
 
 import redis.asyncio as redis
@@ -7,6 +8,11 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
 from config import get_settings
+
+logging.basicConfig(
+    level=get_settings().log_level,
+    format="%(asctime)s %(levelname)s %(name)s: %(message)s",
+)
 from errors import PranaError
 from middleware.deprecation import DeprecationMiddleware
 from middleware.request_id import RequestIDMiddleware

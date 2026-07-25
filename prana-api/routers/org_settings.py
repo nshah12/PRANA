@@ -8,7 +8,7 @@ PATCH /org/profile        — OA-editable fields: branding, contacts, workforce,
 import json
 from messages import SuccessCode, success_response
 from typing import Optional, List
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Request, status
 from pydantic import BaseModel
 
 from dependencies import DbConn, require_oa
@@ -195,10 +195,10 @@ class OrgVendorChainUpdateIn(BaseModel):
 
 
 @router.patch("/communications/vendor-chains/{channel}")
-async def update_org_vendor_chain(channel: str, body: OrgVendorChainUpdateIn, db: DbConn, current=OAAdmin):
+async def update_org_vendor_chain(channel: str, body: OrgVendorChainUpdateIn, request: Request, db: DbConn, current=OAAdmin):
     from services.communication_settings_service import CommunicationSettingsService
     try:
-        result = await CommunicationSettingsService(db).update_vendor_chain(
+        result = await CommunicationSettingsService(db, redis_client=request.app.state.redis).update_vendor_chain(
             channel=channel, vendors=body.vendors,
             tenant_id=current.tenant_id, updated_by=current.user_id,
         )

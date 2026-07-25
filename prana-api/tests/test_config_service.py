@@ -78,3 +78,54 @@ async def test_get_list_tenant_override_takes_precedence():
     assert val == ["msg91", "exotel"]
     call_args = db.fetchrow.call_args[0]
     assert "tenant_config" in call_args[0]
+
+
+@pytest.mark.asyncio
+async def test_invalidate_all_deletes_every_cached_copy_of_key():
+    """A platform-default edit (e.g. PA changing whatsapp_vendor_chain) must
+    clear not just cfg:platform:{key} but every tenant's own cached copy of
+    the resolved fallback value — each tenant caches under its OWN cache_key
+    even when the value it got was the platform default, per get()'s
+    cache_key = f"cfg:{tenant_id or 'platform'}:{key}". A single invalidate()
+    call only clears the platform key, leaving every tenant's fallback copy
+    stale for up to cache_ttl. Found via a real live run 2026-07-24 — see
+    services/communication_settings_service.py's update_vendor_chain()."""
+    db = AsyncMock()
+
+    async def fake_scan_iter(match):
+        assert match == "cfg:*:whatsapp_vendor_chain"
+        for key in [b"cfg:platform:whatsapp_vendor_chain",
+                    b"cfg:tenant-a:whatsapp_vendor_chain",
+                    b"cfg:tenant-b:whatsapp_vendor_chain"]:
+            yield key
+
+    redis_client = MagicMock()
+    redis_client.scan_iter = fake_scan_iter
+    redis_client.delete = AsyncMock()
+    svc = ConfigService(db, redis_client)
+
+    await svc.invalidate_all("whatsapp_vendor_chain")
+
+    redis_client.delete.assert_awaited_once_with(
+        b"cfg:platform:whatsapp_vendor_chain",
+        b"cfg:tenant-a:whatsapp_vendor_chain",
+        b"cfg:tenant-b:whatsapp_vendor_chain",
+    )
+
+
+@pytest.mark.asyncio
+async def test_invalidate_all_no_op_when_nothing_cached():
+    db = AsyncMock()
+
+    async def empty_scan_iter(match):
+        return
+        yield  # pragma: no cover — makes this an async generator
+
+    redis_client = MagicMock()
+    redis_client.scan_iter = empty_scan_iter
+    redis_client.delete = AsyncMock()
+    svc = ConfigService(db, redis_client)
+
+    await svc.invalidate_all("whatsapp_vendor_chain")
+
+    redis_client.delete.assert_not_awaited()

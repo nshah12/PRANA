@@ -1,7 +1,9 @@
-# PRANA — Communication Hub Architecture (Proposed)
+# PRANA — Communication Hub Architecture
 
-> **Status: PROPOSED — pending your review. Not yet built. Nothing in this doc is live.**
-> Once approved this gets the same "DECIDED, not optional" treatment as `KAFKA_REDIS_ARCHITECTURE.md`.
+> **Status: BUILT and DECIDED — same "DECIDED, not optional" treatment as `KAFKA_REDIS_ARCHITECTURE.md`.**
+> Live-run verified end-to-end 2026-07-24 (real Kafka events pushed through the actual
+> running stack, not just mocked tests). See §11 for the current done-vs-pending state —
+> most of this doc is built and confirmed working; a few items remain genuinely open.
 
 ---
 
@@ -335,3 +337,52 @@ No behavior change to the endpoints themselves — purely additive audit coverag
   channels in parallel"). Sequential fallback needs delivery-status callbacks per vendor
   (WABA and most SMS gateways support delivery webhooks; IVR less reliably), which is a
   bigger lift — flagging as a real v2, not silently downgrading it into what's built now.
+
+## 11. Current status (2026-07-24) — done vs. pending
+
+Verified by actually restarting the running dev stack and pushing real events through it
+(topics, DB, Redis) — not inferred from source reading or mocked tests alone. See
+`prana-docs/PREPROD_TESTING_CHECKLIST.md` §0 for why that distinction matters here; three of
+the "done" items below only fully worked after live-run-only bugs (never caught by any
+mocked unit test) were found and fixed the same day — listed under §11.3 so they're not lost.
+
+### 11.1 Done and live-verified
+
+| Item | Evidence |
+|---|---|
+| `CommunicationHubConsumer` (§2, §7.2) | Real event published to `prana.communications.events` and `prana.notifications`, consumed with zero lag, correctly fanned out to per-channel topics |
+| `notification_channel_policy` + resolution (§3) | Live query returned real policy row (`DOC_ROUTED` → `{push, whatsapp}`) |
+| Vendor chain + circuit breaker (§4) | `EmailService`/`SMSService`/`WhatsAppService`/`IVRService` all read `{channel}_vendor_chain` via `ConfigService.get_list()` |
+| `IVRService` (§5) | Rewritten against Ozonetel's real KooKoo API (GET `outbound.php`, real param names, XML-body success check) — was previously unverified against real docs |
+| `COMM-01` enforcement (§6) | Active in `scripts/enforce_rules.py`, passes clean |
+| Migration (§7) — all 10 steps | `notif_consumer.py` retired, 4 direct-callers migrated, new consumers registered in `main.py`, schema/config additions all present |
+| PA + OA-Admin Communication Settings screens (§8) | Channel Policy, Vendor Chains, and Vendor Credentials tabs all built; Vendor Credentials tab edits a real field via a real `PATCH` endpoint (was read-only/cosmetic when first built — fixed same session) |
+| Immudb audit trail (§9) incl. §10.3 retrofit | `COMM_CHANNEL_POLICY_UPDATED`/`COMM_VENDOR_CHAIN_UPDATED`/`COMM_VENDOR_CREDENTIAL_ROTATED` all publish via `tenant_event()`; `sla-policy`/`severity-rules` retrofitted alongside |
+| Vendor-chain cache staleness | `ConfigService.invalidate()`/`invalidate_all()` now called from `update_vendor_chain()` — a platform-default edit no longer serves a stale chain to every tenant for up to 5 min. Verified live against the real Redis container, not just mocks |
+| WhatsApp template variables | `WhatsAppConsumer` now actually passes `template_data` through as ordered `template_params` — was fetched and silently discarded before |
+
+### 11.2 Explicitly out of scope for v1 (§10, unchanged — deliberate, not forgotten)
+
+- WhatsApp multi-vendor — chain shape exists, ships with one entry (`waba`)
+- True sequential cross-channel fallback — Hub fans out in parallel today, no delivery-callback-driven sequencing
+- **Push channel — still a stub**, no real FCM/APNs backend (`services/notification_service.py` logs a stub dispatch). This was declared out of scope for *this doc's* vendor-chain rewrite (§2.1) because push has no vendor-chain question — but that's a scoping statement about this redesign, not a claim that push works. It doesn't. `prana-docs/wireframes/notification_incident_matrix.html` previously marked Push-involving rows as fully "Active"/"YES" — corrected 2026-07-24 to show which channel in each row is real vs. stub.
+- No real external vendor account has been exercised end-to-end (Meta WABA production token/template, real Ozonetel/Exotel/MSG91 account, real SES domain) — everything above is verified against the real internal pipeline (Kafka → Hub → channel adapter → vendor client construction), not against a live third-party API call. That step needs real credentials supplied by you; it can't be completed unilaterally.
+
+### 11.3 Live-run-only bugs found and fixed 2026-07-24 (not caught by any mocked test)
+
+These aren't Communication Hub design gaps, but they were blocking a genuine live run of it,
+so they're logged here rather than only in git history:
+
+- `prana-db/kafka-init.sh` never provisioned `prana.communications.events` /
+  `prana.notifications.ivr` — the exact class of gap this script's own comments already
+  warned about (`prana.cache.invalidation` had the same issue previously).
+- `employee_user.whatsapp_opt_out` was queried by `WhatsAppConsumer` but never existed in
+  `schema.sql` — every real WhatsApp dispatch crashed. Column added.
+- `employee_user.enc_mobile` was typed `VARCHAR(100)` — too small for real KMS ciphertext
+  output. Widened to `TEXT` (matches `totp_secret_enc`'s existing correct type).
+- The dev database itself was schema-drifted from `schema.sql` (still had a legacy plaintext
+  `mobile` column instead of `mobile_token`/`enc_mobile`) — added the real columns and
+  backfilled all 510 existing rows via the app's actual KMS/HMAC code.
+- Root logger had no handler configured anywhere in `prana-api` — every `log.info()` call
+  across every Kafka consumer, including every dispatch confirmation, was silently dropped.
+  Fixed via `logging.basicConfig` + new `log_level` setting.

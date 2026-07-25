@@ -8,6 +8,10 @@ class Settings(BaseSettings):
     # App
     app_env: str = "development"          # development | staging | production
     debug: bool = False
+    log_level: str = "INFO"               # stdlib logging level name — root logger had no
+                       # handler/level configured at all before this (2026-07-24 live run),
+                       # so every log.info() across every Kafka consumer (dispatch
+                       # confirmations, "Consumer started") was silently dropped app-wide.
 
     # Database
     db_host: str = "localhost"

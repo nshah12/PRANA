@@ -12,20 +12,30 @@ Every write publishes an Immudb-audited kafka.tenant_event() (§9) — same
 pipeline (TOPIC_AUDIT -> AuditConsumer -> audit_event -> Immudb dual-write)
 already used for TENANT_CONFIG_UPDATED/KEK_ROTATED/etc, no new plumbing.
 
-Cache staleness note: platform_config/tenant_config writes here do not call
-ConfigService.invalidate() — matching every other existing config-writing
-endpoint in this codebase today (org_settings.py, chro.py), none of which
-call it either. A vendor-chain edit can take up to redis_config_ttl_seconds
-(5 min) to take effect. Pre-existing gap, not unique to this feature.
+Cache staleness (fixed 2026-07-24, found via a real live run): vendor chains
+are the only config here actually read through ConfigService's Redis cache
+(email/sms/whatsapp/ivr_service.py's get_list(f"{channel}_vendor_chain", ...)
+at dispatch time) — channel policy reads go straight to notification_channel_policy
+via ChannelPolicyService, no cache involved, so those need no invalidation.
+org_settings.py/chro.py/tenant_service.py/digest_service.py's tenant_config
+writes (self_upload_policy, employee_activation_channels, chro_alert_*, digest
+config) are read back via direct SQL everywhere else too — never through
+ConfigService — so they were never actually stale, despite the superficially
+identical "INSERT ... ON CONFLICT" shape. update_vendor_chain() below now
+invalidates: invalidate_all() (SCAN-based, clears every tenant's cached copy
+of the fallback) for a platform-default edit, invalidate() (single key) for
+a tenant-scoped edit.
 """
 import json
 import logging
 from typing import Optional
 
 import asyncpg
+import redis.asyncio as redis_lib
 
 from config import Settings
 from messages import NotificationTemplate
+from services.config_service import ConfigService
 
 log = logging.getLogger(__name__)
 
@@ -50,8 +60,9 @@ VENDOR_CREDENTIAL_FIELDS = {
 
 
 class CommunicationSettingsService:
-    def __init__(self, db: asyncpg.Connection) -> None:
+    def __init__(self, db: asyncpg.Connection, redis_client: Optional[redis_lib.Redis] = None) -> None:
         self._db = db
+        self._redis = redis_client
 
     # -----------------------------------------------------------------------
     # Channel policy
@@ -214,6 +225,16 @@ class CommunicationSettingsService:
                 """,
                 key, json.dumps(vendors), updated_by,
             )
+
+        if self._redis is not None:
+            config = ConfigService(self._db, self._redis)
+            if tenant_id:
+                await config.invalidate(key, tenant_id)
+            else:
+                # Platform-default edit: every tenant without its own override
+                # cached the fallback value under its OWN cfg:{tenant_id}:{key}
+                # entry — a single invalidate() would miss all of them.
+                await config.invalidate_all(key)
 
         from kafka.producer import get_kafka_producer
         kafka = await get_kafka_producer()
