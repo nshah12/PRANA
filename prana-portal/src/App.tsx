@@ -86,6 +86,7 @@ import { IncidentRegister }         from '@/pages/pa/IncidentRegister'
 import { SecurityIncidentRegister } from '@/pages/pa/SecurityIncidentRegister'
 import { IncidentPolicyConfig }     from '@/pages/pa/IncidentPolicyConfig'
 import { CommunicationSettings as PaCommunicationSettings } from '@/pages/pa/CommunicationSettings'
+import { PlatformCredentials }      from '@/pages/pa/PlatformCredentials'
 import { PlatformDocumentFields }   from '@/pages/pa/PlatformDocumentFields'
 import { SetupChecklistTemplate }   from '@/pages/pa/SetupChecklistTemplate'
 import { PaNotificationLog }        from '@/pages/pa/PaNotificationLog'
@@ -382,6 +383,7 @@ export default function App() {
       <Route path="/admin/security-incidents" element={<RequireAuth><PortalLayout><SecurityIncidentRegister /></PortalLayout></RequireAuth>} />
       <Route path="/admin/incident-policy"    element={<RequireAuth><PortalLayout><IncidentPolicyConfig /></PortalLayout></RequireAuth>} />
       <Route path="/admin/communications"     element={<RequireAuth><PortalLayout><PaCommunicationSettings /></PortalLayout></RequireAuth>} />
+      <Route path="/admin/platform-credentials" element={<RequireAuth><PortalLayout><PlatformCredentials /></PortalLayout></RequireAuth>} />
       <Route path="/admin/document-fields"    element={<RequireAuth><PortalLayout><PlatformDocumentFields /></PortalLayout></RequireAuth>} />
       <Route path="/admin/setup-checklist"    element={<RequireAuth><PortalLayout><SetupChecklistTemplate /></PortalLayout></RequireAuth>} />
       <Route path="/admin/notifications"      element={<RequireAuth><PortalLayout><PaNotificationLog /></PortalLayout></RequireAuth>} />

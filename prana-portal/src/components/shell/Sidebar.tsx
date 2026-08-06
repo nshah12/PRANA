@@ -153,6 +153,7 @@ function navForRole(role: UserRole, base: string, counts: BadgeCounts = {}): Nav
             { label: tUi('NAV_API_KEYS'),           to: `${base}/api-keys`,     icon: <Key size={16}/> },
             { label: tUi('NAV_HRMS_CONNECTORS'),    to: `${base}/hrms`,         icon: <Plug size={16}/> },
             { label: tUi('NAV_COMMUNICATIONS'),     to: `${base}/communications`, icon: <Radio size={16}/> },
+            { label: tUi('NAV_PLATFORM_CREDENTIALS'), to: `${base}/platform-credentials`, icon: <KeyRound size={16}/> },
             { label: tUi('NAV_RATE_LIMITS'),        to: `${base}/rate-limits`,  icon: <BarChart3 size={16}/> },
           ],
         },

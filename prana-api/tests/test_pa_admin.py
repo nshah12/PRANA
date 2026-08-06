@@ -1415,3 +1415,81 @@ async def test_no_vendor_credentials_route_for_oa_admin_patch(client, mock_db):
         json={"field_name": "exotel_api_key", "value": "x"},
     )
     assert resp.status_code == 404
+
+
+# ---------------------------------------------------------------------------
+# Platform credentials — non-communication paid services (Qdrant, etc.)
+# ---------------------------------------------------------------------------
+
+PLATFORM_CRED_SVC = "services.platform_credential_service.PlatformCredentialService"
+
+
+@pytest.mark.asyncio
+async def test_get_platform_credentials_requires_portal_admin_role(client, mock_db):
+    _set_oa_auth(client)
+    resp = await client.get("/admin/platform-credentials", headers=AUTH_HEADER)
+    assert resp.status_code == 403
+
+
+@pytest.mark.asyncio
+async def test_get_platform_credentials_never_leaks_secrets(client, mock_db):
+    _set_pa_auth(client)
+    mock_db.fetch.return_value = [{"vendor": "qdrant", "field_name": "qdrant_api_key"}]
+    resp = await client.get("/admin/platform-credentials", headers=AUTH_HEADER)
+    assert resp.status_code == 200
+    data = resp.json()
+    assert data["vendors"]["qdrant"] == {"configured": True, "source": "db"}
+    assert "qdrant_api_key" in data["editable_fields"]["qdrant"]
+    fetch_sql = mock_db.fetch.call_args.args[0]
+    assert "enc_value" not in fetch_sql
+
+
+@pytest.mark.asyncio
+async def test_update_platform_credential_requires_portal_admin_role(client, mock_db):
+    _set_oa_auth(client)
+    resp = await client.patch(
+        "/admin/platform-credentials/qdrant", headers=AUTH_HEADER,
+        json={"field_name": "qdrant_api_key", "value": "real-secret"},
+    )
+    assert resp.status_code == 403
+
+
+@pytest.mark.asyncio
+async def test_update_platform_credential_calls_service_with_current_user(client, mock_db):
+    _set_pa_auth(client, pa_id="pa-uuid-777")
+    with patch(f"{PLATFORM_CRED_SVC}.set_credential", new_callable=AsyncMock) as mock_set:
+        resp = await client.patch(
+            "/admin/platform-credentials/qdrant", headers=AUTH_HEADER,
+            json={"field_name": "qdrant_api_key", "value": "real-secret-value"},
+        )
+
+    assert resp.status_code == 200
+    assert resp.json()["message"] == "PLATFORM_CREDENTIAL_ROTATED"
+    assert "real-secret-value" not in resp.text
+    mock_set.assert_awaited_once()
+    call_kwargs = mock_set.call_args.kwargs
+    assert call_kwargs["vendor"] == "qdrant"
+    assert call_kwargs["field_name"] == "qdrant_api_key"
+    assert call_kwargs["value"] == "real-secret-value"
+    assert call_kwargs["updated_by"] == "pa-uuid-777"
+
+
+@pytest.mark.asyncio
+async def test_update_platform_credential_unknown_field_returns_422(client, mock_db):
+    _set_pa_auth(client)
+    with patch(f"{PLATFORM_CRED_SVC}.set_credential", new_callable=AsyncMock,
+               side_effect=ValueError("UNKNOWN_FIELD: not_a_real_field for vendor qdrant")):
+        resp = await client.patch(
+            "/admin/platform-credentials/qdrant", headers=AUTH_HEADER,
+            json={"field_name": "not_a_real_field", "value": "x"},
+        )
+    assert resp.status_code == 422
+
+
+@pytest.mark.asyncio
+async def test_no_platform_credentials_route_for_oa_admin():
+    """OA-Admin never edits platform-wide credentials — PA-only, no org/ equivalent."""
+    import importlib
+    org_settings = importlib.import_module("routers.org_settings")
+    paths = {getattr(r, "path", "") for r in org_settings.router.routes}
+    assert not any("platform-credentials" in p for p in paths)

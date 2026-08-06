@@ -1628,3 +1628,37 @@ async def update_vendor_credential(vendor: str, body: VendorCredentialUpdateIn, 
         raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(exc)) from exc
     return {"message": SuccessCode.COMM_VENDOR_CREDENTIAL_ROTATED, "vendor": vendor, "field_name": body.field_name}
 
+
+@router.get("/platform-credentials")
+async def get_platform_credentials(db: DbConn, current=PA):
+    """Non-communication paid-service credentials (currently: Qdrant). See
+    services/platform_credential_service.py for why this is split from
+    /communications/vendor-credentials rather than merged into it. Same
+    never-expose-the-secret guarantee as that endpoint."""
+    from config import get_settings
+    from services.platform_credential_service import PlatformCredentialService, PLATFORM_CREDENTIAL_FIELDS
+    status_map = await PlatformCredentialService(db).get_status(get_settings())
+    return {"vendors": status_map, "editable_fields": PLATFORM_CREDENTIAL_FIELDS}
+
+
+class PlatformCredentialUpdateIn(BaseModel):
+    field_name: str
+    value: str = Field(min_length=1)
+
+
+@router.patch("/platform-credentials/{vendor}")
+async def update_platform_credential(vendor: str, body: PlatformCredentialUpdateIn, request: Request, db: DbConn, current=PA):
+    from services.platform_credential_service import PlatformCredentialService
+    from services.encryption_service import resolve_platform_auth_kek_arn
+
+    kms = request.app.state.kms_service
+    kek_arn = resolve_platform_auth_kek_arn(request.app.state.settings)
+    try:
+        await PlatformCredentialService(db).set_credential(
+            vendor=vendor, field_name=body.field_name, value=body.value,
+            updated_by=current.user_id, kms=kms, kek_arn=kek_arn,
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(exc)) from exc
+    return {"message": SuccessCode.PLATFORM_CREDENTIAL_ROTATED, "vendor": vendor, "field_name": body.field_name}
+

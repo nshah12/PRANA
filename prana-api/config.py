@@ -196,6 +196,16 @@ class Settings(BaseSettings):
     ozonetel_api_key:        str = ""
     ozonetel_caller_id:      str = ""       # optional — your assigned Ozonetel caller-ID number
 
+    # Qdrant (prana-ask's vector store) — prana-api doesn't call Qdrant itself
+    # (deployment boundary: prana-ask is a separate service with its own
+    # config.py), but PA's Platform Credentials page manages the credential
+    # centrally in platform_vendor_credential the same way it manages
+    # smtp/exotel/msg91/waba/ozonetel — prana-ask reads the DB-stored value
+    # independently (own KMS call, no shared package import). See
+    # services/platform_credential_service.py.
+    qdrant_url:     str = ""
+    qdrant_api_key: str = ""
+
     # NCMEC CyberTipline — mandatory CSAM reporting (POCSO Act + IT Act). Empty
     # ncmec_report_url = dev mode: logs instead of calling out (see sms_provider
     # "dev" for the same pattern). Must be set in production — this is a legal

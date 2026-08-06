@@ -25,6 +25,15 @@ class Settings:
     db_dsn: str = field(default_factory=lambda: os.getenv("DB_DSN", "postgresql://prana:prana@localhost:5433/prana"))
 
     # Qdrant vector store (per-employee collections: employee_{uuid})
+    # PA can now enter a real Qdrant credential via the Platform Credentials
+    # screen (prana-api's platform_vendor_credential table, see
+    # prana-api/services/platform_credential_service.py), but this service
+    # does NOT yet read that DB-stored value — it only ever sees these two
+    # env vars. Wiring it up means this service independently querying the
+    # shared YugabyteDB + decrypting via its own boto3 KMS call (no shared
+    # Python package with prana-api, per this file's deployment boundary) and
+    # preferring that value over the env var, same fallback order prana-api's
+    # own services already use. Flagged 2026-08-06, not built.
     qdrant_url:  str = field(default_factory=lambda: os.getenv("QDRANT_URL", "http://localhost:6333"))
     qdrant_api_key: str = field(default_factory=lambda: os.getenv("QDRANT_API_KEY", ""))
 
