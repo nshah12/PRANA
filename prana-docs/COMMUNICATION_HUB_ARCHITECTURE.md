@@ -360,12 +360,12 @@ mocked unit test) were found and fixed the same day — listed under §11.3 so t
 | Immudb audit trail (§9) incl. §10.3 retrofit | `COMM_CHANNEL_POLICY_UPDATED`/`COMM_VENDOR_CHAIN_UPDATED`/`COMM_VENDOR_CREDENTIAL_ROTATED` all publish via `tenant_event()`; `sla-policy`/`severity-rules` retrofitted alongside |
 | Vendor-chain cache staleness | `ConfigService.invalidate()`/`invalidate_all()` now called from `update_vendor_chain()` — a platform-default edit no longer serves a stale chain to every tenant for up to 5 min. Verified live against the real Redis container, not just mocks |
 | WhatsApp template variables | `WhatsAppConsumer` now actually passes `template_data` through as ordered `template_params` — was fetched and silently discarded before |
+| Push channel (§10 update, 2026-08-06) | Real Expo push dispatch — `PushConsumer` upgraded from the last remaining `NotificationService.notify()` stub to a real channel adapter (`services/push_service.py`, same vendor-chain + circuit-breaker shape as every other channel), fans out to every registered `device_credential.push_token`, clears dead tokens on `DeviceNotRegistered`. Mobile side: `expo-notifications` + token registration in `register-device.tsx`, idempotent refresh on every authenticated app launch (`AuthContext` → `refreshPushToken()`). `notification_incident_matrix.html`'s previously-corrected "Push (stub)" rows are accurate again as "Active" — this is a genuine fix, not a re-drift. |
 
 ### 11.2 Explicitly out of scope for v1 (§10, unchanged — deliberate, not forgotten)
 
 - WhatsApp multi-vendor — chain shape exists, ships with one entry (`waba`)
 - True sequential cross-channel fallback — Hub fans out in parallel today, no delivery-callback-driven sequencing
-- **Push channel — still a stub**, no real FCM/APNs backend (`services/notification_service.py` logs a stub dispatch). This was declared out of scope for *this doc's* vendor-chain rewrite (§2.1) because push has no vendor-chain question — but that's a scoping statement about this redesign, not a claim that push works. It doesn't. `prana-docs/wireframes/notification_incident_matrix.html` previously marked Push-involving rows as fully "Active"/"YES" — corrected 2026-07-24 to show which channel in each row is real vs. stub.
 - No real external vendor account has been exercised end-to-end (Meta WABA production token/template, real Ozonetel/Exotel/MSG91 account, real SES domain) — everything above is verified against the real internal pipeline (Kafka → Hub → channel adapter → vendor client construction), not against a live third-party API call. That step needs real credentials supplied by you; it can't be completed unilaterally.
 
 ### 11.3 Live-run-only bugs found and fixed 2026-07-24 (not caught by any mocked test)

@@ -1662,3 +1662,21 @@ async def update_platform_credential(vendor: str, body: PlatformCredentialUpdate
         raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(exc)) from exc
     return {"message": SuccessCode.PLATFORM_CREDENTIAL_ROTATED, "vendor": vendor, "field_name": body.field_name}
 
+
+@router.post("/security/hmac-rotation/approve")
+async def approve_hmac_rotation(request: Request, current=PA):
+    """Signals the perpetual HMACSecretRotationWorkflow (id=hmac-secret-rotation-perpetual)
+    with this PA's identity — rotation proceeds only once 2 DISTINCT PA accounts
+    have signaled (schema.sql's documented '4-eyes enforcement' requirement).
+    Approver identity always from the JWT (current.user_id), never the request
+    body — same rule as every other actor-identity field in this codebase."""
+    temporal = getattr(request.app.state, "temporal_client", None)
+    if not temporal:
+        raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail=PranaError.WORKFLOW_UNAVAILABLE)
+    try:
+        wf = temporal.get_workflow_handle("hmac-secret-rotation-perpetual")
+        await wf.signal("approve", current.user_id)
+    except Exception as exc:
+        raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail=PranaError.WORKFLOW_UNAVAILABLE) from exc
+    return {"message": SuccessCode.HMAC_ROTATION_APPROVAL_SIGNALED}
+

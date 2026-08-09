@@ -183,6 +183,15 @@ class Settings(BaseSettings):
     whatsapp_waba_phone_number_id:  str = ""        # Meta Cloud API phone_number_id (in the send-message URL path)
     whatsapp_waba_api_version:      str = "v20.0"   # Graph API version
 
+    # Push — Communication Hub channel, added 2026-08-06. Expo push service —
+    # the only realistic provider for an Expo SDK 56 app (no FCM/APNs
+    # credentials anywhere in this codebase); single-vendor chain for v1, same
+    # "goes through the chain shape anyway so a second vendor can be added
+    # later" reasoning as whatsapp_service.py. "dev" logs to console. Expo's
+    # basic push API needs no token/credential for unenhanced-security mode —
+    # nothing to configure beyond the provider switch itself.
+    push_provider: str = "dev"     # dev | expo
+
     # IVR — new Communication Hub channel, Exotel + Ozonetel (both configurable,
     # ordered via ivr_vendor_chain in platform_config/tenant_config). "dev" logs
     # to console. Exotel IVR shares exotel_sid/api_key/api_token with SMS above

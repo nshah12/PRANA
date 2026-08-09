@@ -351,6 +351,19 @@ async def lifespan(app: FastAPI):
                 pass
             # Non-fatal — perpetual-workflow bootstrap must not block startup
 
+        try:
+            from workflows.security import ensure_hmac_secret_rotation_running
+            await ensure_hmac_secret_rotation_running(app.state.temporal_client)
+        except Exception as exc:
+            try:
+                from services.error_observability_service import ErrorObservabilityService
+                await ErrorObservabilityService(app.state.db_pool).record(
+                    exc=exc, source="HTTP", source_detail="lifespan:ensure_hmac_secret_rotation_running",
+                )
+            except Exception:
+                pass
+            # Non-fatal — perpetual-workflow bootstrap must not block startup
+
     # Kafka producer
     kafka = KafkaPub(settings)
     try:
@@ -403,7 +416,7 @@ async def lifespan(app: FastAPI):
             # Notification channel consumers
             EmailConsumer(settings, app.state.db_pool, redis=app.state.redis, kms_service=app.state.kms_service),
             SMSConsumer(settings, app.state.db_pool, redis=app.state.redis, kms_service=app.state.kms_service),
-            PushConsumer(settings, app.state.db_pool),
+            PushConsumer(settings, app.state.db_pool, redis=app.state.redis),
             WhatsAppConsumer(settings, app.state.db_pool, redis=app.state.redis, kms_service=app.state.kms_service),
             IVRConsumer(settings, app.state.db_pool, redis=app.state.redis, kms_service=app.state.kms_service),
             BellConsumer(settings, app.state.db_pool, app.state.redis),

@@ -16,6 +16,7 @@ GET  /vault/requests               — list employee's requests
 All routes require employee JWT. tenant_id / employee_user_id always from JWT.
 """
 import io
+import json
 from typing import Optional
 
 import boto3
@@ -372,10 +373,30 @@ async def get_career(request: Request, db: DbConn, current: Employee):
         for i, r in enumerate(event_rows)
     ]
 
+    # employee_insight (CAREER/SKILL_GAP/MARKET_COMP — written by
+    # CareerInsightWorkflow/SkillGapWorkflow/MarketCompWorkflow) had zero
+    # readers anywhere until 2026-08-06 — computed and stored, never surfaced.
+    # This is the natural home: already the employee-facing, insight-only
+    # (no raw ₹) endpoint. All 3 are optional — null until first computed.
+    insight_rows = await db.fetch(
+        "SELECT insight_type, insights FROM employee_insight WHERE employee_uuid=$1",
+        employee_uuid,
+    )
+    insight_by_type = {
+        r["insight_type"]: (json.loads(r["insights"]) if isinstance(r["insights"], str) else (r["insights"] or {}))
+        for r in insight_rows
+    }
+    insights = {
+        "career":      insight_by_type.get("CAREER"),
+        "skill_gap":   insight_by_type.get("SKILL_GAP"),
+        "market_comp": insight_by_type.get("MARKET_COMP"),
+    }
+
     return {
         "growth_data": growth_data,
         "employers": employers,
         "events": events,
+        "insights": insights,
     }
 
 

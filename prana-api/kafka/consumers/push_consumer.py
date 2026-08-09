@@ -1,9 +1,21 @@
 """
 PushConsumer — prana.notifications.push
 
-Dispatches push notifications via FCM (Android) / APNs (iOS).
-Push tokens stored in employee_device.push_token.
-If push fails (token expired), falls back to SMS via notification_service.
+Real channel adapter (2026-08-06 — was the last consumer still on the
+pre-Communication-Hub NotificationService.notify() stub; every other channel
+consumer was already upgraded during the Hub build). Calls PushService.send()
+directly (Expo push, vendor chain + circuit breaker, see
+services/push_service.py) and writes notification_log itself.
+
+Fans out to every non-revoked, non-null device_credential.push_token the
+recipient has registered — an employee can have multiple devices. A
+DeviceNotRegistered error from Expo clears that specific dead token so a
+stale device stops being retried forever.
+
+No PA-editable credential fields exist for push (Expo's basic push API needs
+no token) — unlike email/sms/whatsapp/ivr, this consumer does not call
+CommunicationSettingsService.get_effective_settings(); there's nothing for
+it to override.
 """
 import json
 import logging
@@ -13,15 +25,23 @@ import asyncpg
 from aiokafka import AIOKafkaConsumer
 
 from config import Settings
-from services.notification_service import NotificationService, Channel, RecipientType
+from services.circuit_breaker import CircuitBreaker
+from services.config_service import ConfigService
+from services.notification_log import write_notification_log
+from services.notification_service import _SUBJECT_MAP
+from services.push_service import PushService
 
 log = logging.getLogger(__name__)
 GROUP_ID = "prana-push-consumer"
 
 
 class PushConsumer:
-    def __init__(self, settings: Settings, db_pool: Optional[asyncpg.Pool] = None) -> None:
+    def __init__(
+        self, settings: Settings, db_pool: Optional[asyncpg.Pool] = None, redis=None,
+    ) -> None:
+        self._settings = settings
         self._pool = db_pool
+        self._redis = redis
         self._consumer = AIOKafkaConsumer(
             "prana.notifications.push",
             bootstrap_servers=settings.kafka_bootstrap_servers,
@@ -63,14 +83,57 @@ class PushConsumer:
         if not self._pool:
             return
         async with self._pool.acquire() as conn:
-            svc = NotificationService(db=conn)
-            await svc.notify(
-                tenant_id=event.get("tenant_id"),
+            devices = await conn.fetch(
+                "SELECT device_credential_id, push_token FROM device_credential "
+                "WHERE employee_user_id=$1 AND revoked=FALSE AND push_token IS NOT NULL",
+                recipient_id,
+            )
+            if not devices:
+                log.info("PushConsumer: no registered device for recipient_id=%s", recipient_id)
+                return
+
+            config  = ConfigService(conn, self._redis)
+            breaker = CircuitBreaker(self._redis, config)
+            push_svc = PushService(self._settings, config, breaker)
+
+            tenant_id = event.get("tenant_id")
+            template_data = event.get("template_data") or {}
+            title = "PRANA"
+            body = _SUBJECT_MAP.get(template_id, "You have a new update in PRANA.")
+
+            any_sent = False
+            last_error: Optional[str] = None
+            for row in devices:
+                sent, error = await push_svc.send(
+                    to=row["push_token"], title=title, body=body,
+                    data={"template_id": template_id}, tenant_id=tenant_id,
+                )
+                if sent:
+                    any_sent = True
+                elif error == "DeviceNotRegistered":
+                    await conn.execute(
+                        "UPDATE device_credential SET push_token=NULL WHERE device_credential_id=$1",
+                        row["device_credential_id"],
+                    )
+                else:
+                    last_error = error
+
+            await write_notification_log(
+                conn,
+                tenant_id=tenant_id,
                 event_type=event.get("event_type", "PUSH"),
                 recipient_id=str(recipient_id),
-                recipient_type=RecipientType(event.get("recipient_type", "employee")),
-                channel=Channel.PUSH,
+                recipient_type=str(event.get("recipient_type", "EMPLOYEE")).upper(),
+                channel="PUSH",
                 template_id=template_id,
-                template_data=event.get("template_data") or {},
+                template_data=template_data,
+                status="SENT" if any_sent else "FAILED",
+                error_message=None if any_sent else last_error,
             )
-            log.info("PushConsumer: dispatched %s → recipient=%s", template_id, str(recipient_id)[:8])
+            masked = str(recipient_id)[:8]
+            if any_sent:
+                log.info("PushConsumer: dispatched %s → recipient=%s (%d device(s))",
+                          template_id, masked, len(devices))
+            else:
+                log.error("PushConsumer: dispatch failed %s → recipient=%s error=%s",
+                           template_id, masked, last_error)

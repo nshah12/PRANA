@@ -71,3 +71,12 @@ describe('authStore — device id', () => {
     expect(await authStore.getDeviceId()).toBe('dev-1');
   });
 });
+
+describe('authStore — public key', () => {
+  it('reads/writes the public key via SecureStore', async () => {
+    await authStore.setPublicKey('pubkey-1');
+    expect(SecureStore.setItemAsync).toHaveBeenCalledWith('prana_public_key', 'pubkey-1');
+    (SecureStore.getItemAsync as jest.Mock).mockResolvedValueOnce('pubkey-1');
+    expect(await authStore.getPublicKey()).toBe('pubkey-1');
+  });
+});

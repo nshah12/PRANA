@@ -1177,6 +1177,7 @@
     "COMM_CHAIN_ORDER_HINT": "First vendor tried first; later ones are fallback if it fails.",
     "COMM_VENDOR_ENABLED_ONLY_HINT": "Only vendors the platform has enabled for this channel are selectable.",
     "PLATFORM_CREDENTIAL_ROTATED": "Credential updated successfully.",
+    "HMAC_ROTATION_APPROVAL_SIGNALED": "Approval recorded. Rotation proceeds once a second, distinct Portal Admin also approves.",
     "COMM_CREDENTIALS_HINT": "Enter a value to rotate a vendor credential — once saved, it's used on the next send and never shown again here.",
     "COMM_CREDENTIALS_LOAD_FAILED": "Failed to load vendor credentials.",
     "COMM_CONFIGURED_BADGE": "Configured",

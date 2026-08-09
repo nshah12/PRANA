@@ -342,3 +342,35 @@ async def test_logout_revokes_session(client, mock_db):
     assert resp.status_code == 200
     # Verify revoke was called
     assert mock_db.execute.called
+
+
+# ── Device registration — push_token upsert ────────────────────────────────────
+
+def _emp_auth_headers(client, user_id="emp-user-uuid-001"):
+    mock_jwt = client.app.state.jwt_service
+    mock_jwt.decode.return_value = {
+        "sub": user_id, "user_type": "employee", "jti": "session-abc", "exp": 9999999999,
+    }
+    mock_jwt.is_revoked = AsyncMock(return_value=False)
+    return {"Authorization": "Bearer fake.employee.jwt"}
+
+
+@pytest.mark.asyncio
+async def test_register_device_refreshes_push_token_on_conflict(client, mock_db):
+    """Regression: ON CONFLICT (public_key) DO UPDATE only refreshed
+    last_used_at — a rotated Expo push token on re-registration was silently
+    dropped, since the same physical device keeps the same public_key across
+    app reopens. Fixed 2026-08-06 as part of building real push dispatch."""
+    headers = _emp_auth_headers(client)
+    mock_db.fetchval.return_value = "device-uuid-001"
+
+    resp = await client.post(
+        "/auth/employee/device/register",
+        headers=headers,
+        json={"platform": "ANDROID", "public_key": "pubkey-abc", "push_token": "ExponentPushToken[new-token-123]"},
+    )
+
+    assert resp.status_code == 201
+    call = mock_db.fetchval.call_args
+    sql = call.args[0]
+    assert "push_token=EXCLUDED.push_token" in sql

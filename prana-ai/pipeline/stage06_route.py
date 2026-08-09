@@ -155,18 +155,12 @@ class Stage06Route:
                         document_id, json.dumps({"benchmarks": benchmarks}),
                     )
 
-                await self._db.execute(
-                    """
-                    UPDATE employee_master
-                    SET vault_completeness = (
-                      SELECT LEAST(100, COUNT(DISTINCT doc_type) * 10)
-                      FROM document
-                      WHERE employee_uuid=$1 AND pipeline_status='ROUTED' AND is_deleted=FALSE
-                    ), updated_at=NOW()
-                    WHERE employee_uuid=$1
-                    """,
-                    employee_uuid,
-                )
+                # vault_completeness is NOT written here (removed 2026-08-06) —
+                # prana-api's VaultHealthWorkflow (triggered via /internal/pipeline/routed
+                # below → DocumentPipelineWorkflow._finish_routed) is the sole writer now.
+                # This used to race a 3rd, different formula against prana-api's own
+                # scoring — see EmployeeLifecycleService.recompute_vault_completeness's
+                # module docstring for the full history.
         except PipelineException:
             raise
         except Exception as exc:

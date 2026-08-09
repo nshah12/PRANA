@@ -16,6 +16,7 @@ import { authStore } from '@/lib/auth-store';
 import * as SecureStore from 'expo-secure-store';
 
 jest.mock('@/lib/api', () => ({ api: { get: jest.fn(), post: jest.fn() } }));
+jest.mock('@/lib/push-notifications', () => ({ refreshPushToken: jest.fn() }));
 
 const TOKEN_KEY = 'prana_access_token';
 const mockGet = api.get as jest.Mock;
@@ -60,6 +61,15 @@ describe('AuthContext', () => {
     const rtl = await render(<AuthProvider><Consumer /></AuthProvider>);
     expect(await rtl.findByText('authenticated:true')).toBeTruthy();
     expect(await rtl.findByText('profile:none')).toBeTruthy();
+  });
+
+  it('refreshes the push token on session restore, but not when there is no session', async () => {
+    const { refreshPushToken } = require('@/lib/push-notifications');
+    await SecureStore.setItemAsync(TOKEN_KEY, 'stored-jwt');
+    mockGet.mockResolvedValue({ name: 'Asha Rao', mobile: '+919000000001', vault_url: '', employer_count: 1, active_since: '2020', has_totp: true });
+    const rtl = await render(<AuthProvider><Consumer /></AuthProvider>);
+    await rtl.findByText('authenticated:true');
+    expect(refreshPushToken).toHaveBeenCalledTimes(1);
   });
 
   it('exposes hasDeviceCredential=true when no session exists but a device id is stored', async () => {

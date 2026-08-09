@@ -57,7 +57,6 @@ from workflows.compliance import (
 from workflows.insight_refresh import InsightRefreshWorkflow, refresh_document_insight
 from workflows.intelligence import (
     CareerInsightWorkflow,
-    VaultCompletenessWorkflow,
     AnomalyAcknowledgementWorkflow,
     DigestWorkflow,
     PeerBenchmarkWorkflow,
@@ -150,7 +149,6 @@ from workflows.compliance import (
 )
 from workflows.intelligence import (
     build_career_insight, write_career_insight,
-    score_vault_completeness, write_vault_completeness,
     record_anomaly_ack, build_weekly_digest, build_monthly_digest,
     send_digest_email, build_peer_benchmark, write_peer_benchmark,
     build_skill_gap_analysis, write_skill_gap,
@@ -250,11 +248,9 @@ WORKERS: dict[str, dict] = {
         "workflows": [
             VaultHealthWorkflow, NomineeAccessWorkflow,
             ShareExpiryWorkflow, ShareRevocationWorkflow, DocumentShareWorkflow,
-            VaultCompletenessWorkflow,
         ],
         "activities": [
             recompute_vault_completeness, grant_nominee_access, revoke_nominee_access,
-            score_vault_completeness, write_vault_completeness,
             expire_share_token, revoke_share_token, create_share_token,
             send_share_otp, notify_share_accessed, get_share_config,
         ],
@@ -332,10 +328,6 @@ WORKERS: dict[str, dict] = {
             build_market_comp, write_market_comp,
             recalculate_and_persist,   # GamificationRefreshWorkflow
         ],
-    },
-    "resolution-queue-analytics": {
-        "workflows": [VaultCompletenessWorkflow],
-        "activities": [score_vault_completeness, write_vault_completeness],
     },
     # HRMS pull sync (schedule-driven) + the schedule-ensurer workflow.
     "hrms-queue": {

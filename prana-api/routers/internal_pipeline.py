@@ -81,13 +81,15 @@ async def pipeline_stage_update(payload: PipelineStagePayload, request: Request)
     kafka = getattr(request.app.state, "kafka_producer", None)
     if kafka:
         try:
-            await kafka.stage_changed(
-                document_id=payload.document_id,
-                tenant_id=payload.tenant_id,
-                stage=payload.stage,
-                status=payload.status,
-                detail=payload.detail,
-            )
+            await kafka.stage_changed({
+                "event_type":      "STAGE_CHANGED",
+                "document_id":     payload.document_id,
+                "tenant_id":       payload.tenant_id,
+                "pipeline_status": payload.stage,
+                "stage":           payload.stage,
+                "status":          payload.status,
+                "detail":          payload.detail,
+            })
         except Exception:
             log.exception("stage_changed publish failed doc=%s stage=%s",
                           payload.document_id, payload.stage)
@@ -147,16 +149,19 @@ async def pipeline_routed(payload: RoutedPayload, request: Request):
 
     if kafka:
         try:
-            await kafka.doc_routed(
-                document_id=payload.document_id,
-                tenant_id=payload.tenant_id,
-                employee_uuid=payload.employee_uuid,
-                pan_token=payload.pan_token,
-                doc_type=payload.doc_type,
-                doc_period=payload.doc_period,
-                resolution_method=payload.resolution_method,
-                resolution_confidence=payload.resolution_confidence,
-            )
+            await kafka.doc_routed({
+                "event_type":            "DOC_ROUTED",
+                "document_id":           payload.document_id,
+                "tenant_id":             payload.tenant_id,
+                "employee_uuid":         payload.employee_uuid,
+                "employee_user_id":      payload.employee_user_id,
+                "pan_token":             payload.pan_token,
+                "doc_type":              payload.doc_type,
+                "doc_period":            payload.doc_period,
+                "pipeline_status":       "ROUTED",
+                "resolution_method":     payload.resolution_method,
+                "resolution_confidence": payload.resolution_confidence,
+            })
         except Exception:
             log.exception("DOC_ROUTED publish failed doc=%s", payload.document_id)
 
@@ -185,13 +190,15 @@ async def pipeline_exception(payload: ExceptionPayload, request: Request):
 
     if kafka:
         try:
-            await kafka.stage_changed(
-                document_id=payload.document_id,
-                tenant_id=payload.tenant_id,
-                stage="EXCEPTION",
-                status="FAILED",
-                detail=payload.exception_type,
-            )
+            await kafka.stage_changed({
+                "event_type":      "STAGE_CHANGED",
+                "document_id":     payload.document_id,
+                "tenant_id":       payload.tenant_id,
+                "pipeline_status": "EXCEPTION",
+                "stage":           "EXCEPTION",
+                "status":          "FAILED",
+                "detail":          payload.exception_type,
+            })
         except Exception:
             log.exception("EXCEPTION publish failed doc=%s", payload.document_id)
 

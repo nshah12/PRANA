@@ -1,6 +1,7 @@
 import React, { createContext, useContext, useEffect, useState } from 'react';
 import { api } from '@/lib/api';
 import { authStore } from '@/lib/auth-store';
+import { refreshPushToken } from '@/lib/push-notifications';
 
 interface Profile {
   name: string;
@@ -36,6 +37,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       if (token) {
         setIsAuthenticated(true);
         loadProfile();
+        refreshPushToken();  // fire-and-forget — never blocks app startup
       } else {
         const deviceId = await authStore.getDeviceId();
         setHasDeviceCredential(!!deviceId);

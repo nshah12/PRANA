@@ -515,13 +515,12 @@ async def ensure_kms_key_rotation_running(client) -> None:
 
 
 # ── HMACSecretRotationWorkflow (Pattern 4 — Continue-As-New, perpetual) ──────
-# NOTE: intentionally has NO ensure_*_running() bootstrap like its two siblings
-# above. See services/kms_rotation_service.py's KNOWN GAP docstring — this
-# workflow is missing the 2-distinct-PA-account approval gate schema.sql
-# documents as required. Starting it unconditionally would let the platform
-# HMAC secret rotate without that control ever being built. Needs a
-# workflow-shape change (signals + wait_condition on 2 distinct approver IDs)
-# before it's safe to run, not just a missing start call.
+# 2026-08-06: added the 2-distinct-PA-account approval gate schema.sql
+# documents as required ("4-eyes enforcement") — was previously entirely
+# missing (see services/kms_rotation_service.py's former KNOWN GAP docstring).
+# Extends the Pattern 5 (Human Signal) shape ElevationWorkflow/PolicyLockWorkflow
+# already use, but for 2 DISTINCT approvers rather than 1 — a set naturally
+# handles "the same approver signaling twice doesn't count as two."
 
 @workflow.defn(name="HMACSecretRotationWorkflow")
 class HMACSecretRotationWorkflow:
@@ -529,12 +528,27 @@ class HMACSecretRotationWorkflow:
     Rotates the platform-wide HMAC secret used to derive pan_token.
     On rotation: re-derives all pan_tokens (batch re-hash) + updates Redis cache.
     Runs once per rotation cycle (default: 180 days). Continue-As-New.
+    Gated on 2 distinct PA accounts signaling approve() before each rotation —
+    signal via POST /admin/security/hmac-rotation/approve (pa_admin.py).
     """
+
+    def __init__(self) -> None:
+        self._approvers: set[str] = set()
+
+    @workflow.signal
+    async def approve(self, approver_pa_id: str) -> None:
+        self._approvers.add(approver_pa_id)
+
+    async def _await_dual_approval(self) -> None:
+        """Blocks until 2 DISTINCT PAs have signaled approve() this cycle,
+        then resets for the next one — kept out of run() to stay under
+        TEMPORAL-01's 20-line workflow.run limit."""
+        await workflow.wait_condition(lambda: len(self._approvers) >= 2)
+        self._approvers = set()
 
     @workflow.run
     async def run(self, params: dict) -> None:
         rotations_done = params.get("rotations_done", 0)
-
         while rotations_done < RENEW_THRESHOLD:
             interval_str = await workflow.execute_activity(
                 get_security_config,
@@ -542,14 +556,28 @@ class HMACSecretRotationWorkflow:
                 start_to_close_timeout=timedelta(minutes=2),
             )
             await workflow.sleep(timedelta(days=int(interval_str)))
+            await self._await_dual_approval()
             await workflow.execute_activity(
                 rotate_hmac_secret, params,
                 start_to_close_timeout=timedelta(hours=2),
                 retry_policy=RetryPolicy(maximum_attempts=3),
             )
             rotations_done += 1
-
         workflow.continue_as_new({**params, "rotations_done": 0})
+
+
+async def ensure_hmac_secret_rotation_running(client) -> None:
+    """Called once at prana-api startup, now that the 2-distinct-PA approval
+    gate exists — starting this unconditionally used to be unsafe (see this
+    workflow's own docstring history in git); safe now that rotation can't
+    proceed without 2 distinct PAs signaling approve()."""
+    try:
+        await client.start_workflow(
+            HMACSecretRotationWorkflow.run, {}, id="hmac-secret-rotation-perpetual", task_queue="secops-queue",
+        )
+    except Exception as exc:
+        if "already" not in str(exc).lower():
+            raise
 
 
 # ── CSAMReportingWorkflow (Pattern 1 — fast, safety-queue) ───────────────────

@@ -16,20 +16,32 @@ def _db(fetch_return=None, fetchrow_return=None):
     return db
 
 
-# ── build_career_insight / build_skill_gap_analysis — known prana-ai gap ────
+# ── build_career_insight — calls prana-ai's /pipeline/career-insight ───────
 
 @pytest.mark.asyncio
-async def test_build_career_insight_raises_clear_not_implemented_error():
-    """Fails loudly with an actionable message rather than silently returning
-    empty data — no prana-ai endpoint exists for this yet."""
-    with pytest.raises(NotImplementedError, match="prana-ai"):
-        await AnalyticsService(_db()).build_career_insight(employee_uuid="emp-1")
+async def test_build_career_insight_calls_ai_client_with_employee_and_tenant():
+    fake_result = {"insights": {"narrative": "Great growth.", "milestones": []}}
+    with patch("services.ai_client.AiPipelineClient.career_insight",
+               new_callable=AsyncMock, return_value=fake_result) as mock_call:
+        result = await AnalyticsService(_db()).build_career_insight(
+            employee_uuid="emp-1", tenant_id="t-1",
+        )
+    mock_call.assert_awaited_once_with(employee_uuid="emp-1", tenant_id="t-1")
+    assert result == fake_result
 
+
+# ── build_skill_gap_analysis — calls prana-ai's /pipeline/skill-gap ────────
 
 @pytest.mark.asyncio
-async def test_build_skill_gap_analysis_raises_clear_not_implemented_error():
-    with pytest.raises(NotImplementedError, match="prana-ai"):
-        await AnalyticsService(_db()).build_skill_gap_analysis(employee_uuid="emp-1")
+async def test_build_skill_gap_analysis_calls_ai_client_with_employee_and_tenant():
+    fake_result = {"insights": {"suggestions": "Grow your leadership skills.", "based_on_designation": "Senior Analyst"}}
+    with patch("services.ai_client.AiPipelineClient.skill_gap",
+               new_callable=AsyncMock, return_value=fake_result) as mock_call:
+        result = await AnalyticsService(_db()).build_skill_gap_analysis(
+            employee_uuid="emp-1", tenant_id="t-1",
+        )
+    mock_call.assert_awaited_once_with(employee_uuid="emp-1", tenant_id="t-1")
+    assert result == fake_result
 
 
 # ── build_market_comp — does NOT need prana-ai (embedded dataset) ──────────
@@ -63,39 +75,28 @@ async def test_write_market_comp_writes_to_insights_key():
     )
     insert_call = db.execute.call_args
     assert "MARKET_COMP" in insert_call.args
-    assert {"market_comp": {"p50": 100}} in insert_call.args
 
 
-# ── score_vault_completeness ────────────────────────────────────────────────
-
-@pytest.mark.asyncio
-async def test_score_vault_completeness_all_three_categories_present():
-    db = _db(fetch_return=[{"doc_type": "OFFER_LETTER"}, {"doc_type": "SALARY_SLIP"}, {"doc_type": "FORM_16"}])
-    result = await AnalyticsService(db).score_vault_completeness(employee_uuid="emp-1")
-    assert result == {"vault_completeness": 100}
-
-
-@pytest.mark.asyncio
-async def test_score_vault_completeness_partial():
-    db = _db(fetch_return=[{"doc_type": "SALARY_SLIP"}])
-    result = await AnalyticsService(db).score_vault_completeness(employee_uuid="emp-1")
-    assert result == {"vault_completeness": 33}
-
-
-@pytest.mark.asyncio
-async def test_score_vault_completeness_zero_when_no_documents():
-    db = _db(fetch_return=[])
-    result = await AnalyticsService(db).score_vault_completeness(employee_uuid="emp-1")
-    assert result == {"vault_completeness": 0}
+def test_upsert_insight_json_dumps_the_insights_dict_before_binding():
+    """Regression guard: asyncpg has no JSONB codec registered on the real
+    pool (prana-api/db.py's create_pool only sets session defaults) — every
+    other writer in this codebase (e.g. anomaly_detection_service.py) calls
+    json.dumps() before binding a dict to a jsonb column. _upsert_insight
+    passed the raw dict straight through, which raises
+    asyncpg.exceptions.DataError: invalid input ... (expected str, got dict)
+    against a real connection — caught only by a real live DB write, never by
+    the AsyncMock-backed tests above, which don't validate encoder types."""
+    import inspect
+    src = inspect.getsource(AnalyticsService._upsert_insight)
+    assert "json.dumps(insights)" in src, \
+        "_upsert_insight must json.dumps(insights) before passing to db.execute — " \
+        "raw dicts fail asyncpg jsonb encoding with no codec registered"
 
 
-@pytest.mark.asyncio
-async def test_write_vault_completeness_updates_employee_master():
-    db = _db()
-    await AnalyticsService(db).write_vault_completeness(employee_uuid="emp-1", vault_completeness=75)
-    db.execute.assert_awaited_once()
-    assert db.execute.call_args.args[1] == 75
-    assert db.execute.call_args.args[2] == "emp-1"
+# score_vault_completeness / write_vault_completeness removed 2026-08-06 —
+# consolidated into EmployeeLifecycleService.recompute_vault_completeness
+# (the one actually triggered by VaultHealthWorkflow). See
+# tests/test_employee_lifecycle_service.py for the merged formula's tests.
 
 
 # ── record_anomaly_ack ──────────────────────────────────────────────────────

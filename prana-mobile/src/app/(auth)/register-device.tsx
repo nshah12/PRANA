@@ -24,6 +24,7 @@ import * as Device from 'expo-device';
 import * as SecureStore from 'expo-secure-store';
 import { api } from '@/lib/api';
 import { authStore } from '@/lib/auth-store';
+import { getExpoPushTokenOrNull } from '@/lib/push-notifications';
 import { colors, fonts, gradJourney } from '@/prana-theme/tokens';
 import { tError, tUi } from '@/i18n';
 
@@ -162,16 +163,21 @@ export default function RegisterDeviceScreen() {
       if (!authStore.getToken()) { router.replace('/(auth)/sign-in'); return; }
 
       const publicKey = await generateDeviceKey();
+      // Permission denial or no native module must never block registration —
+      // a device without push is still a fully valid, registered device.
+      const pushToken = await getExpoPushTokenOrNull();
 
       const res = await api.post<{ device_id: string }>(
         '/auth/employee/device/register',
         {
           platform: Platform.OS === 'ios' ? 'IOS' : 'ANDROID',
           public_key: publicKey,
+          ...(pushToken ? { push_token: pushToken } : {}),
         },
       );
 
       await SecureStore.setItemAsync('prana_device_id', res.device_id);
+      await authStore.setPublicKey(publicKey);
       setAccepted(true);
       // Short pause to let the user see the "Trusted" badge before moving on
       setTimeout(() => router.replace('/(auth)/enable-face-id'), 900);

@@ -560,7 +560,7 @@ async def register_device(body: DeviceRegisterIn, request: Request, db: DbConn,
         INSERT INTO device_credential
           (employee_user_id, platform, device_fingerprint_hash, push_token, public_key)
         VALUES ($1, $2, $3, $4, $5)
-        ON CONFLICT (public_key) DO UPDATE SET last_used_at=NOW()
+        ON CONFLICT (public_key) DO UPDATE SET last_used_at=NOW(), push_token=EXCLUDED.push_token
         RETURNING device_credential_id
         """,
         current.user_id, body.platform, body.device_fingerprint,

@@ -59,9 +59,17 @@ class CareerInsightService:
         """
         insight_text = await self._generate_insight(doc_type, doc_period, benchmarks)
 
-        # Store in document row (no raw figures — insight only)
+        # Store on the career_event row this document produced (no raw
+        # figures — insight only). Fixed 2026-08-06: this previously wrote
+        # to document.insight_text, a column that doesn't exist — document
+        # has no insight_text column at all, only career_event does (see
+        # schema.sql:196, "Ask PRANA reads from here"). Every real call
+        # crashed with UndefinedColumnError; nothing had ever populated
+        # career_event.insight_text. Not every doc_type produces a
+        # career_event row (see stage06_route.py's _doc_type_to_event), so
+        # 0 rows affected here is an expected, non-error outcome.
         await self._db.execute(
-            "UPDATE document SET insight_text=$2 WHERE document_id=$1",
+            "UPDATE career_event SET insight_text=$2 WHERE doc_uuid=$1",
             document_id, insight_text,
         )
 

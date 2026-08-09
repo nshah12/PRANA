@@ -95,16 +95,36 @@ async def test_reconcile_rejoining_employee_restores_can_push():
 
 
 @pytest.mark.asyncio
-async def test_recompute_vault_completeness_scores_core_doc_type_coverage():
+async def test_recompute_vault_completeness_scores_required_categories():
+    """Consolidated formula (2026-08-06): 3 categories — employment_proof,
+    salary_slip, form16 — replacing the old 4-doc-type binary check. Was
+    previously duplicated across AnalyticsService.score_vault_completeness
+    (never actually triggered by anything) and this method (the live one,
+    triggered by VaultHealthWorkflow on every ROUTED document) — consolidated
+    to one formula, one writer. See workflows/intelligence.py's now-deleted
+    VaultCompletenessWorkflow and prana-ai/pipeline/stage06_route.py's
+    now-removed duplicate inline UPDATE."""
     db = _db(fetch_return=[{"doc_type": "OFFER_LETTER"}, {"doc_type": "SALARY_SLIP"}])
     svc = EmployeeLifecycleService(db)
 
     result = await svc.recompute_vault_completeness(employee_uuid="emp-5", tenant_id="t-1")
 
-    assert result == {"vault_completeness": 50.0}  # 2 of 4 core types
+    assert result == {"vault_completeness": 66.67}  # employment_proof + salary_slip, not form16
     update_call = next(c for c in db.execute.call_args_list if "vault_completeness" in c.args[0])
     assert update_call.args[1] == "emp-5"
-    assert update_call.args[2] == 50.0
+    assert update_call.args[2] == 66.67
+
+
+@pytest.mark.asyncio
+async def test_recompute_vault_completeness_employment_proof_accepts_any_matching_doc_type():
+    """employment_proof is a category, not a single doc_type — any of
+    OFFER_LETTER/APPOINTMENT_LETTER/JOINING_LETTER satisfies it."""
+    db = _db(fetch_return=[{"doc_type": "APPOINTMENT_LETTER"}, {"doc_type": "SALARY_SLIP"}, {"doc_type": "FORM_16"}])
+    svc = EmployeeLifecycleService(db)
+
+    result = await svc.recompute_vault_completeness(employee_uuid="emp-5", tenant_id="t-1")
+
+    assert result == {"vault_completeness": 100.0}
 
 
 @pytest.mark.asyncio
@@ -115,6 +135,20 @@ async def test_recompute_vault_completeness_zero_when_no_documents():
     result = await svc.recompute_vault_completeness(employee_uuid="emp-6", tenant_id="t-1")
 
     assert result == {"vault_completeness": 0.0}
+
+
+@pytest.mark.asyncio
+async def test_recompute_vault_completeness_filters_by_tenant_and_routed_status():
+    db = _db(fetch_return=[])
+    svc = EmployeeLifecycleService(db)
+
+    await svc.recompute_vault_completeness(employee_uuid="emp-6", tenant_id="t-1")
+
+    query, *args = db.fetch.call_args.args
+    assert "tenant_id=$2" in query
+    assert "pipeline_status='ROUTED'" in query
+    assert "is_deleted=FALSE" in query
+    assert args == ["emp-6", "t-1"]
 
 
 @pytest.mark.asyncio

@@ -63,4 +63,16 @@ export const authStore = {
   async setDeviceId(id: string): Promise<void> {
     await store.setItemAsync('prana_device_id', id);
   },
+
+  // Public key: persisted so a later push-token refresh (AuthContext, on
+  // every authenticated app launch) can re-POST /device/register with the
+  // SAME public_key — the endpoint's ON CONFLICT (public_key) upsert only
+  // refreshes push_token for a matching key; a fresh random key would
+  // silently create a duplicate device_credential row instead.
+  async getPublicKey(): Promise<string | null> {
+    return store.getItemAsync('prana_public_key');
+  },
+  async setPublicKey(key: string): Promise<void> {
+    await store.setItemAsync('prana_public_key', key);
+  },
 };

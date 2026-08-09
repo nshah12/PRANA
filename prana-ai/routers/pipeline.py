@@ -29,6 +29,8 @@ from pipeline.stage05_resolve import Stage05Resolve
 from pipeline.stage06_route import Stage06Route
 from insights.benchmark_service import BenchmarkService
 from insights.career_insight_service import CareerInsightService
+from insights.career_narrative_service import CareerNarrativeService
+from insights.skill_gap_service import SkillGapService
 from manifest.manifest_client import ManifestClient
 from llm_client import EmbeddingClient
 
@@ -341,3 +343,48 @@ async def refresh_insight(body: RefreshInsightRequest, request: Request):
             doc_period=body.doc_period,
             benchmarks=body.benchmarks,
         )
+
+
+# ── Career Insight (CareerInsightWorkflow) ──────────────────────────────────────
+
+class CareerInsightRequest(BaseModel):
+    employee_uuid: str
+    tenant_id:     Optional[str] = None
+
+
+@router.post("/career-insight")
+async def career_insight(body: CareerInsightRequest, request: Request) -> dict:
+    """
+    Full-history aggregated career narrative — different from /refresh-insight,
+    which is per-document. Called by CareerInsightWorkflow (prana-api). Same
+    insight LLM client as refresh_insight (Llama, not the Qwen extraction model).
+    Privacy: only designation/grade/event_type/event_date/insight_text reach
+    the LLM — never career_event.ctc_annual.
+    """
+    pool = _db(request)
+    async with pool.acquire() as db:
+        svc = CareerNarrativeService(db=db, llm_client=request.app.state.insight_llm_client)
+        return await svc.build_narrative(employee_uuid=body.employee_uuid)
+
+
+# ── Skill Gap (SkillGapWorkflow) ─────────────────────────────────────────────
+
+class SkillGapRequest(BaseModel):
+    employee_uuid: str
+    tenant_id:     Optional[str] = None
+
+
+@router.post("/skill-gap")
+async def skill_gap(body: SkillGapRequest, request: Request) -> dict:
+    """
+    Designation-progression MVP — see insights/skill_gap_service.py's module
+    docstring for the deliberately modest scope (no stored skills taxonomy;
+    general LLM synthesis only). Called by SkillGapWorkflow (prana-api). Same
+    insight LLM client as refresh_insight/career_insight (Llama, not Qwen).
+    Privacy: only designation/grade/event_type reach the LLM — never
+    career_event.ctc_annual.
+    """
+    pool = _db(request)
+    async with pool.acquire() as db:
+        svc = SkillGapService(db=db, llm_client=request.app.state.insight_llm_client)
+        return await svc.build_skill_gap(employee_uuid=body.employee_uuid)

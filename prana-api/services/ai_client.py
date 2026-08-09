@@ -261,3 +261,31 @@ class AiPipelineClient:
                 },
             )
             self._check_response(resp)
+
+    async def career_insight(self, employee_uuid: str, tenant_id: str) -> dict:
+        """CareerInsightWorkflow — aggregated full-history career narrative."""
+        async with httpx.AsyncClient(timeout=self._timeout) as client:
+            resp = await client.post(
+                f"{self._base}/pipeline/career-insight",
+                headers=self._headers(),
+                json={
+                    "employee_uuid": employee_uuid,
+                    "tenant_id": tenant_id,
+                },
+            )
+            self._check_response(resp)
+            return resp.json()
+
+    async def skill_gap(self, employee_uuid: str, tenant_id: str) -> dict:
+        """SkillGapWorkflow — designation-progression growth suggestions."""
+        async with httpx.AsyncClient(timeout=self._timeout) as client:
+            resp = await client.post(
+                f"{self._base}/pipeline/skill-gap",
+                headers=self._headers(),
+                json={
+                    "employee_uuid": employee_uuid,
+                    "tenant_id": tenant_id,
+                },
+            )
+            self._check_response(resp)
+            return resp.json()

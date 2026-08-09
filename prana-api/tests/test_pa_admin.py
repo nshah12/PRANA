@@ -1493,3 +1493,42 @@ async def test_no_platform_credentials_route_for_oa_admin():
     org_settings = importlib.import_module("routers.org_settings")
     paths = {getattr(r, "path", "") for r in org_settings.router.routes}
     assert not any("platform-credentials" in p for p in paths)
+
+
+# ---------------------------------------------------------------------------
+# HMAC rotation — 2-distinct-PA approval signal
+# ---------------------------------------------------------------------------
+
+@pytest.mark.asyncio
+async def test_hmac_rotation_approve_requires_portal_admin_role(client, mock_db):
+    _set_oa_auth(client)
+    resp = await client.post("/admin/security/hmac-rotation/approve", headers=AUTH_HEADER)
+    assert resp.status_code == 403
+
+
+@pytest.mark.asyncio
+async def test_hmac_rotation_approve_signals_workflow_with_current_pa_id(client, mock_db):
+    """Approver identity always comes from the JWT (current.user_id), never
+    from the request body — same rule as everywhere else in this codebase."""
+    _set_pa_auth(client, pa_id="pa-uuid-42")
+
+    wf_handle = MagicMock()
+    wf_handle.signal = AsyncMock()
+    temporal_mock = MagicMock()
+    temporal_mock.get_workflow_handle = MagicMock(return_value=wf_handle)
+    client.app.state.temporal_client = temporal_mock
+
+    resp = await client.post("/admin/security/hmac-rotation/approve", headers=AUTH_HEADER)
+
+    assert resp.status_code == 200
+    assert resp.json()["message"] == "HMAC_ROTATION_APPROVAL_SIGNALED"
+    temporal_mock.get_workflow_handle.assert_called_once_with("hmac-secret-rotation-perpetual")
+    wf_handle.signal.assert_awaited_once_with("approve", "pa-uuid-42")
+
+
+@pytest.mark.asyncio
+async def test_hmac_rotation_approve_returns_503_when_workflow_unavailable(client, mock_db):
+    _set_pa_auth(client)
+    client.app.state.temporal_client = None
+    resp = await client.post("/admin/security/hmac-rotation/approve", headers=AUTH_HEADER)
+    assert resp.status_code == 503

@@ -7,6 +7,7 @@ import pytest
 from workflows.security import (
     PolicyLockWorkflow,
     KMSKeyRotationWorkflow,
+    HMACSecretRotationWorkflow,
     TOTPLockoutWorkflow,
     RENEW_THRESHOLD,
     get_security_config,
@@ -90,6 +91,61 @@ async def test_ensure_kms_key_rotation_running_tolerates_already_started():
     client = AsyncMock()
     client.start_workflow.side_effect = Exception("already exists")
     await ensure_kms_key_rotation_running(client)  # must not raise
+
+
+# ── HMACSecretRotationWorkflow — 2-distinct-PA approval gate ─────────────────
+# schema.sql documents "HMACSecretRotationWorkflow requires 2 DISTINCT PA
+# accounts (4-eyes enforcement)" — was previously entirely missing (see the
+# KNOWN GAP this replaces in services/kms_rotation_service.py). Tested by
+# direct instantiation (the signal handler and approval-count logic are
+# plain Python — no Temporal runtime call inside them — matching this
+# codebase's existing convention of not spinning up a Temporal test
+# environment anywhere; see workflows/CLAUDE.md's Engineering Independence
+# Rule: business logic is unit-testable without a Temporal cluster).
+
+def test_hmac_rotation_workflow_starts_with_no_approvers():
+    wf = HMACSecretRotationWorkflow()
+    assert wf._approvers == set()
+
+
+@pytest.mark.asyncio
+async def test_hmac_rotation_approve_signal_accumulates_distinct_approvers():
+    wf = HMACSecretRotationWorkflow()
+    await wf.approve("pa-1")
+    assert len(wf._approvers) == 1
+    await wf.approve("pa-2")
+    assert len(wf._approvers) == 2
+
+
+@pytest.mark.asyncio
+async def test_hmac_rotation_same_approver_signaling_twice_does_not_count_as_two():
+    wf = HMACSecretRotationWorkflow()
+    await wf.approve("pa-1")
+    await wf.approve("pa-1")
+    assert len(wf._approvers) == 1
+
+
+@pytest.mark.asyncio
+async def test_ensure_hmac_secret_rotation_running_starts_with_deterministic_id():
+    from workflows.security import ensure_hmac_secret_rotation_running
+
+    client = AsyncMock()
+    await ensure_hmac_secret_rotation_running(client)
+
+    client.start_workflow.assert_awaited_once()
+    args, kwargs = client.start_workflow.call_args
+    assert args[0] is HMACSecretRotationWorkflow.run
+    assert kwargs["id"] == "hmac-secret-rotation-perpetual"
+    assert kwargs["task_queue"] == "secops-queue"
+
+
+@pytest.mark.asyncio
+async def test_ensure_hmac_secret_rotation_running_tolerates_already_started():
+    from workflows.security import ensure_hmac_secret_rotation_running
+
+    client = AsyncMock()
+    client.start_workflow.side_effect = Exception("already exists")
+    await ensure_hmac_secret_rotation_running(client)  # must not raise
 
 
 def test_totp_lockout_duration_from_config():

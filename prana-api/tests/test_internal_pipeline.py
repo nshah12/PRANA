@@ -6,6 +6,8 @@ import pytest
 from unittest.mock import AsyncMock, MagicMock, patch
 from uuid import UUID
 
+from kafka.producer import KafkaPub
+
 
 @pytest.fixture
 def client(mock_db, mock_redis, mock_kafka):
@@ -21,6 +23,30 @@ def client(mock_db, mock_redis, mock_kafka):
 
 
 INTERNAL_HEADERS = {"X-Internal-Service": "prana-ai"}
+
+
+@pytest.fixture
+def real_kafka_client(mock_db):
+    """A real KafkaPub instance — `__new__` skips `__init__` (no AIOKafkaProducer
+    construction, which needs a running event loop) — with only `publish` mocked
+    out. mock_kafka's bare AsyncMock() accepts any kwargs silently, which is
+    exactly why the doc_routed/stage_changed kwargs-vs-dict signature mismatch
+    below went undetected — this fixture exercises the real domain-helper method
+    signatures (stage_changed/doc_routed/etc., which all call self.publish)
+    instead."""
+    from fastapi.testclient import TestClient
+    from main import create_app
+
+    kafka = KafkaPub.__new__(KafkaPub)
+    kafka.publish = AsyncMock()
+    kafka.stop = AsyncMock()   # lifespan shutdown calls .stop(); __new__ skipped
+                               # __init__ so there's no real self._producer to stop
+
+    app = create_app()
+    with TestClient(app) as c:
+        app.state.db_pool = mock_db
+        app.state.kafka_producer = kafka
+        yield c, kafka
 
 
 # ── Auth guard ────────────────────────────────────────────────────────────────
@@ -54,10 +80,12 @@ def test_stage_update_publishes_stage_changed(client, mock_kafka):
                            "stage": "RESOLVING", "status": "IN_PROGRESS",
                        })
     assert resp.status_code == 200
-    mock_kafka.stage_changed.assert_called_once_with(
-        document_id="doc-1", tenant_id="t-1",
-        stage="RESOLVING", status="IN_PROGRESS", detail=None,
-    )
+    mock_kafka.stage_changed.assert_called_once_with({
+        "event_type":      "STAGE_CHANGED",
+        "document_id":     "doc-1", "tenant_id": "t-1",
+        "pipeline_status": "RESOLVING",
+        "stage":           "RESOLVING", "status": "IN_PROGRESS", "detail": None,
+    })
 
 
 def test_stage_update_tolerates_kafka_failure(client, mock_kafka):
@@ -277,7 +305,89 @@ def test_exception_publishes_stage_changed(client, mock_kafka):
                            "exception_type": "UNRESOLVED",
                        })
     assert resp.status_code == 200
-    mock_kafka.stage_changed.assert_called_once_with(
-        document_id="doc-1", tenant_id="t-1",
-        stage="EXCEPTION", status="FAILED", detail="UNRESOLVED",
-    )
+    mock_kafka.stage_changed.assert_called_once_with({
+        "event_type":      "STAGE_CHANGED",
+        "document_id":     "doc-1", "tenant_id": "t-1",
+        "pipeline_status": "EXCEPTION",
+        "stage":           "EXCEPTION", "status": "FAILED", "detail": "UNRESOLVED",
+    })
+
+
+# ── Real KafkaPub signature regression (found via live verification 2026-08-07) ─
+#
+# KafkaPub.stage_changed/doc_routed/employee_event (kafka/producer.py) all take
+# exactly one positional `event: dict` argument. Every call site above passes
+# kwargs instead (document_id=..., tenant_id=..., ...) — that binds fine against
+# mock_kafka (a bare AsyncMock() with no signature to violate) but raises
+# TypeError against the real KafkaPub, and the try/except Exception around every
+# call site swallows it silently, logs, and still returns 200. This meant
+# DOC_ROUTED — the event every downstream consumer (SSEFanoutConsumer,
+# AnalyticsConsumer, WorkflowConsumer's gamification refresh, CommunicationHub's
+# DOC_ROUTED notification) depends on — never actually reached Kafka in any real
+# deployment. Caught only by exercising the real KafkaPub.doc_routed/stage_changed
+# signature, not by the mocked tests above.
+
+def test_stage_update_real_kafka_signature_does_not_raise(real_kafka_client):
+    client, kafka = real_kafka_client
+    resp = client.post("/internal/pipeline/stage",
+                       headers=INTERNAL_HEADERS,
+                       json={
+                           "document_id": "doc-1", "tenant_id": "t-1",
+                           "stage": "RESOLVING", "status": "IN_PROGRESS",
+                       })
+    assert resp.status_code == 200
+    kafka.publish.assert_awaited()
+    event = kafka.publish.call_args_list[0].args[1]
+    assert event["event_type"] == "STAGE_CHANGED"
+    assert event["document_id"] == "doc-1"
+    assert event["pipeline_status"] == "RESOLVING"
+
+
+def test_routed_real_kafka_signature_does_not_raise(real_kafka_client, mock_db):
+    conn = AsyncMock()
+    conn.execute = AsyncMock()
+    acquire_ctx = MagicMock()
+    acquire_ctx.__aenter__ = AsyncMock(return_value=conn)
+    acquire_ctx.__aexit__ = AsyncMock(return_value=False)
+    mock_db.acquire = MagicMock(return_value=acquire_ctx)
+    client, kafka = real_kafka_client
+
+    resp = client.post("/internal/pipeline/routed",
+                       headers=INTERNAL_HEADERS,
+                       json={
+                           "document_id":          "doc-1",
+                           "tenant_id":            "t-1",
+                           "employee_uuid":        "emp-1",
+                           "employee_user_id":     "person-1",
+                           "pan_token":            "abc123",
+                           "doc_type":             "SALARY_SLIP",
+                           "resolution_method":    "PAN_EXACT",
+                           "resolution_confidence": 0.99,
+                       })
+    assert resp.status_code == 200
+    kafka.publish.assert_awaited()
+    doc_routed_calls = [c for c in kafka.publish.call_args_list
+                        if c.args[1].get("event_type") == "DOC_ROUTED"]
+    assert len(doc_routed_calls) >= 1
+    event = doc_routed_calls[0].args[1]
+    assert event["document_id"] == "doc-1"
+    assert event["tenant_id"] == "t-1"
+    assert event["employee_uuid"] == "emp-1"
+    assert event["employee_user_id"] == "person-1"  # needed by WorkflowConsumer + CommunicationHubConsumer
+    assert event["pipeline_status"] == "ROUTED"
+
+
+def test_exception_real_kafka_signature_does_not_raise(real_kafka_client):
+    client, kafka = real_kafka_client
+    resp = client.post("/internal/pipeline/exception",
+                       headers=INTERNAL_HEADERS,
+                       json={
+                           "document_id":    "doc-1",
+                           "tenant_id":      "t-1",
+                           "exception_type": "UNRESOLVED",
+                       })
+    assert resp.status_code == 200
+    kafka.publish.assert_awaited()
+    event = kafka.publish.call_args_list[0].args[1]
+    assert event["event_type"] == "STAGE_CHANGED"
+    assert event["pipeline_status"] == "EXCEPTION"

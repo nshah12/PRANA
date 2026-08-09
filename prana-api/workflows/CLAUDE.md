@@ -165,7 +165,7 @@ class HumanSignalWorkflow:
 ```
 **Used by:** ElevationWorkflow, StorageExpansionWorkflow, OnboardingReviewSLAWorkflow, TenantMigrationWorkflow
 
-## Workflow Domains (59 total, verified against `@workflow.defn` classes 2026-07-05, +1 2026-07-15)
+## Workflow Domains (58 total, verified against `@workflow.defn` classes 2026-07-05, +1 2026-07-15, -1 2026-08-06)
 
 | Domain | Count | Key workflows |
 |--------|-------|---------------|
@@ -173,7 +173,7 @@ class HumanSignalWorkflow:
 | Employee Lifecycle | 7 | EmployeeExitWorkflow, PushWindowExpiryWorkflow, VaultActivationWorkflow, VaultHealthWorkflow, NomineeAccessWorkflow, RejoiningWorkflow, AccountDormancyWorkflow |
 | Security & Access Control | 12 | PolicyLockWorkflow, TOTPLockoutWorkflow, ElevationWorkflow, SessionExpiryWorkflow, SessionForceRevokeWorkflow, AnomalyDetectionWorkflow, KMSKeyRotationWorkflow, HMACSecretRotationWorkflow, CSAMReportingWorkflow, SystemHealthWorkflow, AuditIntegrityVerificationWorkflow, ErrorThresholdEvaluationWorkflow |
 | DPDP & Legal Compliance | 9 | ErasureConfirmationWorkflow, DataExportWorkflow, ConsentRebumpWorkflow, GrievanceWorkflow, DataCorrectionWorkflow, RetentionWorkflow, AuditArchivalWorkflow, LegalHoldWorkflow, StatutoryComplianceWorkflow |
-| Intelligence Layer | 8 | InsightRefreshWorkflow, CareerInsightWorkflow, VaultCompletenessWorkflow, AnomalyAcknowledgementWorkflow, DigestWorkflow, PeerBenchmarkWorkflow, SkillGapWorkflow, MarketCompWorkflow |
+| Intelligence Layer | 7 | InsightRefreshWorkflow, CareerInsightWorkflow, AnomalyAcknowledgementWorkflow, DigestWorkflow, PeerBenchmarkWorkflow, SkillGapWorkflow, MarketCompWorkflow |
 | Platform Operations | 9 | PlatformSummaryWorkflow, ClamAVUpdateWorkflow, KMSHealthCheckWorkflow, StorageQuotaCheckWorkflow, StagingCleanupWorkflow, WebhookDeliveryWorkflow, NotificationDeliveryWorkflow, StorageExpansionWorkflow, OnboardingReviewSLAWorkflow |
 | Onboarding & Tenant Management | 4 | DomainVerificationWorkflow, TenantProvisioningWorkflow, TenantOffboardingWorkflow, TenantMigrationWorkflow |
 | Vault & Shares | 3 | ShareExpiryWorkflow, ShareRevocationWorkflow, DocumentShareWorkflow |
@@ -212,6 +212,60 @@ Corrections from the previous (53-count) version of this table:
   starts this workflow off a `BULK_DOC_ACCESS`/`BRUTE_FORCE` anomaly, gated behind
   `bulk_access_auto_lock_enabled`/`brute_force_auto_lock_enabled` (both seeded `false`).
   See `KAFKA_REDIS_ARCHITECTURE.md` §10 and `prana-docs/SEVERITY_SLA_POLICY_DESIGN.md`.
+- `VaultCompletenessWorkflow` **removed 2026-08-06** — was fully built (`intelligence.py`)
+  but never started by anything (dead code); its richer 3-category scoring formula was
+  merged into `EmployeeLifecycleService.recompute_vault_completeness`, the one actually
+  triggered by `VaultHealthWorkflow` (Employee Lifecycle domain). `employee_master.vault_completeness`
+  previously had 3 uncoordinated writers (this dead workflow, `VaultHealthWorkflow`, and an
+  inline `UPDATE` in `prana-ai/pipeline/stage06_route.py`) — now exactly one.
+- `MarketCompWorkflow` was fully implemented but never triggered until 2026-08-06 — now
+  started from `AnalyticsConsumer._handle_doc_routed` on every `DOC_ROUTED` event, workflow
+  ID `market-comp-{employee_uuid}` (per-employee, not per-document).
+- `CareerInsightWorkflow`'s `build_career_insight` activity raised `NotImplementedError`
+  until 2026-08-07 — no prana-ai endpoint existed for a full-history narrative. Added
+  `POST /pipeline/career-insight` (`prana-ai/routers/pipeline.py`,
+  `insights/career_narrative_service.py`) and wired the same `AnalyticsConsumer` trigger as
+  `MarketCompWorkflow` (workflow ID `career-insight-{employee_uuid}`). Live-verified against
+  the real dev DB: reads `career_event` across all of an employee's `employee_master` rows,
+  never `ctc_annual`, writes a real `CAREER` row to `employee_insight`. `employee_insight`
+  itself had zero readers anywhere until this same date — `GET /v1/vault/career` now returns
+  an `insights: {career, skill_gap, market_comp}` block (each null until computed).
+- Found during `CareerInsightWorkflow` live verification: `AnalyticsService._upsert_insight`
+  (the shared writer behind `write_market_comp`/`write_career_insight`/`write_skill_gap`)
+  passed a raw Python `dict` to a `jsonb` bind parameter instead of `json.dumps(...)` first —
+  every other writer in the codebase serializes explicitly (`db.py`'s pool has no JSONB codec
+  registered). This meant `write_market_comp` would have raised `asyncpg.exceptions.DataError`
+  on every real invocation since `MarketCompWorkflow` was wired; the `AsyncMock`-backed unit
+  tests never caught it because they don't validate asyncpg's real type encoding. Fixed
+  2026-08-07, only caught by testing against a real `asyncpg.Connection`.
+- Also found during the same live verification: `POST /internal/pipeline/routed` and
+  `/stage`/`/exception` (`prana-api/routers/internal_pipeline.py`) called `kafka.doc_routed()`/
+  `kafka.stage_changed()` with kwargs (`document_id=..., tenant_id=..., ...`), but the real
+  `KafkaPub` methods (`kafka/producer.py`) each take exactly one positional `event: dict`. Every
+  call raised `TypeError` against the real producer, silently swallowed by a bare
+  `except Exception: log.exception(...)` around each call — so **DOC_ROUTED never actually
+  reached Kafka in any real deployment**, breaking every downstream consumer of it
+  (`SSEFanoutConsumer`, `AnalyticsConsumer`'s three triggers above, `WorkflowConsumer`'s
+  `GamificationRefreshWorkflow`, `CommunicationHubConsumer`'s DOC_ROUTED notification). The bare
+  `AsyncMock()` `mock_kafka` fixture used everywhere in tests has no real signature to violate,
+  so this went undetected until live-verified against a real `KafkaPub` instance. Fixed
+  2026-08-07; live-verified end-to-end against the real dev stack — `WhatsAppConsumer` dispatched
+  a real DOC_ROUTED message and `CareerInsightWorkflow`/`MarketCompWorkflow`/
+  `GamificationRefreshWorkflow` all actually started in Temporal (previously impossible).
+- `SkillGapWorkflow`'s `build_skill_gap_analysis` activity raised `NotImplementedError` until
+  2026-08-07 — no prana-ai endpoint existed. Added `POST /pipeline/skill-gap`
+  (`prana-ai/routers/pipeline.py`, `insights/skill_gap_service.py`) and wired the
+  `AnalyticsConsumer` trigger (workflow ID `skill-gap-{employee_uuid}`) — unlike
+  `MarketCompWorkflow`/`CareerInsightWorkflow`, this one is **gated** to only fire when the
+  routed document's own `doc_type` is a career-letter type (`OFFER_LETTER`/`APPOINTMENT_LETTER`/
+  `JOINING_LETTER`/`INCREMENT_LETTER`/`PROMOTION_LETTER`/`RELIEVING_LETTER`/
+  `EXPERIENCE_LETTER`) — `career_event` never gets a row for `SALARY_SLIP`/`FORM_16`/
+  `PF_ACKNOWLEDGEMENT` (`pipeline/stage06_route.py`'s `_doc_type_to_event` maps them to `None`).
+  Deliberately modest MVP scope: no skills taxonomy exists anywhere in the schema, so this is
+  general LLM synthesis from designation/grade progression, not a taxonomy/market comparison —
+  UI copy must say "career growth suggestions," never "skill gap analysis." Live-verified: routing
+  a `PROMOTION_LETTER` started `SkillGapWorkflow` in Temporal; routing a `SALARY_SLIP` for the
+  same employee correctly did not start a second one.
 
 ## Configuration Model (critical rule)
 Every duration and schedule is read at workflow **trigger time** from `get_config(key, tenant_id)`.

@@ -16,6 +16,14 @@ import * as SecureStore from 'expo-secure-store';
 jest.mock('@/lib/api', () => ({ api: { post: jest.fn() } }));
 jest.mock('expo-router', () => ({ router: { push: jest.fn(), back: jest.fn(), replace: jest.fn() } }));
 jest.mock('expo-device', () => ({ modelName: 'Pixel 9' }));
+// Permission denial resolves quickly and deterministically — matches how
+// a real device without push permission behaves (registration still
+// succeeds, just without a push_token in the body).
+jest.mock('expo-notifications', () => ({
+  getPermissionsAsync: jest.fn().mockResolvedValue({ status: 'denied' }),
+  requestPermissionsAsync: jest.fn().mockResolvedValue({ status: 'denied' }),
+  getExpoPushTokenAsync: jest.fn(),
+}));
 jest.mock('react-native-safe-area-context', () => {
   const React = require('react');
   const { View } = require('react-native');
@@ -31,6 +39,12 @@ afterEach(async () => { await cleanup(); });
 beforeEach(() => {
   jest.clearAllMocks();
   authStore.setToken('access-token-1');
+  // clearAllMocks() clears call history but not a mockResolvedValue's
+  // implementation — reset the permission default explicitly each test so
+  // the "granted" test below can't bleed into later tests.
+  const Notifications = require('expo-notifications');
+  Notifications.getPermissionsAsync.mockResolvedValue({ status: 'denied' });
+  Notifications.requestPermissionsAsync.mockResolvedValue({ status: 'denied' });
 });
 
 describe('RegisterDeviceScreen', () => {
@@ -58,6 +72,31 @@ describe('RegisterDeviceScreen', () => {
     ));
     await waitFor(() => expect(setItemSpy).toHaveBeenCalledWith('prana_device_id', 'device-abc'));
     expect(await rtl.findByText('Device trusted ✓')).toBeTruthy();
+  });
+
+  it('includes push_token in the register body when permission is granted', async () => {
+    const Notifications = require('expo-notifications');
+    Notifications.getPermissionsAsync.mockResolvedValue({ status: 'granted' });
+    Notifications.getExpoPushTokenAsync.mockResolvedValue({ data: 'ExponentPushToken[abc]' });
+    mockPost.mockResolvedValue({ device_id: 'device-abc' });
+
+    const rtl = await render(<RegisterDeviceScreen />);
+    fireEvent.press(await rtl.findByText('Trust this device →'));
+
+    await waitFor(() => expect(mockPost).toHaveBeenCalledWith(
+      '/auth/employee/device/register',
+      expect.objectContaining({ push_token: 'ExponentPushToken[abc]' }),
+    ));
+  });
+
+  it('registers without a push_token when permission is denied — never blocks registration', async () => {
+    mockPost.mockResolvedValue({ device_id: 'device-abc' });
+    const rtl = await render(<RegisterDeviceScreen />);
+    fireEvent.press(await rtl.findByText('Trust this device →'));
+
+    await waitFor(() => expect(mockPost).toHaveBeenCalled());
+    const body = mockPost.mock.calls[0][1];
+    expect(body.push_token).toBeUndefined();
   });
 
   it('shows the device-limit error message on DEVICE_LIMIT_REACHED', async () => {

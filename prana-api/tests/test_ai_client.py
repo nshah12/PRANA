@@ -137,7 +137,65 @@ def test_all_methods_call_check_response():
     assert "_check_response" in src, \
         "AiPipelineClient must have _check_response centralising error handling"
     # scan, extract, resolve, route, raise_exception, refresh_insight must all use it
-    for method in ("scan", "extract", "resolve", "route", "raise_exception", "refresh_insight"):
+    for method in ("scan", "extract", "resolve", "route", "raise_exception", "refresh_insight", "career_insight", "skill_gap"):
         method_src = inspect.getsource(getattr(AiPipelineClient, method))
         assert "_check_response" in method_src, \
             f"AiPipelineClient.{method} must call self._check_response(resp)"
+
+
+# ── career_insight (CareerInsightWorkflow) ───────────────────────────────────
+
+def test_career_insight_posts_to_the_right_path_with_employee_and_tenant():
+    src = inspect.getsource(AiPipelineClient.career_insight)
+    assert "/pipeline/career-insight" in src
+    assert "employee_uuid" in src
+    assert "tenant_id" in src
+
+
+@pytest.mark.asyncio
+async def test_career_insight_returns_the_parsed_response_json():
+    client = AiPipelineClient()
+    fake_resp = MagicMock()
+    fake_resp.json.return_value = {"insights": {"narrative": "Great growth."}}
+    with patch("httpx.AsyncClient") as mock_httpx_cls, \
+         patch.object(client, "_check_response") as mock_check:
+        mock_http = AsyncMock()
+        mock_http.post = AsyncMock(return_value=fake_resp)
+        mock_httpx_cls.return_value.__aenter__.return_value = mock_http
+
+        result = await client.career_insight(employee_uuid="emp-1", tenant_id="t-1")
+
+    mock_check.assert_called_once_with(fake_resp)
+    assert result == {"insights": {"narrative": "Great growth."}}
+    call = mock_http.post.call_args
+    assert call.args[0].endswith("/pipeline/career-insight")
+    assert call.kwargs["json"] == {"employee_uuid": "emp-1", "tenant_id": "t-1"}
+
+
+# ── skill_gap (SkillGapWorkflow) ──────────────────────────────────────────────
+
+def test_skill_gap_posts_to_the_right_path_with_employee_and_tenant():
+    src = inspect.getsource(AiPipelineClient.skill_gap)
+    assert "/pipeline/skill-gap" in src
+    assert "employee_uuid" in src
+    assert "tenant_id" in src
+
+
+@pytest.mark.asyncio
+async def test_skill_gap_returns_the_parsed_response_json():
+    client = AiPipelineClient()
+    fake_resp = MagicMock()
+    fake_resp.json.return_value = {"insights": {"suggestions": "Grow your leadership skills."}}
+    with patch("httpx.AsyncClient") as mock_httpx_cls, \
+         patch.object(client, "_check_response") as mock_check:
+        mock_http = AsyncMock()
+        mock_http.post = AsyncMock(return_value=fake_resp)
+        mock_httpx_cls.return_value.__aenter__.return_value = mock_http
+
+        result = await client.skill_gap(employee_uuid="emp-1", tenant_id="t-1")
+
+    mock_check.assert_called_once_with(fake_resp)
+    assert result == {"insights": {"suggestions": "Grow your leadership skills."}}
+    call = mock_http.post.call_args
+    assert call.args[0].endswith("/pipeline/skill-gap")
+    assert call.kwargs["json"] == {"employee_uuid": "emp-1", "tenant_id": "t-1"}

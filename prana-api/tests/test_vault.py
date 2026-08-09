@@ -309,6 +309,37 @@ async def test_vault_career_contains_no_raw_salary(client, mock_db):
             assert field not in body_str, f"Raw salary field '{field}' leaked in career response"
 
 
+@pytest.mark.asyncio
+async def test_vault_career_includes_employee_insights(client, mock_db):
+    """employee_insight (CAREER/SKILL_GAP/MARKET_COMP) previously had zero
+    readers anywhere in prana-api — computed and stored by
+    CareerInsightWorkflow/SkillGapWorkflow/MarketCompWorkflow but never
+    surfaced. GET /career is the natural home: it's the existing
+    employee-facing, insight-only (no raw ₹) endpoint. Fixed 2026-08-06."""
+    headers = _auth_headers(client)
+    mock_db.fetchval.return_value = "emp-uuid-001"
+    mock_db.fetch.side_effect = [
+        [],  # event_rows
+        [],  # employer_rows
+        [],  # growth_rows
+        [    # insight_rows — insights is JSONB, asyncpg returns it as a raw
+             # string without a custom codec (same gotcha as gap_detail above)
+            {"insight_type": "CAREER", "insights": '{"narrative": "Steady growth."}'},
+            {"insight_type": "MARKET_COMP", "insights": '{"market_comp": {"p50": 1200000, "suppressed": false}}'},
+        ],
+    ]
+    resp = await client.get("/v1/vault/career", headers=headers)
+
+    assert resp.status_code == 200
+    insights = resp.json()["insights"]
+    assert insights["career"] == {"narrative": "Steady growth."}
+    # write_market_comp stores build_market_comp's whole result dict, itself
+    # already keyed "market_comp" (see AnalyticsService.build_market_comp) —
+    # not double-unwrapped here, just passed through as stored.
+    assert insights["market_comp"] == {"market_comp": {"p50": 1200000, "suppressed": False}}
+    assert insights["skill_gap"] is None
+
+
 # ── Watermark compliance — RED test for vault.py bug #2 ───────────────────────
 
 @pytest.mark.asyncio

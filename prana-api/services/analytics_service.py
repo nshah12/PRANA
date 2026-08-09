@@ -1,27 +1,30 @@
 """
-AnalyticsService — business logic behind workflows/intelligence.py's 14
-activities (CareerInsightWorkflow, VaultCompletenessWorkflow,
-AnomalyAcknowledgementWorkflow, DigestWorkflow, PeerBenchmarkWorkflow,
-SkillGapWorkflow, MarketCompWorkflow). Zero Temporal imports.
+AnalyticsService — business logic behind workflows/intelligence.py's
+activities (CareerInsightWorkflow, AnomalyAcknowledgementWorkflow,
+DigestWorkflow, PeerBenchmarkWorkflow, SkillGapWorkflow, MarketCompWorkflow).
+Zero Temporal imports.
 
-KNOWN GAP: build_career_insight, build_skill_gap_analysis, and build_market_comp
-need an LLM-derived narrative from prana-ai, but prana-ai's only exposed HTTP
-surface (prana-ai/routers/pipeline.py, mounted under /pipeline) has no endpoint
-for any of the three — only scan/extract/write_unclassified/resolve/route/
-raise_exception/refresh_insight. Building one is a prana-ai change (a separate
-deployable service), not something this file can do on its own. Each of the
-three raises NotImplementedError with that context rather than silently
-returning empty data or guessing at an endpoint that doesn't exist.
+VaultCompletenessWorkflow removed 2026-08-06 — it was never triggered by
+anything (dead code); its richer 3-category scoring formula was merged into
+EmployeeLifecycleService.recompute_vault_completeness, the one actually wired
+to VaultHealthWorkflow. See that service's module docstring.
+
+build_career_insight calls prana-ai's POST /pipeline/career-insight (added
+2026-08-07, see prana-ai/insights/career_narrative_service.py) via
+AiPipelineClient.career_insight — same proxy pattern as build_market_comp's
+BenchmarkingService call, just over HTTP since this one needs the LLM.
+
+build_skill_gap_analysis calls prana-ai's POST /pipeline/skill-gap (added
+2026-08-07, see prana-ai/insights/skill_gap_service.py) via
+AiPipelineClient.skill_gap — same proxy pattern as build_career_insight.
+Deliberately modest MVP scope (see skill_gap_service.py's docstring): no
+skills taxonomy exists in the schema, so this is general LLM synthesis from
+designation/grade progression, not a taxonomy/market comparison. UI copy
+must call it "career growth suggestions," never "skill gap analysis."
 """
 import datetime
 import uuid
 from typing import Optional
-
-_REQUIRED_DOC_CATEGORIES: dict[str, tuple[str, ...]] = {
-    "employment_proof": ("OFFER_LETTER", "APPOINTMENT_LETTER", "JOINING_LETTER"),
-    "salary_slip":       ("SALARY_SLIP",),
-    "form16":            ("FORM_16",),
-}
 
 
 class AnalyticsService:
@@ -32,39 +35,18 @@ class AnalyticsService:
 
     # ── CareerInsightWorkflow ─────────────────────────────────────────────────
 
-    async def build_career_insight(self, *, employee_uuid: str) -> dict:
-        raise NotImplementedError(
-            "build_career_insight needs prana-ai to expose a career-narrative "
-            "endpoint (e.g. POST /pipeline/career-insight) — no such endpoint "
-            "exists yet in prana-ai/routers/pipeline.py."
-        )
+    async def build_career_insight(self, *, employee_uuid: str, tenant_id: Optional[str] = None) -> dict:
+        from services.ai_client import AiPipelineClient
+
+        return await AiPipelineClient().career_insight(employee_uuid=employee_uuid, tenant_id=tenant_id)
 
     async def write_career_insight(self, *, employee_uuid: str, tenant_id: Optional[str], insights: dict) -> None:
         await self._upsert_insight(employee_uuid, tenant_id, "CAREER", insights)
 
-    # ── VaultCompletenessWorkflow ─────────────────────────────────────────────
-
-    async def score_vault_completeness(self, *, employee_uuid: str) -> dict:
-        """Percentage of 3 core document categories present for this employee:
-        employment proof, a salary slip, and a Form 16 — matching the same 3
-        component names vault_health_score already tracks."""
-        rows = await self._db.fetch(
-            "SELECT DISTINCT doc_type FROM document WHERE employee_uuid=$1 AND is_deleted=FALSE",
-            employee_uuid,
-        )
-        present_types = {r["doc_type"] for r in rows}
-        categories_met = sum(
-            1 for doc_types in _REQUIRED_DOC_CATEGORIES.values()
-            if present_types & set(doc_types)
-        )
-        pct = round(categories_met / len(_REQUIRED_DOC_CATEGORIES) * 100)
-        return {"vault_completeness": pct}
-
-    async def write_vault_completeness(self, *, employee_uuid: str, vault_completeness: int) -> None:
-        await self._db.execute(
-            "UPDATE employee_master SET vault_completeness=$1, updated_at=NOW() WHERE employee_uuid=$2",
-            vault_completeness, employee_uuid,
-        )
+    # score_vault_completeness / write_vault_completeness removed 2026-08-06 —
+    # consolidated into EmployeeLifecycleService.recompute_vault_completeness,
+    # the one actually triggered (by VaultHealthWorkflow). See that service's
+    # module docstring for the 3-writer-race history this closes.
 
     # ── AnomalyAcknowledgementWorkflow ────────────────────────────────────────
 
@@ -152,11 +134,10 @@ class AnalyticsService:
 
     # ── SkillGapWorkflow ──────────────────────────────────────────────────────
 
-    async def build_skill_gap_analysis(self, *, employee_uuid: str) -> dict:
-        raise NotImplementedError(
-            "build_skill_gap_analysis needs prana-ai to expose a skill-gap "
-            "endpoint — no such endpoint exists yet in prana-ai/routers/pipeline.py."
-        )
+    async def build_skill_gap_analysis(self, *, employee_uuid: str, tenant_id: Optional[str] = None) -> dict:
+        from services.ai_client import AiPipelineClient
+
+        return await AiPipelineClient().skill_gap(employee_uuid=employee_uuid, tenant_id=tenant_id)
 
     async def write_skill_gap(self, *, employee_uuid: str, tenant_id: Optional[str], insights: dict) -> None:
         await self._upsert_insight(employee_uuid, tenant_id, "SKILL_GAP", insights)
@@ -187,6 +168,8 @@ class AnalyticsService:
 
     async def _upsert_insight(self, employee_uuid: str, tenant_id: Optional[str],
                                insight_type: str, insights: dict) -> None:
+        import json
+
         await self._db.execute(
             """
             INSERT INTO employee_insight (insight_id, employee_uuid, tenant_id, insight_type, insights, computed_at)
@@ -194,5 +177,5 @@ class AnalyticsService:
             ON CONFLICT (employee_uuid, insight_type) DO UPDATE SET
               insights = EXCLUDED.insights, computed_at = NOW()
             """,
-            uuid.uuid4(), employee_uuid, tenant_id, insight_type, insights,
+            uuid.uuid4(), employee_uuid, tenant_id, insight_type, json.dumps(insights),
         )

@@ -9,11 +9,21 @@ import uuid
 from datetime import date, timedelta
 from typing import Optional
 
-# Core document types used as the vault-completeness baseline — a defensible v1
-# metric covering the joining/pay/tax/exit lifecycle stages. Not a substitute for
-# the richer per-role scoring VaultCompletenessWorkflow (workflows/intelligence.py)
-# is meant to own once that file's stubs are implemented.
-_CORE_DOC_TYPES = ("OFFER_LETTER", "SALARY_SLIP", "FORM_16", "RELIEVING_LETTER")
+# Consolidated 2026-08-06: employee_master.vault_completeness previously had 3
+# uncoordinated writers — this method (4-doc-type binary check, the only one
+# actually triggered, via VaultHealthWorkflow on every ROUTED document),
+# AnalyticsService.score_vault_completeness (richer 3-category check, never
+# triggered by anything — VaultCompletenessWorkflow was dead code), and
+# prana-ai/pipeline/stage06_route.py's own inline SQL (10-pts-per-doc-type,
+# uncapped-category, ran synchronously at route time). Whichever finished last
+# won. Now: one formula (the richer category grouping below), one writer (this
+# method, via the workflow that's actually wired). The other two writers are
+# removed.
+_REQUIRED_DOC_CATEGORIES: dict[str, tuple[str, ...]] = {
+    "employment_proof": ("OFFER_LETTER", "APPOINTMENT_LETTER", "JOINING_LETTER"),
+    "salary_slip":       ("SALARY_SLIP",),
+    "form16":            ("FORM_16",),
+}
 
 
 class EmployeeLifecycleService:
@@ -88,8 +98,11 @@ class EmployeeLifecycleService:
             employee_uuid, tenant_id,
         )
         present = {r["doc_type"] for r in rows}
-        covered = sum(1 for t in _CORE_DOC_TYPES if t in present)
-        score = round(covered / len(_CORE_DOC_TYPES) * 100, 2)
+        categories_met = sum(
+            1 for doc_types in _REQUIRED_DOC_CATEGORIES.values()
+            if present & set(doc_types)
+        )
+        score = round(categories_met / len(_REQUIRED_DOC_CATEGORIES) * 100, 2)
         await self._db.execute(
             "UPDATE employee_master SET vault_completeness=$2, updated_at=NOW() WHERE employee_uuid=$1",
             employee_uuid, score,

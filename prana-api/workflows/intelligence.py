@@ -4,14 +4,21 @@ Business logic lives in prana-ai/ (GPU worker) and services/analytics_service.py
 
 Task queues: insight-queue, analytics-queue
 
-Workflows (7 — InsightRefreshWorkflow is in insight_refresh.py):
+Workflows (6 — InsightRefreshWorkflow is in insight_refresh.py):
   CareerInsightWorkflow         — build/refresh career timeline for an employee
-  VaultCompletenessWorkflow     — per-employee vault health scoring
   AnomalyAcknowledgementWorkflow — CFO acknowledges a financial anomaly
   DigestWorkflow                — weekly / monthly summary email (Temporal Schedule)
   PeerBenchmarkWorkflow         — cross-tenant peer salary benchmark (no PII)
   SkillGapWorkflow              — skill gap analysis from designation progression
   MarketCompWorkflow            — market compensation comparison (external data)
+
+VaultCompletenessWorkflow removed 2026-08-06 — was never triggered by
+anything (registered on a worker queue but no start_workflow call existed
+anywhere), so it was dead code duplicating employee_master.vault_completeness
+writes against VaultHealthWorkflow (workflows/employee_lifecycle.py), which
+IS live-triggered. Its richer 3-category scoring formula was merged into
+VaultHealthWorkflow's activity instead of being thrown away — see
+services/employee_lifecycle_service.py's recompute_vault_completeness.
 """
 from datetime import timedelta
 
@@ -43,7 +50,9 @@ async def build_career_insight(params: dict) -> dict:
 
     db = await _connect()
     try:
-        return await AnalyticsService(db).build_career_insight(employee_uuid=params["employee_uuid"])
+        return await AnalyticsService(db).build_career_insight(
+            employee_uuid=params["employee_uuid"], tenant_id=params.get("tenant_id"),
+        )
     finally:
         await db.close()
 
@@ -56,28 +65,6 @@ async def write_career_insight(params: dict) -> None:
         await AnalyticsService(db).write_career_insight(
             employee_uuid=params["employee_uuid"], tenant_id=params.get("tenant_id"),
             insights=params.get("insights", {}),
-        )
-    finally:
-        await db.close()
-
-@activity.defn(name="score_vault_completeness")
-async def score_vault_completeness(params: dict) -> dict:
-    from services.analytics_service import AnalyticsService
-
-    db = await _connect()
-    try:
-        return await AnalyticsService(db).score_vault_completeness(employee_uuid=params["employee_uuid"])
-    finally:
-        await db.close()
-
-@activity.defn(name="write_vault_completeness")
-async def write_vault_completeness(params: dict) -> None:
-    from services.analytics_service import AnalyticsService
-
-    db = await _connect()
-    try:
-        await AnalyticsService(db).write_vault_completeness(
-            employee_uuid=params["employee_uuid"], vault_completeness=params["vault_completeness"],
         )
     finally:
         await db.close()
@@ -161,7 +148,9 @@ async def build_skill_gap_analysis(params: dict) -> dict:
 
     db = await _connect()
     try:
-        return await AnalyticsService(db).build_skill_gap_analysis(employee_uuid=params["employee_uuid"])
+        return await AnalyticsService(db).build_skill_gap_analysis(
+            employee_uuid=params["employee_uuid"], tenant_id=params.get("tenant_id"),
+        )
     finally:
         await db.close()
 
@@ -227,30 +216,6 @@ class CareerInsightWorkflow:
         )
         return result
 
-
-# ── VaultCompletenessWorkflow (Pattern 1 — fast) ─────────────────────────────
-
-@workflow.defn(name="VaultCompletenessWorkflow")
-class VaultCompletenessWorkflow:
-    """
-    Scores an individual employee's vault completeness across all required doc types.
-    Writes result to employee_master.vault_completeness (0–100 integer).
-    Triggered by VaultHealthWorkflow and after self-upload.
-    """
-
-    @workflow.run
-    async def run(self, params: dict) -> dict:
-        result = await workflow.execute_activity(
-            score_vault_completeness, params,
-            start_to_close_timeout=timedelta(minutes=10),
-            retry_policy=_RETRY,
-        )
-        await workflow.execute_activity(
-            write_vault_completeness, {**params, **result},
-            start_to_close_timeout=timedelta(minutes=5),
-            retry_policy=_RETRY,
-        )
-        return result
 
 
 # ── AnomalyAcknowledgementWorkflow (Pattern 5 — Human Signal) ────────────────
