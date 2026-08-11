@@ -74,7 +74,6 @@ from workflows.employee_lifecycle import (
 )
 from workflows.security import (
     PolicyLockWorkflow,
-    TOTPLockoutWorkflow,
     SessionExpiryWorkflow,
     SessionForceRevokeWorkflow,
     AnomalyDetectionWorkflow,
@@ -89,7 +88,6 @@ from workflows.platform_ops import (
     StorageQuotaCheckWorkflow,
     StagingCleanupWorkflow,
     WebhookDeliveryWorkflow,
-    NotificationDeliveryWorkflow,
     StorageExpansionWorkflow,
     OnboardingReviewSLAWorkflow,
 )
@@ -162,7 +160,6 @@ from workflows.employee_lifecycle import (
 )
 from workflows.security import (
     apply_policy_lock, release_policy_lock, notify_policy_lock,
-    apply_totp_lockout, release_totp_lockout,
     expire_session, force_revoke_session,
     run_anomaly_detection_batch, rotate_tenant_kek, rotate_hmac_secret,
     get_next_tenant_for_rotation, report_csam_to_ncmec,
@@ -172,8 +169,7 @@ from workflows.platform_ops import (
     collect_platform_metrics, write_platform_summary,
     pull_clamav_signatures, verify_kms_key_health, alert_kms_key_issue,
     check_tenant_storage_quotas, alert_storage_quota, purge_stale_staging_objects,
-    deliver_webhook, mark_webhook_failed, deliver_notification,
-    deliver_notification_fallback,
+    deliver_webhook, mark_webhook_failed,
     get_ops_config,
     notify_storage_expansion_request, apply_storage_expansion, reject_storage_expansion,
     escalate_onboarding_review,
@@ -225,7 +221,7 @@ WORKERS: dict[str, dict] = {
             TenantOffboardingWorkflow, TenantMigrationWorkflow,
             EmployeeExitWorkflow, PushWindowExpiryWorkflow,
             VaultActivationWorkflow, RejoiningWorkflow, AccountDormancyWorkflow,
-            WebhookDeliveryWorkflow, NotificationDeliveryWorkflow,
+            WebhookDeliveryWorkflow,
             StorageExpansionWorkflow,
             OnboardingReviewSLAWorkflow,
         ],
@@ -237,8 +233,7 @@ WORKERS: dict[str, dict] = {
             freeze_employee_vault, notify_exit_employee, start_retention_workflow,
             close_push_window, provision_vault, send_vault_welcome,
             reconcile_rejoining_employee, flag_dormant_account, get_lifecycle_config,
-            deliver_webhook, mark_webhook_failed, deliver_notification,
-            deliver_notification_fallback,
+            deliver_webhook, mark_webhook_failed,
             get_ops_config, notify_storage_expansion_request,
             apply_storage_expansion, reject_storage_expansion,
             escalate_onboarding_review,
@@ -257,10 +252,9 @@ WORKERS: dict[str, dict] = {
     },
     "auth-queue": {
         "workflows": [
-            TOTPLockoutWorkflow, SessionExpiryWorkflow, SessionForceRevokeWorkflow,
+            SessionExpiryWorkflow, SessionForceRevokeWorkflow,
         ],
         "activities": [
-            apply_totp_lockout, release_totp_lockout,
             expire_session, force_revoke_session, get_security_config,
         ],
     },

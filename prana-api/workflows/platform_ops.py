@@ -2,6 +2,15 @@
 Platform operations workflows — thin Temporal shells.
 Business logic lives in services/platform_ops_service.py.
 
+NOT split into one-file-per-workflow (2026-08-10 review) — same investigation
+and same decision as workflows/compliance.py (see that file's docstring for
+the full reasoning). This file has the same shape of problem: main.py has 5
+separate lazy `from workflows.platform_ops import ensure_*_schedule` calls at
+distinct startup points, plus worker.py bulk imports and ~8 test files
+importing workflow classes bundled with schedule helpers. Scoped out for the
+same reason — real risk of a silent schedule-registration regression, not
+worth rushing without a live Temporal cluster to verify against.
+
 Task queue: secops-queue (KMSHealthCheck), ingestsvc-queue (StagingCleanup, ClamAV),
             analytics-queue (StorageQuota), admin-queue (WebhookDelivery, Notification, SystemHealth)
 
@@ -159,26 +168,6 @@ async def mark_webhook_failed(params: dict) -> None:
     db = await _connect()
     try:
         await PlatformOpsService(db).mark_webhook_failed(params["delivery_id"])
-    finally:
-        await db.close()
-
-@activity.defn(name="deliver_notification")
-async def deliver_notification(params: dict) -> dict:
-    from services.platform_ops_service import PlatformOpsService
-
-    db = await _connect()
-    try:
-        return await PlatformOpsService(db).deliver_notification(params)
-    finally:
-        await db.close()
-
-@activity.defn(name="deliver_notification_fallback")
-async def deliver_notification_fallback(params: dict) -> None:
-    from services.platform_ops_service import PlatformOpsService
-
-    db = await _connect()
-    try:
-        await PlatformOpsService(db).deliver_notification_fallback(params)
     finally:
         await db.close()
 
@@ -473,6 +462,18 @@ class WebhookDeliveryWorkflow:
     Durable delivery of a webhook event to an HRMS endpoint.
     Retries up to webhook_max_retries (default: 10) with exponential backoff.
     On final failure: marks webhook as failed in webhook_delivery_log.
+
+    Intentionally built ahead of its trigger: `hrms_connector_config.integration_mode`
+    already supports 'WEBHOOK' as a connector mode (schema.sql), but no caller anywhere
+    in the codebase currently extracts a tenant's registered webhook_url from
+    `enc_credentials` and starts this workflow — that wiring is a distinct, unscoped
+    feature (decrypt WEBHOOK-mode credentials, decide the firing event, e.g. DOC_ROUTED),
+    not a bug in this workflow. `deliver_webhook`/`mark_webhook_failed` below are
+    real, tested, ready-to-use activities for whoever builds that trigger. Do not
+    confuse this with `kafka/consumers/integration_consumer.py`'s HRMS_WEBHOOK_FAILED
+    handling — that's unrelated: it tracks ingest-rejection retry counts in
+    `api_ingest_log` (a real table, despite an earlier docstring here claiming
+    otherwise), not HRMS webhook delivery.
     """
 
     @workflow.run
@@ -495,30 +496,13 @@ class WebhookDeliveryWorkflow:
             )
 
 
-# ── NotificationDeliveryWorkflow (Pattern 1 — durable delivery) ──────────────
-
-@workflow.defn(name="NotificationDeliveryWorkflow")
-class NotificationDeliveryWorkflow:
-    """
-    Durable delivery of a notification (push / email / SMS) to an employee.
-    Primary channel → fallback channel if primary fails.
-    Consumed by CommunicationHubConsumer from prana.notifications Kafka topic.
-    """
-
-    @workflow.run
-    async def run(self, params: dict) -> None:
-        result = await workflow.execute_activity(
-            deliver_notification, params,
-            start_to_close_timeout=timedelta(minutes=5),
-            retry_policy=_RETRY,
-        )
-        if not result.get("delivered") and params.get("fallback_channel"):
-            await workflow.execute_activity(
-                deliver_notification_fallback,
-                {**params, "channel": params["fallback_channel"]},
-                start_to_close_timeout=timedelta(minutes=5),
-                retry_policy=_RETRY,
-            )
+# NotificationDeliveryWorkflow removed 2026-08-10 — was fully built but nothing ever
+# called start_workflow for it (dead code, same class of bug as the already-removed
+# VaultCompletenessWorkflow). Real notification delivery already happens via
+# CommunicationHubConsumer's per-channel consumers (email/sms/push/whatsapp/bell/ivr),
+# each with its own vendor-chain + circuit breaker — this workflow's primary/fallback
+# retry logic duplicated that, through a parallel path nothing triggered. See
+# workflows/CLAUDE.md's Corrections section.
 
 
 # SystemHealthWorkflow lives in workflows/system_health.py — this was a duplicate

@@ -79,66 +79,20 @@ class AccountLockService:
                 new_event_id, uuid.UUID(event_id),
             )
             await self._set_status(user_type, user_id, "ACTIVE")
-
-    async def apply_totp_lockout(
-        self, *, user_type: str, user_id: str, tenant_id: Optional[str] = None,
-    ) -> str:
-        """Lighter than apply_policy_lock: no admin-set duration — the workflow's
-        own timer owns how long the lock lasts (TOTPLockoutWorkflow reads
-        totp_lockout_cooldown_minutes). Idempotent against activity retries."""
-        existing = await self._db.fetchval(
-            "SELECT event_id FROM account_status_event "
-            "WHERE user_type=$1 AND user_id=$2 AND event_type='TOTP_LOCKOUT' "
-            "AND reversed_by_event_id IS NULL",
-            user_type, user_id,
-        )
-        if existing:
-            return str(existing)
-
-        event_id = uuid.uuid4()
-        async with self._db.transaction():
-            await self._db.execute(
-                """
-                INSERT INTO account_status_event
-                  (event_id, event_type, user_type, user_id, tenant_id, from_status, to_status,
-                   reason_code, actor_type, occurred_at)
-                VALUES ($1, 'TOTP_LOCKOUT', $2, $3, $4, 'ACTIVE', 'LOCKED',
-                        'TOTP_FAILED_THRESHOLD', 'SYSTEM', NOW())
-                """,
-                event_id, user_type, user_id, tenant_id,
-            )
-            await self._set_status(user_type, user_id, "LOCKED")
-        return str(event_id)
-
-    async def release_totp_lockout(self, *, user_type: str, user_id: str, event_id: str) -> None:
-        """Auto-unlock at cooldown expiry — always SYSTEM-initiated (TOTP lockout is
-        time-recoverable, no CISO early-unlock path like PolicyLockWorkflow has).
-        Also resets failed_totp_count so the next attempt starts a fresh window."""
-        row = await self._db.fetchrow(
-            "SELECT reversed_by_event_id FROM account_status_event WHERE event_id=$1",
-            uuid.UUID(event_id),
-        )
-        if not row or row["reversed_by_event_id"]:
-            return
-
-        new_event_id = uuid.uuid4()
-        async with self._db.transaction():
-            await self._db.execute(
-                """
-                INSERT INTO account_status_event
-                  (event_id, event_type, user_type, user_id, from_status, to_status,
-                   reason_code, actor_type, occurred_at)
-                VALUES ($1, 'TOTP_LOCKOUT_EXPIRED', $2, $3, 'LOCKED', 'ACTIVE',
-                        'AUTO_UNLOCK', 'SYSTEM', NOW())
-                """,
-                new_event_id, user_type, user_id,
-            )
-            await self._db.execute(
-                "UPDATE account_status_event SET reversed_by_event_id=$1 WHERE event_id=$2",
-                new_event_id, uuid.UUID(event_id),
-            )
-            await self._set_status(user_type, user_id, "ACTIVE")
+            # Without this, a user unlocked here whose very next TOTP attempt fails
+            # immediately re-triggers the synchronous inline lock in
+            # routers/auth_oa.py|auth_employee.py (stale failed_totp_count + 1 is
+            # already >= threshold). Found 2026-08-10 while removing the redundant
+            # TOTPLockoutWorkflow, whose release_totp_lockout used to do this reset
+            # but was the only caller of it — this lock-release path (the one that's
+            # actually live, via AuthConsumer) never did.
             await self._reset_failed_totp(user_type, user_id)
+
+    # apply_totp_lockout / release_totp_lockout removed 2026-08-10 — backed
+    # TOTPLockoutWorkflow (workflows/security.py), which was fully built but never
+    # started by anything. The live TOTP-failure escalation path is
+    # AuthConsumer._handle_totp_failure -> PolicyLockWorkflow -> apply_policy_lock/
+    # release_policy_lock above.
 
     async def _set_status(self, user_type: str, user_id: str, status: str) -> None:
         if user_type == "employee":

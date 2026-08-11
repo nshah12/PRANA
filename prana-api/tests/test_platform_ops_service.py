@@ -190,32 +190,13 @@ async def test_mark_webhook_failed_updates_status():
     )
 
 
-# ── Notification delivery ─────────────────────────────────────────────────
-
-@pytest.mark.asyncio
-async def test_deliver_notification_delegates_to_notification_service():
-    db = _db()
-    with patch("services.notification_service.NotificationService.notify",
-               new_callable=AsyncMock) as mock_notify:
-        result = await PlatformOpsService(db).deliver_notification({
-            "tenant_id": "t-1", "event_type": "DOC_ROUTED", "recipient_id": "emp-1",
-            "recipient_type": "EMPLOYEE", "channel": "EMAIL", "template_id": "DOC_ROUTED",
-            "recipient_email": "e@x.com",
-        })
-    assert result == {"delivered": True}
-    mock_notify.assert_awaited_once()
-
-
-@pytest.mark.asyncio
-async def test_deliver_notification_returns_delivered_false_on_failure():
-    db = _db()
-    with patch("services.notification_service.NotificationService.notify",
-               new_callable=AsyncMock, side_effect=Exception("SES down")):
-        result = await PlatformOpsService(db).deliver_notification({
-            "tenant_id": "t-1", "event_type": "DOC_ROUTED", "recipient_id": "emp-1",
-            "recipient_type": "EMPLOYEE", "channel": "EMAIL", "template_id": "DOC_ROUTED",
-        })
-    assert result == {"delivered": False}
+def test_platform_ops_service_has_no_notification_delivery_methods():
+    """NotificationDeliveryWorkflow was removed 2026-08-10 — dead code, nothing ever
+    started it. Real notification delivery happens via CommunicationHubConsumer's
+    per-channel consumers directly. This guards against silent reintroduction.
+    """
+    assert not hasattr(PlatformOpsService, "deliver_notification")
+    assert not hasattr(PlatformOpsService, "deliver_notification_fallback")
 
 
 # ── Storage expansion ──────────────────────────────────────────────────────

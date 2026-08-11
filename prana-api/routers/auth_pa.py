@@ -137,7 +137,17 @@ async def verify_totp(body: PATOTPIn, request: Request, response: Response, db: 
                 "UPDATE portal_admin SET status='LOCKED' WHERE pa_id=$1", pa_id,
             )
             await _log(db, pa_id, "TOTP", "FAILED", "TOTP_LOCKOUT", ip)
-            # PA lockout is not auto-unlocked — requires another PA to unlock
+            # PA lockout is not auto-unlocked — requires another PA to unlock. Deliberately
+            # NOT routed through AuthConsumer -> PolicyLockWorkflow (unlike auth_oa.py /
+            # auth_employee.py) — PolicyLockWorkflow always auto-expires
+            # (policy_lock_default_hours, default 24h), which would silently grant PA
+            # accounts the auto-unlock they're intentionally not supposed to have. This
+            # does mean PA lockouts still have no account_status_event row and stay
+            # invisible to any audit-trail dashboard (checked and scoped out 2026-08-10,
+            # see workflows/CLAUDE.md's TOTPLockoutWorkflow-removal note — writing a
+            # manual-only account_status_event here without going through a workflow is a
+            # real, separate, still-open follow-up, not something to invent without
+            # confirming the right event_type/actor semantics first).
             raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=PranaError.ACCOUNT_LOCKED)
 
         await _log(db, pa_id, "TOTP", "FAILED", "WRONG_TOTP", ip)

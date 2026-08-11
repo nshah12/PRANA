@@ -8,7 +8,6 @@ from workflows.security import (
     PolicyLockWorkflow,
     KMSKeyRotationWorkflow,
     HMACSecretRotationWorkflow,
-    TOTPLockoutWorkflow,
     RENEW_THRESHOLD,
     get_security_config,
     apply_policy_lock,
@@ -148,14 +147,6 @@ async def test_ensure_hmac_secret_rotation_running_tolerates_already_started():
     await ensure_hmac_secret_rotation_running(client)  # must not raise
 
 
-def test_totp_lockout_duration_from_config():
-    src = inspect.getsource(TOTPLockoutWorkflow.run)
-    assert "totp_lockout_cooldown_minutes" in src, \
-        "TOTP lockout duration must be read from config, not hardcoded"
-    assert "execute_activity" in src, \
-        "TOTPLockoutWorkflow must delegate via execute_activity"
-
-
 def _patched_asyncpg_and_redis():
     """get_security_config/apply_policy_lock/release_policy_lock all open their own
     asyncpg + redis connections — patch both at the module level they're imported in."""
@@ -220,31 +211,17 @@ async def test_release_policy_lock_activity_delegates_to_account_lock_service():
     )
 
 
-# ── TOTP lockout activities ───────────────────────────────────────────────────
+def test_security_workflows_has_no_totp_lockout_activities():
+    """TOTPLockoutWorkflow (and apply_totp_lockout/release_totp_lockout) removed
+    2026-08-10 — dead code, nothing ever started it. The live TOTP-failure
+    escalation path is AuthConsumer -> PolicyLockWorkflow. This guards against
+    silent reintroduction.
+    """
+    import workflows.security as security_module
 
-@pytest.mark.asyncio
-async def test_apply_totp_lockout_delegates_to_account_lock_service():
-    from workflows.security import apply_totp_lockout
-
-    p_asyncpg, _ = _patched_asyncpg_and_redis()
-    with p_asyncpg, \
-         patch("services.account_lock_service.AccountLockService.apply_totp_lockout",
-               new_callable=AsyncMock, return_value="event-2") as mock_apply:
-        result = await apply_totp_lockout({"user_type": "employee", "user_id": "emp-1", "tenant_id": "t-1"})
-    assert result == "event-2"
-    mock_apply.assert_awaited_once_with(user_type="employee", user_id="emp-1", tenant_id="t-1")
-
-
-@pytest.mark.asyncio
-async def test_release_totp_lockout_delegates_to_account_lock_service():
-    from workflows.security import release_totp_lockout
-
-    p_asyncpg, _ = _patched_asyncpg_and_redis()
-    with p_asyncpg, \
-         patch("services.account_lock_service.AccountLockService.release_totp_lockout",
-               new_callable=AsyncMock) as mock_release:
-        await release_totp_lockout({"user_type": "employee", "user_id": "emp-1", "event_id": "event-2"})
-    mock_release.assert_awaited_once_with(user_type="employee", user_id="emp-1", event_id="event-2")
+    assert not hasattr(security_module, "TOTPLockoutWorkflow")
+    assert not hasattr(security_module, "apply_totp_lockout")
+    assert not hasattr(security_module, "release_totp_lockout")
 
 
 # ── Session activities ────────────────────────────────────────────────────────

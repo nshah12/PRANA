@@ -192,14 +192,44 @@ async def verify_totp(body: OATOTPIn, request: Request, response: Response, db: 
             "WHERE oa_user_id=$1 RETURNING failed_totp_count",
             oa_user_id,
         )
+        # This synchronous status='LOCKED' write blocks the NEXT login attempt
+        # immediately — it must not wait on Kafka/consumer lag. The auth_event
+        # publish below is a *separate* concern: it triggers AuthConsumer's async
+        # escalation (PolicyLockWorkflow -> real account_status_event audit row +
+        # CISO dashboard visibility + eventual unlock), matching what
+        # routers/auth_employee.py already does for employee accounts. Before this
+        # fix, OA/CHRO/CFO/CISO account lockouts were invisible to that audit trail
+        # entirely — no account_status_event row, nothing in the CISO/PA security
+        # dashboards, no path to an eventual unlock beyond a manual DB fix.
+        kafka = getattr(request.app.state, "kafka_producer", None)
         if new_count >= lock_threshold:
             await db.execute(
                 "UPDATE oa_user SET status='LOCKED' WHERE oa_user_id=$1", oa_user_id,
             )
             await _log_attempt(db, "oa_user", oa_user_id, "TOTP", "FAILED", "TOTP_LOCKOUT", ip)
+            if kafka:
+                await kafka.auth_event({
+                    "event_type": "TOTP_FAILED",
+                    "user_id":    oa_user_id,
+                    "user_type":  "oa_user",
+                    "tenant_id":  tenant_id,
+                    "fail_count": new_count,
+                    "locked":     True,
+                    "ip_address": ip,
+                })
             raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=PranaError.ACCOUNT_LOCKED)
 
         await _log_attempt(db, "oa_user", oa_user_id, "TOTP", "FAILED", "WRONG_TOTP", ip)
+        if kafka:
+            await kafka.auth_event({
+                "event_type": "TOTP_FAILED",
+                "user_id":    oa_user_id,
+                "user_type":  "oa_user",
+                "tenant_id":  tenant_id,
+                "fail_count": new_count,
+                "locked":     False,
+                "ip_address": ip,
+            })
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail=PranaError.INVALID_TOTP)
 
     # Replay protection: a valid code may be presented only once within its window.

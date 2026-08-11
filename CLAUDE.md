@@ -77,7 +77,7 @@ All in `prana-docs/`:
 
 ## Workflow Engine
 - Temporal Python SDK v1.x
-- 57 named workflows (see `prana-api/workflows/CLAUDE.md` for the authoritative list), zero cron/Celery/polling
+- 56 named workflows (see `prana-api/workflows/CLAUDE.md` for the authoritative list), zero cron/Celery/polling
 - Business logic in plain service classes (zero Temporal imports)
 - Temporal workflows are thin adapter shells (<20 lines)
 - **Temporal + Kafka are complementary:** Kafka = async fan-out event bus; Temporal = durable process with signals, timers, human-in-the-loop. WorkflowConsumer bridges them.

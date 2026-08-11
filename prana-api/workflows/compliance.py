@@ -2,6 +2,29 @@
 DPDP Act 2023 compliance workflows — thin Temporal shells.
 Business logic lives in services/compliance_service.py (zero Temporal imports).
 
+NOT split into one-file-per-workflow (2026-08-10 review) despite that being
+this codebase's usual convention (e.g. workflows/totp_lockout.py's era) and
+this file being 9 workflow classes / ~600 lines. Investigated and deliberately
+scoped out: unlike routers/pa_admin.py (split the same day — one clean HTTP
+registration point, one test file), this file has 10+ real cross-file import
+sites to get right — main.py has 2 separate lazy `from workflows.compliance
+import ensure_*_schedule` calls at distinct startup points, worker.py bulk-
+imports both workflows and activities from here, kafka/consumers/
+tenant_consumer.py imports ensure_one_tenant_statutory_schedule directly, and
+~4 test files import workflow classes bundled with their schedule-helper
+functions in the same statement. This exact file family (schedule
+registration: PlatformSummaryWorkflow, DigestWorkflow, KMSHealthCheckWorkflow,
+AuditIntegrityVerificationWorkflow, HRMSSyncScheduleWorkflow, ...) has a
+documented history of silent-no-op bugs from get-it-wrong registration —
+see the "Fixed 2026-07-22" and "Corrections" entries below and in
+platform_ops.py — caught only by tests that actually invoke the real
+temporalio SDK shapes, not source-inspection tests. A rushed split here,
+verified only against this environment's mocked-Temporal test suite (no live
+Temporal cluster available), risks reintroducing exactly that class of bug
+silently. If this is worth doing, do it one workflow at a time, each verified
+against a real Temporal dev cluster before moving to the next — not as one
+mechanical multi-file pass.
+
 Task queue: compliance-queue
 
 Workflows:

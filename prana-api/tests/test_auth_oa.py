@@ -182,6 +182,78 @@ async def test_totp_wrong_code_below_lockout(client, mock_db, mock_redis):
 
 
 @pytest.mark.asyncio
+async def test_totp_lockout_publishes_auth_event_for_async_escalation(client, mock_db, mock_redis, mock_kafka):
+    """The synchronous status='LOCKED' write blocks the next login attempt immediately,
+    but CISO/PA dashboard visibility and eventual unlock come from AuthConsumer's async
+    escalation (PolicyLockWorkflow), which only fires off a published auth_event — same
+    mechanism routers/auth_employee.py already used. Before this fix, OA account lockouts
+    published nothing, so they never reached account_status_event or any CISO dashboard.
+    """
+    step_payload = b"oa-user-uuid-001:tenant-uuid-001:oa_admin"
+    mock_redis.get = AsyncMock(return_value=step_payload)
+    mock_redis.delete = AsyncMock()
+
+    def _fetchrow_side(*args, **kwargs):
+        sql = args[0].lower() if args else ""
+        if "platform_config" in sql:
+            return None
+        return _make_oa_row(failed_totp_count=4)
+
+    mock_db.fetchrow = AsyncMock(side_effect=_fetchrow_side)
+    mock_db.execute = AsyncMock()
+    mock_db.fetchval = AsyncMock(return_value=5)
+
+    with patch("routers.auth_oa.TOTPService.verify", return_value=False):
+        resp = await client.post("/auth/org/totp", json={
+            "step_token": "dummy-step-token",
+            "code": "000000",
+        })
+
+    assert resp.status_code == 403
+    mock_kafka.auth_event.assert_awaited_once()
+    event = mock_kafka.auth_event.await_args.args[0]
+    assert event["event_type"] == "TOTP_FAILED"
+    assert event["user_id"] == "oa-user-uuid-001"
+    assert event["user_type"] == "oa_user"
+    assert event["locked"] is True
+    assert event["fail_count"] == 5
+
+
+@pytest.mark.asyncio
+async def test_totp_failure_below_lockout_still_publishes_auth_event(client, mock_db, mock_redis, mock_kafka):
+    """Every failure feeds AuthConsumer's rolling-window count, not just the one that
+    crosses the lock threshold — AuthConsumer recomputes the count itself from
+    login_attempt_log, so it just needs to be woken up on each failure.
+    """
+    step_payload = b"oa-user-uuid-001:tenant-uuid-001:oa_admin"
+    mock_redis.get = AsyncMock(return_value=step_payload)
+    mock_redis.delete = AsyncMock()
+
+    def _fetchrow_side(*args, **kwargs):
+        sql = args[0].lower() if args else ""
+        if "platform_config" in sql:
+            return None
+        return _make_oa_row(failed_totp_count=1)
+
+    mock_db.fetchrow = AsyncMock(side_effect=_fetchrow_side)
+    mock_db.execute = AsyncMock()
+    mock_db.fetchval = AsyncMock(return_value=2)
+
+    with patch("routers.auth_oa.TOTPService.verify", return_value=False):
+        resp = await client.post("/auth/org/totp", json={
+            "step_token": "dummy-step-token",
+            "code": "999999",
+        })
+
+    assert resp.status_code == 401
+    mock_kafka.auth_event.assert_awaited_once()
+    event = mock_kafka.auth_event.await_args.args[0]
+    assert event["event_type"] == "TOTP_FAILED"
+    assert event["locked"] is False
+    assert event["fail_count"] == 2
+
+
+@pytest.mark.asyncio
 async def test_login_suspended_account_rejected(client, mock_db, mock_redis):
     """SUSPENDED accounts must be blocked (not just LOCKED)."""
     mock_db.fetchrow.return_value = _make_oa_row(status="SUSPENDED")

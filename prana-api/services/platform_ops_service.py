@@ -1,18 +1,20 @@
 """
 PlatformOpsService — business logic behind workflows/platform_ops.py's
-17 activities (PlatformSummaryWorkflow, ClamAVUpdateWorkflow,
+15 activities (PlatformSummaryWorkflow, ClamAVUpdateWorkflow,
 KMSHealthCheckWorkflow, StorageQuotaCheckWorkflow, StagingCleanupWorkflow,
-WebhookDeliveryWorkflow, NotificationDeliveryWorkflow, StorageExpansionWorkflow,
-OnboardingReviewSLAWorkflow). Zero Temporal imports.
+WebhookDeliveryWorkflow, StorageExpansionWorkflow, OnboardingReviewSLAWorkflow).
+Zero Temporal imports.
 
-KNOWN GAP: WebhookDeliveryWorkflow and NotificationDeliveryWorkflow are
-registered in worker.py but nothing anywhere calls start_workflow for either —
-real webhook retry already happens ad-hoc in kafka/consumers/integration_consumer.py
-(against a table, api_ingest_log, that doesn't actually exist — see the
-separately-flagged bug), and real notification delivery already happens via
-CommunicationHubConsumer -> NotificationService directly. Both activities below are real
-and correct so the workflows work if something starts them, but neither is
-currently reachable in production.
+WebhookDeliveryWorkflow status: registered in worker.py, but nothing yet extracts
+a WEBHOOK-mode tenant's webhook_url from hrms_connector_config.enc_credentials and
+starts it — that trigger is a distinct, unscoped feature (see the workflow's own
+docstring in workflows/platform_ops.py). deliver_webhook/mark_webhook_failed below
+are real, tested, ready-to-use activities for whoever builds that trigger.
+
+NotificationDeliveryWorkflow (and its deliver_notification/deliver_notification_fallback
+activities) removed 2026-08-10 — dead code, real notification delivery already
+happens via CommunicationHubConsumer's per-channel consumers directly. See
+workflows/CLAUDE.md's Corrections section.
 """
 import logging
 from datetime import datetime, timedelta, timezone
@@ -215,45 +217,6 @@ class PlatformOpsService:
         await self._db.execute(
             "UPDATE webhook_delivery_log SET status='FAILED' WHERE delivery_id=$1",
             delivery_id,
-        )
-
-    # ── NotificationDeliveryWorkflow ─────────────────────────────────────────
-
-    async def deliver_notification(self, params: dict) -> dict:
-        from services.notification_service import Channel, NotificationService, RecipientType
-
-        svc = NotificationService(db=self._db)
-        try:
-            await svc.notify(
-                tenant_id=params.get("tenant_id"),
-                event_type=params["event_type"],
-                recipient_id=params["recipient_id"],
-                recipient_type=RecipientType(params["recipient_type"]),
-                channel=Channel(params["channel"]),
-                template_id=params["template_id"],
-                template_data=params.get("template_data", {}),
-                recipient_email=params.get("recipient_email"),
-                recipient_phone=params.get("recipient_phone"),
-            )
-            return {"delivered": True}
-        except Exception as exc:
-            log.warning("deliver_notification: failed recipient_id=%s: %s", params.get("recipient_id"), exc)
-            return {"delivered": False}
-
-    async def deliver_notification_fallback(self, params: dict) -> None:
-        from services.notification_service import Channel, NotificationService, RecipientType
-
-        svc = NotificationService(db=self._db)
-        await svc.notify(
-            tenant_id=params.get("tenant_id"),
-            event_type=params["event_type"],
-            recipient_id=params["recipient_id"],
-            recipient_type=RecipientType(params["recipient_type"]),
-            channel=Channel(params["channel"]),
-            template_id=params["template_id"],
-            template_data=params.get("template_data", {}),
-            recipient_email=params.get("recipient_email"),
-            recipient_phone=params.get("recipient_phone"),
         )
 
     # ── StorageExpansionWorkflow ──────────────────────────────────────────────

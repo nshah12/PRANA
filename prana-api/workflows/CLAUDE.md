@@ -165,16 +165,16 @@ class HumanSignalWorkflow:
 ```
 **Used by:** ElevationWorkflow, StorageExpansionWorkflow, OnboardingReviewSLAWorkflow, TenantMigrationWorkflow
 
-## Workflow Domains (58 total, verified against `@workflow.defn` classes 2026-07-05, +1 2026-07-15, -1 2026-08-06)
+## Workflow Domains (56 total, verified against `@workflow.defn` classes 2026-07-05, +1 2026-07-15, -1 2026-08-06, -2 2026-08-10)
 
 | Domain | Count | Key workflows |
 |--------|-------|---------------|
 | Document Pipeline | 4 | DocumentPipelineWorkflow, BatchProgressWorkflow, BatchTimeoutMonitorWorkflow, EmbeddingUpdateWorkflow |
 | Employee Lifecycle | 7 | EmployeeExitWorkflow, PushWindowExpiryWorkflow, VaultActivationWorkflow, VaultHealthWorkflow, NomineeAccessWorkflow, RejoiningWorkflow, AccountDormancyWorkflow |
-| Security & Access Control | 12 | PolicyLockWorkflow, TOTPLockoutWorkflow, ElevationWorkflow, SessionExpiryWorkflow, SessionForceRevokeWorkflow, AnomalyDetectionWorkflow, KMSKeyRotationWorkflow, HMACSecretRotationWorkflow, CSAMReportingWorkflow, SystemHealthWorkflow, AuditIntegrityVerificationWorkflow, ErrorThresholdEvaluationWorkflow |
+| Security & Access Control | 11 | PolicyLockWorkflow, ElevationWorkflow, SessionExpiryWorkflow, SessionForceRevokeWorkflow, AnomalyDetectionWorkflow, KMSKeyRotationWorkflow, HMACSecretRotationWorkflow, CSAMReportingWorkflow, SystemHealthWorkflow, AuditIntegrityVerificationWorkflow, ErrorThresholdEvaluationWorkflow |
 | DPDP & Legal Compliance | 9 | ErasureConfirmationWorkflow, DataExportWorkflow, ConsentRebumpWorkflow, GrievanceWorkflow, DataCorrectionWorkflow, RetentionWorkflow, AuditArchivalWorkflow, LegalHoldWorkflow, StatutoryComplianceWorkflow |
 | Intelligence Layer | 7 | InsightRefreshWorkflow, CareerInsightWorkflow, AnomalyAcknowledgementWorkflow, DigestWorkflow, PeerBenchmarkWorkflow, SkillGapWorkflow, MarketCompWorkflow |
-| Platform Operations | 9 | PlatformSummaryWorkflow, ClamAVUpdateWorkflow, KMSHealthCheckWorkflow, StorageQuotaCheckWorkflow, StagingCleanupWorkflow, WebhookDeliveryWorkflow, NotificationDeliveryWorkflow, StorageExpansionWorkflow, OnboardingReviewSLAWorkflow |
+| Platform Operations | 8 | PlatformSummaryWorkflow, ClamAVUpdateWorkflow, KMSHealthCheckWorkflow, StorageQuotaCheckWorkflow, StagingCleanupWorkflow, WebhookDeliveryWorkflow, StorageExpansionWorkflow, OnboardingReviewSLAWorkflow |
 | Onboarding & Tenant Management | 4 | DomainVerificationWorkflow, TenantProvisioningWorkflow, TenantOffboardingWorkflow, TenantMigrationWorkflow |
 | Vault & Shares | 3 | ShareExpiryWorkflow, ShareRevocationWorkflow, DocumentShareWorkflow |
 | Gamification & HRMS Integration | 3 | GamificationRefreshWorkflow (registered on `insight-queue`), HRMSSyncWorkflow + HRMSSyncScheduleWorkflow (registered on `hrms-queue`). Fixed 2026-07-09: previously none were registered, and `WorkflowConsumer` started `GamificationRefreshWorkflow` on `"prana-analytics"` — a queue no worker polled, so it silently never ran. Consumer now targets `insight-queue`. Fixed 2026-07-22: `HRMSSyncScheduleWorkflow`'s Temporal-Schedule creation (`hrms_sync_schedule.py`) was a placeholder dict, not a real `client.create_schedule(...)` call (same bug independently found in `audit_integrity.py`/`error_threshold.py`/`system_health.py`'s schedule registration — wrong import location, missing required `id=`, nonexistent `Schedule.with_spec()`); the manual `/sync` trigger was also starting `HRMSSyncWorkflow` on `"prana-analytics"` instead of `hrms-queue`. Both fixed, and `HRMSSyncScheduleWorkflow` is now actually triggered: `hrms_config.py`'s create/pause/resume endpoints publish `HRMS_CONNECTOR_STATUS_CHANGED`, and `IntegrationConsumer` starts it in response. |
@@ -212,6 +212,53 @@ Corrections from the previous (53-count) version of this table:
   starts this workflow off a `BULK_DOC_ACCESS`/`BRUTE_FORCE` anomaly, gated behind
   `bulk_access_auto_lock_enabled`/`brute_force_auto_lock_enabled` (both seeded `false`).
   See `KAFKA_REDIS_ARCHITECTURE.md` §10 and `prana-docs/SEVERITY_SLA_POLICY_DESIGN.md`.
+- `TOTPLockoutWorkflow` **removed 2026-08-10** — this was the "unresolved
+  dual-mechanism ambiguity" flagged in `gap_dead_workflows_2026_07`, now
+  resolved by investigation: it was fully built (`apply_totp_lockout`/
+  `release_totp_lockout` in `services/account_lock_service.py`, real tests) but
+  nothing anywhere called `start_workflow` for it. The live TOTP-failure
+  escalation path is `kafka/consumers/auth_consumer.py`'s
+  `AuthConsumer._handle_totp_failure` → `PolicyLockWorkflow` (the same unified
+  mechanism used for `USER_LOGIN_FAILED` and anomaly-triggered auto-locks) —
+  same class of dead-registration bug as `NotificationDeliveryWorkflow` below.
+  The investigation surfaced two real, separate bugs, both fixed alongside this
+  removal: (1) `routers/auth_oa.py`'s synchronous TOTP lockout (`UPDATE oa_user
+  SET status='LOCKED'`) never published the `auth_event` that triggers
+  `AuthConsumer`'s escalation — `routers/auth_employee.py` already did this
+  correctly, so OA/CHRO/CFO/CISO account lockouts were invisible to
+  `account_status_event` and every CISO/PA dashboard while employee lockouts
+  were not; now fixed to match. `routers/auth_pa.py` was investigated too and
+  deliberately left as-is — its "not auto-unlocked, requires another PA to
+  unlock" design is intentional (PA is the platform's highest-privilege tier),
+  and `PolicyLockWorkflow` always auto-expires (`policy_lock_default_hours`,
+  default 24h), so routing PA through it would silently grant PA accounts an
+  auto-unlock they're deliberately not supposed to have — scoped out rather
+  than guessed at. (2) `AccountLockService.release_policy_lock` (the *live*
+  unlock path) never reset `failed_totp_count`, unlike the dead
+  `release_totp_lockout` it's replacing — meaning a user unlocked via
+  `PolicyLockWorkflow` whose very next TOTP attempt failed would immediately
+  re-trigger the synchronous inline lock again (stale count + 1 already over
+  threshold). Fixed; `routers/ciso.py`'s `manual_unlock` was checked and
+  already reset the counter correctly, so only the Temporal-driven path needed
+  the fix.
+- `NotificationDeliveryWorkflow` **removed 2026-08-10** — was fully built
+  (`platform_ops.py`) but nothing anywhere called `start_workflow` for it, same class
+  of bug as `VaultCompletenessWorkflow` below. Real notification delivery already
+  happens via `CommunicationHubConsumer`'s per-channel consumers
+  (email/sms/push/whatsapp/bell/ivr), each with its own vendor-chain + circuit
+  breaker (see `prana-docs/COMMUNICATION_HUB_ARCHITECTURE.md`) — this workflow's
+  primary/fallback retry logic duplicated that through a path nothing triggered.
+  `WebhookDeliveryWorkflow` (same file, same "KNOWN GAP" comment this was originally
+  flagged alongside) was investigated too and is **not** dead in the same way: it's
+  real, tested infrastructure for `hrms_connector_config.integration_mode='WEBHOOK'`
+  (a schema-documented, supported connector mode) that's genuinely never been wired
+  to a trigger — extracting a tenant's `webhook_url` from `enc_credentials` and
+  deciding the firing event (e.g. `DOC_ROUTED`) is unscoped, separate feature work,
+  not something to invent here. Its own docstring now says so explicitly, and also
+  corrects a stale claim in the old shared comment: `api_ingest_log` (used by
+  `kafka/consumers/integration_consumer.py`'s unrelated HRMS-webhook-failure retry
+  counting) is a real table — that was a separately-flagged, separately-fixed bug,
+  not evidence this workflow's use case is already handled elsewhere.
 - `VaultCompletenessWorkflow` **removed 2026-08-06** — was fully built (`intelligence.py`)
   but never started by anything (dead code); its richer 3-category scoring formula was
   merged into `EmployeeLifecycleService.recompute_vault_completeness`, the one actually

@@ -6,7 +6,6 @@ Task queues: auth-queue, secops-queue, safety-queue
 
 Workflows:
   PolicyLockWorkflow         — apply and auto-expire a policy-based account lock
-  TOTPLockoutWorkflow        — 30-min TOTP lockout after N failed attempts
   SessionExpiryWorkflow      — expire a session at its scheduled time
   SessionForceRevokeWorkflow — immediately revoke a session (CISO force-logout)
   AnomalyDetectionWorkflow   — perpetual: detect behavioural anomalies (Continue-As-New)
@@ -79,39 +78,6 @@ async def notify_policy_lock(params: dict) -> None:
         "tenant_id":   params.get("tenant_id"),
         "reason":      params["reason_code"],
     })
-
-@activity.defn(name="apply_totp_lockout")
-async def apply_totp_lockout(params: dict) -> str:
-    import asyncpg
-
-    from config import get_settings
-    from services.account_lock_service import AccountLockService
-
-    settings = get_settings()
-    db = await asyncpg.connect(settings.db_dsn)
-    try:
-        return await AccountLockService(db).apply_totp_lockout(
-            user_type=params["user_type"], user_id=params["user_id"],
-            tenant_id=params.get("tenant_id"),
-        )
-    finally:
-        await db.close()
-
-@activity.defn(name="release_totp_lockout")
-async def release_totp_lockout(params: dict) -> None:
-    import asyncpg
-
-    from config import get_settings
-    from services.account_lock_service import AccountLockService
-
-    settings = get_settings()
-    db = await asyncpg.connect(settings.db_dsn)
-    try:
-        await AccountLockService(db).release_totp_lockout(
-            user_type=params["user_type"], user_id=params["user_id"], event_id=params["event_id"],
-        )
-    finally:
-        await db.close()
 
 @activity.defn(name="expire_session")
 async def expire_session(params: dict) -> None:
@@ -343,34 +309,18 @@ class PolicyLockWorkflow:
         )
 
 
-# ── TOTPLockoutWorkflow (Pattern 1 — Durable Timer) ──────────────────────────
-
-@workflow.defn(name="TOTPLockoutWorkflow")
-class TOTPLockoutWorkflow:
-    """
-    N failed TOTP attempts → 30-min lockout (duration from config).
-    Separate from PolicyLockWorkflow: lighter, user-self-recoverable via time.
-    Portal Admin threshold = 3 attempts (not 5) per CLAUDE.md.
-    """
-
-    @workflow.run
-    async def run(self, params: dict) -> None:
-        minutes_str = await workflow.execute_activity(
-            get_security_config,
-            {"key": "totp_lockout_cooldown_minutes", "tenant_id": params.get("tenant_id"), "default": "30"},
-            start_to_close_timeout=timedelta(minutes=2),
-        )
-        await workflow.execute_activity(
-            apply_totp_lockout, params,
-            start_to_close_timeout=timedelta(minutes=5),
-            retry_policy=_RETRY,
-        )
-        await workflow.sleep(timedelta(minutes=int(minutes_str)))
-        await workflow.execute_activity(
-            release_totp_lockout, params,
-            start_to_close_timeout=timedelta(minutes=5),
-            retry_policy=_RETRY,
-        )
+# TOTPLockoutWorkflow removed 2026-08-10 — was fully built (apply_totp_lockout/
+# release_totp_lockout activities, real tests) but nothing anywhere called
+# start_workflow for it. The live TOTP-failure escalation path is
+# kafka/consumers/auth_consumer.py's AuthConsumer._handle_totp_failure, which
+# starts PolicyLockWorkflow (this same file) — the same unified mechanism used
+# for USER_LOGIN_FAILED and anomaly-triggered auto-locks (SecurityConsumer). See
+# workflows/CLAUDE.md's Corrections section for the full investigation: this
+# surfaced a separate, real bug — routers/auth_oa.py's synchronous TOTP lockout
+# never published the auth_event that triggers that escalation, so OA/CHRO/CFO/CISO
+# account lockouts were invisible to account_status_event and every CISO/PA
+# dashboard (employee accounts, via routers/auth_employee.py, already did this
+# correctly). Fixed alongside this removal.
 
 
 # ── SessionExpiryWorkflow (Pattern 1 — Durable Timer) ────────────────────────
