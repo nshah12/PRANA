@@ -1,6 +1,16 @@
 """
 Email delivery — SMTP with TLS.
 Dev mode: when smtp_host is empty, OTP and notifications are printed to console.
+
+Deliberately separate from services/email_service.py's SES/vendor-chain/
+circuit-breaker path (used by the Communication Hub's EmailConsumer) — this
+module exists for routers/public.py's pre-auth flows (org self-registration
+OTP, contact form), which run before any tenant/session context exists. The
+Communication Hub's channel routing (notification_channel_policy) resolves
+per-tenant config that simply doesn't exist yet at this point in the flow, so
+this isn't duplication to consolidate — it's a distinct, narrower use case.
+Investigated 2026-08-10 alongside the removal of the actually-duplicate
+NotificationService dispatch path (see services/notification_service.py).
 """
 import smtplib
 import logging

@@ -22,7 +22,7 @@ from services.config_service import ConfigService
 from services.email_service import EmailService
 from services.encryption_service import resolve_platform_auth_kek_arn
 from services.notification_log import write_notification_log
-from services.notification_service import _SUBJECT_MAP, _build_email_body
+from services.notification_service import _SUBJECT_MAP, _build_email_body, _check_template_data
 
 log = logging.getLogger(__name__)
 GROUP_ID = "prana-email-consumer"
@@ -85,6 +85,25 @@ class EmailConsumer:
             email_svc = EmailService(settings, config, breaker)
 
             template_data = event.get("template_data") or {}
+            try:
+                _check_template_data(template_data)
+            except ValueError as exc:
+                log.error("EmailConsumer: blocked template_data with PAN/salary key event_type=%s err=%s",
+                          event.get("event_type"), exc)
+                await write_notification_log(
+                    conn,
+                    tenant_id=event.get("tenant_id"),
+                    event_type=event.get("event_type", "EMAIL"),
+                    recipient_id=str(event.get("recipient_id", "")),
+                    recipient_type=str(event.get("recipient_type", "EMPLOYEE")).upper(),
+                    recipient_email=recipient_email,
+                    channel="EMAIL",
+                    template_id=template_id,
+                    template_data=template_data,
+                    status="BLOCKED",
+                    error_message=str(exc),
+                )
+                return
             sent, error = await email_svc.send_email(
                 to=recipient_email,
                 subject=_SUBJECT_MAP.get(template_id, "PRANA Notification"),

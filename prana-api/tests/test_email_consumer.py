@@ -69,6 +69,27 @@ async def test_email_dispatched_writes_notification_log(consumer, db_pool):
 
 
 @pytest.mark.asyncio
+async def test_email_blocks_dispatch_when_template_data_contains_pan(consumer, db_pool):
+    """Privacy guard added 2026-08-10 — _check_template_data exists but was
+    never actually wired into any real consumer before this. A producer bug
+    that puts a PAN key into template_data must not reach EmailService.send_email
+    or get written into notification_log's template_data JSONB column.
+    """
+    _, conn = db_pool
+    event = {"event_type": "OA_WELCOME", "recipient_id": "u-1",
+             "recipient_email": "ops@co.com", "template_id": "OA_WELCOME",
+             "tenant_id": "t-1", "template_data": {"pan": "ABCDE1234F"}}
+    with patch("kafka.consumers.email_consumer.EmailService.send_email",
+               new=AsyncMock(return_value=(True, None))) as mock_send:
+        await consumer._handle(event)
+    mock_send.assert_not_awaited()
+    conn.execute.assert_called_once()
+    sql, *args = conn.execute.call_args[0]
+    assert "notification_log" in sql
+    assert "BLOCKED" in args
+
+
+@pytest.mark.asyncio
 async def test_email_send_failure_logs_failed_status_not_raise(consumer, db_pool):
     _, conn = db_pool
     event = {"event_type": "OA_WELCOME", "recipient_id": "u-1",

@@ -1,304 +1,91 @@
 """
-Tests for services/notification_service.py
+Tests for services/notification_service.py.
 
-TDD order:
-  RED  — all tests here fail until notification_service.py is written
-  GREEN — implement service to pass each test
-  REFACTOR — clean up
+The NotificationService class (notify()/notify_anomaly(), an inline dispatch
+path with stubbed SMS/WhatsApp/push) was removed 2026-08-10 — dead code, its
+one real caller was NotificationDeliveryWorkflow (also removed that day, see
+workflows/CLAUDE.md). What remains here are the shared constants/enums/helpers
+the real Communication Hub per-channel consumers (EmailConsumer, SMSConsumer,
+WhatsAppConsumer, PushConsumer) actually import and call.
 
 Covers:
-  - notify() writes a notification_log row
-  - Channel selection follows cascade rules
-  - P0/P1 anomaly triggers email + portal bell
-  - template_data must never contain raw PAN or salary figures
-  - Bounced-email suppression skips EMAIL channel
-  - SMS fallback when WhatsApp opted-out
+  - Channel / RecipientType enum values
+  - _check_template_data — the privacy guard (PAN/salary keys) every real
+    per-channel consumer now calls before dispatch
+  - _build_email_body — the plaintext body EmailConsumer renders
 """
-import json
-import uuid
-from datetime import datetime, timezone
-from unittest.mock import AsyncMock, MagicMock, patch, call
-
 import pytest
 
-from config import Settings
-from services.notification_service import NotificationService, Channel, RecipientType
+from services.notification_service import (
+    Channel, RecipientType, _check_template_data, _build_email_body,
+)
 
 
-# ---------------------------------------------------------------------------
-# Fixtures
-# ---------------------------------------------------------------------------
-
-@pytest.fixture
-def mock_db():
-    db = AsyncMock()
-    db.fetchrow = AsyncMock(return_value=None)
-    db.execute = AsyncMock(return_value=None)
-    return db
+def test_channel_enum_values():
+    assert Channel.EMAIL == "EMAIL"
+    assert Channel.SMS == "SMS"
+    assert Channel.WHATSAPP == "WHATSAPP"
+    assert Channel.PUSH == "PUSH"
+    assert Channel.PORTAL_BELL == "PORTAL_BELL"
 
 
-@pytest.fixture
-def mock_email():
-    m = MagicMock()
-    m.send_email = AsyncMock(return_value=(True, None))
-    return m
+def test_recipient_type_enum_values():
+    assert RecipientType.OA_USER == "OA_USER"
+    assert RecipientType.EMPLOYEE == "EMPLOYEE"
+    assert RecipientType.PORTAL_ADMIN == "PORTAL_ADMIN"
 
 
-@pytest.fixture
-def svc(mock_db, mock_email):
-    s = NotificationService(db=mock_db)
-    s._email = mock_email
-    return s
+# ── _check_template_data — privacy guard ─────────────────────────────────────
+
+def test_check_template_data_allows_clean_data():
+    _check_template_data({"rule_name": "BULK_ACCESS", "severity": "P1"})  # must not raise
 
 
-# ---------------------------------------------------------------------------
-# 1. Core: notify() writes notification_log row
-# ---------------------------------------------------------------------------
-
-@pytest.mark.asyncio
-async def test_notify_writes_notification_log(svc, mock_db):
-    """Every notify() call must INSERT a row into notification_log."""
-    await svc.notify(
-        tenant_id="tenant-001",
-        event_type="ANOMALY_DETECTED",
-        recipient_id="ciso-uuid-001",
-        recipient_type=RecipientType.OA_USER,
-        recipient_email="ciso@corp.in",
-        channel=Channel.EMAIL,
-        template_id="ANOMALY_P1_ALERT",
-        template_data={"rule_name": "BULK_ACCESS", "severity": "P1"},
-    )
-    mock_db.execute.assert_called_once()
-    sql, *args = mock_db.execute.call_args[0]
-    assert "notification_log" in sql
-    assert "ANOMALY_DETECTED" in args or any("ANOMALY_DETECTED" in str(a) for a in args)
-
-
-@pytest.mark.asyncio
-async def test_notify_portal_bell_status_sent(svc, mock_db):
-    """PORTAL_BELL channel must log status='SENT' (no external dispatch needed)."""
-    await svc.notify(
-        tenant_id="tenant-001",
-        event_type="DOC_ROUTED",
-        recipient_id="emp-uuid-001",
-        recipient_type=RecipientType.EMPLOYEE,
-        channel=Channel.PORTAL_BELL,
-        template_id="DOC_ROUTED",
-        template_data={"doc_type": "SALARY_SLIP"},
-    )
-    sql, *args = mock_db.execute.call_args[0]
-    assert "SENT" in args or any("SENT" in str(a) for a in args)
-
-
-# ---------------------------------------------------------------------------
-# 2. Email dispatch via SES
-# ---------------------------------------------------------------------------
-
-@pytest.mark.asyncio
-async def test_notify_email_calls_ses(svc, mock_email, mock_db):
-    """EMAIL channel must call EmailService.send_email (SES today, whatever
-    provider is configured tomorrow — NotificationService never knows)."""
-    await svc.notify(
-        tenant_id="tenant-001",
-        event_type="ANOMALY_DETECTED",
-        recipient_id="ciso-uuid-001",
-        recipient_type=RecipientType.OA_USER,
-        recipient_email="ciso@corp.in",
-        channel=Channel.EMAIL,
-        template_id="ANOMALY_P1_ALERT",
-        template_data={"rule_name": "BULK_ACCESS", "severity": "P1", "detected_at": "2026-06-19T10:00:00Z"},
-    )
-    mock_email.send_email.assert_called_once()
-    call_kwargs = mock_email.send_email.call_args.kwargs
-    assert call_kwargs["to"] == "ciso@corp.in"
-
-
-@pytest.mark.asyncio
-async def test_notify_email_no_ses_when_no_email(svc, mock_email, mock_db):
-    """EMAIL channel without recipient_email must not call EmailService."""
-    await svc.notify(
-        tenant_id="tenant-001",
-        event_type="ANOMALY_DETECTED",
-        recipient_id="ciso-uuid-001",
-        recipient_type=RecipientType.OA_USER,
-        recipient_email=None,       # no email
-        channel=Channel.EMAIL,
-        template_id="ANOMALY_P1_ALERT",
-        template_data={},
-    )
-    mock_email.send_email.assert_not_called()
-
-
-# ---------------------------------------------------------------------------
-# 3. Privacy contract — template_data must be clean
-# ---------------------------------------------------------------------------
-
-@pytest.mark.asyncio
-async def test_notify_template_data_has_no_pan(svc, mock_db):
-    """template_data passed to notification_log must never contain raw PAN."""
-    dirty_data = {"pan": "ABCDE1234F", "rule_name": "BULK_ACCESS"}
+def test_check_template_data_rejects_pan():
     with pytest.raises(ValueError, match="PAN"):
-        await svc.notify(
-            tenant_id="tenant-001",
-            event_type="ANOMALY_DETECTED",
-            recipient_id="ciso-uuid-001",
-            recipient_type=RecipientType.OA_USER,
-            recipient_email="ciso@corp.in",
-            channel=Channel.EMAIL,
-            template_id="ANOMALY_P1_ALERT",
-            template_data=dirty_data,
-        )
+        _check_template_data({"pan": "ABCDE1234F", "rule_name": "BULK_ACCESS"})
 
 
-@pytest.mark.asyncio
-async def test_notify_template_data_has_no_salary(svc, mock_db):
-    """template_data must not contain gross_salary or net_salary keys."""
-    dirty_data = {"gross_salary": 150000, "doc_type": "SALARY_SLIP"}
-    with pytest.raises(ValueError, match="salary"):
-        await svc.notify(
-            tenant_id="tenant-001",
-            event_type="DOC_ROUTED",
-            recipient_id="emp-uuid-001",
-            recipient_type=RecipientType.EMPLOYEE,
-            recipient_email="emp@example.com",
-            channel=Channel.EMAIL,
-            template_id="DOC_ROUTED",
-            template_data=dirty_data,
-        )
+def test_check_template_data_rejects_enc_pan():
+    with pytest.raises(ValueError, match="PAN"):
+        _check_template_data({"enc_pan": b"encrypted-bytes"})
 
 
-# ---------------------------------------------------------------------------
-# 4. Bounced-email suppression
-# ---------------------------------------------------------------------------
-
-@pytest.mark.asyncio
-async def test_notify_email_suppressed_when_bounced(svc, mock_db, mock_email):
-    """If recipient email has bounced, EMAIL channel must be suppressed."""
-    # mock_db.fetchrow returns a bounce record for this email
-    mock_db.fetchrow.return_value = {"email": "bounced@corp.in"}
-
-    await svc.notify(
-        tenant_id="tenant-001",
-        event_type="DOC_ROUTED",
-        recipient_id="emp-uuid-001",
-        recipient_type=RecipientType.EMPLOYEE,
-        recipient_email="bounced@corp.in",
-        channel=Channel.EMAIL,
-        template_id="DOC_ROUTED",
-        template_data={"doc_type": "SALARY_SLIP"},
-        check_suppression=True,
-    )
-    mock_email.send_email.assert_not_called()
-    # notification_log status must be SUPPRESSED
-    sql, *args = mock_db.execute.call_args[0]
-    assert "SUPPRESSED" in args or any("SUPPRESSED" in str(a) for a in args)
+def test_check_template_data_rejects_nik():
+    with pytest.raises(ValueError, match="PAN"):
+        _check_template_data({"nik": "some-nik-value"})
 
 
-# ---------------------------------------------------------------------------
-# 5. Portal bell channel — no SES, just DB write
-# ---------------------------------------------------------------------------
-
-@pytest.mark.asyncio
-async def test_notify_portal_bell_no_ses(svc, mock_db, mock_email):
-    """PORTAL_BELL channel must write notification_log but never call EmailService."""
-    await svc.notify(
-        tenant_id="tenant-001",
-        event_type="ANOMALY_DETECTED",
-        recipient_id="ciso-uuid-001",
-        recipient_type=RecipientType.OA_USER,
-        recipient_email="ciso@corp.in",
-        channel=Channel.PORTAL_BELL,
-        template_id="ANOMALY_P2_ALERT",
-        template_data={"rule_name": "DUPLICATE_DOC"},
-    )
-    mock_email.send_email.assert_not_called()
-    mock_db.execute.assert_called_once()
+def test_check_template_data_rejects_salary_keys():
+    for key in ("gross_salary", "net_salary", "basic_salary", "ctc", "salary"):
+        with pytest.raises(ValueError, match="salary"):
+            _check_template_data({key: 150000, "doc_type": "SALARY_SLIP"})
 
 
-# ---------------------------------------------------------------------------
-# 6. notify_anomaly() helper — sends correct channels per severity
-# ---------------------------------------------------------------------------
-
-@pytest.mark.asyncio
-async def test_notify_anomaly_p0_sends_email_sms_bell(svc, mock_db):
-    """P0 anomaly must dispatch EMAIL + SMS + PORTAL_BELL."""
-    with patch.object(svc, "notify", new_callable=AsyncMock) as mock_notify:
-        await svc.notify_anomaly(
-            tenant_id="tenant-001",
-            anomaly_id="anom-uuid-001",
-            rule_name="BULK_ACCESS",
-            severity="P0",
-            ciso_id="ciso-uuid-001",
-            ciso_email="ciso@corp.in",
-        )
-    channels_called = {c.args[0] if c.args else c.kwargs.get("channel")
-                       for c in mock_notify.call_args_list}
-    # Must include EMAIL, PORTAL_BELL at minimum
-    called_str = str(mock_notify.call_args_list)
-    assert "EMAIL" in called_str
-    assert "PORTAL_BELL" in called_str
+def test_check_template_data_is_case_insensitive():
+    with pytest.raises(ValueError, match="PAN"):
+        _check_template_data({"PAN": "ABCDE1234F"})
 
 
-@pytest.mark.asyncio
-async def test_notify_anomaly_p2_only_bell(svc, mock_db):
-    """P2 anomaly must only dispatch PORTAL_BELL — no email."""
-    with patch.object(svc, "notify", new_callable=AsyncMock) as mock_notify:
-        await svc.notify_anomaly(
-            tenant_id="tenant-001",
-            anomaly_id="anom-uuid-002",
-            rule_name="SLOW_DRAIN",
-            severity="P2",
-            ciso_id="ciso-uuid-001",
-            ciso_email="ciso@corp.in",
-        )
-    called_str = str(mock_notify.call_args_list)
-    assert "EMAIL" not in called_str
-    assert "PORTAL_BELL" in called_str
+# ── _build_email_body ────────────────────────────────────────────────────────
+
+def test_build_email_body_includes_template_data_values():
+    body = _build_email_body("DOC_ROUTED", {"doc_type": "SALARY_SLIP", "tenant": "NPCI"})
+    assert "doc_type: SALARY_SLIP" in body
+    assert "tenant: NPCI" in body
 
 
-# ---------------------------------------------------------------------------
-# 7. Real constructor wiring (not the mock_email override) — confirms
-#    NotificationService actually builds a working EmailService(ConfigService,
-#    CircuitBreaker) chain, not just that the interface is call-compatible.
-# ---------------------------------------------------------------------------
-
-@pytest.mark.asyncio
-async def test_notification_service_wires_real_email_service_dev_mode(mock_db):
-    """No _email override here — exercises the real constructor path end to
-    end (dev provider short-circuits before touching Config/CircuitBreaker,
-    so this doesn't need a live Redis)."""
-    settings = Settings(
-        app_env="test", db_host="localhost", db_port=5433,
-        platform_hmac_secret="test_secret_32chars_padding_pad1",
-        kafka_bootstrap_servers="localhost:9092", redis_url="redis://localhost:6379/15",
-        email_provider="dev",
-    )
-    svc = NotificationService(db=mock_db, settings=settings, redis_client=None)
-
-    await svc.notify(
-        tenant_id="tenant-001",
-        event_type="DOC_ROUTED",
-        recipient_id="emp-uuid-001",
-        recipient_type=RecipientType.EMPLOYEE,
-        recipient_email="emp@example.com",
-        channel=Channel.EMAIL,
-        template_id="DOC_ROUTED",
-        template_data={"doc_type": "SALARY_SLIP"},
-    )
-    sql, *args = mock_db.execute.call_args[0]
-    assert "SENT" in args or any("SENT" in str(a) for a in args)
+def test_build_email_body_includes_platform_signature():
+    body = _build_email_body("DOC_ROUTED", {})
+    assert "PRANA Platform" in body
+    assert "noreply@prana.in" in body
 
 
-@pytest.mark.asyncio
-async def test_notify_anomaly_p3_no_notification(svc, mock_db):
-    """P3 anomaly must dispatch nothing — portal bell only via dashboard query."""
-    with patch.object(svc, "notify", new_callable=AsyncMock) as mock_notify:
-        await svc.notify_anomaly(
-            tenant_id="tenant-001",
-            anomaly_id="anom-uuid-003",
-            rule_name="LOW_SIGNAL",
-            severity="P3",
-            ciso_id="ciso-uuid-001",
-            ciso_email="ciso@corp.in",
-        )
-    mock_notify.assert_not_called()
+def test_notification_service_has_no_dispatch_class():
+    """NotificationService (and notify()/notify_anomaly()) removed 2026-08-10 —
+    dead code, superseded by the real per-channel consumers. Guards against
+    silent reintroduction of the parallel dispatch path.
+    """
+    import services.notification_service as notification_service_module
+
+    assert not hasattr(notification_service_module, "NotificationService")

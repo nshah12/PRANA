@@ -45,6 +45,25 @@ async def test_whatsapp_sent_when_not_opted_out(consumer):
 
 
 @pytest.mark.asyncio
+async def test_whatsapp_blocks_dispatch_when_template_data_contains_pan(consumer, db_pool):
+    """Privacy guard added 2026-08-10 — see test_email_consumer.py's equivalent test
+    for the full rationale. Exercises the real _send_whatsapp path (not the
+    opt-out gate in _handle), so calls _handle without patching _send_whatsapp.
+    """
+    _, conn = db_pool
+    event = {"event_type": "DOC_ROUTED", "recipient_id": "u-1", "recipient_phone": "+919876543210",
+             "template_id": "DOC_ROUTED", "tenant_id": "t-1", "template_data": {"nik": "some-nik"}}
+    with patch("kafka.consumers.whatsapp_consumer.WhatsAppService.send",
+               new=AsyncMock(return_value=(True, None))) as mock_send:
+        await consumer._handle(event)
+    mock_send.assert_not_awaited()
+    conn.execute.assert_called_once()
+    sql, *args = conn.execute.call_args[0]
+    assert "notification_log" in sql
+    assert "BLOCKED" in args
+
+
+@pytest.mark.asyncio
 async def test_whatsapp_blocked_when_opted_out(consumer, db_pool):
     _, conn = db_pool
     conn.fetchval.return_value = True  # whatsapp_opt_out = True

@@ -20,7 +20,7 @@ from services.communication_settings_service import CommunicationSettingsService
 from services.config_service import ConfigService
 from services.encryption_service import resolve_platform_auth_kek_arn
 from services.notification_log import write_notification_log
-from services.notification_service import _SUBJECT_MAP
+from services.notification_service import _SUBJECT_MAP, _check_template_data
 from services.sms_service import SMSService
 
 log = logging.getLogger(__name__)
@@ -81,6 +81,25 @@ class SMSConsumer:
             sms_svc = SMSService(settings, config, breaker)
 
             template_data = event.get("template_data") or {}
+            try:
+                _check_template_data(template_data)
+            except ValueError as exc:
+                log.error("SMSConsumer: blocked template_data with PAN/salary key event_type=%s err=%s",
+                          event.get("event_type"), exc)
+                await write_notification_log(
+                    conn,
+                    tenant_id=event.get("tenant_id"),
+                    event_type=event.get("event_type", "SMS"),
+                    recipient_id=str(event.get("recipient_id", "")),
+                    recipient_type=str(event.get("recipient_type", "EMPLOYEE")).upper(),
+                    recipient_phone=phone,
+                    channel="SMS",
+                    template_id=template_id,
+                    template_data=template_data,
+                    status="BLOCKED",
+                    error_message=str(exc),
+                )
+                return
             body = _SUBJECT_MAP.get(template_id, "PRANA Notification")
             sent, error = await sms_svc.send(
                 to=phone, body=body, tenant_id=event.get("tenant_id"),

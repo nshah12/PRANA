@@ -25,6 +25,7 @@ from services.communication_settings_service import CommunicationSettingsService
 from services.config_service import ConfigService
 from services.encryption_service import resolve_platform_auth_kek_arn
 from services.notification_log import write_notification_log
+from services.notification_service import _check_template_data
 from services.whatsapp_service import WhatsAppService
 
 log = logging.getLogger(__name__)
@@ -103,6 +104,25 @@ class WhatsAppConsumer:
             wa_svc  = WhatsAppService(settings, config, breaker)
 
             template_data = event.get("template_data") or {}
+            try:
+                _check_template_data(template_data)
+            except ValueError as exc:
+                log.error("WhatsAppConsumer: blocked template_data with PAN/salary key event_type=%s err=%s",
+                          event.get("event_type"), exc)
+                await write_notification_log(
+                    conn,
+                    tenant_id=event.get("tenant_id"),
+                    event_type=event.get("event_type", "WHATSAPP"),
+                    recipient_id=str(event.get("recipient_id", "")),
+                    recipient_type=str(event.get("recipient_type", "EMPLOYEE")).upper(),
+                    recipient_phone=phone,
+                    channel="WHATSAPP",
+                    template_id=template_id,
+                    template_data=template_data,
+                    status="BLOCKED",
+                    error_message=str(exc),
+                )
+                return
             # Ordered positional values for the WABA template's {{1}}, {{2}}, ...
             # placeholders — same order-preserving convention _build_email_body
             # already uses for email. The approved Meta template must be authored

@@ -28,7 +28,7 @@ from config import Settings
 from services.circuit_breaker import CircuitBreaker
 from services.config_service import ConfigService
 from services.notification_log import write_notification_log
-from services.notification_service import _SUBJECT_MAP
+from services.notification_service import _SUBJECT_MAP, _check_template_data
 from services.push_service import PushService
 
 log = logging.getLogger(__name__)
@@ -98,6 +98,24 @@ class PushConsumer:
 
             tenant_id = event.get("tenant_id")
             template_data = event.get("template_data") or {}
+            try:
+                _check_template_data(template_data)
+            except ValueError as exc:
+                log.error("PushConsumer: blocked template_data with PAN/salary key event_type=%s err=%s",
+                          event.get("event_type"), exc)
+                await write_notification_log(
+                    conn,
+                    tenant_id=tenant_id,
+                    event_type=event.get("event_type", "PUSH"),
+                    recipient_id=str(recipient_id),
+                    recipient_type=str(event.get("recipient_type", "EMPLOYEE")).upper(),
+                    channel="PUSH",
+                    template_id=template_id,
+                    template_data=template_data,
+                    status="BLOCKED",
+                    error_message=str(exc),
+                )
+                return
             title = "PRANA"
             body = _SUBJECT_MAP.get(template_id, "You have a new update in PRANA.")
 

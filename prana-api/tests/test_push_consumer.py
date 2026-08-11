@@ -44,6 +44,27 @@ async def test_push_dispatched_with_valid_event(consumer):
 
 
 @pytest.mark.asyncio
+async def test_push_blocks_dispatch_when_template_data_contains_pan(consumer, db_pool):
+    """Privacy guard added 2026-08-10 — see test_email_consumer.py's equivalent test
+    for the full rationale."""
+    pool, conn = db_pool
+    conn.fetch = AsyncMock(return_value=[
+        {"device_credential_id": "dev-1", "push_token": "expo-token-1"},
+    ])
+    event = {"event_type": "DOC_ROUTED", "recipient_id": "u-1",
+             "template_id": "DOC_ROUTED", "tenant_id": "t-1",
+             "template_data": {"pan": "ABCDE1234F"}}
+    with patch("kafka.consumers.push_consumer.PushService.send",
+               new=AsyncMock(return_value=(True, None))) as mock_send:
+        await consumer._handle(event)
+    mock_send.assert_not_awaited()
+    conn.execute.assert_called_once()
+    sql, *args = conn.execute.call_args[0]
+    assert "notification_log" in sql
+    assert "BLOCKED" in args
+
+
+@pytest.mark.asyncio
 async def test_push_requires_recipient_id(consumer):
     event = {"event_type": "DOC_ROUTED", "template_id": "DOC_ROUTED", "tenant_id": "t-1"}
     with patch.object(consumer, "_send_push", new=AsyncMock()) as mock_send:

@@ -47,6 +47,27 @@ async def test_sms_dispatched_with_phone(consumer):
 
 
 @pytest.mark.asyncio
+async def test_sms_blocks_dispatch_when_template_data_contains_pan(consumer, db_pool):
+    """Privacy guard added 2026-08-10 — see test_email_consumer.py's equivalent test
+    for the full rationale. SMS body doesn't render template_data (it's just
+    _SUBJECT_MAP text), but template_data still gets written into
+    notification_log's JSONB column, so the guard applies here too.
+    """
+    _, conn = db_pool
+    event = {"event_type": "VAULT_WELCOME", "recipient_id": "u-1",
+             "recipient_phone": "+919876543210", "template_id": "VAULT_WELCOME",
+             "tenant_id": "t-1", "template_data": {"gross_salary": 150000}}
+    with patch("kafka.consumers.sms_consumer.SMSService.send",
+               new=AsyncMock(return_value=(True, None))) as mock_send:
+        await consumer._handle(event)
+    mock_send.assert_not_awaited()
+    conn.execute.assert_called_once()
+    sql, *args = conn.execute.call_args[0]
+    assert "notification_log" in sql
+    assert "BLOCKED" in args
+
+
+@pytest.mark.asyncio
 async def test_sms_skipped_without_phone(consumer):
     event = {"event_type": "VAULT_WELCOME", "recipient_id": "u-2",
              "template_id": "VAULT_WELCOME", "tenant_id": "t-1"}
