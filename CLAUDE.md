@@ -3,6 +3,9 @@
 ## What is PRANA
 PRANA is a career document vault for Indian workers. Employers push documents (salary slips, Form 16, offer letters) via a Portal or HRMS API. Employees access their documents via a mobile app. Documents are processed through a 6-stage AI pipeline that extracts insights — raw salary figures are never stored or surfaced in UI.
 
+## ⚠ Before provisioning any real AWS infrastructure
+Every "DECIDED, NOT optional" architecture note below (dual-region Kafka/Redis/YugabyteDB, MirrorMaker2, Global Datastore) describes the *target* architecture PRANA scales to — not what day-one/pre-launch environments must run. Provisioning `terraform/environments/prod` before a single live organization exists has previously cost ~$12-15k/month for infrastructure serving zero traffic. **Read `terraform/README.md` first** — it explains which of `dev` (docker-compose, ~$0), `staging` (single-region, real but small), or `prod` (full dual-region scale) actually fits your situation. Default to `dev`.
+
 ## Monorepo Structure
 ```
 prana-mobile/   — React Native / Expo SDK 56 mobile app

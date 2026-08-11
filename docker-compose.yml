@@ -70,10 +70,15 @@ services:
   yugabyte:
     image: yugabytedb/yugabyte:2.20.1.0-b97
     container_name: prana-yugabyte
+    # Explicit low memory ceiling for constrained dev hosts (WSL2's detected
+    # "available RAM" can be far higher than what's actually free on the
+    # Windows host, so yugabyted's auto-sizing over-allocates and gets
+    # OOM-killed). 1.5GiB hard limit + matching container cgroup cap.
     command: >
       bin/yugabyted start
       --daemon=false
-      --tserver_flags="ysql_enable_auth=false"
+      --tserver_flags="ysql_enable_auth=false,memory_limit_hard_bytes=1610612736,default_memory_limit_to_ram_ratio=0.5"
+    mem_limit: 2g
     ports:
       - "5433:5433"
       - "7000:7000"
@@ -345,7 +350,9 @@ services:
       # Provisioned once via scripts/bootstrap_platform_auth_kek.py against LocalStack KMS.
       # LocalStack KMS keys are in-memory and don't survive a localstack container
       # recreate — re-run the bootstrap script and update this value if that happens.
-      PLATFORM_AUTH_KEK_ARN: arn:aws:kms:ap-south-1:000000000000:key/03ad5b3e-53f4-4248-9776-f0cbe170a115
+      # Re-bootstrapped 2026-08-09 after a WSL2/Docker Desktop restart cycle wiped
+      # LocalStack's in-memory KMS state (old key ARN 03ad5b3e... no longer existed).
+      PLATFORM_AUTH_KEK_ARN: arn:aws:kms:ap-south-1:000000000000:key/50049ac2-9a2e-445c-97e9-6501fb481600
     volumes:
       - ./prana-api:/app
       - ./keys:/keys:ro
