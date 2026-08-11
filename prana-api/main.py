@@ -654,7 +654,8 @@ def create_app() -> FastAPI:
         auth_employee, auth_oa, auth_pa, totp_setup,
         tenants, employees, oa_users, ingest, elevations, exceptions,
         vault, share_access, compliance, dpdp, labour_law,
-        chro, cfo, ciso, pa_admin, org_settings, sessions,
+        chro, cfo, ciso, pa_admin, pa_admin_accounts, pa_admin_security, pa_admin_comms,
+        org_settings, sessions,
         ask, public, doc_manifest, internal_pipeline, alumni, benchmarking,
         gamification,
         hrms_definitions,
@@ -669,7 +670,12 @@ def create_app() -> FastAPI:
     app.include_router(sessions.router,      prefix="/auth/sessions",        tags=["auth"])
     app.include_router(totp_setup.router,    prefix="/totp/setup",           tags=["totp"])
     app.include_router(tenants.router,       prefix="/admin/tenants",        tags=["admin"])
-    app.include_router(pa_admin.router,      prefix="/admin",                tags=["admin"])
+    # pa_admin.py split 2026-08-10 into 4 domain files (was one 1800-line file) —
+    # all four still mount at /admin, same as before the split.
+    app.include_router(pa_admin.router,          prefix="/admin",            tags=["admin"])
+    app.include_router(pa_admin_accounts.router, prefix="/admin",            tags=["admin"])
+    app.include_router(pa_admin_security.router, prefix="/admin",            tags=["admin"])
+    app.include_router(pa_admin_comms.router,    prefix="/admin",            tags=["admin"])
     app.include_router(public.router,        tags=["public"])
 
     # ── v1 — HRMS-facing and mobile-facing (versioned, stable contract) ────────
