@@ -113,6 +113,30 @@ async def test_oa_user_welcome_email_dispatched_via_kafka(client, mock_db, mock_
     assert payload["event_type"] == "OA_USER_CREATED"
     assert payload["email"] == "newop@acme.com"
     assert payload["tenant_id"] == "tenant-001"
+    # setup_token: the only way this user ever gets a usable password —
+    # POST /v1/org/users never returns/discloses the server-generated temp password.
+    assert payload.get("setup_token")
+
+
+@pytest.mark.asyncio
+async def test_oa_user_creation_stores_setup_token_in_redis(client, mock_db, mock_redis):
+    """The setup token must be persisted (single-use, time-limited) so the emailed
+    link's /auth/org/password-setup call can later redeem it."""
+    _set_auth(client, role="oa_admin", tenant_id="tenant-001")
+    mock_db.fetchrow.return_value = {"domain": "acme.com"}
+    mock_db.execute.return_value = None
+
+    resp = await client.post(
+        "/v1/org/users",
+        headers=AUTH_HEADER,
+        json={"email": "newop@acme.com", "role": "oa_operator"},
+    )
+
+    assert resp.status_code == 201
+    mock_redis.setex.assert_called_once()
+    key, ttl_seconds, _payload = mock_redis.setex.call_args.args
+    assert key.startswith("oa_pwd_setup:")
+    assert ttl_seconds > 0
 
 
 @pytest.mark.asyncio
@@ -159,9 +183,9 @@ async def test_resend_welcome_not_found_returns_404(client, mock_db):
 
 
 @pytest.mark.asyncio
-async def test_resend_welcome_publishes_oa_welcome_resent_event(client, mock_db, mock_kafka):
+async def test_resend_welcome_publishes_oa_welcome_resent_event(client, mock_db, mock_kafka, mock_redis):
     _set_auth(client, role="oa_admin", tenant_id="tenant-001", user_id="admin-uuid-9")
-    mock_db.fetchrow.return_value = {"oa_user_id": "oa-uuid-002", "email": "bounced@acme.com"}
+    mock_db.fetchrow.return_value = {"oa_user_id": "oa-uuid-002", "email": "bounced@acme.com", "role": "chro"}
 
     resp = await client.post("/v1/org/users/oa-uuid-002/resend-welcome", headers=AUTH_HEADER)
 
@@ -175,6 +199,12 @@ async def test_resend_welcome_publishes_oa_welcome_resent_event(client, mock_db,
     assert payload["tenant_id"] == "tenant-001"
     assert payload["oa_user_id"] == "oa-uuid-002"
     assert payload["resent_by"] == "admin-uuid-9"
+    # A fresh setup token every resend — the whole point of "resend" is giving
+    # them a new usable link, not just re-sending the same (possibly expired) one.
+    assert payload.get("setup_token")
+    mock_redis.setex.assert_called_once()
+    key = mock_redis.setex.call_args.args[0]
+    assert key.startswith("oa_pwd_setup:")
 
 
 # -- change-role publishes ROLE_CHANGED (audit trail + PRIVILEGE_ESCALATION detection

@@ -215,6 +215,34 @@ async def test_create_generates_temp_password_when_mobile_provided():
 
 
 @pytest.mark.asyncio
+async def test_create_sets_active_not_pending_when_login_handle_given():
+    """Regression: a mobile/email + real password means the employee has
+    everything auth_employee.py's login needs -- staying PENDING_ACTIVATION
+    (which routers/auth_employee.py's login hard-rejects with 403
+    ACCOUNT_NOT_ACTIVE) meant a brand-new employee could never log in until
+    their employer's first document finished the AI pipeline days later,
+    despite already holding valid credentials. chk_eu_login_handle (schema.sql)
+    permits any status once mobile_token or email is set, so this is safe."""
+    db = _make_db(eu_exists=False)
+    db.fetchrow = AsyncMock(side_effect=[None, {"tenant_name": "Acme Corp"}])
+    svc = _make_svc(db, kms=_make_kms())
+
+    await svc.create(
+        nik="ABCDE1234F", tenant_id="tenant-001", emp_id_org=None,
+        full_name="Test Employee", designation=None, department=None, grade=None,
+        location=None, employment_type="PERMANENT", cost_centre=None, uan=None,
+        doj=datetime.date(2023, 6, 1), created_by="admin-001",
+        kek_arn="arn:aws:kms:ap-south-1:123:key/test",
+        email="newhire@acme.com",
+        auth_kek_arn="arn:aws:kms:ap-south-1:123:key/platform-auth",
+    )
+
+    insert_call = next(c for c in db.execute.call_args_list if "INSERT INTO employee_user" in c.args[0])
+    assert "'ACTIVE'" in insert_call.args[0]
+    assert "PENDING_ACTIVATION" not in insert_call.args[0]
+
+
+@pytest.mark.asyncio
 async def test_create_raises_if_mobile_given_without_auth_kek_arn():
     """auth_kek_arn is required whenever mobile is provided — a caller forgetting to
     pass it must fail loudly, not silently store an unencrypted or missing mobile."""

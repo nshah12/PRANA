@@ -264,3 +264,77 @@ async def test_login_suspended_account_rejected(client, mock_db, mock_redis):
         })
     assert resp.status_code == 403
     assert resp.json()["detail"] == "ACCOUNT_INACTIVE"
+
+
+# ── Password setup via emailed link (new OA users have no other way to log in) ─
+
+@pytest.mark.asyncio
+async def test_password_setup_verify_expired_token(client, mock_db, mock_redis):
+    mock_redis.get = AsyncMock(return_value=None)
+    resp = await client.post("/auth/org/password-setup/verify", json={"token": "bogus"})
+    assert resp.status_code == 401
+    assert resp.json()["detail"] == "SETUP_TOKEN_EXPIRED"
+
+
+@pytest.mark.asyncio
+async def test_password_setup_verify_happy_path(client, mock_db, mock_redis):
+    import json as _json
+    mock_redis.get = AsyncMock(return_value=_json.dumps(
+        {"oa_user_id": "oa-user-uuid-002", "tenant_id": "tenant-uuid-001", "role": "chro"}
+    ).encode())
+    mock_db.fetchrow = AsyncMock(return_value={"email": "chro@acme.com"})
+    resp = await client.post("/auth/org/password-setup/verify", json={"token": "real-token"})
+    assert resp.status_code == 200
+    assert resp.json() == {"valid": True, "email": "chro@acme.com"}
+
+
+@pytest.mark.asyncio
+async def test_password_setup_expired_token(client, mock_db, mock_redis):
+    mock_redis.get = AsyncMock(return_value=None)
+    resp = await client.post("/auth/org/password-setup", json={
+        "token": "bogus", "new_password": "SomethingLong123!",
+    })
+    assert resp.status_code == 401
+    assert resp.json()["detail"] == "SETUP_TOKEN_EXPIRED"
+
+
+@pytest.mark.asyncio
+async def test_password_setup_rejects_short_password(client, mock_db, mock_redis):
+    import json as _json
+    mock_redis.get = AsyncMock(return_value=_json.dumps(
+        {"oa_user_id": "oa-user-uuid-002", "tenant_id": "tenant-uuid-001", "role": "chro"}
+    ).encode())
+    resp = await client.post("/auth/org/password-setup", json={
+        "token": "real-token", "new_password": "short",
+    })
+    assert resp.status_code == 422
+    assert resp.json()["detail"] == "PASSWORD_TOO_SHORT"
+
+
+@pytest.mark.asyncio
+async def test_password_setup_happy_path_sets_real_password_and_clears_force_reset(client, mock_db, mock_redis):
+    """This is the only path that gets oa_operator/chro/cfo/ciso a usable password —
+    POST /v1/org/users never discloses the server-generated temp password anywhere."""
+    import json as _json
+    mock_redis.get = AsyncMock(return_value=_json.dumps(
+        {"oa_user_id": "oa-user-uuid-002", "tenant_id": "tenant-uuid-001", "role": "chro"}
+    ).encode())
+    mock_redis.delete = AsyncMock()
+    mock_db.execute = AsyncMock()
+
+    resp = await client.post("/auth/org/password-setup", json={
+        "token": "real-token", "new_password": "MyOwnChosenPass123!",
+    })
+
+    assert resp.status_code == 200
+    assert resp.json()["message"] == "PASSWORD_CHANGED"
+
+    mock_db.execute.assert_called_once()
+    sql, oa_user_id, new_hash = mock_db.execute.call_args.args
+    assert "force_reset=FALSE" in sql
+    assert "temp_password_hash=NULL" in sql
+    assert oa_user_id == "oa-user-uuid-002"
+    assert new_hash != "MyOwnChosenPass123!"   # never store the plaintext
+
+    # Single-use: token consumed on success
+    mock_redis.delete.assert_called_once_with("oa_pwd_setup:real-token")

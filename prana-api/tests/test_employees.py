@@ -525,6 +525,9 @@ async def test_bulk_import_publishes_credentials_issued_when_temp_password_retur
     assert payload["event_type"] == "EMPLOYEE_CREDENTIALS_ISSUED"
     assert payload["recipient_id"] == "eu-1"
     assert "temp_password" not in str(payload)   # never leak the plaintext password onto Kafka
+    # setup_token: the only way this employee ever gets a usable password —
+    # the temp_password itself is never disclosed anywhere.
+    assert payload.get("setup_token")
 
 
 @pytest.mark.asyncio
@@ -572,6 +575,32 @@ async def test_create_employee_passes_mobile_email_through_and_publishes_credent
     payload = mock_kafka.employee_credentials_issued.call_args.args[0]
     assert payload["event_type"] == "EMPLOYEE_CREDENTIALS_ISSUED"
     assert payload["recipient_id"] == "eu-1"
+    assert payload.get("setup_token")
+
+
+@pytest.mark.asyncio
+async def test_create_employee_stores_setup_token_in_redis(client, mock_db, mock_redis):
+    """The setup token must be persisted (single-use, time-limited) so the
+    emailed/texted link's /auth/employee/password-setup call can redeem it."""
+    _set_auth(client, role="oa_admin", tenant_id="tenant-001")
+    mock_db.fetchrow.return_value = {"kek_arn": "arn:aws:kms:ap-south-1:123:key/abc"}
+    with patch("services.employee_service.EmployeeService.create", new_callable=AsyncMock) as mock_create:
+        mock_create.return_value = {
+            "employee_uuid": "emp-uuid-1", "employee_user_id": "eu-1",
+            "pan_token": "hash1", "temp_password": "TempPass123",
+        }
+        resp = await client.post(
+            "/v1/org/employees", headers=AUTH_HEADER, json={
+                "nik": "ABCDE1234F", "full_name": "Rahul Sharma", "doj": "2022-01-15",
+                "mobile": "+919876543210", "email": "rahul@example.com",
+            },
+        )
+
+    assert resp.status_code == 201
+    mock_redis.setex.assert_called_once()
+    key, ttl_seconds, _payload = mock_redis.setex.call_args.args
+    assert key.startswith("emp_pwd_setup:")
+    assert ttl_seconds > 0
 
 
 @pytest.mark.asyncio

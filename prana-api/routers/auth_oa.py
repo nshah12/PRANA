@@ -7,13 +7,24 @@ OA-user auth flow (OA-Operator, OA-Admin, CHRO, CFO, Tenant CISO):
 
 force_reset=TRUE → must change password before any other action (checked in step 1).
 Lock threshold: 5 failed TOTP attempts (platform config: oa_totp_lock_threshold).
+
+First-password setup (new OA users, created by OA-Admin via POST /v1/org/users):
+  5. POST /auth/org/password-setup/verify — {token} → {valid, email}, for the landing
+     page to show who it's for before rendering the form
+  6. POST /auth/org/password-setup        — {token, new_password} → sets a real
+     password chosen by the user, force_reset=FALSE
+`token` here comes from the emailed OA_WELCOME link (routers/oa_users.py issues it) —
+a single-use, time-limited capability, never the password itself. The account still
+has no usable password until this completes; the server-generated temp password
+(oa_user.temp_password_hash) is never disclosed to anyone.
 """
+import json
 import secrets as _secrets
 from fastapi import APIRouter, HTTPException, Request, Response, status
 from pydantic import BaseModel, EmailStr
 
 from dependencies import AuthUser, DbConn
-from services.encryption_service import verify_password
+from services.encryption_service import hash_password, verify_password
 from services.otp_service import OTPService
 from services.totp_service import TOTPService
 from services.session_service import SessionService
@@ -36,6 +47,13 @@ class OATOTPIn(BaseModel):
 
 class PasswordResetIn(BaseModel):
     step_token: str      # from login response when force_reset=TRUE
+    new_password: str    # min 12 chars enforced here
+
+class PasswordSetupVerifyIn(BaseModel):
+    token: str
+
+class PasswordSetupIn(BaseModel):
+    token: str
     new_password: str    # min 12 chars enforced here
 
 
@@ -151,6 +169,47 @@ async def password_reset(body: PasswordResetIn, request: Request, db: DbConn):
         f"{oa_user_id}:{tenant_id}:{role}",
     )
     return {"requires_totp": True, "step_token": step_token}
+
+
+@router.post("/password-setup/verify", status_code=status.HTTP_200_OK)
+async def password_setup_verify(body: PasswordSetupVerifyIn, request: Request, db: DbConn):
+    """Landing-page check for an OA_WELCOME setup link — lets the UI show which
+    account it's for (and a clean expired-link message) before rendering the form."""
+    raw = await request.app.state.redis.get(f"oa_pwd_setup:{body.token}")
+    if not raw:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail=PranaError.SETUP_TOKEN_EXPIRED)
+    data = json.loads(raw)
+    row = await db.fetchrow("SELECT email FROM oa_user WHERE oa_user_id=$1", data["oa_user_id"])
+    if not row:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail=PranaError.SETUP_TOKEN_EXPIRED)
+    return {"valid": True, "email": row["email"]}
+
+
+@router.post("/password-setup", status_code=status.HTTP_200_OK)
+async def password_setup(body: PasswordSetupIn, request: Request, db: DbConn):
+    """Sets the OA user's real, self-chosen password from an emailed setup link —
+    the server-generated temp password is never disclosed anywhere, so this is the
+    only way a newly created OA user (oa_operator/chro/cfo/ciso) can ever log in.
+    Single-use: the token is deleted on success, same as every other step_token here."""
+    redis_client = request.app.state.redis
+    raw = await redis_client.get(f"oa_pwd_setup:{body.token}")
+    if not raw:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail=PranaError.SETUP_TOKEN_EXPIRED)
+
+    if len(body.new_password) < 12:
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=PranaError.PASSWORD_TOO_SHORT)
+
+    data = json.loads(raw)
+    await db.execute(
+        """
+        UPDATE oa_user
+        SET password_hash=$2, temp_password_hash=NULL, force_reset=FALSE
+        WHERE oa_user_id=$1
+        """,
+        data["oa_user_id"], hash_password(body.new_password),
+    )
+    await redis_client.delete(f"oa_pwd_setup:{body.token}")
+    return {"message": SuccessCode.PASSWORD_CHANGED}
 
 
 @router.post("/totp", status_code=status.HTTP_200_OK)

@@ -8,6 +8,8 @@ Employee auth flow — password + TOTP (portal) / password + biometric or TOTP (
   POST /auth/employee/setup/totp/init          — get TOTP provisioning URI
   POST /auth/employee/setup/totp/confirm       — confirm TOTP code, mark configured
   POST /auth/employee/setup/consent            — accept DPDP consent → JWT
+  POST /auth/employee/password-setup/verify    — check an emailed/texted setup link
+  POST /auth/employee/password-setup           — set a real password from that link
   POST /auth/employee/device/register          — register mobile device
   POST /auth/employee/device/{id}/biometric    — enroll biometric on device
   DELETE /auth/employee/device/{id}            — deregister device
@@ -16,6 +18,12 @@ Employee auth flow — password + TOTP (portal) / password + biometric or TOTP (
 
 Cross-org intelligence: pan_token is the identity anchor.
 If employee_user exists + status=ACTIVE → existing PRANA member, no activation needed.
+
+password-setup: the server-generated temp password (routers/employees.py) is
+never disclosed anywhere — via API response or notification — so this emailed/
+texted link (routers/employees.py issues the token) is the only way a newly
+onboarded employee ever gets a usable password. `token` is a single-use,
+time-limited capability, not the credential itself.
 """
 import json
 import secrets
@@ -65,6 +73,13 @@ class TOTPConfirmIn(BaseModel):
 
 class ConsentIn(BaseModel):
     step_token: str
+
+class PasswordSetupVerifyIn(BaseModel):
+    token: str
+
+class PasswordSetupIn(BaseModel):
+    token: str
+    new_password: str
 
 class DeviceRegisterIn(BaseModel):
     platform: str              # ANDROID | IOS
@@ -544,6 +559,45 @@ async def setup_consent(body: ConsentIn, request: Request, response: Response, d
         user_id,
     )
     return await _issue_jwt(request, response, db, user_id, _get_client_ip(request))
+
+
+# ── Password setup via emailed/texted link ──────────────────────────────────
+
+@router.post("/password-setup/verify", status_code=status.HTTP_200_OK)
+async def password_setup_verify(body: PasswordSetupVerifyIn, request: Request, db: DbConn):
+    """Landing-page check for an EMPLOYEE_CREDENTIALS_ISSUED setup link — lets the
+    UI show a clean expired-link message before rendering the form."""
+    raw = await request.app.state.redis.get(f"emp_pwd_setup:{body.token}")
+    if not raw:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail=PranaError.SETUP_TOKEN_EXPIRED)
+    data = json.loads(raw)
+    row = await db.fetchrow("SELECT email FROM employee_user WHERE employee_user_id=$1", data["employee_user_id"])
+    if not row:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail=PranaError.SETUP_TOKEN_EXPIRED)
+    return {"valid": True, "email": row["email"]}
+
+
+@router.post("/password-setup", status_code=status.HTTP_200_OK)
+async def password_setup(body: PasswordSetupIn, request: Request, db: DbConn):
+    """Sets the employee's real, self-chosen password from an emailed/texted setup
+    link — the server-generated temp password is never disclosed anywhere, so this
+    is the only way a newly onboarded employee can ever log in. Single-use: the
+    token is deleted on success, same as every other step_token in this file."""
+    redis_client = request.app.state.redis
+    raw = await redis_client.get(f"emp_pwd_setup:{body.token}")
+    if not raw:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail=PranaError.SETUP_TOKEN_EXPIRED)
+
+    if len(body.new_password) < 8:
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=PranaError.PASSWORD_TOO_SHORT)
+
+    data = json.loads(raw)
+    await db.execute(
+        "UPDATE employee_user SET password_hash=$2, force_reset=FALSE WHERE employee_user_id=$1",
+        data["employee_user_id"], hash_password(body.new_password),
+    )
+    await redis_client.delete(f"emp_pwd_setup:{body.token}")
+    return {"message": SuccessCode.PASSWORD_CHANGED}
 
 
 # ── Device management ─────────────────────────────────────────────────────────

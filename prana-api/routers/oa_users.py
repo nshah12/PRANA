@@ -15,6 +15,7 @@ GET  /org/elevations/{id}/status         — SSE stream: real-time elevation sta
 """
 import asyncio
 import json
+import secrets as _secrets
 from typing import AsyncGenerator
 
 from fastapi import APIRouter, Depends, HTTPException, Request, status
@@ -31,6 +32,30 @@ router = APIRouter()
 
 OAAdmin    = Depends(require_oa("oa_admin"))
 OAOperator = Depends(require_oa("oa_operator", "oa_admin"))
+
+
+async def _get_config_int(db, key: str, default: int) -> int:
+    row = await db.fetchrow("SELECT config_value FROM platform_config WHERE config_key=$1", key)
+    if not row:
+        return default
+    try:
+        value = row["config_value"]
+    except KeyError:
+        return default
+    return int(value) if value is not None else default
+
+
+async def _issue_password_setup_token(request: Request, db, *, oa_user_id: str, tenant_id: str, role: str) -> str:
+    """Single-use, time-limited token that lets a brand-new OA user set their own
+    password via an emailed link — the actual credential never travels through
+    Kafka, an email body, or a log (see OA_WELCOME's template_data)."""
+    ttl_hours = await _get_config_int(db, "oa_password_setup_ttl_hours", 24)
+    token = _secrets.token_urlsafe(32)
+    await request.app.state.redis.setex(
+        f"oa_pwd_setup:{token}", ttl_hours * 3600,
+        json.dumps({"oa_user_id": oa_user_id, "tenant_id": tenant_id, "role": role}),
+    )
+    return token
 
 
 class CreateOAUserIn(BaseModel):
@@ -77,6 +102,10 @@ async def create_user(
             raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=code)
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=code)
 
+    setup_token = await _issue_password_setup_token(
+        request, db, oa_user_id=result["oa_user_id"], tenant_id=str(current.tenant_id), role=body.role,
+    )
+
     kafka = getattr(request.app.state, "kafka_producer", None)
     if kafka:
         await kafka.oa_user_event({
@@ -86,6 +115,7 @@ async def create_user(
             "email":      str(body.email),
             "role":       body.role,
             "login_url":  "https://prana.in/org/login",
+            "setup_token": setup_token,
             "created_by": str(current.user_id),
         })
 
@@ -150,14 +180,21 @@ async def resend_welcome_email(
     db: DbConn,
     current=Depends(require_oa("oa_admin")),
 ):
-    """Re-trigger the OA_WELCOME email for a user whose original email bounced —
-    via CommunicationHubConsumer/EmailConsumer, never sent directly from the HTTP handler."""
+    """Re-trigger the OA_WELCOME email for a user whose original email bounced, or
+    whose setup link expired before they used it — via CommunicationHubConsumer/
+    EmailConsumer, never sent directly from the HTTP handler. Issues a fresh
+    password-setup token each time (the old one, if unused, simply expires later —
+    no need to invalidate it, only one can ever be redeemed since redeeming deletes it)."""
     row = await db.fetchrow(
-        "SELECT oa_user_id, email FROM oa_user WHERE oa_user_id = $1 AND tenant_id = $2",
+        "SELECT oa_user_id, email, role FROM oa_user WHERE oa_user_id = $1 AND tenant_id = $2",
         oa_user_id, current.tenant_id,
     )
     if not row:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=PranaError.USER_NOT_FOUND)
+
+    setup_token = await _issue_password_setup_token(
+        request, db, oa_user_id=str(row["oa_user_id"]), tenant_id=str(current.tenant_id), role=row["role"],
+    )
 
     kafka = getattr(request.app.state, "kafka_producer", None)
     if kafka:
@@ -165,6 +202,7 @@ async def resend_welcome_email(
             "event_type": "OA_WELCOME_RESENT",
             "tenant_id":  str(current.tenant_id),
             "oa_user_id": str(row["oa_user_id"]),
+            "setup_token": setup_token,
             "email":      row["email"],
             "login_url":  "https://prana.in/org/login",
             "resent_by":  str(current.user_id),

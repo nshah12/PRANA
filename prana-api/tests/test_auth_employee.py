@@ -374,3 +374,73 @@ async def test_register_device_refreshes_push_token_on_conflict(client, mock_db)
     call = mock_db.fetchval.call_args
     sql = call.args[0]
     assert "push_token=EXCLUDED.push_token" in sql
+
+
+# ── Password setup via emailed/texted link ─────────────────────────────────────
+# The server-generated temp password (routers/employees.py) is never disclosed
+# anywhere — this link is the only way a newly onboarded employee ever gets a
+# usable password.
+
+@pytest.mark.asyncio
+async def test_password_setup_verify_expired_token(client, mock_db, mock_redis):
+    mock_redis.get = AsyncMock(return_value=None)
+    resp = await client.post("/auth/employee/password-setup/verify", json={"token": "bogus"})
+    assert resp.status_code == 401
+    assert resp.json()["detail"] == "SETUP_TOKEN_EXPIRED"
+
+
+@pytest.mark.asyncio
+async def test_password_setup_verify_happy_path(client, mock_db, mock_redis):
+    mock_redis.get = AsyncMock(return_value=json.dumps(
+        {"employee_user_id": "emp-user-uuid-002"}
+    ).encode())
+    mock_db.fetchrow = AsyncMock(return_value={"email": "newhire@acme.com"})
+    resp = await client.post("/auth/employee/password-setup/verify", json={"token": "real-token"})
+    assert resp.status_code == 200
+    assert resp.json() == {"valid": True, "email": "newhire@acme.com"}
+
+
+@pytest.mark.asyncio
+async def test_password_setup_expired_token(client, mock_db, mock_redis):
+    mock_redis.get = AsyncMock(return_value=None)
+    resp = await client.post("/auth/employee/password-setup", json={
+        "token": "bogus", "new_password": "SomethingLong123!",
+    })
+    assert resp.status_code == 401
+    assert resp.json()["detail"] == "SETUP_TOKEN_EXPIRED"
+
+
+@pytest.mark.asyncio
+async def test_password_setup_rejects_short_password(client, mock_db, mock_redis):
+    mock_redis.get = AsyncMock(return_value=json.dumps(
+        {"employee_user_id": "emp-user-uuid-002"}
+    ).encode())
+    resp = await client.post("/auth/employee/password-setup", json={
+        "token": "real-token", "new_password": "short",
+    })
+    assert resp.status_code == 422
+    assert resp.json()["detail"] == "PASSWORD_TOO_SHORT"
+
+
+@pytest.mark.asyncio
+async def test_password_setup_happy_path_sets_real_password(client, mock_db, mock_redis):
+    mock_redis.get = AsyncMock(return_value=json.dumps(
+        {"employee_user_id": "emp-user-uuid-002"}
+    ).encode())
+    mock_redis.delete = AsyncMock()
+    mock_db.execute = AsyncMock()
+
+    resp = await client.post("/auth/employee/password-setup", json={
+        "token": "real-token", "new_password": "MyOwnChosenPass123!",
+    })
+
+    assert resp.status_code == 200
+    assert resp.json()["message"] == "PASSWORD_CHANGED"
+
+    mock_db.execute.assert_called_once()
+    sql, employee_user_id, new_hash = mock_db.execute.call_args.args
+    assert "force_reset=FALSE" in sql
+    assert employee_user_id == "emp-user-uuid-002"
+    assert new_hash != "MyOwnChosenPass123!"   # never store the plaintext
+
+    mock_redis.delete.assert_called_once_with("emp_pwd_setup:real-token")

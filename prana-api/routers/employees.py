@@ -10,6 +10,8 @@ GET  /employees/{uuid}/history — field change history
 """
 import csv
 import io
+import json
+import secrets as _secrets
 from datetime import date
 from messages import SuccessCode
 from typing import Optional
@@ -89,11 +91,38 @@ def _svc(request: Request, db: DbConn) -> EmployeeService:
     )
 
 
-async def _publish_credentials_issued(kafka, *, employee_user_id: str, tenant_id: str) -> None:
+async def _get_config_int(db, key: str, default: int) -> int:
+    row = await db.fetchrow("SELECT config_value FROM platform_config WHERE config_key=$1", key)
+    if not row:
+        return default
+    try:
+        value = row["config_value"]
+    except KeyError:
+        return default
+    return int(value) if value is not None else default
+
+
+async def _issue_employee_password_setup_token(request: Request, db, *, employee_user_id: str) -> str:
+    """Single-use, time-limited token letting a brand-new employee set their own
+    password via an emailed/SMS'd link — mirrors routers/oa_users.py's
+    _issue_password_setup_token. The server-generated temp password
+    (EmployeeService.create()'s result["temp_password"]) is never disclosed
+    anywhere; this link is the only way to ever set a real, usable one."""
+    ttl_hours = await _get_config_int(db, "employee_password_setup_ttl_hours", 24)
+    token = _secrets.token_urlsafe(32)
+    await request.app.state.redis.setex(
+        f"emp_pwd_setup:{token}", ttl_hours * 3600,
+        json.dumps({"employee_user_id": employee_user_id}),
+    )
+    return token
+
+
+async def _publish_credentials_issued(kafka, *, employee_user_id: str, tenant_id: str, setup_token: str) -> None:
     """Fires only when EmployeeService.create() actually generated a temp password
     (i.e. the employer supplied mobile/email at push time). Never puts the plaintext
     temp password in the event: same privacy call CommunicationHubConsumer._handle_welcome
-    already makes for OA's temp password."""
+    already makes for OA's temp password. setup_token is a capability, not a credential —
+    CommunicationHubConsumer._handle_employee_welcome turns it into an emailed/texted link."""
     if not kafka:
         return
     await kafka.employee_credentials_issued({
@@ -101,6 +130,7 @@ async def _publish_credentials_issued(kafka, *, employee_user_id: str, tenant_id
         "recipient_id": employee_user_id,
         "template_id": "EMPLOYEE_CREDENTIALS_ISSUED",
         "tenant_id": tenant_id,
+        "setup_token": setup_token,
         "payload": {},
     })
 
@@ -165,8 +195,12 @@ async def create_employee(
             "created_by":      current.user_id,
         })
         if result.get("temp_password"):
+            setup_token = await _issue_employee_password_setup_token(
+                request, db, employee_user_id=result["employee_user_id"],
+            )
             await _publish_credentials_issued(
                 kafka, employee_user_id=result["employee_user_id"], tenant_id=str(current.tenant_id),
+                setup_token=setup_token,
             )
     return result
 
@@ -250,8 +284,12 @@ async def bulk_import_employees(
                 "created_by":      current.user_id,
             })
             if result.get("temp_password"):
+                setup_token = await _issue_employee_password_setup_token(
+                    request, db, employee_user_id=result["employee_user_id"],
+                )
                 await _publish_credentials_issued(
                     kafka, employee_user_id=result["employee_user_id"], tenant_id=str(current.tenant_id),
+                    setup_token=setup_token,
                 )
 
     return {

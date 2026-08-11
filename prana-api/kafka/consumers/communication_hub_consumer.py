@@ -371,6 +371,16 @@ class CommunicationHubConsumer:
         # members, so this doubles as a defensive validation of that invariant.
         template_id = NotificationTemplate(etype)
 
+        template_data = {}
+        setup_token = event.get("setup_token")
+        if setup_token:
+            # EMPLOYEE_CREDENTIALS_ISSUED only — the server-generated temp password
+            # is never disclosed anywhere (routers/employees.py); this link is the
+            # only way the employee ever gets a usable password. Points at the
+            # web fallback in prana-portal (/emp/*), not a mobile deep link — a
+            # brand-new employee has very likely not installed the app yet.
+            template_data["setup_url"] = f"https://prana.in/emp/set-password?token={setup_token}"
+
         await self._fan_out(
             template_id=template_id,
             tenant_id=tenant_id,
@@ -378,7 +388,7 @@ class CommunicationHubConsumer:
             recipient_type=RecipientType.EMPLOYEE,
             recipient_phone=mobile,
             recipient_email=row["email"],
-            template_data={},
+            template_data=template_data,
             event_type=etype,
             conn=conn,
         )

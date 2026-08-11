@@ -103,12 +103,22 @@ class EmployeeService:
                         mobile_token = compute_mobile_token(mobile, self._hmac_secret)
                         enc_mobile = self._kms.encrypt_value(mobile, auth_kek_arn)
                     temp_password = secrets.token_urlsafe(12)
+                    # ACTIVE, not PENDING_ACTIVATION: a login handle + real password
+                    # is everything auth_employee.py's login needs. PENDING_ACTIVATION
+                    # is reserved for the other branch below (no mobile/email at all --
+                    # nothing to log in with yet). VaultActivationWorkflow's later
+                    # provision_vault activity (fired on the employee's first ROUTED
+                    # document) becomes a harmless no-op here since its own WHERE
+                    # clause only matches status='PENDING_ACTIVATION'; its
+                    # send_vault_welcome step runs unconditionally regardless, so the
+                    # "your vault has its first document" notification still fires --
+                    # this only decouples "can I log in" from "do I have a document yet".
                     await self._db.execute(
                         """
                         INSERT INTO employee_user
                           (employee_user_id, pan_token, enc_pan, enc_dek, mobile_token, enc_mobile, email,
                            password_hash, force_reset, status)
-                        VALUES ($1,$2,$3,$4,$5,$6,$7,$8,TRUE,'PENDING_ACTIVATION')
+                        VALUES ($1,$2,$3,$4,$5,$6,$7,$8,TRUE,'ACTIVE')
                         """,
                         employee_user_id, pan_token, enc_pan, enc_dek, mobile_token, enc_mobile, email,
                         hash_password(temp_password),

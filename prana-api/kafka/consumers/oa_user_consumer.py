@@ -124,6 +124,13 @@ class OAUserConsumer:
     async def _notify_welcome(self, event: dict) -> None:
         try:
             kafka = await get_kafka_producer()
+            template_data = {"login_url": event.get("login_url", "https://prana.in/org/login")}
+            setup_token = event.get("setup_token")
+            if setup_token:
+                # The only place this account's actual first password gets set —
+                # POST /v1/org/users never returns/discloses the server-generated
+                # temp password anywhere. The link, not a password, is what's emailed.
+                template_data["setup_url"] = f"https://prana.in/org/set-password?token={setup_token}"
             await kafka.communication_requested({
                 "event_type":    "OA_WELCOME",
                 "recipient_id":  event.get("oa_user_id"),
@@ -131,7 +138,7 @@ class OAUserConsumer:
                 "recipient_email": event.get("email"),
                 "template_id":   "OA_WELCOME",
                 "tenant_id":     event.get("tenant_id"),
-                "template_data": {"login_url": event.get("login_url", "https://prana.in/org/login")},
+                "template_data": template_data,
             })
             log.info("OAUserConsumer: requested OA_WELCOME notification oa_user_id=%s", event.get("oa_user_id"))
         except Exception:
