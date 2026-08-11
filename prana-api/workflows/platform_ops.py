@@ -12,7 +12,7 @@ same reason — real risk of a silent schedule-registration regression, not
 worth rushing without a live Temporal cluster to verify against.
 
 Task queue: secops-queue (KMSHealthCheck), ingestsvc-queue (StagingCleanup, ClamAV),
-            analytics-queue (StorageQuota), admin-queue (WebhookDelivery, Notification, SystemHealth)
+            analytics-queue (StorageQuota), admin-queue (WebhookDelivery, StorageExpansion, OnboardingReviewSLA)
 
 Workflows (8 — BatchTimeoutMonitorWorkflow is in batch_progress.py):
   PlatformSummaryWorkflow    — aggregate platform health metrics every N minutes
@@ -21,8 +21,14 @@ Workflows (8 — BatchTimeoutMonitorWorkflow is in batch_progress.py):
   StorageQuotaCheckWorkflow  — alert when any tenant approaches S3 storage quota
   StagingCleanupWorkflow     — purge abandoned staging S3 objects older than N days
   WebhookDeliveryWorkflow    — durable delivery with retries for HRMS webhooks
-  NotificationDeliveryWorkflow — durable push/email/SMS with retry + fallback
-  SystemHealthWorkflow       — end-to-end healthcheck emitter (used by monitoring)
+  StorageExpansionWorkflow   — human-signal approval flow for tenant storage bumps
+  OnboardingReviewSLAWorkflow — SLA-timed escalation for pending tenant reviews
+
+NotificationDeliveryWorkflow removed 2026-08-10 (dead code, see below). Not
+listed here: SystemHealthWorkflow — despite appearing in an older version of
+this list, it has never actually lived in this file; the real implementation
+is workflows/system_health.py (see the comment further down where its stub
+duplicate used to be).
 """
 from datetime import timedelta
 
