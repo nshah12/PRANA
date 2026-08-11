@@ -18,14 +18,13 @@ Privacy:
 from __future__ import annotations
 
 import logging
-from typing import Annotated
 
-from fastapi import APIRouter, Depends, Header, HTTPException, Query, Request
+from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from fastapi.responses import Response
 from pydantic import BaseModel, Field
 
 from db import get_db
-from kafka.producer import get_kafka_producer
+from dependencies import Employee, require_oa
 from config import settings
 from services.alumni_service import AlumniService
 from services.encryption_service import resolve_platform_auth_kek_arn
@@ -33,26 +32,28 @@ from services.encryption_service import resolve_platform_auth_kek_arn
 logger = logging.getLogger(__name__)
 router = APIRouter()
 
+# Was a router-local `from auth_utils import decode_jwt` — that module doesn't
+# exist anywhere in this codebase, so every request carrying a real Bearer
+# token 500'd with ModuleNotFoundError (the only auth tests that existed only
+# checked the no-token 401 path, which never reached that import). The role
+# check was also comparing against the wrong casing ("CHRO"/"OA-Admin" instead
+# of the real oa_user.role values — schema.sql's CHECK constraint is
+# ('oa_operator','oa_admin','chro','cfo','ciso')). Fixed 2026-08-10 by
+# switching to the standard dependencies.py DI chain every other router uses —
+# see .claude/rules/frontend.md-adjacent note in prana-api/CLAUDE.md's Auth
+# Middleware section, which names this exact anti-pattern (doc_manifest.py hit
+# it first).
+_CHRO = Depends(require_oa("chro", "oa_admin"))
 
-def _require_employee_jwt(authorization: Annotated[str | None, Header()] = None) -> dict:
-    if not authorization or not authorization.startswith("Bearer "):
-        raise HTTPException(status_code=401, detail="MISSING_TOKEN")
-    from auth_utils import decode_jwt
-    claims = decode_jwt(authorization.removeprefix("Bearer "))
-    if claims.get("role") != "employee":
-        raise HTTPException(status_code=403, detail="EMPLOYEE_ONLY")
-    return claims
 
-def _require_chro_jwt(authorization: Annotated[str | None, Header()] = None) -> dict:
-    if not authorization or not authorization.startswith("Bearer "):
-        raise HTTPException(status_code=401, detail="MISSING_TOKEN")
-    from auth_utils import decode_jwt
-    claims = decode_jwt(authorization.removeprefix("Bearer "))
-    if claims.get("role") not in ("CHRO", "OA-Admin"):
-        raise HTTPException(status_code=403, detail="CHRO_OR_ADMIN_REQUIRED")
-    return claims
-
-async def _alumni_service(db=Depends(get_db), kafka=Depends(get_kafka_producer)):
+async def _alumni_service(request: Request, db=Depends(get_db)):
+    # Was Depends(get_kafka_producer) — kafka.producer's module-level singleton
+    # getter, which raises RuntimeError until set_kafka_producer() runs at real
+    # app startup. Every other router reads request.app.state.kafka_producer
+    # instead (settable per-app, mockable in tests); found 2026-08-10 while
+    # fixing this router's auth (the auth bug crashed before dependency
+    # resolution ever reached this one, masking it).
+    kafka = getattr(request.app.state, "kafka_producer", None)
     return AlumniService(db=db, kafka=kafka, config={
         "outreach_max_per_month": settings.alumni_outreach_max_per_month,
     })
@@ -68,19 +69,19 @@ class PerOrgConsentBody(BaseModel):
 
 @router.get("/employers")
 async def list_past_employers(
-    claims: dict = Depends(_require_employee_jwt),
+    current: Employee,
     svc:    AlumniService = Depends(_alumni_service),
 ):
     """
     Employee sees all past employers with their current alumni consent status for each.
     Used to drive the per-org consent toggles in the mobile app.
     """
-    return await svc.list_past_employers(employee_user_id=claims["sub"])
+    return await svc.list_past_employers(employee_user_id=current.user_id)
 
 @router.post("/consent")
 async def set_per_org_consent(
     body:   PerOrgConsentBody,
-    claims: dict = Depends(_require_employee_jwt),
+    current: Employee,
     svc:    AlumniService = Depends(_alumni_service),
 ):
     """
@@ -88,7 +89,7 @@ async def set_per_org_consent(
     share_mobile / share_email control which contact details the CHRO can see.
     """
     result = await svc.set_per_org_consent(
-        employee_user_id=claims["sub"],
+        employee_user_id=current.user_id,
         tenant_id=body.tenant_id,  # noqa: SEC-03 — employee targets a past employer's tenant, not their own
         granted=body.granted,
         share_mobile=body.share_mobile,
@@ -103,13 +104,13 @@ async def set_per_org_consent(
 
 @router.get("/outreach")
 async def list_employee_outreach(
+    current: Employee,
     limit:  int = Query(default=20, le=100),
     offset: int = Query(default=0,  ge=0),
-    claims: dict = Depends(_require_employee_jwt),
     svc:    AlumniService = Depends(_alumni_service),
 ):
     return await svc.list_employee_outreach(
-        employee_user_id=claims["sub"],
+        employee_user_id=current.user_id,
         limit=limit,
         offset=offset,
     )
@@ -117,10 +118,10 @@ async def list_employee_outreach(
 @router.post("/outreach/{outreach_id}/read")
 async def mark_outreach_read(
     outreach_id: str,
-    claims: dict = Depends(_require_employee_jwt),
+    current: Employee,
     svc:    AlumniService = Depends(_alumni_service),
 ):
-    await svc.mark_outreach_read(employee_user_id=claims["sub"], outreach_id=outreach_id)
+    await svc.mark_outreach_read(employee_user_id=current.user_id, outreach_id=outreach_id)
     return {"status": "READ"}
 
 
@@ -131,12 +132,12 @@ class OutreachReplyBody(BaseModel):
 async def reply_to_outreach(
     outreach_id: str,
     payload:     OutreachReplyBody,
-    claims: dict = Depends(_require_employee_jwt),
+    current: Employee,
     svc:    AlumniService = Depends(_alumni_service),
 ):
     """Employee replies to an in-app outreach message from a past employer's CHRO."""
     await svc.reply_to_outreach(
-        employee_user_id=claims["sub"],
+        employee_user_id=current.user_id,
         outreach_id=outreach_id,
         reply_body=payload.body,
     )
@@ -152,7 +153,7 @@ async def list_alumni(
     city:                 str | None = Query(default=None),
     designation_contains: str | None = Query(default=None),
     min_tenure_months:    int | None = Query(default=None),
-    claims: dict = Depends(_require_chro_jwt),
+    current=_CHRO,
     svc:    AlumniService = Depends(_alumni_service),
 ):
     """
@@ -161,7 +162,7 @@ async def list_alumni(
     mobile/email present only when employee set share_mobile/share_email = TRUE.
     """
     return await svc.list_alumni(
-        tenant_id=claims["tenant_id"],
+        tenant_id=current.tenant_id,
         limit=limit,
         offset=offset,
         city=city,
@@ -175,7 +176,7 @@ async def download_alumni_csv(
     city:                 str | None = Query(default=None),
     designation_contains: str | None = Query(default=None),
     min_tenure_months:    int | None = Query(default=None),
-    claims: dict = Depends(_require_chro_jwt),
+    current=_CHRO,
     svc:    AlumniService = Depends(_alumni_service),
 ):
     """
@@ -184,7 +185,7 @@ async def download_alumni_csv(
     CHRO downloads this and reaches out directly via email/WhatsApp/call.
     """
     csv_content = await svc.download_alumni_csv(
-        tenant_id=claims["tenant_id"],
+        tenant_id=current.tenant_id,
         city=city,
         designation_contains=designation_contains,
         min_tenure_months=min_tenure_months,
@@ -208,12 +209,12 @@ class OutreachBody(BaseModel):
 @router.post("/org/outreach")
 async def send_outreach(
     body:   OutreachBody,
-    claims: dict = Depends(_require_chro_jwt),
+    current=_CHRO,
     svc:    AlumniService = Depends(_alumni_service),
 ):
     result = await svc.send_outreach(
-        tenant_id=claims["tenant_id"],
-        oa_user_id=claims["sub"],
+        tenant_id=current.tenant_id,
+        oa_user_id=current.user_id,
         employee_uuid=body.employee_uuid,
         subject=body.subject,
         body_text=body.body_text,
@@ -234,11 +235,11 @@ async def list_sent_outreach(
     employee_uuid: str | None = Query(default=None),
     limit:         int        = Query(default=50, le=200),
     offset:        int        = Query(default=0,  ge=0),
-    claims: dict = Depends(_require_chro_jwt),
+    current=_CHRO,
     svc:    AlumniService = Depends(_alumni_service),
 ):
     return await svc.list_sent_outreach(
-        tenant_id=claims["tenant_id"],
+        tenant_id=current.tenant_id,
         employee_uuid=employee_uuid,
         limit=limit,
         offset=offset,

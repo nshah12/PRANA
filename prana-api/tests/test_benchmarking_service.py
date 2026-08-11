@@ -173,3 +173,64 @@ async def test_router_bands_requires_chro_role(client):
 async def test_router_my_position_requires_employee_role(client):
     response = await client.get("/v1/benchmarking/my-position")
     assert response.status_code == 401
+
+
+AUTH_HEADER = {"Authorization": "Bearer test.mock.token"}
+
+
+@pytest.mark.asyncio
+async def test_router_my_position_works_with_real_employee_token(client, mock_db):
+    """Regression guard: same broken `from auth_utils import decode_jwt` bug as
+    routers/alumni.py (see that file's comment) — every request with a real
+    Bearer token 500'd; only the no-token 401 path was ever tested. Fixed
+    2026-08-10 alongside alumni.py.
+    """
+    jwt = client.app.state.jwt_service
+    jwt.decode = MagicMock(return_value={
+        "sub": "emp-uuid-001", "user_type": "employee", "role": None,
+        "tenant_id": None, "jti": "emp-session-001",
+    })
+    jwt.is_revoked = AsyncMock(return_value=False)
+    mock_db.fetchrow.return_value = None
+    response = await client.get("/v1/benchmarking/my-position", headers=AUTH_HEADER)
+    assert response.status_code == 200
+
+
+@pytest.mark.asyncio
+async def test_router_bands_works_with_real_chro_token(client, mock_db):
+    jwt = client.app.state.jwt_service
+    jwt.decode = MagicMock(return_value={
+        "sub": "oa-uuid-chro-001", "user_type": "oa_user", "role": "chro",
+        "tenant_id": "tenant-001", "jti": "chro-session-001",
+    })
+    jwt.is_revoked = AsyncMock(return_value=False)
+    mock_db.fetch.return_value = []
+    response = await client.get("/v1/benchmarking/org/bands", headers=AUTH_HEADER)
+    assert response.status_code == 200
+
+
+@pytest.mark.asyncio
+async def test_router_bands_works_with_real_cfo_token(client, mock_db):
+    """CFO is also allowed per the module docstring — role gate must include it,
+    not just CHRO/OA-Admin."""
+    jwt = client.app.state.jwt_service
+    jwt.decode = MagicMock(return_value={
+        "sub": "oa-uuid-cfo-001", "user_type": "oa_user", "role": "cfo",
+        "tenant_id": "tenant-001", "jti": "cfo-session-001",
+    })
+    jwt.is_revoked = AsyncMock(return_value=False)
+    mock_db.fetch.return_value = []
+    response = await client.get("/v1/benchmarking/org/bands", headers=AUTH_HEADER)
+    assert response.status_code == 200
+
+
+@pytest.mark.asyncio
+async def test_router_bands_rejects_non_chro_cfo_oa_role(client, mock_db):
+    jwt = client.app.state.jwt_service
+    jwt.decode = MagicMock(return_value={
+        "sub": "oa-uuid-002", "user_type": "oa_user", "role": "oa_operator",
+        "tenant_id": "tenant-001", "jti": "op-session-001",
+    })
+    jwt.is_revoked = AsyncMock(return_value=False)
+    response = await client.get("/v1/benchmarking/org/bands", headers=AUTH_HEADER)
+    assert response.status_code == 403

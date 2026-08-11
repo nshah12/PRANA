@@ -196,6 +196,79 @@ async def test_router_outreach_requires_oa_role(client):
     assert response.status_code == 401
 
 
+AUTH_HEADER = {"Authorization": "Bearer test.mock.token"}
+
+
+def _set_employee_auth(client, employee_user_id: str = "emp-uuid-001") -> None:
+    jwt = client.app.state.jwt_service
+    jwt.decode = MagicMock(return_value={
+        "sub": employee_user_id, "user_type": "employee", "role": None,
+        "tenant_id": None, "jti": "emp-session-001",
+    })
+    jwt.is_revoked = AsyncMock(return_value=False)
+
+
+def _set_chro_auth(client, tenant_id: str = "tenant-001") -> None:
+    jwt = client.app.state.jwt_service
+    jwt.decode = MagicMock(return_value={
+        "sub": "oa-uuid-chro-001", "user_type": "oa_user", "role": "chro",
+        "tenant_id": tenant_id, "jti": "chro-session-001",
+    })
+    jwt.is_revoked = AsyncMock(return_value=False)
+
+
+@pytest.mark.asyncio
+async def test_router_employee_endpoint_works_with_real_employee_token(client, mock_db):
+    """Regression guard: _require_employee_jwt used to do `from auth_utils import
+    decode_jwt` — auth_utils doesn't exist anywhere in this codebase, so every
+    request carrying a real Bearer token 500'd with ModuleNotFoundError. The
+    only auth tests that existed checked the no-token 401 path, which never
+    reaches that import, so this went completely undetected — the whole
+    employee-facing alumni surface (consent, outreach inbox) was 100% broken.
+    """
+    _set_employee_auth(client, employee_user_id="emp-uuid-001")
+    mock_db.fetch.return_value = []
+    response = await client.get("/v1/alumni/employers", headers=AUTH_HEADER)
+    assert response.status_code == 200
+
+
+@pytest.mark.asyncio
+async def test_router_chro_list_works_with_real_chro_token(client, mock_db):
+    """Same regression as above, for _require_chro_jwt — also checked the wrong
+    role-string casing ("CHRO"/"OA-Admin" vs the real DB values 'chro'/'oa_admin',
+    schema.sql's oa_user.role CHECK constraint) even setting the missing-module
+    crash aside, so this endpoint was doubly broken for real CHRO/OA-Admin users.
+    """
+    _set_chro_auth(client, tenant_id="tenant-001")
+    mock_db.fetch.return_value = []
+    response = await client.get("/v1/alumni/org/list", headers=AUTH_HEADER)
+    assert response.status_code == 200
+
+
+@pytest.mark.asyncio
+async def test_router_chro_list_rejects_non_chro_oa_role(client, mock_db):
+    """OA-Operator (not CHRO/OA-Admin) must still be rejected — role gate,
+    not just an auth-presence gate.
+    """
+    jwt = client.app.state.jwt_service
+    jwt.decode = MagicMock(return_value={
+        "sub": "oa-uuid-002", "user_type": "oa_user", "role": "oa_operator",
+        "tenant_id": "tenant-001", "jti": "op-session-001",
+    })
+    jwt.is_revoked = AsyncMock(return_value=False)
+    response = await client.get("/v1/alumni/org/list", headers=AUTH_HEADER)
+    assert response.status_code == 403
+
+
+@pytest.mark.asyncio
+async def test_router_chro_download_csv_works_with_real_chro_token(client, mock_db):
+    _set_chro_auth(client, tenant_id="tenant-001")
+    mock_db.fetch.return_value = []
+    response = await client.get("/v1/alumni/org/download", headers=AUTH_HEADER)
+    assert response.status_code == 200
+    assert response.headers["content-type"].startswith("text/csv")
+
+
 # ── Unit: helpers ─────────────────────────────────────────────────────────────
 
 def test_tenure_band():

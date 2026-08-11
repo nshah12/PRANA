@@ -12,35 +12,24 @@ Privacy rules enforced here:
 from __future__ import annotations
 
 import logging
-from typing import Annotated
 
-from fastapi import APIRouter, Depends, Header, HTTPException, Query
+from fastapi import APIRouter, Depends, Query
 from pydantic import BaseModel
 
 from db import get_db
+from dependencies import Employee, require_oa
 from services.benchmarking_service import BenchmarkingService
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
 
+# Was router-local `from auth_utils import decode_jwt` (same broken module as
+# routers/alumni.py — doesn't exist anywhere in this codebase, so every request
+# with a real Bearer token 500'd; only no-token 401 paths were ever tested).
+# Fixed 2026-08-10 alongside alumni.py using the standard dependencies.py DI
+# chain. See that file's comment for the full history.
+_CHRO = Depends(require_oa("chro", "cfo", "oa_admin"))
 
-def _require_employee_jwt(authorization: Annotated[str | None, Header()] = None) -> dict:
-    if not authorization or not authorization.startswith("Bearer "):
-        raise HTTPException(status_code=401, detail="MISSING_TOKEN")
-    from auth_utils import decode_jwt
-    claims = decode_jwt(authorization.removeprefix("Bearer "))
-    if claims.get("role") != "employee":
-        raise HTTPException(status_code=403, detail="EMPLOYEE_ONLY")
-    return claims
-
-def _require_chro_jwt(authorization: Annotated[str | None, Header()] = None) -> dict:
-    if not authorization or not authorization.startswith("Bearer "):
-        raise HTTPException(status_code=401, detail="MISSING_TOKEN")
-    from auth_utils import decode_jwt
-    claims = decode_jwt(authorization.removeprefix("Bearer "))
-    if claims.get("role") not in ("CHRO", "CFO", "OA-Admin"):
-        raise HTTPException(status_code=403, detail="CHRO_ROLE_REQUIRED")
-    return claims
 
 async def _svc(db=Depends(get_db)):
     return BenchmarkingService(db=db)
@@ -54,24 +43,24 @@ class ConsentBody(BaseModel):
 @router.post("/consent")
 async def set_benchmark_consent(
     body:   ConsentBody,
-    claims: dict = Depends(_require_employee_jwt),
+    current: Employee,
     svc:    BenchmarkingService = Depends(_svc),
 ):
     """Employee opts in or out of contributing their comp data to anonymous benchmarks."""
     return await svc.set_benchmark_consent(
-        employee_user_id=claims["sub"], grant=body.grant,
+        employee_user_id=current.user_id, grant=body.grant,
     )
 
 @router.get("/consent")
 async def get_benchmark_consent(
-    claims: dict = Depends(_require_employee_jwt),
+    current: Employee,
     svc:    BenchmarkingService = Depends(_svc),
 ):
-    return await svc.get_benchmark_consent(employee_user_id=claims["sub"])
+    return await svc.get_benchmark_consent(employee_user_id=current.user_id)
 
 @router.get("/my-position")
 async def get_employee_benchmark(
-    claims: dict = Depends(_require_employee_jwt),
+    current: Employee,
     svc:    BenchmarkingService = Depends(_svc),
 ):
     """
@@ -79,7 +68,7 @@ async def get_employee_benchmark(
     Returns suppressed=True with label 'More data needed' if cohort < 50.
     Never returns raw ₹ salary or other employees' data.
     """
-    return await svc.get_employee_benchmark(employee_user_id=claims["sub"])
+    return await svc.get_employee_benchmark(employee_user_id=current.user_id)
 
 
 # ── CHRO / CFO endpoints ──────────────────────────────────────────────────────
@@ -89,7 +78,7 @@ async def get_chro_comp_bands(
     grade:      str | None = Query(default=None),
     department: str | None = Query(default=None),
     period:     str | None = Query(default=None),
-    claims: dict = Depends(_require_chro_jwt),
+    current=_CHRO,
     svc:    BenchmarkingService = Depends(_svc),
 ):
     """
@@ -98,7 +87,7 @@ async def get_chro_comp_bands(
     never as ₹ currency text.
     """
     return await svc.get_chro_comp_bands(
-        tenant_id=claims["tenant_id"],
+        tenant_id=current.tenant_id,
         grade=grade,
         department=department,
         period=period,
@@ -106,21 +95,21 @@ async def get_chro_comp_bands(
 
 @router.get("/org/opt-in-stats")
 async def get_opt_in_stats(
-    claims: dict = Depends(_require_chro_jwt),
+    current=_CHRO,
     svc:    BenchmarkingService = Depends(_svc),
 ):
     """
     How many active employees have opted in vs. not.
     CHRO uses this to know how many more opt-ins are needed to publish suppressed bands.
     """
-    return await svc.get_chro_unopted_count(tenant_id=claims["tenant_id"])
+    return await svc.get_chro_unopted_count(tenant_id=current.tenant_id)
 
 @router.get("/market/median")
 async def get_market_median(
     grade:      str = Query(),
     department: str = Query(),
     period:     str | None = Query(default=None),
-    claims: dict = Depends(_require_chro_jwt),
+    current=_CHRO,
     svc:    BenchmarkingService = Depends(_svc),
 ):
     """
