@@ -24,6 +24,7 @@ import { ApiTerms }      from '@/pages/legal/ApiTerms'
 import { OrgLogin }    from '@/pages/auth/OrgLogin'
 import { OrgTotp }     from '@/pages/auth/OrgTotp'
 import { ResetPassword } from '@/pages/auth/ResetPassword'
+import { SetPassword }  from '@/pages/auth/SetPassword'
 import { AdminLogin }  from '@/pages/auth/AdminLogin'
 import { AdminTotp }   from '@/pages/auth/AdminTotp'
 
@@ -101,6 +102,7 @@ import { AuthAnomalyFeed }   from '@/pages/ciso/AuthAnomalyFeed'
 // Portal Admin pages
 // Employee self-service portal
 import { EmpLogin }        from '@/pages/emp/EmpLogin'
+import { EmpSetPassword }  from '@/pages/emp/EmpSetPassword'
 import { EmpLayout }       from '@/pages/emp/EmpLayout'
 import { EmpVault }        from '@/pages/emp/EmpVault'
 import { EmpShares }       from '@/pages/emp/EmpShares'
@@ -300,6 +302,7 @@ export default function App() {
       <Route path="/org/login"        element={<OrgLogin />} />
       <Route path="/org/totp"         element={<OrgTotp />} />
       <Route path="/org/reset"        element={<ResetPassword />} />
+      <Route path="/org/set-password" element={<SetPassword />} />
       <Route path="/admin/login"      element={<AdminLogin />} />
       <Route path="/admin/totp"       element={<AdminTotp />} />
 
@@ -397,6 +400,7 @@ export default function App() {
 
       {/* Employee self-service portal */}
       <Route path="/emp/login" element={<EmpLogin />} />
+      <Route path="/emp/set-password" element={<EmpSetPassword />} />
       <Route path="/emp" element={<RequireEmpAuth><EmpLayout /></RequireEmpAuth>}>
         <Route index element={<Navigate to="/emp/vault" replace />} />
         <Route path="vault"        element={<EmpVault />} />

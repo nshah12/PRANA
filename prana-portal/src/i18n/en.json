@@ -2238,6 +2238,32 @@
 
     "RESET_PASSWORD_ARGON_NOTE": "This password will replace your temporary credentials. It is stored with Argon2id encryption.",
 
+    "SET_PASSWORD_TITLE": "Set your password",
+    "SET_PASSWORD_SUB_FOR": "Setting up PRANA access for {email}",
+    "SET_PASSWORD_CHECKING_LINK": "Checking your link…",
+    "SET_PASSWORD_INVALID_LINK_TITLE": "This link is no longer valid",
+    "SET_PASSWORD_INVALID_LINK_BODY": "It may have expired or already been used. Ask your OA-Admin to resend your welcome email.",
+    "SET_PASSWORD_SUBMIT_BTN": "Set password & continue",
+    "SET_PASSWORD_SUCCESS_TITLE": "Password set",
+    "SET_PASSWORD_SUCCESS_BODY": "Your account is ready. Log in with your new password to finish setting up two-factor authentication.",
+    "SET_PASSWORD_GO_TO_LOGIN_BTN": "Go to login →",
+
+    "EMP_SET_PASSWORD_TITLE": "Set your password",
+    "EMP_SET_PASSWORD_SUB_FOR": "Setting up your PRANA vault for {email}",
+    "EMP_SET_PASSWORD_CHECKING_LINK": "Checking your link…",
+    "EMP_SET_PASSWORD_INVALID_LINK_TITLE": "This link is no longer valid",
+    "EMP_SET_PASSWORD_INVALID_LINK_BODY": "It may have expired or already been used. Ask your employer to resend your welcome message.",
+    "EMP_SET_PASSWORD_NEW_LABEL": "New password",
+    "EMP_SET_PASSWORD_CONFIRM_LABEL": "Confirm password",
+    "EMP_SET_PASSWORD_MIN_CHARS_PLACEHOLDER": "Minimum 8 characters",
+    "EMP_SET_PASSWORD_REENTER_PLACEHOLDER": "Re-enter password",
+    "EMP_SET_PASSWORD_MISMATCH": "Passwords do not match",
+    "EMP_SET_PASSWORD_TOO_SHORT": "Password must be at least 8 characters.",
+    "EMP_SET_PASSWORD_SUBMIT_BTN": "Set password & continue",
+    "EMP_SET_PASSWORD_SUCCESS_TITLE": "Password set",
+    "EMP_SET_PASSWORD_SUCCESS_BODY": "Your vault is ready. Log in with your new password to finish setting up two-factor authentication.",
+    "EMP_SET_PASSWORD_GO_TO_LOGIN_BTN": "Go to login →",
+
     "PA_WIZARD_ADDR_LINE1_PLACEHOLDER": "Building / Flat No., Street",
     "PA_WIZARD_ADDR_LINE2_PLACEHOLDER": "Area / Locality",
 
