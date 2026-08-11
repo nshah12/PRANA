@@ -2,9 +2,15 @@
 Statutory hold tests — DPDP Act erasure vs Indian labour law retention conflict.
 
 These tests cover:
-  1. StatutoryHoldService.compute_hold_until() — correct retention per doc_type
-  2. ComplianceService.execute_erasure() respects statutory holds
-  3. Vault document listing respects employee_visible column
+  1. ComplianceService.execute_erasure() respects statutory holds
+  2. Vault document listing respects employee_visible column
+
+compute_hold_until() itself is covered in test_statutory_hold_service.py (the
+TDD-01-canonical test file for services/statutory_hold_service.py) — this file
+used to duplicate that coverage in a TestComputeHoldUntil class with the same
+doc_type/date combinations; consolidated 2026-08-10, see that file for the
+retention-period test cases (it also covers test_unknown_doc_type_no_hold,
+which this file never did).
 
 RED → GREEN cycle: written before implementation.
 """
@@ -15,59 +21,6 @@ from datetime import date, datetime, timezone
 from unittest.mock import AsyncMock, MagicMock, call, patch
 
 import pytest
-
-from services.statutory_hold_service import compute_hold_until
-
-
-# ── 1. compute_hold_until() — retention period per doc_type ──────────────────
-
-class TestComputeHoldUntil:
-
-    def test_form_16_is_7_years_income_tax_act(self):
-        pushed = date(2024, 1, 15)
-        reason, until = compute_hold_until("FORM_16", pushed)
-        assert reason == "INCOME_TAX_ACT"
-        assert until == date(2031, 1, 15), "Form 16 must be retained 7 years (IT Act)"
-
-    def test_salary_slip_is_5_years_epf_act(self):
-        pushed = date(2023, 4, 1)
-        reason, until = compute_hold_until("SALARY_SLIP", pushed)
-        assert reason == "EPF_ACT"
-        assert until == date(2028, 4, 1), "Salary slip must be retained 5 years (EPF Act)"
-
-    def test_offer_letter_is_8_years_companies_act(self):
-        pushed = date(2022, 6, 1)
-        reason, until = compute_hold_until("OFFER_LETTER", pushed)
-        assert reason == "COMPANIES_ACT"
-        assert until == date(2030, 6, 1), "Offer letter retained 8 years (Companies Act)"
-
-    def test_relieving_letter_is_5_years_gratuity_act(self):
-        pushed = date(2023, 7, 15)
-        reason, until = compute_hold_until("RELIEVING_LETTER", pushed)
-        assert reason == "GRATUITY_ACT"
-        assert until == date(2028, 7, 15)
-
-    def test_appraisal_letter_has_no_statutory_hold(self):
-        reason, until = compute_hold_until("APPRAISAL_LETTER", date(2024, 1, 1))
-        assert reason is None
-        assert until is None
-
-    def test_self_upload_has_no_statutory_hold(self):
-        reason, until = compute_hold_until("SELF_UPLOAD", date(2024, 1, 1))
-        assert reason is None
-        assert until is None
-
-    def test_form_12b_is_7_years_income_tax_act(self):
-        pushed = date(2020, 3, 31)
-        reason, until = compute_hold_until("FORM_12B", pushed)
-        assert reason == "INCOME_TAX_ACT"
-        assert until == date(2027, 3, 31)
-
-    def test_pf_acknowledgement_is_5_years_epf_act(self):
-        pushed = date(2021, 5, 1)
-        reason, until = compute_hold_until("PF_ACKNOWLEDGEMENT", pushed)
-        assert reason == "EPF_ACT"
-        assert until == date(2026, 5, 1)
 
 
 # ── 2. execute_erasure() splits docs into held vs free ───────────────────────

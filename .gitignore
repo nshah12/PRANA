@@ -44,6 +44,10 @@ Thumbs.db
 
 prana-api/uvicorn.err
 prana-portal/vite.err
+prana-api/err.txt
+prana-api/out.txt
+prana-api/uvicorn_err.txt
+prana-api/uvicorn_out.txt
 
 # Runtime temp files
 *.tmp

@@ -55,3 +55,10 @@ def test_pf_acknowledgement_hold_5_years():
     reason, until = compute_hold_until("PF_ACKNOWLEDGEMENT", pushed)
     assert reason == "EPF_ACT"
     assert until == date(2026, 3, 31)
+
+
+def test_form_12b_hold_7_years():
+    pushed = date(2020, 3, 31)
+    reason, until = compute_hold_until("FORM_12B", pushed)
+    assert reason == "INCOME_TAX_ACT"
+    assert until == date(2027, 3, 31)
